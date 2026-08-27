@@ -1,0 +1,2 @@
+# The official Proton mark is vendored byte-for-byte; preserve its source XML.
+data/proton-vpn-kde.svg whitespace=-blank-at-eol,-blank-at-eof

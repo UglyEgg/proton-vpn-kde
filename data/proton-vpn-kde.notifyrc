@@ -1,0 +1,20 @@
+[Global]
+IconName=proton-vpn-kde
+Comment=Proton VPN connection events
+Name=Proton VPN for Plasma
+
+[Event/connected]
+Name=VPN connected
+Comment=The Proton VPN tunnel connected
+Action=Popup
+
+[Event/disconnected]
+Name=VPN disconnected
+Comment=The Proton VPN tunnel disconnected
+Action=Popup
+
+[Event/connectionError]
+Name=VPN connection problem
+Comment=The Proton VPN tunnel encountered an error
+Action=Popup
+Urgency=Critical

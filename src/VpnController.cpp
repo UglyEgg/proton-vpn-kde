@@ -1,0 +1,341 @@
+#include "VpnController.h"
+
+#include "LocationModels.h"
+
+#include <QAbstractItemModel>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QDBusError>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
+#include <QDBusServiceWatcher>
+#include <QJsonDocument>
+#include <QJsonObject>
+
+namespace
+{
+constexpr auto kBackendService = "proton.vpn.app.kde.backend";
+constexpr auto kBackendPath = "/proton/vpn/app/kde/backend";
+constexpr auto kBackendInterface = "proton.vpn.app.kde.Backend1";
+}
+
+VpnController::VpnController(QObject *parent)
+    : QObject(parent)
+    , m_serviceWatcher(new QDBusServiceWatcher(
+          QString::fromLatin1(kBackendService),
+          QDBusConnection::sessionBus(),
+          QDBusServiceWatcher::WatchForRegistration
+              | QDBusServiceWatcher::WatchForUnregistration,
+          this))
+    , m_countryModel(new CountryModel(this))
+    , m_serverModel(new ServerModel(this))
+    , m_countryFilterModel(new LocationFilterProxyModel(this))
+    , m_serverFilterModel(new LocationFilterProxyModel(this))
+{
+    m_countryFilterModel->setSourceModel(m_countryModel);
+    m_countryFilterModel->setSearchRoles({CountryModel::CodeRole, CountryModel::NameRole});
+    m_serverFilterModel->setSourceModel(m_serverModel);
+    m_serverFilterModel->setSearchRoles({ServerModel::NameRole, ServerModel::LocationRole});
+
+    connect(m_serviceWatcher, &QDBusServiceWatcher::serviceRegistered,
+            this, &VpnController::onServiceRegistered);
+    connect(m_serviceWatcher, &QDBusServiceWatcher::serviceUnregistered,
+            this, &VpnController::onServiceUnregistered);
+
+    QDBusConnection::sessionBus().connect(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("SnapshotChanged"),
+        this,
+        SLOT(onSnapshotChanged(QString)));
+
+    const auto *interface = QDBusConnection::sessionBus().interface();
+    setBackendAvailable(interface && interface->isServiceRegistered(
+        QString::fromLatin1(kBackendService)));
+    // Calling the well-known name also activates the backend through D-Bus on
+    // installed systems. In a development tree it simply reports that the
+    // service is not installed yet.
+    refresh();
+}
+
+bool VpnController::backendAvailable() const { return m_backendAvailable; }
+bool VpnController::ready() const { return m_ready; }
+bool VpnController::loggedIn() const { return m_loggedIn; }
+bool VpnController::busy() const { return m_busy; }
+bool VpnController::locationsBusy() const { return m_locationsBusy; }
+QString VpnController::state() const { return m_state; }
+QString VpnController::serverName() const { return m_serverName; }
+QString VpnController::message() const { return m_message; }
+
+QString VpnController::primaryActionText() const
+{
+    if (m_state == QStringLiteral("connected")
+        || m_state == QStringLiteral("connecting")) {
+        return tr("Disconnect");
+    }
+    return tr("Connect fastest");
+}
+
+bool VpnController::primaryActionEnabled() const
+{
+    return m_backendAvailable && m_ready && m_loggedIn && !m_busy;
+}
+
+QAbstractItemModel *VpnController::countryModel() const { return m_countryFilterModel; }
+QAbstractItemModel *VpnController::serverModel() const { return m_serverFilterModel; }
+
+void VpnController::refresh()
+{
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetSnapshot"));
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 5000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleSnapshotReply);
+}
+
+void VpnController::activatePrimaryAction()
+{
+    if (!primaryActionEnabled()) {
+        return;
+    }
+    const bool shouldDisconnect = m_state == QStringLiteral("connected")
+        || m_state == QStringLiteral("connecting");
+    callOperation(shouldDisconnect ? QStringLiteral("Disconnect")
+                                   : QStringLiteral("ConnectFastest"));
+}
+
+void VpnController::loadCountries()
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_locationsBusy) {
+        return;
+    }
+    setLocationsBusy(true);
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetCountries"));
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleCountriesReply);
+}
+
+void VpnController::loadServers(const QString &countryCode)
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_locationsBusy) {
+        return;
+    }
+    setLocationsBusy(true);
+    m_serverModel->clear();
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetServers"));
+    message << countryCode;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleServersReply);
+}
+
+void VpnController::connectCountry(const QString &countryCode)
+{
+    if (primaryActionEnabled()) {
+        callOperation(QStringLiteral("ConnectCountry"), {countryCode});
+    }
+}
+
+void VpnController::connectServer(const QString &serverName)
+{
+    if (primaryActionEnabled()) {
+        callOperation(QStringLiteral("ConnectServer"), {serverName});
+    }
+}
+
+void VpnController::setCountryFilter(const QString &filterText)
+{
+    m_countryFilterModel->setFilterText(filterText);
+}
+
+void VpnController::setServerFilter(const QString &filterText)
+{
+    m_serverFilterModel->setFilterText(filterText);
+}
+
+void VpnController::setReconnectionEnabled(bool enabled)
+{
+    m_reconnectionEnabled = enabled;
+    if (!m_backendAvailable) {
+        return;
+    }
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("SetReconnectionEnabled"));
+    message << enabled;
+    QDBusConnection::sessionBus().asyncCall(message, 5000);
+}
+
+void VpnController::onServiceRegistered(const QString &)
+{
+    setBackendAvailable(true);
+    setReconnectionEnabled(m_reconnectionEnabled);
+    refresh();
+}
+
+void VpnController::onServiceUnregistered(const QString &)
+{
+    setBackendAvailable(false);
+    m_ready = false;
+    m_busy = false;
+    m_state = QStringLiteral("unavailable");
+    m_message = tr("The Proton backend service stopped");
+    m_countryModel->clear();
+    m_serverModel->clear();
+    emit snapshotChanged();
+}
+
+void VpnController::onSnapshotChanged(const QString &snapshotJson)
+{
+    applySnapshot(snapshotJson);
+}
+
+void VpnController::setBackendAvailable(bool available)
+{
+    if (m_backendAvailable == available) {
+        return;
+    }
+    m_backendAvailable = available;
+    emit backendAvailableChanged();
+    emit snapshotChanged();
+}
+
+void VpnController::applySnapshot(const QString &snapshotJson)
+{
+    QJsonParseError error;
+    const QJsonDocument document = QJsonDocument::fromJson(
+        snapshotJson.toUtf8(), &error);
+    if (error.error != QJsonParseError::NoError || !document.isObject()) {
+        m_message = tr("The backend returned an invalid state snapshot");
+        emit snapshotChanged();
+        return;
+    }
+
+    const QJsonObject snapshot = document.object();
+    if (snapshot.value(QStringLiteral("schemaVersion")).toInt() != 1) {
+        m_message = tr("The backend uses an unsupported interface version");
+        emit snapshotChanged();
+        return;
+    }
+
+    m_ready = snapshot.value(QStringLiteral("ready")).toBool();
+    m_loggedIn = snapshot.value(QStringLiteral("loggedIn")).toBool();
+    m_busy = snapshot.value(QStringLiteral("busy")).toBool();
+    m_state = snapshot.value(QStringLiteral("state")).toString(
+        QStringLiteral("unavailable"));
+    m_serverName = snapshot.value(QStringLiteral("serverName")).toString();
+    m_message = snapshot.value(QStringLiteral("message")).toString();
+    emit snapshotChanged();
+    if (m_loggedIn && m_countryModel->rowCount() == 0 && !m_locationsBusy) {
+        loadCountries();
+    }
+}
+
+void VpnController::callOperation(const QString &method,
+                                  const QVariantList &arguments)
+{
+    m_busy = true;
+    m_message.clear();
+    emit snapshotChanged();
+
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        method);
+    message.setArguments(arguments);
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 120000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleOperationReply);
+}
+
+void VpnController::setLocationsBusy(bool busy)
+{
+    if (m_locationsBusy == busy) {
+        return;
+    }
+    m_locationsBusy = busy;
+    emit locationsChanged();
+}
+
+void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<QString> reply = *watcher;
+    watcher->deleteLater();
+    if (reply.isError()) {
+        setBackendAvailable(false);
+        m_message = tr("Unable to read backend state: %1")
+                        .arg(reply.error().message());
+        emit snapshotChanged();
+        return;
+    }
+    setBackendAvailable(true);
+    applySnapshot(reply.value());
+}
+
+void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<> reply = *watcher;
+    watcher->deleteLater();
+    if (reply.isError()) {
+        m_busy = false;
+        m_message = tr("VPN operation failed: %1").arg(reply.error().message());
+        emit snapshotChanged();
+        return;
+    }
+    refresh();
+}
+
+void VpnController::handleCountriesReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<QString> reply = *watcher;
+    watcher->deleteLater();
+    setLocationsBusy(false);
+    if (reply.isError()) {
+        m_message = tr("Unable to load countries: %1").arg(reply.error().message());
+        emit snapshotChanged();
+        return;
+    }
+    QString errorMessage;
+    if (!m_countryModel->resetFromJson(reply.value(), &errorMessage)) {
+        m_message = errorMessage;
+        emit snapshotChanged();
+    }
+}
+
+void VpnController::handleServersReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<QString> reply = *watcher;
+    watcher->deleteLater();
+    setLocationsBusy(false);
+    if (reply.isError()) {
+        m_message = tr("Unable to load servers: %1").arg(reply.error().message());
+        emit snapshotChanged();
+        return;
+    }
+    QString errorMessage;
+    if (!m_serverModel->resetFromJson(reply.value(), &errorMessage)) {
+        m_message = errorMessage;
+        emit snapshotChanged();
+    }
+}

@@ -1,0 +1,12 @@
+#!@Python3_EXECUTABLE@
+"""Installed launcher for the Proton VPN KDE backend."""
+
+import sys
+
+sys.path.insert(0, "@CMAKE_INSTALL_FULL_LIBEXECDIR@/proton-vpn-kde")
+
+from proton_vpn_kde_backend.__main__ import main
+
+
+if __name__ == "__main__":
+    main()
