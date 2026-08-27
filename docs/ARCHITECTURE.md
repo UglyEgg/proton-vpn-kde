@@ -51,6 +51,7 @@ The additive version-one contract currently contains:
 - `GetSnapshot() -> JSON string`
 - `GetCountries() -> JSON string`
 - `GetServers(countryCode) -> JSON string`
+- `GetServerLoads(countryCode) -> JSON string`
 - `ConnectFastest()`
 - `ConnectCountry(countryCode)`
 - `ConnectServer(serverName)`
@@ -65,6 +66,7 @@ The additive version-one contract currently contains:
 - `Logout()`
 - `SetReconnectionEnabled(enabled)`
 - `SnapshotChanged(JSON string)`
+- `ServerDataChanged(topologyChanged)`
 
 JSON keeps the prototype easy to inspect while `schemaVersion` protects the
 boundary. Before a public release, frequently accessed fields can become typed
@@ -132,6 +134,13 @@ for country and server lists. The system tray remains a native
 `KStatusNotifierItem` when the KF6 development component is present at build
 time.
 
+The backend subscribes to Proton core's separate full-list and load-only
+refresh callbacks. A full-list change refreshes country counts and the visible
+country's topology. A load-only change transfers only server names and load
+percentages; the Qt model emits targeted `dataChanged` notifications and the
+sorting proxy reorders rows only when necessary. The KDE layer does not add a
+polling schedule or make its own server-list API requests.
+
 ## Safety rules
 
 - The backend never auto-connects in development mode.
@@ -144,8 +153,7 @@ time.
 
 ## Next milestones
 
-1. Incremental server-load updates and sorting controls.
-2. Complete Proton settings plus a KCM-compatible configuration surface.
-3. KRunner actions and Plasma shortcuts.
-4. Split-tunneling application discovery through `KService`, not `.desktop`
+1. Complete Proton settings plus a KCM-compatible configuration surface.
+2. KRunner actions and Plasma shortcuts.
+3. Split-tunneling application discovery through `KService`, not `.desktop`
    parsing in the GUI.

@@ -38,6 +38,7 @@ VpnController::VpnController(QObject *parent)
     m_countryFilterModel->setSearchRoles({CountryModel::CodeRole, CountryModel::NameRole});
     m_serverFilterModel->setSourceModel(m_serverModel);
     m_serverFilterModel->setSearchRoles({ServerModel::NameRole, ServerModel::LocationRole});
+    m_serverFilterModel->sortByRole(ServerModel::LoadRole);
 
     connect(m_serviceWatcher, &QDBusServiceWatcher::serviceRegistered,
             this, &VpnController::onServiceRegistered);
@@ -51,6 +52,13 @@ VpnController::VpnController(QObject *parent)
         QStringLiteral("SnapshotChanged"),
         this,
         SLOT(onSnapshotChanged(QString)));
+    QDBusConnection::sessionBus().connect(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("ServerDataChanged"),
+        this,
+        SLOT(onServerDataChanged(bool)));
 
     const auto *interface = QDBusConnection::sessionBus().interface();
     setBackendAvailable(interface && interface->isServiceRegistered(
@@ -119,9 +127,14 @@ void VpnController::activatePrimaryAction()
 
 void VpnController::loadCountries()
 {
-    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_locationsBusy) {
+    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
         return;
     }
+    if (m_locationsBusy) {
+        m_countryRefreshPending = true;
+        return;
+    }
+    m_countryRefreshPending = false;
     setLocationsBusy(true);
     QDBusMessage message = QDBusMessage::createMethodCall(
         QString::fromLatin1(kBackendService),
@@ -136,21 +149,43 @@ void VpnController::loadCountries()
 
 void VpnController::loadServers(const QString &countryCode)
 {
-    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_locationsBusy) {
+    const QString normalizedCode = countryCode.trimmed().toUpper();
+    if (normalizedCode.size() != 2) {
         return;
     }
+    const bool countryChanged = m_currentServerCountry != normalizedCode;
+    m_currentServerCountry = normalizedCode;
+    if (countryChanged) {
+        m_serverModel->clear();
+    }
+    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
+        return;
+    }
+    if (m_locationsBusy) {
+        m_serverRefreshPending = true;
+        return;
+    }
+    m_serverRefreshPending = false;
     setLocationsBusy(true);
-    m_serverModel->clear();
     QDBusMessage message = QDBusMessage::createMethodCall(
         QString::fromLatin1(kBackendService),
         QString::fromLatin1(kBackendPath),
         QString::fromLatin1(kBackendInterface),
         QStringLiteral("GetServers"));
-    message << countryCode;
+    message << normalizedCode;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    watcher->setProperty("countryCode", normalizedCode);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleServersReply);
+}
+
+void VpnController::clearServerContext()
+{
+    m_currentServerCountry.clear();
+    m_serverRefreshPending = false;
+    m_serverLoadsRefreshPending = false;
+    m_serverModel->clear();
 }
 
 void VpnController::connectCountry(const QString &countryCode)
@@ -220,6 +255,17 @@ void VpnController::setServerFilter(const QString &filterText)
     m_serverFilterModel->setFilterText(filterText);
 }
 
+void VpnController::setServerSortMode(const QString &mode)
+{
+    if (mode == QStringLiteral("name")) {
+        m_serverFilterModel->sortByRole(ServerModel::NameRole);
+    } else if (mode == QStringLiteral("location")) {
+        m_serverFilterModel->sortByRole(ServerModel::LocationRole);
+    } else {
+        m_serverFilterModel->sortByRole(ServerModel::LoadRole);
+    }
+}
+
 void VpnController::setReconnectionEnabled(bool enabled)
 {
     m_reconnectionEnabled = enabled;
@@ -251,12 +297,28 @@ void VpnController::onServiceUnregistered(const QString &)
     m_message = tr("The Proton backend service stopped");
     m_countryModel->clear();
     m_serverModel->clear();
+    m_countryRefreshPending = false;
+    m_serverRefreshPending = false;
+    m_serverLoadsRefreshPending = false;
+    m_currentServerCountry.clear();
     emit snapshotChanged();
 }
 
 void VpnController::onSnapshotChanged(const QString &snapshotJson)
 {
     applySnapshot(snapshotJson);
+}
+
+void VpnController::onServerDataChanged(bool topologyChanged)
+{
+    if (topologyChanged) {
+        m_countryRefreshPending = true;
+        m_serverRefreshPending = !m_currentServerCountry.isEmpty();
+        m_serverLoadsRefreshPending = false;
+    } else if (!m_currentServerCountry.isEmpty()) {
+        m_serverLoadsRefreshPending = true;
+    }
+    dispatchPendingLocationRefreshes();
 }
 
 void VpnController::setBackendAvailable(bool available)
@@ -305,6 +367,10 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     if (wasLoggedIn && !m_loggedIn) {
         m_countryModel->clear();
         m_serverModel->clear();
+        m_countryRefreshPending = false;
+        m_serverRefreshPending = false;
+        m_serverLoadsRefreshPending = false;
+        m_currentServerCountry.clear();
     }
     emit snapshotChanged();
     if (m_loggedIn && m_countryModel->rowCount() == 0 && !m_locationsBusy) {
@@ -396,6 +462,45 @@ void VpnController::callControlOperation(const QString &method,
     QDBusConnection::sessionBus().asyncCall(message, 5000);
 }
 
+void VpnController::requestServerLoads()
+{
+    if (m_currentServerCountry.isEmpty()
+        || !m_backendAvailable || !m_ready || !m_loggedIn) {
+        return;
+    }
+    if (m_locationsBusy) {
+        m_serverLoadsRefreshPending = true;
+        return;
+    }
+    m_serverLoadsRefreshPending = false;
+    setLocationsBusy(true);
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetServerLoads"));
+    message << m_currentServerCountry;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    watcher->setProperty("countryCode", m_currentServerCountry);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleServerLoadsReply);
+}
+
+void VpnController::dispatchPendingLocationRefreshes()
+{
+    if (m_locationsBusy || !m_backendAvailable || !m_ready || !m_loggedIn) {
+        return;
+    }
+    if (m_countryRefreshPending) {
+        loadCountries();
+    } else if (m_serverRefreshPending && !m_currentServerCountry.isEmpty()) {
+        loadServers(m_currentServerCountry);
+    } else if (m_serverLoadsRefreshPending) {
+        requestServerLoads();
+    }
+}
+
 void VpnController::setLocationsBusy(bool busy)
 {
     if (m_locationsBusy == busy) {
@@ -411,8 +516,7 @@ void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
     watcher->deleteLater();
     if (reply.isError()) {
         setBackendAvailable(false);
-        m_message = tr("Unable to read backend state: %1")
-                        .arg(reply.error().message());
+        m_message = tr("Unable to read backend state");
         emit snapshotChanged();
         return;
     }
@@ -426,7 +530,12 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
     watcher->deleteLater();
     if (reply.isError()) {
         m_busy = false;
-        m_message = tr("VPN operation failed: %1").arg(reply.error().message());
+        if (reply.error().name()
+            == QStringLiteral("proton.vpn.app.kde.Error.InvalidSecretPayload")) {
+            m_message = tr("Protected authentication data was rejected; try again");
+        } else {
+            m_message = tr("The VPN operation could not be completed");
+        }
         emit snapshotChanged();
         return;
     }
@@ -439,8 +548,9 @@ void VpnController::handleCountriesReply(QDBusPendingCallWatcher *watcher)
     watcher->deleteLater();
     setLocationsBusy(false);
     if (reply.isError()) {
-        m_message = tr("Unable to load countries: %1").arg(reply.error().message());
+        m_message = tr("Unable to load countries");
         emit snapshotChanged();
+        dispatchPendingLocationRefreshes();
         return;
     }
     QString errorMessage;
@@ -448,16 +558,23 @@ void VpnController::handleCountriesReply(QDBusPendingCallWatcher *watcher)
         m_message = errorMessage;
         emit snapshotChanged();
     }
+    dispatchPendingLocationRefreshes();
 }
 
 void VpnController::handleServersReply(QDBusPendingCallWatcher *watcher)
 {
     const QDBusPendingReply<QString> reply = *watcher;
+    const QString requestedCountry = watcher->property("countryCode").toString();
     watcher->deleteLater();
     setLocationsBusy(false);
+    if (requestedCountry != m_currentServerCountry) {
+        dispatchPendingLocationRefreshes();
+        return;
+    }
     if (reply.isError()) {
-        m_message = tr("Unable to load servers: %1").arg(reply.error().message());
+        m_message = tr("Unable to load servers");
         emit snapshotChanged();
+        dispatchPendingLocationRefreshes();
         return;
     }
     QString errorMessage;
@@ -465,4 +582,29 @@ void VpnController::handleServersReply(QDBusPendingCallWatcher *watcher)
         m_message = errorMessage;
         emit snapshotChanged();
     }
+    dispatchPendingLocationRefreshes();
+}
+
+void VpnController::handleServerLoadsReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<QString> reply = *watcher;
+    const QString requestedCountry = watcher->property("countryCode").toString();
+    watcher->deleteLater();
+    setLocationsBusy(false);
+    if (requestedCountry != m_currentServerCountry) {
+        dispatchPendingLocationRefreshes();
+        return;
+    }
+    if (reply.isError()) {
+        m_message = tr("Unable to update server loads");
+        emit snapshotChanged();
+        dispatchPendingLocationRefreshes();
+        return;
+    }
+    QString errorMessage;
+    if (!m_serverModel->updateLoadsFromJson(reply.value(), &errorMessage)) {
+        m_message = errorMessage;
+        emit snapshotChanged();
+    }
+    dispatchPendingLocationRefreshes();
 }

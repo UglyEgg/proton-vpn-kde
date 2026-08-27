@@ -58,7 +58,13 @@ class ServerInfo:
     streaming: bool = False
 
 
-LocationInfo = TypeVar("LocationInfo", CountryInfo, ServerInfo)
+@dataclass(frozen=True, slots=True)
+class ServerLoadInfo:
+    name: str
+    load: int
+
+
+LocationInfo = TypeVar("LocationInfo", CountryInfo, ServerInfo, ServerLoadInfo)
 
 
 def location_list_to_json(kind: str, items: list[LocationInfo]) -> str:
@@ -76,14 +82,20 @@ def location_list_to_json(kind: str, items: list[LocationInfo]) -> str:
 
 
 SnapshotCallback = Callable[[VpnSnapshot], None]
+ServerDataCallback = Callable[[bool], None]
 
 
 class CoreAdapter(Protocol):
     """Minimal surface required from Proton's networking core."""
 
-    async def initialize(self, callback: SnapshotCallback) -> VpnSnapshot: ...
+    async def initialize(
+        self,
+        callback: SnapshotCallback,
+        server_data_callback: ServerDataCallback | None = None,
+    ) -> VpnSnapshot: ...
     async def get_countries(self) -> list[CountryInfo]: ...
     async def get_servers(self, country_code: str) -> list[ServerInfo]: ...
+    async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]: ...
     async def connect_fastest(self) -> None: ...
     async def connect_country(self, country_code: str) -> None: ...
     async def connect_server(self, server_name: str) -> None: ...
@@ -106,6 +118,7 @@ class BackendController:
         self._adapter = adapter
         self._snapshot = VpnSnapshot()
         self._listeners: list[SnapshotCallback] = []
+        self._server_data_listeners: list[ServerDataCallback] = []
         self._operation_lock = asyncio.Lock()
 
     @property
@@ -115,16 +128,22 @@ class BackendController:
     def subscribe(self, callback: SnapshotCallback) -> None:
         self._listeners.append(callback)
 
+    def subscribe_server_data(self, callback: ServerDataCallback) -> None:
+        self._server_data_listeners.append(callback)
+
     async def start(self) -> None:
         try:
-            snapshot = await self._adapter.initialize(self._on_adapter_snapshot)
-        except Exception as error:  # Keep D-Bus available to report startup errors.
+            snapshot = await self._adapter.initialize(
+                self._on_adapter_snapshot,
+                self._on_adapter_server_data,
+            )
+        except Exception:  # Keep D-Bus available to report startup errors.
             self._publish(
                 replace(
                     self._snapshot,
                     ready=False,
                     state="error",
-                    message=f"Backend initialization failed: {error}",
+                    message="Backend initialization failed",
                 )
             )
         else:
@@ -144,6 +163,13 @@ class BackendController:
         normalized_code = self._validate_country_code(country_code)
         return location_list_to_json(
             "servers", await self._adapter.get_servers(normalized_code)
+        )
+
+    async def get_server_loads_json(self, country_code: str) -> str:
+        self._require_session()
+        normalized_code = self._validate_country_code(country_code)
+        return location_list_to_json(
+            "loads", await self._adapter.get_server_loads(normalized_code)
         )
 
     async def connect_country(self, country_code: str) -> None:
@@ -229,12 +255,12 @@ class BackendController:
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
                 await operation()
-            except Exception as error:
+            except Exception:
                 self._publish(
                     replace(
                         self._snapshot,
                         busy=False,
-                        message=str(error),
+                        message="The VPN operation could not be completed",
                     )
                 )
                 raise
@@ -243,6 +269,10 @@ class BackendController:
 
     def _on_adapter_snapshot(self, snapshot: VpnSnapshot) -> None:
         self._publish(replace(snapshot, busy=self._snapshot.busy))
+
+    def _on_adapter_server_data(self, topology_changed: bool) -> None:
+        for listener in tuple(self._server_data_listeners):
+            listener(topology_changed)
 
     def _publish(self, snapshot: VpnSnapshot) -> None:
         if snapshot == self._snapshot:

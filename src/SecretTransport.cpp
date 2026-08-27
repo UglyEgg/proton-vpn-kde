@@ -19,8 +19,10 @@ constexpr unsigned char kPayloadVersion = 1;
 constexpr qsizetype kPublicKeySize = 32;
 constexpr qsizetype kNonceSize = 12;
 constexpr qsizetype kTagSize = 16;
-constexpr auto kKdfInfo = "proton-vpn-kde-auth-v1";
-constexpr auto kAdditionalData = "proton.vpn.app.kde.Backend1";
+constexpr char kKdfInfo[] = "proton-vpn-kde-auth-v1";
+constexpr char kAdditionalData[] = "proton.vpn.app.kde.Backend1";
+static_assert(sizeof(kKdfInfo) - 1 == 22);
+static_assert(sizeof(kAdditionalData) - 1 == 27);
 
 using PKey = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using PKeyContext = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dbus_fast.errors import DBusError
 from dbus_fast.service import ServiceInterface, method, signal
 
 from .controller import BackendController, VpnSnapshot
@@ -11,6 +12,7 @@ from .secret_payload import SecretPayloadReader
 BUS_NAME = "proton.vpn.app.kde.backend"
 OBJECT_PATH = "/proton/vpn/app/kde/backend"
 INTERFACE_NAME = "proton.vpn.app.kde.Backend1"
+INVALID_SECRET_ERROR = "proton.vpn.app.kde.Error.InvalidSecretPayload"
 
 
 class VpnDbusService(ServiceInterface):
@@ -19,6 +21,7 @@ class VpnDbusService(ServiceInterface):
         self._controller = controller
         self._secret_payloads = SecretPayloadReader()
         controller.subscribe(self._on_snapshot)
+        controller.subscribe_server_data(self._on_server_data)
 
     @method(name="GetSnapshot")
     def get_snapshot(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
@@ -40,6 +43,10 @@ class VpnDbusService(ServiceInterface):
     async def get_servers(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_servers_json(country_code)
 
+    @method(name="GetServerLoads")
+    async def get_server_loads(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        return await self._controller.get_server_loads_json(country_code)
+
     @method(name="ConnectCountry")
     async def connect_country(self, country_code: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
         await self._controller.connect_country(country_code)
@@ -54,12 +61,12 @@ class VpnDbusService(ServiceInterface):
 
     @method(name="Login")
     async def login(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
-        payload = self._secret_payloads.read(secret_fd, {"username", "password"})
+        payload = self._read_secret(secret_fd, {"username", "password"})
         await self._controller.login(payload["username"], payload["password"])
 
     @method(name="SubmitTwoFactor")
     async def submit_two_factor(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
-        payload = self._secret_payloads.read(secret_fd, {"code"})
+        payload = self._read_secret(secret_fd, {"code"})
         await self._controller.submit_two_factor(payload["code"])
 
     @method(name="CancelLogin")
@@ -72,7 +79,7 @@ class VpnDbusService(ServiceInterface):
 
     @method(name="SubmitFido2Pin")
     async def submit_fido2_pin(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
-        payload = self._secret_payloads.read(secret_fd, {"pin"})
+        payload = self._read_secret(secret_fd, {"pin"})
         await self._controller.submit_fido2_pin(payload["pin"])
 
     @method(name="CancelFido2")
@@ -91,5 +98,25 @@ class VpnDbusService(ServiceInterface):
     def snapshot_changed(self, snapshot_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return snapshot_json
 
+    @signal(name="ServerDataChanged")
+    def server_data_changed(self, topology_changed: "b") -> "b":  # type: ignore[valid-type]  # noqa: F722,F821
+        return topology_changed
+
     def _on_snapshot(self, snapshot: VpnSnapshot) -> None:
         self.snapshot_changed(snapshot.to_json())
+
+    def _on_server_data(self, topology_changed: bool) -> None:
+        self.server_data_changed(topology_changed)
+
+    def _read_secret(
+        self,
+        secret_fd: int,
+        required_fields: set[str],
+    ) -> dict[str, str]:
+        try:
+            return self._secret_payloads.read(secret_fd, required_fields)
+        except ValueError as error:
+            raise DBusError(
+                INVALID_SECRET_ERROR,
+                "Protected authentication data was rejected; try again",
+            ) from error

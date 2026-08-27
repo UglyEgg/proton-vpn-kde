@@ -6,6 +6,11 @@ from proton_vpn_kde_backend.adapters import DemoCoreAdapter
 from proton_vpn_kde_backend.controller import BackendController, VpnSnapshot
 
 
+class FailingDemoAdapter(DemoCoreAdapter):
+    async def connect_fastest(self) -> None:
+        raise RuntimeError("credential=must-not-reach-snapshot")
+
+
 class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.controller = BackendController(DemoCoreAdapter())
@@ -44,11 +49,14 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def test_location_payloads_are_versioned_and_validated(self):
         countries = await self.controller.get_countries_json()
         servers = await self.controller.get_servers_json(" ch ")
+        loads = await self.controller.get_server_loads_json(" ch ")
 
         self.assertIn('"schemaVersion":1', countries)
         self.assertIn('"code":"CH"', countries)
         self.assertIn('"serverCount":3', countries)
         self.assertIn('"name":"CH#101"', servers)
+        self.assertIn('"loads"', loads)
+        self.assertIn('"load":24', loads)
 
         with self.assertRaisesRegex(ValueError, "Invalid country code"):
             await self.controller.get_servers_json("Switzerland")
@@ -90,6 +98,19 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             await controller.login("   ", "password")
         with self.assertRaisesRegex(ValueError, "6-digit"):
             await controller.submit_two_factor("123")
+
+    async def test_operation_exception_text_is_not_published(self):
+        controller = BackendController(FailingDemoAdapter())
+        await controller.start()
+
+        with self.assertRaises(RuntimeError):
+            await controller.connect_fastest()
+
+        self.assertEqual(
+            "The VPN operation could not be completed",
+            controller.snapshot.message,
+        )
+        self.assertNotIn("must-not-reach-snapshot", controller.snapshot.to_json())
 
 
 if __name__ == "__main__":

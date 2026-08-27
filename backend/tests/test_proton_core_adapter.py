@@ -27,6 +27,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         refresher = SimpleNamespace(
             enable=AsyncMock(),
             disable=AsyncMock(),
+            set_server_list_updated_callback=Mock(),
+            set_server_loads_updated_callback=Mock(),
             get_up_to_date_server_list=AsyncMock(),
             get_up_to_date_client_config=AsyncMock(return_value="client-config"),
         )
@@ -64,6 +66,23 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot.ready)
         self.assertTrue(snapshot.logged_in)
         self.assertEqual("disconnected", snapshot.state)
+        api.refresher.set_server_list_updated_callback.assert_called_once()
+        api.refresher.set_server_loads_updated_callback.assert_called_once()
+
+    async def test_server_refresh_callbacks_preserve_update_scope(self):
+        api, _ = self.make_api()
+        events = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock(), events.append)
+
+        list_callback = api.refresher.set_server_list_updated_callback.call_args.args[0]
+        loads_callback = api.refresher.set_server_loads_updated_callback.call_args.args[
+            0
+        ]
+        list_callback()
+        loads_callback()
+
+        self.assertEqual([True, False], events)
 
     async def test_secret_service_wait_does_not_block_asyncio_thread(self):
         api, connector = self.make_api()
@@ -301,11 +320,14 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         countries = await adapter.get_countries()
         swiss_servers = await adapter.get_servers("CH")
+        swiss_loads = await adapter.get_server_loads("CH")
 
         self.assertEqual(["CH", "US"], [country.code for country in countries])
         self.assertEqual("CH#10", swiss_servers[0].name)
         self.assertTrue(swiss_servers[0].p2p)
         self.assertFalse(swiss_servers[0].streaming)
+        self.assertEqual("CH#10", swiss_loads[0].name)
+        self.assertEqual(42, swiss_loads[0].load)
 
     async def test_targeted_connect_uses_official_server_lookup(self):
         api, connector = self.make_api()
@@ -337,6 +359,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connector.unregister.assert_any_call(adapter)
         self.assertEqual(2, connector.unregister.call_count)
         api.refresher.disable.assert_awaited_once_with()
+        api.refresher.set_server_list_updated_callback.assert_called_with(None)
+        api.refresher.set_server_loads_updated_callback.assert_called_with(None)
 
 
 if __name__ == "__main__":

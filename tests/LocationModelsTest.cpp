@@ -1,5 +1,6 @@
 #include "LocationModels.h"
 
+#include <QSignalSpy>
 #include <QTest>
 
 class LocationModelsTest final : public QObject
@@ -9,8 +10,10 @@ class LocationModelsTest final : public QObject
 private slots:
     void parsesCountries();
     void parsesServers();
+    void updatesServerLoadsWithoutResetting();
     void rejectsUnsupportedPayload();
     void filtersAcrossConfiguredRoles();
+    void sortsAcrossConfiguredRoles();
 };
 
 void LocationModelsTest::parsesCountries()
@@ -71,6 +74,33 @@ void LocationModelsTest::parsesServers()
     QVERIFY(!index.data(roles.key("streaming")).toBool());
 }
 
+void LocationModelsTest::updatesServerLoadsWithoutResetting()
+{
+    ServerModel model;
+    QVERIFY(model.resetFromJson(QStringLiteral(R"json(
+        {"schemaVersion":1,"servers":[
+            {"name":"CH#101","location":"Zurich","load":24},
+            {"name":"CH#202","location":"Zurich","load":51}
+        ]}
+    )json")));
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    QString error;
+    QVERIFY(model.updateLoadsFromJson(QStringLiteral(R"json(
+        {"schemaVersion":1,"loads":[
+            {"name":"CH#101","load":60},
+            {"name":"CH#202","load":51}
+        ]}
+    )json"), &error));
+
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(resetSpy.count(), 0);
+    QCOMPARE(changedSpy.count(), 1);
+    QCOMPARE(model.index(0).data(ServerModel::LoadRole).toInt(), 60);
+    QCOMPARE(model.index(1).data(ServerModel::LoadRole).toInt(), 51);
+}
+
 void LocationModelsTest::rejectsUnsupportedPayload()
 {
     CountryModel model;
@@ -107,6 +137,40 @@ void LocationModelsTest::filtersAcrossConfiguredRoles()
     QCOMPARE(filterModel.rowCount(), 1);
     QCOMPARE(
         filterModel.index(0, 0).data(ServerModel::NameRole).toString(),
+        QStringLiteral("CH#101"));
+}
+
+void LocationModelsTest::sortsAcrossConfiguredRoles()
+{
+    ServerModel sourceModel;
+    QVERIFY(sourceModel.resetFromJson(QStringLiteral(R"json(
+        {"schemaVersion":1,"servers":[
+            {"name":"CH#202","location":"Zurich","load":10},
+            {"name":"CH#101","location":"Zurich","load":50}
+        ]}
+    )json")));
+
+    LocationFilterProxyModel proxyModel;
+    proxyModel.setSourceModel(&sourceModel);
+    proxyModel.sortByRole(ServerModel::LoadRole);
+    QCOMPARE(
+        proxyModel.index(0, 0).data(ServerModel::NameRole).toString(),
+        QStringLiteral("CH#202"));
+
+    proxyModel.sortByRole(ServerModel::NameRole);
+    QCOMPARE(
+        proxyModel.index(0, 0).data(ServerModel::NameRole).toString(),
+        QStringLiteral("CH#101"));
+
+    proxyModel.sortByRole(ServerModel::LoadRole);
+    QVERIFY(sourceModel.updateLoadsFromJson(QStringLiteral(R"json(
+        {"schemaVersion":1,"loads":[
+            {"name":"CH#202","load":90},
+            {"name":"CH#101","load":5}
+        ]}
+    )json")));
+    QCOMPARE(
+        proxyModel.index(0, 0).data(ServerModel::NameRole).toString(),
         QStringLiteral("CH#101"));
 }
 

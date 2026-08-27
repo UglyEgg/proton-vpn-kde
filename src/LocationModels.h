@@ -56,6 +56,7 @@ public:
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
     bool resetFromJson(const QString &json, QString *errorMessage = nullptr);
+    bool updateLoadsFromJson(const QString &json, QString *errorMessage = nullptr);
     void clear();
 
 private:
@@ -81,6 +82,7 @@ public:
     [[nodiscard]] QString filterText() const;
     void setFilterText(const QString &filterText);
     void setSearchRoles(const QList<int> &roles);
+    void sortByRole(int role, Qt::SortOrder order = Qt::AscendingOrder);
 
 signals:
     void filterTextChanged();

@@ -60,6 +60,7 @@ public:
     Q_INVOKABLE void activatePrimaryAction();
     Q_INVOKABLE void loadCountries();
     Q_INVOKABLE void loadServers(const QString &countryCode);
+    Q_INVOKABLE void clearServerContext();
     Q_INVOKABLE void connectCountry(const QString &countryCode);
     Q_INVOKABLE void connectServer(const QString &serverName);
     Q_INVOKABLE void login(const QString &username, const QString &password);
@@ -71,6 +72,7 @@ public:
     Q_INVOKABLE void logout();
     Q_INVOKABLE void setCountryFilter(const QString &filterText);
     Q_INVOKABLE void setServerFilter(const QString &filterText);
+    Q_INVOKABLE void setServerSortMode(const QString &mode);
     Q_INVOKABLE void setReconnectionEnabled(bool enabled);
 
 signals:
@@ -82,6 +84,7 @@ private slots:
     void onServiceRegistered(const QString &service);
     void onServiceUnregistered(const QString &service);
     void onSnapshotChanged(const QString &snapshotJson);
+    void onServerDataChanged(bool topologyChanged);
 
 private:
     void setBackendAvailable(bool available);
@@ -91,11 +94,14 @@ private:
                              bool updateBusy = true);
     void callControlOperation(const QString &method,
                               const QVariantList &arguments = {});
+    void requestServerLoads();
+    void dispatchPendingLocationRefreshes();
     void setLocationsBusy(bool busy);
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
     void handleCountriesReply(QDBusPendingCallWatcher *watcher);
     void handleServersReply(QDBusPendingCallWatcher *watcher);
+    void handleServerLoadsReply(QDBusPendingCallWatcher *watcher);
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
     CountryModel *m_countryModel = nullptr;
@@ -113,7 +119,11 @@ private:
     bool m_fido2Available = false;
     bool m_busy = false;
     bool m_locationsBusy = false;
+    bool m_countryRefreshPending = false;
+    bool m_serverRefreshPending = false;
+    bool m_serverLoadsRefreshPending = false;
     bool m_reconnectionEnabled = true;
+    QString m_currentServerCountry;
     QString m_state = QStringLiteral("unavailable");
     QString m_serverName;
     QString m_message = QStringLiteral("Waiting for the Proton backend service");

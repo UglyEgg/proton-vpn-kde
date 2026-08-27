@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.4.0 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.5.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
@@ -141,6 +141,30 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME secret-transport-tests COMMAND secret-transport-tests)
+
+    qt_add_executable(secret-transport-vector
+        tests/SecretTransportVector.cpp
+        src/SecretTransport.cpp
+        src/SecretTransport.h
+    )
+    target_include_directories(secret-transport-vector PRIVATE src)
+    target_link_libraries(secret-transport-vector PRIVATE
+        Qt6::Core
+        Qt6::DBus
+        OpenSSL::Crypto
+    )
+    target_compile_definitions(secret-transport-vector PRIVATE _GNU_SOURCE)
+    target_compile_options(secret-transport-vector PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(
+        NAME secret-transport-interop
+        COMMAND ${CMAKE_COMMAND} -E env
+            "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/backend"
+            ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test-secret-interop.py
+            $<TARGET_FILE:secret-transport-vector>
+    )
 
     add_test(
         NAME backend-tests

@@ -24,26 +24,15 @@ until their normal allocators reuse them; this design does not claim to defend
 against root, a debugger, or a same-user process that can read either process's
 memory.
 
-## KeePassXC Auto-Type
+## Password managers
 
-The client deliberately supports KeePassXC through ordinary desktop Auto-Type
-instead of a KeePassXC-specific API. The sign-in page gives initial focus to
-the username field, follows it immediately with the password field, accepts
-Tab navigation, and submits on Enter. The application window has the stable
-title `Proton VPN` on platforms where window-title matching is available.
-
-An entry can therefore use the conservative sequence
-`{USERNAME}{TAB}{PASSWORD}` or KeePassXC's default
-`{USERNAME}{TAB}{PASSWORD}{ENTER}`. When Proton requests two-factor
-authentication, the code field receives focus; use KeePassXC's **Type TOTP**
-action or an entry-level `{TOTP}{ENTER}` sequence for the second step.
-
-On Plasma Wayland, Auto-Type is supplied by the XDG Remote Desktop and Global
-Shortcuts portals. Wayland does not expose the focused window title to
-KeePassXC, so the global shortcut presents an entry chooser; filtering or the
-remember-last-entry option avoids browsing the full database. No browser
-extension, Secret Service lookup, or VPN-client access to the KeePassXC
-database is needed.
+The sign-in fields support ordinary clipboard paste and deterministic keyboard
+navigation, but the client does not query a password-manager database or expose
+a browser-extension protocol. Desktop Auto-Type availability depends on the
+password-manager release and display platform; in particular, an X11-only
+Auto-Type implementation cannot inject into a native Wayland window. This is
+kept outside the authentication contract rather than adding provider-specific
+credential lookup or storage.
 
 ## Persistence
 
@@ -69,5 +58,8 @@ and asks Proton SSO to remove the persisted session.
 Automated coverage includes encrypted descriptor creation, seal verification,
 bounded backend reads, descriptor closure, extra-field rejection, tamper and
 replay rejection, exception redaction, password login, TOTP/recovery codes,
-FIDO2, session expiry, logout, and a complete encrypted D-Bus file-descriptor
-smoke test.
+FIDO2, session expiry, and logout. A cross-language compatibility test encrypts
+known test-only fields with the actual C++ frontend implementation and decrypts
+them with the actual Python backend implementation. The complete encrypted
+D-Bus file-descriptor smoke test also verifies that a tampered payload produces
+only the fixed public error name and message, without a traceback.

@@ -6,7 +6,14 @@ import asyncio
 from dataclasses import replace
 from typing import Any
 
-from .controller import CountryInfo, ServerInfo, SnapshotCallback, VpnSnapshot
+from .controller import (
+    CountryInfo,
+    ServerDataCallback,
+    ServerInfo,
+    ServerLoadInfo,
+    SnapshotCallback,
+    VpnSnapshot,
+)
 from .fido_interaction import FidoInteraction
 from .reconnector import AsyncReconnector
 
@@ -16,13 +23,19 @@ class DemoCoreAdapter:
 
     def __init__(self, logged_in: bool = True):
         self._callback: SnapshotCallback | None = None
+        self._server_data_callback: ServerDataCallback | None = None
         self._logged_in = logged_in
         self._auth_state = "signed_in" if logged_in else "signed_out"
         self._reconnection_enabled = True
         self._snapshot = self._build_snapshot(message="Safe demo backend")
 
-    async def initialize(self, callback: SnapshotCallback) -> VpnSnapshot:
+    async def initialize(
+        self,
+        callback: SnapshotCallback,
+        server_data_callback: ServerDataCallback | None = None,
+    ) -> VpnSnapshot:
         self._callback = callback
+        self._server_data_callback = server_data_callback
         return self._snapshot
 
     async def connect_fastest(self) -> None:
@@ -45,6 +58,12 @@ class DemoCoreAdapter:
             ],
         }
         return demo_servers.get(country_code, [])
+
+    async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]:
+        return [
+            ServerLoadInfo(server.name, server.load)
+            for server in await self.get_servers(country_code)
+        ]
 
     async def connect_country(self, country_code: str) -> None:
         await self._transition("connecting", "")
@@ -153,6 +172,7 @@ class ProtonCoreAdapter:
         self._api: Any = api
         self._connector: Any = None
         self._callback: SnapshotCallback | None = None
+        self._server_data_callback: ServerDataCallback | None = None
         self._logged_in = False
         self._reconnector: AsyncReconnector | None = None
         self._reconnection_enabled = True
@@ -161,8 +181,13 @@ class ProtonCoreAdapter:
         self._session_services_enabled = False
         self._fido_interaction: FidoInteraction | None = None
 
-    async def initialize(self, callback: SnapshotCallback) -> VpnSnapshot:
+    async def initialize(
+        self,
+        callback: SnapshotCallback,
+        server_data_callback: ServerDataCallback | None = None,
+    ) -> VpnSnapshot:
         self._callback = callback
+        self._server_data_callback = server_data_callback
         if self._api is None:
             from proton.vpn.core.api import ProtonVPNAPI
             from proton.vpn.core.session_holder import ClientTypeMetadata
@@ -177,6 +202,12 @@ class ProtonCoreAdapter:
         self._auth_state = "signed_in" if self._logged_in else "signed_out"
         self._connector = await self._api.get_vpn_connector()
         self._connector.register(self)
+        self._api.refresher.set_server_list_updated_callback(
+            self._on_server_list_updated
+        )
+        self._api.refresher.set_server_loads_updated_callback(
+            self._on_server_loads_updated
+        )
 
         if self._logged_in:
             await self._enable_session_services()
@@ -213,7 +244,18 @@ class ProtonCoreAdapter:
                 p2p=ServerFeatureEnum.P2P in server.features,
                 streaming=ServerFeatureEnum.STREAMING in server.features,
             )
-            for server in sorted(servers, key=lambda item: (item.load, item.name))
+            for server in sorted(
+                servers,
+                key=lambda item: (item.load or 0, item.name),
+            )
+        ]
+
+    async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]:
+        server_list = await self._get_server_list()
+        return [
+            ServerLoadInfo(server.name, server.load or 0)
+            for server in self._normal_servers(server_list)
+            if server.exit_country.upper() == country_code
         ]
 
     async def connect_country(self, country_code: str) -> None:
@@ -382,6 +424,9 @@ class ProtonCoreAdapter:
 
     async def close(self) -> None:
         await self.cancel_fido2()
+        if self._api:
+            self._api.refresher.set_server_list_updated_callback(None)
+            self._api.refresher.set_server_loads_updated_callback(None)
         if self._reconnector:
             await self._reconnector.disable()
         if self._connector:
@@ -397,6 +442,14 @@ class ProtonCoreAdapter:
         self._status_message = message
         if self._callback and self._connector:
             self._callback(self._snapshot_from_state(self._connector.current_state))
+
+    def _on_server_list_updated(self) -> None:
+        if self._server_data_callback:
+            self._server_data_callback(True)
+
+    def _on_server_loads_updated(self) -> None:
+        if self._server_data_callback:
+            self._server_data_callback(False)
 
     async def _complete_login(self) -> None:
         self._logged_in = True

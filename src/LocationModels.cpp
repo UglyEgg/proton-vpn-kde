@@ -3,6 +3,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QHash>
 #include <QLocale>
 #include <algorithm>
 
@@ -195,7 +196,7 @@ bool ServerModel::resetFromJson(const QString &json, QString *errorMessage)
         entries.append({
             name,
             item.value(QStringLiteral("location")).toString(),
-            item.value(QStringLiteral("load")).toInt(),
+            std::clamp(item.value(QStringLiteral("load")).toInt(), 0, 100),
             item.value(QStringLiteral("p2p")).toBool(),
             item.value(QStringLiteral("streaming")).toBool(),
         });
@@ -204,6 +205,38 @@ bool ServerModel::resetFromJson(const QString &json, QString *errorMessage)
     beginResetModel();
     m_entries = std::move(entries);
     endResetModel();
+    return true;
+}
+
+bool ServerModel::updateLoadsFromJson(const QString &json, QString *errorMessage)
+{
+    QJsonArray items;
+    if (!parseList(json, QStringLiteral("loads"), &items, errorMessage)) {
+        return false;
+    }
+
+    QHash<QString, int> loads;
+    loads.reserve(items.size());
+    for (const QJsonValue &value : items) {
+        const QJsonObject item = value.toObject();
+        const QString name = item.value(QStringLiteral("name")).toString();
+        if (!name.isEmpty()) {
+            loads.insert(
+                name,
+                std::clamp(item.value(QStringLiteral("load")).toInt(), 0, 100));
+        }
+    }
+
+    for (int row = 0; row < m_entries.size(); ++row) {
+        Entry &entry = m_entries[row];
+        const auto load = loads.constFind(entry.name);
+        if (load == loads.cend() || entry.load == *load) {
+            continue;
+        }
+        entry.load = *load;
+        const QModelIndex changed = index(row);
+        emit dataChanged(changed, changed, {LoadRole});
+    }
     return true;
 }
 
@@ -221,6 +254,8 @@ LocationFilterProxyModel::LocationFilterProxyModel(QObject *parent)
     : QSortFilterProxyModel(parent)
 {
     setDynamicSortFilter(true);
+    setSortCaseSensitivity(Qt::CaseInsensitive);
+    setSortLocaleAware(true);
 }
 
 QString LocationFilterProxyModel::filterText() const
@@ -245,6 +280,12 @@ void LocationFilterProxyModel::setSearchRoles(const QList<int> &roles)
     beginFilterChange();
     m_searchRoles = roles;
     endFilterChange(QSortFilterProxyModel::Direction::Rows);
+}
+
+void LocationFilterProxyModel::sortByRole(int role, Qt::SortOrder order)
+{
+    setSortRole(role);
+    sort(0, order);
 }
 
 bool LocationFilterProxyModel::filterAcceptsRow(

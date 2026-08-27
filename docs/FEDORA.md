@@ -9,9 +9,12 @@ The native frontend currently needs:
 - Extra CMake Modules
 - `kf6-kconfig-devel`
 - `kf6-knotifications-devel`
-- `kf6-kstatusnotifieritem-devel`
 - `openssl-devel`
 - the system Python 3 interpreter
+
+`kf6-kstatusnotifieritem-devel` is recommended for direct Plasma status-notifier
+integration. The build remains usable without it and falls back to Qt's native
+system-tray interface.
 
 Configure RPM builds with `-DCMAKE_INSTALL_PREFIX=/usr`. The CMake project
 prefers `/usr/bin/python3` so the installed service sees Fedora's packaged
@@ -22,13 +25,16 @@ Proton modules instead of a user virtual environment.
 - `kf6-kirigami`
 - `kf6-kconfig`
 - `kf6-knotifications`
-- `kf6-kstatusnotifieritem`
 - `python3-dbus-fast`
 - `python3-cryptography`
 - `python3-fido2`
 - `python3-proton-vpn-api-core`
 - Proton's existing protocol, NetworkManager, kill-switch, and
   split-tunneling packages pulled in by the core
+
+Add `kf6-kstatusnotifieritem` when the frontend was built with its development
+component; otherwise the Qt tray fallback has no KF6 StatusNotifierItem runtime
+dependency.
 
 The KDE package must not require `proton-vpn-gtk-app`, PyGObject, GTK, or
 GNOME Keyring. Authentication storage remains the official core's Freedesktop

@@ -19,6 +19,9 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Native country and server lists with localized country names, load, P2P,
   and streaming metadata
 - Native country/server filtering without rebuilding or copying location data
+- Proton-driven server refresh notifications with compact load-only updates;
+  existing Qt rows change in place instead of rebuilding the server list
+- Native server sorting by load, server name, or location
 - Provider-agnostic Secret Service initialization that cannot block D-Bus
 - Desktop-neutral asyncio reconnection after an unexpected tunnel drop; the
   previous server, protocol, and backend are reused without a GLib main loop
@@ -30,8 +33,6 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Ephemeral X25519/AES-GCM encryption plus sealed one-use memory-file transport
   for passwords, codes, and security-key PINs; plaintext never appears in D-Bus
   messages, observable descriptors, or state snapshots
-- KeePassXC Auto-Type-friendly sign-in fields with deterministic username,
-  password, and submit ordering on Plasma
 
 The real backend is intentionally not auto-started from the development tree.
 This prevents an unfinished frontend from changing a working VPN session.
@@ -110,4 +111,4 @@ tunnel. An intentional disconnect always remains disconnected.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the safety and migration
 boundaries and [docs/FEDORA.md](docs/FEDORA.md) for packaging and coexistence
 notes. [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) documents the credential
-transport, its threat boundary, and KeePassXC Auto-Type setup.
+transport and its threat boundary.

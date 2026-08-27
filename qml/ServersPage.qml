@@ -12,7 +12,10 @@ Kirigami.ScrollablePage {
 
     title: countryFlag + "  " + countryName
 
-    Component.onCompleted: vpnController.loadServers(countryCode)
+    Component.onCompleted: {
+        vpnController.setServerSortMode("load")
+        vpnController.loadServers(countryCode)
+    }
 
     actions: [
         Kirigami.Action {
@@ -34,10 +37,37 @@ Kirigami.ScrollablePage {
         model: vpnController.serverModel
         spacing: Kirigami.Units.smallSpacing
 
-        header: Kirigami.SearchField {
+        header: ColumnLayout {
             width: serverList.width
-            placeholderText: qsTr("Search servers or locations")
-            onTextChanged: vpnController.setServerFilter(text)
+            spacing: Kirigami.Units.smallSpacing
+
+            Kirigami.SearchField {
+                Layout.fillWidth: true
+                placeholderText: qsTr("Search servers or locations")
+                onTextChanged: vpnController.setServerFilter(text)
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Controls.Label {
+                    text: qsTr("Sort by")
+                    color: Kirigami.Theme.disabledTextColor
+                }
+
+                Controls.ComboBox {
+                    id: sortMode
+                    Layout.fillWidth: true
+                    textRole: "label"
+                    valueRole: "value"
+                    model: [
+                        { "label": qsTr("Lowest load"), "value": "load" },
+                        { "label": qsTr("Server name"), "value": "name" },
+                        { "label": qsTr("Location"), "value": "location" }
+                    ]
+                    onActivated: vpnController.setServerSortMode(currentValue)
+                }
+            }
         }
 
         Kirigami.PlaceholderMessage {
@@ -118,5 +148,8 @@ Kirigami.ScrollablePage {
         }
     }
 
-    Component.onDestruction: vpnController.setServerFilter("")
+    Component.onDestruction: {
+        vpnController.setServerFilter("")
+        vpnController.clearServerContext()
+    }
 }

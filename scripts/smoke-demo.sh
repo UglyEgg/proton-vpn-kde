@@ -70,6 +70,11 @@ gdbus call --session \
 gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.GetServerLoads CH
+
+gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
     --method proton.vpn.app.kde.Backend1.SetReconnectionEnabled false
 
 snapshot="$(gdbus call --session \

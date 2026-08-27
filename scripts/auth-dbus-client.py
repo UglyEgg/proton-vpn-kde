@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from dbus_fast.aio import MessageBus
 from dbus_fast.constants import BusType
+from dbus_fast.errors import DBusError
 
 
 BUS_NAME = "proton.vpn.app.kde.backend"
@@ -72,6 +73,31 @@ async def main() -> None:
 
     initial = await snapshot(interface)
     assert initial["authState"] == "signed_out"
+
+    rejected_fd = sealed_payload(
+        {"username": "demo-user", "password": "tampered"},
+        await interface.call_get_auth_public_key(),
+    )
+    try:
+        encrypted = bytearray(os.pread(rejected_fd, 16 * 1024, 0))
+        encrypted[-1] ^= 1
+        os.close(rejected_fd)
+        rejected_fd = os.memfd_create(
+            "proton-vpn-kde-auth-rejected",
+            os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING,
+        )
+        os.write(rejected_fd, encrypted)
+        try:
+            await interface.call_login(rejected_fd)
+        except DBusError as error:
+            assert error.type == "proton.vpn.app.kde.Error.InvalidSecretPayload"
+            assert error.text == "Protected authentication data was rejected; try again"
+            assert "Traceback" not in str(error)
+            assert "File \"" not in str(error)
+        else:
+            raise AssertionError("tampered authentication data was accepted")
+    finally:
+        os.close(rejected_fd)
 
     login_fd = sealed_payload(
         {"username": "demo-user", "password": "2fa"},

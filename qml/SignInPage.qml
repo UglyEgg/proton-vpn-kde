@@ -143,13 +143,6 @@ Kirigami.ScrollablePage {
                 onClicked: Qt.openUrlExternally("https://account.proton.me/")
             }
 
-            Controls.Label {
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
-                text: qsTr("Desktop Auto-Type: focus the username field, then use your password manager's global shortcut.")
-                color: Kirigami.Theme.disabledTextColor
-            }
         }
 
         ColumnLayout {
