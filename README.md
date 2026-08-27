@@ -25,6 +25,13 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Plasma connection notifications through `KNotification`
 - Persistent Plasma settings through KConfig for reconnection, notifications,
   close-to-tray, and start-minimized behavior
+- Native sign-in, TOTP/recovery-code authentication, security-key/FIDO2
+  interaction, account metadata, session expiry, and logout
+- Ephemeral X25519/AES-GCM encryption plus sealed one-use memory-file transport
+  for passwords, codes, and security-key PINs; plaintext never appears in D-Bus
+  messages, observable descriptors, or state snapshots
+- KeePassXC Auto-Type-friendly sign-in fields with deterministic username,
+  password, and submit ordering on Plasma
 
 The real backend is intentionally not auto-started from the development tree.
 This prevents an unfinished frontend from changing a working VPN session.
@@ -47,7 +54,7 @@ For full Plasma tray integration on Fedora:
 
 ```bash
 sudo dnf install kf6-kconfig-devel kf6-knotifications-devel \
-    kf6-kstatusnotifieritem-devel
+    kf6-kstatusnotifieritem-devel openssl-devel
 ```
 
 Kirigami is loaded as a QML runtime dependency. Install
@@ -69,12 +76,23 @@ Then start the frontend:
 
 Demo mode never touches NetworkManager, Proton credentials, or the active VPN.
 
+To exercise the complete native authentication UI safely:
+
+```bash
+PYTHONPATH=backend python3 -m proton_vpn_kde_backend --demo-logged-out
+```
+
+Use any username, password `2fa`, and code `123456`. This deterministic path
+uses the same encrypted, sealed file-descriptor transport as a real login
+without making an API request or writing to Secret Service.
+
 Run the complete local verification with:
 
 ```bash
 ctest --test-dir build --output-on-failure
 PYTHONPATH=backend python3 -m unittest discover -s backend/tests -v
 dbus-run-session -- scripts/smoke-demo.sh
+dbus-run-session -- scripts/smoke-auth-demo.sh
 ```
 
 ## Real backend development mode
@@ -83,12 +101,13 @@ dbus-run-session -- scripts/smoke-demo.sh
 PYTHONPATH=backend python3 -m proton_vpn_kde_backend
 ```
 
-Real mode uses the official installed `python3-proton-vpn-api-core`. It does not
-connect automatically, but by default it recovers an unexpectedly dropped
-active tunnel. An intentional disconnect always remains disconnected. Until
-login and full error handling are implemented, it expects an existing Proton
-session created by the official client.
+Real mode uses the official installed `python3-proton-vpn-api-core`. It supports
+creating and removing the saved Proton session directly, so the official GTK
+client is no longer needed as a login bootstrapper. It does not connect
+automatically, but by default it recovers an unexpectedly dropped active
+tunnel. An intentional disconnect always remains disconnected.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the safety and migration
 boundaries and [docs/FEDORA.md](docs/FEDORA.md) for packaging and coexistence
-notes.
+notes. [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) documents the credential
+transport, its threat boundary, and KeePassXC Auto-Type setup.

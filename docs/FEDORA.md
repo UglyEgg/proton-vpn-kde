@@ -10,6 +10,7 @@ The native frontend currently needs:
 - `kf6-kconfig-devel`
 - `kf6-knotifications-devel`
 - `kf6-kstatusnotifieritem-devel`
+- `openssl-devel`
 - the system Python 3 interpreter
 
 Configure RPM builds with `-DCMAKE_INSTALL_PREFIX=/usr`. The CMake project
@@ -23,6 +24,8 @@ Proton modules instead of a user virtual environment.
 - `kf6-knotifications`
 - `kf6-kstatusnotifieritem`
 - `python3-dbus-fast`
+- `python3-cryptography`
+- `python3-fido2`
 - `python3-proton-vpn-api-core`
 - Proton's existing protocol, NetworkManager, kill-switch, and
   split-tunneling packages pulled in by the core
@@ -47,6 +50,13 @@ paths; no custom policy or setuid component should be necessary. Install the
 notification metadata under `/usr/share/knotifications6` and leave the user
 configuration in the standard KConfig path as `proton-vpn-kderc`.
 
+Authentication secret transport uses OpenSSL 3 for ephemeral X25519,
+HKDF-SHA256, and AES-256-GCM; Python's `cryptography` package implements the
+matching backend. Ciphertext is carried with Linux `memfd_create`, file seals,
+and D-Bus Unix file-descriptor passing. These are available on supported Fedora
+releases and require no filesystem storage, privileged helper, or custom SELinux
+rule.
+
 ## Suggested package checks
 
 ```bash
@@ -55,6 +65,7 @@ PYTHONPATH=backend /usr/bin/python3 -m unittest discover -s backend/tests -v
 cmake --build %{__cmake_builddir}
 ctest --test-dir %{__cmake_builddir} --output-on-failure
 dbus-run-session -- scripts/smoke-demo.sh
+dbus-run-session -- scripts/smoke-auth-demo.sh
 ```
 
 The smoke test always uses the deterministic demo adapter and cannot touch a

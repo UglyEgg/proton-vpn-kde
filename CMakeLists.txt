@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.3.0 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.4.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
@@ -37,6 +37,7 @@ if(ECM_FOUND)
 endif()
 find_package(KF6Config 6.0 REQUIRED)
 find_package(KF6Notifications 6.0 REQUIRED)
+find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -45,6 +46,8 @@ qt_add_executable(proton-vpn-kde
     src/AppSettings.h
     src/NotificationIntegration.cpp
     src/NotificationIntegration.h
+    src/SecretTransport.cpp
+    src/SecretTransport.h
     src/main.cpp
     src/LocationModels.cpp
     src/LocationModels.h
@@ -60,10 +63,12 @@ qt_add_qml_module(proton-vpn-kde
     NO_IMPORT_SCAN
     QML_FILES
         qml/Main.qml
+        qml/AccountPage.qml
         qml/LocationsPage.qml
         qml/OverviewPage.qml
         qml/ServersPage.qml
         qml/SettingsPage.qml
+        qml/SignInPage.qml
 )
 
 target_link_libraries(proton-vpn-kde PRIVATE
@@ -76,11 +81,13 @@ target_link_libraries(proton-vpn-kde PRIVATE
     Qt6::Widgets
     KF6::ConfigCore
     KF6::Notifications
+    OpenSSL::Crypto
 )
 
 target_compile_options(proton-vpn-kde PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
 )
+target_compile_definitions(proton-vpn-kde PRIVATE _GNU_SOURCE)
 
 if(TARGET KF6::StatusNotifierItem)
     target_link_libraries(proton-vpn-kde PRIVATE KF6::StatusNotifierItem)
@@ -117,6 +124,24 @@ if(BUILD_TESTING)
     )
     add_test(NAME app-settings-tests COMMAND app-settings-tests)
 
+    qt_add_executable(secret-transport-tests
+        tests/SecretTransportTest.cpp
+        src/SecretTransport.cpp
+        src/SecretTransport.h
+    )
+    target_include_directories(secret-transport-tests PRIVATE src)
+    target_link_libraries(secret-transport-tests PRIVATE
+        Qt6::Core
+        Qt6::DBus
+        Qt6::Test
+        OpenSSL::Crypto
+    )
+    target_compile_definitions(secret-transport-tests PRIVATE _GNU_SOURCE)
+    target_compile_options(secret-transport-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME secret-transport-tests COMMAND secret-transport-tests)
+
     add_test(
         NAME backend-tests
         COMMAND ${CMAKE_COMMAND} -E env
@@ -124,6 +149,15 @@ if(BUILD_TESTING)
             ${Python3_EXECUTABLE} -m unittest discover
             -s ${CMAKE_CURRENT_SOURCE_DIR}/backend/tests -v
     )
+
+    find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(
+            NAME auth-dbus-smoke
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} --
+                ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-auth-demo.sh
+        )
+    endif()
 endif()
 
 configure_file(

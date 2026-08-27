@@ -75,8 +75,18 @@ Kirigami.Page {
         Controls.Label {
             Layout.alignment: Qt.AlignHCenter
             visible: vpnController.ready && !vpnController.loggedIn
-            text: qsTr("Sign-in support is the next backend milestone")
+            text: qsTr("Sign in to connect with your Proton account")
             color: Kirigami.Theme.disabledTextColor
+        }
+
+        Controls.Button {
+            Layout.alignment: Qt.AlignHCenter
+            visible: vpnController.ready && !vpnController.loggedIn
+            text: qsTr("Sign in")
+            icon.name: "system-log-in"
+            highlighted: true
+            onClicked: applicationWindow().showPage(
+                Qt.resolvedUrl("SignInPage.qml"))
         }
 
         Controls.Button {
@@ -112,7 +122,7 @@ Kirigami.Page {
                 Controls.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: qsTr("Qt 6 and Kirigami frontend. Proton's official core continues to own networking and security behavior.")
+                    text: qsTr("Native sign-in, server selection, recovery, and Plasma integration. Proton's official core continues to own networking and security behavior.")
                     color: Kirigami.Theme.disabledTextColor
                 }
                 Controls.Button {

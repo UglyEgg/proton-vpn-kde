@@ -16,6 +16,12 @@ class VpnSnapshot:
     schema_version: int = 1
     ready: bool = False
     logged_in: bool = False
+    auth_state: str = "signed_out"
+    account_name: str = ""
+    plan_title: str = ""
+    user_tier: int = 0
+    max_connections: int = 0
+    fido2_available: bool = False
     reconnect_enabled: bool = True
     busy: bool = False
     state: str = "starting"
@@ -26,6 +32,12 @@ class VpnSnapshot:
         payload = asdict(self)
         payload["schemaVersion"] = payload.pop("schema_version")
         payload["loggedIn"] = payload.pop("logged_in")
+        payload["authState"] = payload.pop("auth_state")
+        payload["accountName"] = payload.pop("account_name")
+        payload["planTitle"] = payload.pop("plan_title")
+        payload["userTier"] = payload.pop("user_tier")
+        payload["maxConnections"] = payload.pop("max_connections")
+        payload["fido2Available"] = payload.pop("fido2_available")
         payload["reconnectEnabled"] = payload.pop("reconnect_enabled")
         payload["serverName"] = payload.pop("server_name")
         return json.dumps(payload, separators=(",", ":"), sort_keys=True)
@@ -75,6 +87,13 @@ class CoreAdapter(Protocol):
     async def connect_fastest(self) -> None: ...
     async def connect_country(self, country_code: str) -> None: ...
     async def connect_server(self, server_name: str) -> None: ...
+    async def login(self, username: str, password: str) -> None: ...
+    async def submit_two_factor(self, code: str) -> None: ...
+    async def cancel_login(self) -> None: ...
+    async def begin_fido2(self) -> None: ...
+    async def submit_fido2_pin(self, pin: str) -> None: ...
+    async def cancel_fido2(self) -> None: ...
+    async def logout(self) -> None: ...
     async def set_reconnection_enabled(self, enabled: bool) -> None: ...
     async def disconnect(self) -> None: ...
     async def close(self) -> None: ...
@@ -140,6 +159,41 @@ class BackendController:
         if not normalized_name or len(normalized_name) > 128:
             raise ValueError("Invalid Proton server name")
         await self._run_operation(lambda: self._adapter.connect_server(normalized_name))
+
+    async def login(self, username: str, password: str) -> None:
+        normalized_username = username.strip()
+        if not normalized_username or len(normalized_username) > 320:
+            raise ValueError("Enter a valid Proton username")
+        if not password or len(password) > 4096:
+            raise ValueError("Enter a valid Proton password")
+        await self._run_operation(
+            lambda: self._adapter.login(normalized_username, password)
+        )
+
+    async def submit_two_factor(self, code: str) -> None:
+        normalized_code = code.strip()
+        if len(normalized_code) not in {6, 8} or not normalized_code.isascii():
+            raise ValueError("Enter a 6-digit code or an 8-character recovery code")
+        await self._run_operation(
+            lambda: self._adapter.submit_two_factor(normalized_code)
+        )
+
+    async def cancel_login(self) -> None:
+        await self._run_operation(self._adapter.cancel_login)
+
+    async def begin_fido2(self) -> None:
+        await self._run_operation(self._adapter.begin_fido2)
+
+    async def submit_fido2_pin(self, pin: str) -> None:
+        if not pin or len(pin) > 256:
+            raise ValueError("Enter the security-key PIN")
+        await self._adapter.submit_fido2_pin(pin)
+
+    async def cancel_fido2(self) -> None:
+        await self._adapter.cancel_fido2()
+
+    async def logout(self) -> None:
+        await self._run_operation(self._adapter.logout)
 
     async def disconnect(self) -> None:
         await self._run_operation(self._adapter.disconnect)

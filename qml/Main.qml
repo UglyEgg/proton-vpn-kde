@@ -24,6 +24,20 @@ Kirigami.ApplicationWindow {
         pageStack.push(pageUrl)
     }
 
+    property bool previousLoggedIn: vpnController.loggedIn
+
+    Connections {
+        target: vpnController
+        function onSnapshotChanged() {
+            if (!root.previousLoggedIn && vpnController.loggedIn) {
+                root.showPage(Qt.resolvedUrl("OverviewPage.qml"))
+            } else if (root.previousLoggedIn && !vpnController.loggedIn) {
+                root.showPage(Qt.resolvedUrl("SignInPage.qml"))
+            }
+            root.previousLoggedIn = vpnController.loggedIn
+        }
+    }
+
     pageStack.initialPage: Qt.resolvedUrl("OverviewPage.qml")
 
     globalDrawer: Kirigami.GlobalDrawer {
@@ -42,6 +56,12 @@ Kirigami.ApplicationWindow {
                 icon.name: "network-server"
                 enabled: vpnController.loggedIn
                 onTriggered: root.showPage(Qt.resolvedUrl("LocationsPage.qml"))
+            },
+            Kirigami.Action {
+                text: vpnController.loggedIn ? qsTr("Account") : qsTr("Sign in")
+                icon.name: vpnController.loggedIn ? "user-identity" : "system-log-in"
+                onTriggered: root.showPage(Qt.resolvedUrl(
+                    vpnController.loggedIn ? "AccountPage.qml" : "SignInPage.qml"))
             },
             Kirigami.Action {
                 text: qsTr("Settings")

@@ -7,21 +7,19 @@ from dataclasses import replace
 from typing import Any
 
 from .controller import CountryInfo, ServerInfo, SnapshotCallback, VpnSnapshot
+from .fido_interaction import FidoInteraction
 from .reconnector import AsyncReconnector
 
 
 class DemoCoreAdapter:
     """Deterministic adapter that never touches the network or credentials."""
 
-    def __init__(self):
+    def __init__(self, logged_in: bool = True):
         self._callback: SnapshotCallback | None = None
-        self._snapshot = VpnSnapshot(
-            ready=True,
-            logged_in=True,
-            state="disconnected",
-            message="Safe demo backend",
-        )
+        self._logged_in = logged_in
+        self._auth_state = "signed_in" if logged_in else "signed_out"
         self._reconnection_enabled = True
+        self._snapshot = self._build_snapshot(message="Safe demo backend")
 
     async def initialize(self, callback: SnapshotCallback) -> VpnSnapshot:
         self._callback = callback
@@ -63,23 +61,83 @@ class DemoCoreAdapter:
         await asyncio.sleep(0.1)
         await self._transition("disconnected", "")
 
+    async def login(self, username: str, password: str) -> None:
+        await asyncio.sleep(0.05)
+        if password == "2fa":
+            self._auth_state = "two_factor"
+            self._logged_in = False
+            self._publish(self._build_snapshot(message="Enter your two-factor code"))
+            return
+        self._logged_in = True
+        self._auth_state = "signed_in"
+        self._publish(self._build_snapshot(account_name=username, message=""))
+
+    async def submit_two_factor(self, code: str) -> None:
+        await asyncio.sleep(0.05)
+        if code not in {"123456", "recovery"}:
+            self._publish(self._build_snapshot(message="Incorrect two-factor code"))
+            return
+        self._logged_in = True
+        self._auth_state = "signed_in"
+        self._publish(self._build_snapshot(account_name="demo-user", message=""))
+
+    async def cancel_login(self) -> None:
+        self._logged_in = False
+        self._auth_state = "signed_out"
+        self._publish(self._build_snapshot(message="Sign-in cancelled"))
+
+    async def begin_fido2(self) -> None:
+        raise RuntimeError("Security-key authentication is unavailable in demo mode")
+
+    async def submit_fido2_pin(self, pin: str) -> None:
+        del pin
+        raise RuntimeError("No security key is waiting for a PIN")
+
+    async def cancel_fido2(self) -> None:
+        return None
+
+    async def logout(self) -> None:
+        if self._snapshot.state != "disconnected":
+            await self.disconnect()
+        self._logged_in = False
+        self._auth_state = "signed_out"
+        self._publish(self._build_snapshot(message="Signed out"))
+
     async def set_reconnection_enabled(self, enabled: bool) -> None:
         self._reconnection_enabled = enabled
         self._snapshot = replace(self._snapshot, reconnect_enabled=enabled)
-        if self._callback:
-            self._callback(self._snapshot)
+        self._publish(self._snapshot)
 
     async def close(self) -> None:
         return None
 
     async def _transition(self, state: str, server_name: str) -> None:
-        self._snapshot = VpnSnapshot(
+        self._publish(self._build_snapshot(state=state, server_name=server_name))
+
+    def _build_snapshot(
+        self,
+        *,
+        state: str = "disconnected",
+        server_name: str = "",
+        account_name: str = "demo-user",
+        message: str = "",
+    ) -> VpnSnapshot:
+        return VpnSnapshot(
             ready=True,
-            logged_in=True,
+            logged_in=self._logged_in,
+            auth_state=self._auth_state,
+            account_name=account_name if self._logged_in else "",
+            plan_title="VPN Plus" if self._logged_in else "",
+            user_tier=2 if self._logged_in else 0,
+            max_connections=10 if self._logged_in else 0,
             reconnect_enabled=self._reconnection_enabled,
             state=state,
             server_name=server_name,
+            message=message,
         )
+
+    def _publish(self, snapshot: VpnSnapshot) -> None:
+        self._snapshot = snapshot
         if self._callback:
             self._callback(self._snapshot)
 
@@ -99,6 +157,9 @@ class ProtonCoreAdapter:
         self._reconnector: AsyncReconnector | None = None
         self._reconnection_enabled = True
         self._status_message = ""
+        self._auth_state = "signed_out"
+        self._session_services_enabled = False
+        self._fido_interaction: FidoInteraction | None = None
 
     async def initialize(self, callback: SnapshotCallback) -> VpnSnapshot:
         self._callback = callback
@@ -113,18 +174,12 @@ class ProtonCoreAdapter:
         # provider unlock prompt (KeePassXC, KWallet, etc.) cannot freeze the
         # entire backend while waiting for user approval.
         self._logged_in = await asyncio.to_thread(self._api.is_user_logged_in)
+        self._auth_state = "signed_in" if self._logged_in else "signed_out"
         self._connector = await self._api.get_vpn_connector()
         self._connector.register(self)
 
         if self._logged_in:
-            await self._api.refresher.enable()
-            self._reconnector = AsyncReconnector(
-                self._connector,
-                self._api.refresher,
-                self._on_reconnector_status,
-            )
-            if self._reconnection_enabled:
-                self._reconnector.enable()
+            await self._enable_session_services()
 
         return self._snapshot_from_state(self._connector.current_state)
 
@@ -170,7 +225,10 @@ class ProtonCoreAdapter:
         await self._connect_logical(server_list.get_by_name(server_name))
 
     async def _get_server_list(self):
-        return await self._api.refresher.get_up_to_date_server_list()
+        try:
+            return await self._api.refresher.get_up_to_date_server_list()
+        except Exception as error:
+            await self._raise_session_error(error)
 
     def _normal_servers(self, server_list):
         from proton.vpn.session.servers import ServerFeatureEnum
@@ -184,13 +242,134 @@ class ProtonCoreAdapter:
         )
 
     async def _connect_logical(self, logical_server) -> None:
-        client_config = await self._api.refresher.get_up_to_date_client_config()
-        vpn_server = self._connector.get_vpn_server(logical_server, client_config)
-        settings = await self._api.load_settings()
-        await self._connector.connect(vpn_server, protocol=settings.protocol)
+        try:
+            client_config = await self._api.refresher.get_up_to_date_client_config()
+            vpn_server = self._connector.get_vpn_server(logical_server, client_config)
+            settings = await self._api.load_settings()
+            await self._connector.connect(vpn_server, protocol=settings.protocol)
+        except Exception as error:
+            await self._raise_session_error(error)
 
     async def disconnect(self) -> None:
         await self._connector.disconnect()
+
+    async def login(self, username: str, password: str) -> None:
+        self._auth_state = "signing_in"
+        self._status_message = "Signing in…"
+        self._publish_snapshot()
+        try:
+            result = await self._api.login(username, password)
+        except Exception as error:
+            self._handle_authentication_error(error)
+            return
+
+        if not result.authenticated:
+            self._auth_state = "signed_out"
+            self._status_message = "Incorrect username or password"
+            self._publish_snapshot()
+            return
+        if result.twofa_required:
+            self._auth_state = "two_factor"
+            self._status_message = "Enter your two-factor authentication code"
+            self._publish_snapshot()
+            return
+        await self._complete_login()
+
+    async def submit_two_factor(self, code: str) -> None:
+        if self._auth_state not in {"two_factor", "fido_error"}:
+            raise RuntimeError("No two-factor authentication is pending")
+        self._status_message = "Verifying the two-factor code…"
+        self._publish_snapshot()
+        try:
+            result = await self._api.submit_2fa_code(code)
+        except Exception as error:
+            self._handle_authentication_error(error, fallback_state="two_factor")
+            return
+        if not result.success:
+            self._auth_state = "two_factor"
+            self._status_message = "Incorrect two-factor authentication code"
+            self._publish_snapshot()
+            return
+        await self._complete_login()
+
+    async def cancel_login(self) -> None:
+        await self.cancel_fido2()
+        try:
+            await self._api.logout()
+        except Exception:
+            # A partially authenticated session may have no server-side session
+            # left to revoke. Locally it must still return to signed-out state.
+            pass
+        await self._set_signed_out("Sign-in cancelled")
+
+    async def begin_fido2(self) -> None:
+        if self._auth_state not in {"two_factor", "fido_error"}:
+            raise RuntimeError("No two-factor authentication is pending")
+        if not bool(self._api.supports_fido2):
+            raise RuntimeError("Security-key authentication is unavailable")
+
+        loop = asyncio.get_running_loop()
+        interaction = FidoInteraction(loop, self._set_auth_status)
+        self._fido_interaction = interaction
+        self._set_auth_status(
+            "fido_waiting",
+            "Insert your security key and follow its prompts",
+        )
+        try:
+            assertion = await self._api.generate_2fa_fido2_assertion(
+                interaction,
+                interaction.cancel_assertion,
+            )
+            if interaction.cancelled:
+                self._set_auth_status(
+                    "two_factor", "Security-key authentication cancelled"
+                )
+                return
+            result = await self._api.submit_2fa_fido2(assertion)
+        except Exception as error:
+            if interaction.cancelled:
+                self._set_auth_status(
+                    "two_factor", "Security-key authentication cancelled"
+                )
+            else:
+                self._handle_fido2_error(error)
+            return
+        finally:
+            self._fido_interaction = None
+
+        if not result.success:
+            self._set_auth_status("fido_error", "The security key was not accepted")
+            return
+        await self._complete_login()
+
+    async def submit_fido2_pin(self, pin: str) -> None:
+        if not self._fido_interaction or not self._fido_interaction.provide_pin(pin):
+            raise RuntimeError("No security key is waiting for a PIN")
+        self._set_auth_status("fido_waiting", "Waiting for the security key…")
+
+    async def cancel_fido2(self) -> None:
+        if self._fido_interaction:
+            self._fido_interaction.cancel()
+
+    async def logout(self) -> None:
+        await self.cancel_fido2()
+        if type(self._connector.current_state).__name__ != "Disconnected":
+            await self._connector.disconnect()
+        if self._reconnector:
+            await self._reconnector.disable()
+        self._session_services_enabled = False
+        try:
+            await self._api.logout()
+        except Exception as error:
+            if self._logged_in:
+                await self._enable_session_services()
+            error_name = type(error).__name__
+            if error_name in {"ProtonAPINotReachable", "ProtonAPINotAvailable"}:
+                raise RuntimeError(
+                    "Proton's API is unreachable; sign-out was not completed"
+                ) from None
+            raise RuntimeError("Proton could not complete sign-out") from None
+        await self._set_signed_out("Signed out")
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
         self._reconnection_enabled = enabled
@@ -202,11 +381,12 @@ class ProtonCoreAdapter:
             await self._reconnector.disable()
 
     async def close(self) -> None:
+        await self.cancel_fido2()
         if self._reconnector:
             await self._reconnector.disable()
         if self._connector:
             self._connector.unregister(self)
-        if self._api and self._logged_in:
+        if self._api and self._session_services_enabled:
             await self._api.refresher.disable()
 
     def status_update(self, state: Any) -> None:
@@ -217,6 +397,94 @@ class ProtonCoreAdapter:
         self._status_message = message
         if self._callback and self._connector:
             self._callback(self._snapshot_from_state(self._connector.current_state))
+
+    async def _complete_login(self) -> None:
+        self._logged_in = True
+        self._auth_state = "signed_in"
+        self._status_message = ""
+        await self._enable_session_services()
+        self._publish_snapshot()
+
+    async def _enable_session_services(self) -> None:
+        if not self._session_services_enabled:
+            await self._api.refresher.enable()
+            self._session_services_enabled = True
+        if not self._reconnector:
+            self._reconnector = AsyncReconnector(
+                self._connector,
+                self._api.refresher,
+                self._on_reconnector_status,
+            )
+        if self._reconnection_enabled:
+            self._reconnector.enable()
+
+    async def _set_signed_out(
+        self, message: str, auth_state: str = "signed_out"
+    ) -> None:
+        self._logged_in = False
+        self._auth_state = auth_state
+        self._status_message = message
+        self._session_services_enabled = False
+        self._publish_snapshot()
+
+    async def _raise_session_error(self, error: Exception):
+        if type(error).__name__ != "ProtonAPIAuthenticationNeeded":
+            raise error
+        if self._reconnector:
+            await self._reconnector.disable()
+        if self._session_services_enabled:
+            await self._api.refresher.disable()
+        await self._set_signed_out(
+            "Your Proton session expired; sign in again",
+            auth_state="expired",
+        )
+        raise RuntimeError("Your Proton session expired; sign in again") from None
+
+    def _set_auth_status(self, state: str, message: str) -> None:
+        self._auth_state = state
+        self._status_message = message
+        self._publish_snapshot()
+
+    def _publish_snapshot(self) -> None:
+        if self._callback and self._connector:
+            self._callback(self._snapshot_from_state(self._connector.current_state))
+
+    def _handle_authentication_error(
+        self,
+        error: Exception,
+        fallback_state: str = "signed_out",
+    ) -> None:
+        error_name = type(error).__name__
+        if error_name == "ProtonAPIHumanVerificationNeeded":
+            self._auth_state = "human_verification"
+            self._status_message = (
+                "Proton requires additional human verification. "
+                "Complete it in your Proton account, then try again."
+            )
+        elif error_name in {"ProtonAPINotReachable", "ProtonAPINotAvailable"}:
+            self._auth_state = fallback_state
+            self._status_message = "Proton's API is currently unreachable"
+        elif isinstance(error, ValueError):
+            self._auth_state = fallback_state
+            self._status_message = "Enter a valid Proton username"
+        else:
+            self._auth_state = fallback_state
+            self._status_message = "Proton could not complete authentication"
+        self._publish_snapshot()
+
+    def _handle_fido2_error(self, error: Exception) -> None:
+        messages = {
+            "SecurityKeyNotFoundError": "No security key was detected",
+            "InvalidSecurityKeyError": "That security key is not linked to this account",
+            "SecurityKeyPINNotSetError": "The security key does not have a PIN configured",
+            "SecurityKeyPINInvalidError": "The security-key PIN was incorrect",
+            "SecurityKeyTimeoutError": "The security-key request timed out",
+            "Fido2NotSupportedError": "Security-key authentication is unavailable",
+        }
+        self._set_auth_status(
+            "fido_error",
+            messages.get(type(error).__name__, "Security-key authentication failed"),
+        )
 
     def _snapshot_from_state(self, state: Any) -> VpnSnapshot:
         state_name = type(state).__name__.lower() if state else "unavailable"
@@ -232,15 +500,43 @@ class ProtonCoreAdapter:
 
         connection = self._connector.current_connection if self._connector else None
         server_name = connection.server_name if connection else ""
+        account_name = ""
+        plan_title = ""
+        user_tier = 0
+        max_connections = 0
+        if self._logged_in:
+            account_name = self._api.account_name or ""
+            account = self._api.account_data
+            plan_title = account.plan_title or "Free"
+            user_tier = account.max_tier
+            max_connections = account.max_connections
         return VpnSnapshot(
             ready=True,
             logged_in=self._logged_in,
+            auth_state=self._auth_state,
+            account_name=account_name,
+            plan_title=plan_title,
+            user_tier=user_tier,
+            max_connections=max_connections,
+            fido2_available=(
+                not self._logged_in
+                and self._auth_state
+                in {
+                    "two_factor",
+                    "fido_waiting",
+                    "fido_touch",
+                    "fido_select",
+                    "fido_pin",
+                    "fido_error",
+                }
+                and bool(self._api.supports_fido2)
+            ),
             reconnect_enabled=self._reconnection_enabled,
             state=state_name,
             server_name=server_name,
             message=(
                 self._status_message
                 if self._logged_in
-                else "Sign in to Proton VPN to continue"
+                else self._status_message or "Sign in to Proton VPN to continue"
             ),
         )

@@ -66,6 +66,31 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.controller.snapshot.reconnect_enabled)
         self.assertIn('"reconnectEnabled":false', self.controller.snapshot.to_json())
 
+    async def test_demo_authentication_and_logout_lifecycle(self):
+        controller = BackendController(DemoCoreAdapter(logged_in=False))
+        await controller.start()
+
+        await controller.login("demo-user", "2fa")
+        self.assertEqual("two_factor", controller.snapshot.auth_state)
+        self.assertFalse(controller.snapshot.logged_in)
+
+        await controller.submit_two_factor("123456")
+        self.assertTrue(controller.snapshot.logged_in)
+        self.assertEqual("demo-user", controller.snapshot.account_name)
+
+        await controller.logout()
+        self.assertFalse(controller.snapshot.logged_in)
+        self.assertEqual("signed_out", controller.snapshot.auth_state)
+
+    async def test_authentication_input_is_validated_before_reaching_adapter(self):
+        controller = BackendController(DemoCoreAdapter(logged_in=False))
+        await controller.start()
+
+        with self.assertRaisesRegex(ValueError, "valid Proton username"):
+            await controller.login("   ", "password")
+        with self.assertRaisesRegex(ValueError, "6-digit"):
+            await controller.submit_two_factor("123")
+
 
 if __name__ == "__main__":
     unittest.main()

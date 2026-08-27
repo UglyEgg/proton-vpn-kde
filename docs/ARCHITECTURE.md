@@ -6,7 +6,8 @@
    `KStatusNotifierItem`, Breeze icons, and Plasma's color scheme.
 2. Preserve Proton's existing networking behavior instead of reimplementing
    WireGuard, OpenVPN, Protun, kill switch, or split tunneling in the GUI.
-3. Keep credentials out of the GUI process and never expose them over D-Bus.
+3. Never persist or log credentials, and never expose plaintext credentials
+   over D-Bus.
 4. Allow the frontend to restart independently from an active VPN connection.
 5. Keep the backend boundary desktop-neutral so a CLI or another frontend can
    reuse it later.
@@ -54,6 +55,14 @@ The additive version-one contract currently contains:
 - `ConnectCountry(countryCode)`
 - `ConnectServer(serverName)`
 - `Disconnect()`
+- `GetAuthPublicKey() -> base64 X25519 public key`
+- `Login(sealedCredentialFd)`
+- `SubmitTwoFactor(sealedCodeFd)`
+- `CancelLogin()`
+- `BeginFido2()`
+- `SubmitFido2Pin(sealedPinFd)`
+- `CancelFido2()`
+- `Logout()`
 - `SetReconnectionEnabled(enabled)`
 - `SnapshotChanged(JSON string)`
 
@@ -61,8 +70,13 @@ JSON keeps the prototype easy to inspect while `schemaVersion` protects the
 boundary. Before a public release, frequently accessed fields can become typed
 D-Bus properties without breaking the version-one interface.
 
-No token, password, certificate, private key, or raw API response may cross
-this boundary.
+No token, password, certificate, private key, or raw API response may appear in
+the D-Bus message body or state snapshot. Authentication fields are encrypted
+for a one-use backend X25519 public key with HKDF-SHA256 and AES-256-GCM, then
+cross the process boundary as ciphertext in a sealed Linux `memfd` sent with
+D-Bus Unix file-descriptor passing. The backend rotates its key before every
+decryption attempt, reads the bounded payload once, closes the descriptor, and
+overwrites its mutable input buffer.
 
 Installed builds use D-Bus activation backed by a systemd user service. The
 service is demand-started by the first `GetSnapshot` call and remains separate
@@ -72,6 +86,26 @@ The official SSO stack reaches Secret Service through a synchronous keyring
 API. The backend warms that saved session on a worker thread before creating
 the VPN connector. This remains provider-agnostic while preventing a KeePassXC,
 KWallet, or other provider unlock prompt from freezing the D-Bus event loop.
+
+## Authentication
+
+The backend calls the official `ProtonVPNAPI` facade for password login,
+TOTP/recovery codes, FIDO2 assertions, session data retrieval, and logout.
+Successful sessions are persisted by Proton SSO through whichever conforming
+Freedesktop Secret Service provider owns `org.freedesktop.secrets`.
+
+The native frontend exposes only non-sensitive account metadata: account name,
+human-readable plan title, tier, and maximum connection count. Authentication
+errors are mapped to fixed user-facing messages so exception strings cannot
+accidentally echo credentials. A session-expired API response disables recovery
+and returns the UI to sign-in state.
+
+FIDO2 remains implemented by Proton's official `python3-fido2` integration. The
+backend bridges touch, key-selection, and PIN prompts into its authentication
+state machine; PINs use the same encrypted descriptor transport. Proton's
+current Linux core reports human-verification challenges but does not expose a native
+completion callback, so the UI safely directs the user to their Proton account
+instead of attempting to handle or export the verification token.
 
 ## Reconnection
 
@@ -104,15 +138,14 @@ time.
 - Mutating operations are serialized.
 - The GUI disables connection actions while an operation is active.
 - Demo mode is the default path used by tests and visual development.
-- The official GTK client remains installed until the KDE client covers login,
-  2FA, the complete settings surface, and mature error recovery.
+- The official GTK client may remain installed during development, but is no
+  longer required to create the Proton session.
 - Direct NetworkManager mutations from the GUI are out of scope.
 
 ## Next milestones
 
-1. Login and TOTP/FIDO2 flows through the backend without exporting secrets.
-2. Incremental server-load updates and sorting controls.
-3. Complete Proton settings plus a KCM-compatible configuration surface.
-4. KRunner actions and Plasma shortcuts.
-5. Split-tunneling application discovery through `KService`, not `.desktop`
+1. Incremental server-load updates and sorting controls.
+2. Complete Proton settings plus a KCM-compatible configuration surface.
+3. KRunner actions and Plasma shortcuts.
+4. Split-tunneling application discovery through `KService`, not `.desktop`
    parsing in the GUI.

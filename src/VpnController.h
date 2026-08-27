@@ -7,6 +7,7 @@
 class QDBusPendingCallWatcher;
 class QDBusServiceWatcher;
 class QAbstractItemModel;
+class QJsonObject;
 class CountryModel;
 class LocationFilterProxyModel;
 class ServerModel;
@@ -17,6 +18,12 @@ class VpnController final : public QObject
     Q_PROPERTY(bool backendAvailable READ backendAvailable NOTIFY backendAvailableChanged)
     Q_PROPERTY(bool ready READ ready NOTIFY snapshotChanged)
     Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY snapshotChanged)
+    Q_PROPERTY(QString authState READ authState NOTIFY snapshotChanged)
+    Q_PROPERTY(QString accountName READ accountName NOTIFY snapshotChanged)
+    Q_PROPERTY(QString planTitle READ planTitle NOTIFY snapshotChanged)
+    Q_PROPERTY(int userTier READ userTier NOTIFY snapshotChanged)
+    Q_PROPERTY(int maxConnections READ maxConnections NOTIFY snapshotChanged)
+    Q_PROPERTY(bool fido2Available READ fido2Available NOTIFY snapshotChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(QString state READ state NOTIFY snapshotChanged)
@@ -33,6 +40,12 @@ public:
     [[nodiscard]] bool backendAvailable() const;
     [[nodiscard]] bool ready() const;
     [[nodiscard]] bool loggedIn() const;
+    [[nodiscard]] QString authState() const;
+    [[nodiscard]] QString accountName() const;
+    [[nodiscard]] QString planTitle() const;
+    [[nodiscard]] int userTier() const;
+    [[nodiscard]] int maxConnections() const;
+    [[nodiscard]] bool fido2Available() const;
     [[nodiscard]] bool busy() const;
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] QString state() const;
@@ -49,6 +62,13 @@ public:
     Q_INVOKABLE void loadServers(const QString &countryCode);
     Q_INVOKABLE void connectCountry(const QString &countryCode);
     Q_INVOKABLE void connectServer(const QString &serverName);
+    Q_INVOKABLE void login(const QString &username, const QString &password);
+    Q_INVOKABLE void submitTwoFactor(const QString &code);
+    Q_INVOKABLE void cancelLogin();
+    Q_INVOKABLE void beginFido2();
+    Q_INVOKABLE void submitFido2Pin(const QString &pin);
+    Q_INVOKABLE void cancelFido2();
+    Q_INVOKABLE void logout();
     Q_INVOKABLE void setCountryFilter(const QString &filterText);
     Q_INVOKABLE void setServerFilter(const QString &filterText);
     Q_INVOKABLE void setReconnectionEnabled(bool enabled);
@@ -67,6 +87,10 @@ private:
     void setBackendAvailable(bool available);
     void applySnapshot(const QString &snapshotJson);
     void callOperation(const QString &method, const QVariantList &arguments = {});
+    void callSecretOperation(const QString &method, const QJsonObject &fields,
+                             bool updateBusy = true);
+    void callControlOperation(const QString &method,
+                              const QVariantList &arguments = {});
     void setLocationsBusy(bool busy);
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
@@ -81,6 +105,12 @@ private:
     bool m_backendAvailable = false;
     bool m_ready = false;
     bool m_loggedIn = false;
+    QString m_authState = QStringLiteral("signed_out");
+    QString m_accountName;
+    QString m_planTitle;
+    int m_userTier = 0;
+    int m_maxConnections = 0;
+    bool m_fido2Available = false;
     bool m_busy = false;
     bool m_locationsBusy = false;
     bool m_reconnectionEnabled = true;

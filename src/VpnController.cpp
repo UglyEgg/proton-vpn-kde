@@ -1,6 +1,7 @@
 #include "VpnController.h"
 
 #include "LocationModels.h"
+#include "SecretTransport.h"
 
 #include <QAbstractItemModel>
 #include <QDBusConnection>
@@ -63,6 +64,12 @@ VpnController::VpnController(QObject *parent)
 bool VpnController::backendAvailable() const { return m_backendAvailable; }
 bool VpnController::ready() const { return m_ready; }
 bool VpnController::loggedIn() const { return m_loggedIn; }
+QString VpnController::authState() const { return m_authState; }
+QString VpnController::accountName() const { return m_accountName; }
+QString VpnController::planTitle() const { return m_planTitle; }
+int VpnController::userTier() const { return m_userTier; }
+int VpnController::maxConnections() const { return m_maxConnections; }
+bool VpnController::fido2Available() const { return m_fido2Available; }
 bool VpnController::busy() const { return m_busy; }
 bool VpnController::locationsBusy() const { return m_locationsBusy; }
 QString VpnController::state() const { return m_state; }
@@ -160,6 +167,49 @@ void VpnController::connectServer(const QString &serverName)
     }
 }
 
+void VpnController::login(const QString &username, const QString &password)
+{
+    callSecretOperation(
+        QStringLiteral("Login"),
+        {{QStringLiteral("username"), username},
+         {QStringLiteral("password"), password}});
+}
+
+void VpnController::submitTwoFactor(const QString &code)
+{
+    callSecretOperation(
+        QStringLiteral("SubmitTwoFactor"),
+        {{QStringLiteral("code"), code}});
+}
+
+void VpnController::cancelLogin()
+{
+    callOperation(QStringLiteral("CancelLogin"));
+}
+
+void VpnController::beginFido2()
+{
+    callOperation(QStringLiteral("BeginFido2"));
+}
+
+void VpnController::submitFido2Pin(const QString &pin)
+{
+    callSecretOperation(
+        QStringLiteral("SubmitFido2Pin"),
+        {{QStringLiteral("pin"), pin}},
+        false);
+}
+
+void VpnController::cancelFido2()
+{
+    callControlOperation(QStringLiteral("CancelFido2"));
+}
+
+void VpnController::logout()
+{
+    callOperation(QStringLiteral("Logout"));
+}
+
 void VpnController::setCountryFilter(const QString &filterText)
 {
     m_countryFilterModel->setFilterText(filterText);
@@ -237,13 +287,25 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         return;
     }
 
+    const bool wasLoggedIn = m_loggedIn;
     m_ready = snapshot.value(QStringLiteral("ready")).toBool();
     m_loggedIn = snapshot.value(QStringLiteral("loggedIn")).toBool();
+    m_authState = snapshot.value(QStringLiteral("authState")).toString(
+        m_loggedIn ? QStringLiteral("signed_in") : QStringLiteral("signed_out"));
+    m_accountName = snapshot.value(QStringLiteral("accountName")).toString();
+    m_planTitle = snapshot.value(QStringLiteral("planTitle")).toString();
+    m_userTier = snapshot.value(QStringLiteral("userTier")).toInt();
+    m_maxConnections = snapshot.value(QStringLiteral("maxConnections")).toInt();
+    m_fido2Available = snapshot.value(QStringLiteral("fido2Available")).toBool();
     m_busy = snapshot.value(QStringLiteral("busy")).toBool();
     m_state = snapshot.value(QStringLiteral("state")).toString(
         QStringLiteral("unavailable"));
     m_serverName = snapshot.value(QStringLiteral("serverName")).toString();
     m_message = snapshot.value(QStringLiteral("message")).toString();
+    if (wasLoggedIn && !m_loggedIn) {
+        m_countryModel->clear();
+        m_serverModel->clear();
+    }
     emit snapshotChanged();
     if (m_loggedIn && m_countryModel->rowCount() == 0 && !m_locationsBusy) {
         loadCountries();
@@ -267,6 +329,71 @@ void VpnController::callOperation(const QString &method,
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleOperationReply);
+}
+
+void VpnController::callSecretOperation(const QString &method,
+                                        const QJsonObject &fields,
+                                        bool updateBusy)
+{
+    if (updateBusy) {
+        m_busy = true;
+        m_message.clear();
+        emit snapshotChanged();
+    }
+
+    QDBusMessage keyRequest = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetAuthPublicKey"));
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(keyRequest, 5000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, method, fields, updateBusy](QDBusPendingCallWatcher *finished) {
+        const QDBusPendingReply<QString> reply = *finished;
+        finished->deleteLater();
+        if (reply.isError()) {
+            if (updateBusy) {
+                m_busy = false;
+            }
+            m_message = tr("Unable to initialize protected authentication");
+            emit snapshotChanged();
+            return;
+        }
+
+        QString errorMessage;
+        const QByteArray publicKey = QByteArray::fromBase64(reply.value().toLatin1());
+        const QDBusUnixFileDescriptor descriptor =
+            SecretTransport::createSealedPayload(fields, publicKey, &errorMessage);
+        if (!descriptor.isValid()) {
+            if (updateBusy) {
+                m_busy = false;
+            }
+            m_message = tr("Unable to protect the authentication data: %1")
+                            .arg(errorMessage);
+            emit snapshotChanged();
+            return;
+        }
+
+        const QVariant argument = QVariant::fromValue(descriptor);
+        if (updateBusy) {
+            callOperation(method, {argument});
+        } else {
+            callControlOperation(method, {argument});
+        }
+    });
+}
+
+void VpnController::callControlOperation(const QString &method,
+                                         const QVariantList &arguments)
+{
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        method);
+    message.setArguments(arguments);
+    QDBusConnection::sessionBus().asyncCall(message, 5000);
 }
 
 void VpnController::setLocationsBusy(bool busy)

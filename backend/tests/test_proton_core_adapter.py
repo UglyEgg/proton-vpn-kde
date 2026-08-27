@@ -33,7 +33,19 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api = SimpleNamespace(
             get_vpn_connector=AsyncMock(return_value=connector),
             is_user_logged_in=Mock(return_value=logged_in),
+            account_name="test-user",
+            account_data=SimpleNamespace(
+                plan_title="VPN Plus",
+                max_tier=2,
+                max_connections=10,
+            ),
+            supports_fido2=False,
             refresher=refresher,
+            login=AsyncMock(),
+            submit_2fa_code=AsyncMock(),
+            generate_2fa_fido2_assertion=AsyncMock(),
+            submit_2fa_fido2=AsyncMock(),
+            logout=AsyncMock(),
             load_settings=AsyncMock(return_value=SimpleNamespace(protocol="wireguard")),
         )
         return api, connector
@@ -90,6 +102,124 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.enable.assert_not_awaited()
         self.assertFalse(snapshot.logged_in)
         self.assertEqual("Sign in to Proton VPN to continue", snapshot.message)
+
+    async def test_login_without_two_factor_enables_session_services(self):
+        api, connector = self.make_api(logged_in=False)
+        api.login.return_value = SimpleNamespace(
+            success=True,
+            authenticated=True,
+            twofa_required=False,
+        )
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        await adapter.login("test-user", "not-recorded")
+
+        api.login.assert_awaited_once_with("test-user", "not-recorded")
+        api.refresher.enable.assert_awaited_once_with()
+        self.assertTrue(snapshots[-1].logged_in)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertEqual("VPN Plus", snapshots[-1].plan_title)
+        self.assertEqual(2, connector.register.call_count)
+
+    async def test_two_factor_and_recovery_code_flow(self):
+        api, _ = self.make_api(logged_in=False)
+        api.login.return_value = SimpleNamespace(
+            success=False,
+            authenticated=True,
+            twofa_required=True,
+        )
+        api.submit_2fa_code.side_effect = [
+            SimpleNamespace(success=False),
+            SimpleNamespace(success=True),
+        ]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        await adapter.login("test-user", "not-recorded")
+        self.assertEqual("two_factor", snapshots[-1].auth_state)
+        self.assertFalse(snapshots[-1].logged_in)
+
+        await adapter.submit_two_factor("000000")
+        self.assertEqual("two_factor", snapshots[-1].auth_state)
+        self.assertIn("Incorrect", snapshots[-1].message)
+
+        await adapter.submit_two_factor("recovery")
+        self.assertTrue(snapshots[-1].logged_in)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
+
+    async def test_authentication_exception_does_not_expose_exception_text(self):
+        api, _ = self.make_api(logged_in=False)
+        api.login.side_effect = RuntimeError("password=super-secret")
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        await adapter.login("test-user", "super-secret")
+
+        self.assertNotIn("super-secret", snapshots[-1].message)
+        self.assertEqual(
+            "Proton could not complete authentication", snapshots[-1].message
+        )
+
+    async def test_security_key_flow_uses_official_api(self):
+        api, _ = self.make_api(logged_in=False)
+        api.supports_fido2 = True
+        api.login.return_value = SimpleNamespace(
+            success=False,
+            authenticated=True,
+            twofa_required=True,
+        )
+
+        async def generate_assertion(interaction, _cancel_assertion):
+            interaction.prompt_up()
+            await asyncio.sleep(0)
+            return "assertion"
+
+        api.generate_2fa_fido2_assertion.side_effect = generate_assertion
+        api.submit_2fa_fido2.return_value = SimpleNamespace(success=True)
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+        await adapter.login("test-user", "not-recorded")
+
+        await adapter.begin_fido2()
+
+        api.submit_2fa_fido2.assert_awaited_once_with("assertion")
+        self.assertTrue(any(item.auth_state == "fido_touch" for item in snapshots))
+        self.assertTrue(snapshots[-1].logged_in)
+
+    async def test_logout_disconnects_and_clears_account_metadata(self):
+        api, connector = self.make_api()
+        connector.current_state = state_named("Connected")
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        await adapter.logout()
+
+        connector.disconnect.assert_awaited_once_with()
+        api.logout.assert_awaited_once_with()
+        self.assertFalse(snapshots[-1].logged_in)
+        self.assertEqual("", snapshots[-1].account_name)
+        self.assertEqual("signed_out", snapshots[-1].auth_state)
+
+    async def test_expired_api_session_returns_to_sign_in_state(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.refresher.get_up_to_date_server_list.side_effect = expired_error()
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "session expired"):
+            await adapter.get_countries()
+
+        self.assertFalse(snapshots[-1].logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
+        api.refresher.disable.assert_awaited_once_with()
 
     async def test_disabled_reconnection_preference_survives_initialization(self):
         api, connector = self.make_api()

@@ -14,11 +14,16 @@ from .controller import BackendController
 from .dbus_service import BUS_NAME, OBJECT_PATH, VpnDbusService
 
 
-async def run(demo: bool) -> None:
-    adapter = DemoCoreAdapter() if demo else ProtonCoreAdapter()
+async def run(demo: bool, demo_logged_out: bool = False) -> None:
+    adapter = (
+        DemoCoreAdapter(logged_in=not demo_logged_out) if demo else ProtonCoreAdapter()
+    )
     controller = BackendController(adapter)
 
-    bus = await MessageBus(bus_type=BusType.SESSION).connect()
+    bus = await MessageBus(
+        bus_type=BusType.SESSION,
+        negotiate_unix_fd=True,
+    ).connect()
     service = VpnDbusService(controller)
     bus.export(OBJECT_PATH, service)
     await bus.request_name(BUS_NAME)
@@ -46,8 +51,17 @@ def main() -> None:
         action="store_true",
         help="run without touching Proton credentials, networking, or NetworkManager",
     )
+    parser.add_argument(
+        "--demo-logged-out",
+        action="store_true",
+        help="show the safe demo authentication UI without using a Proton account",
+    )
     args = parser.parse_args()
-    asyncio.run(run(demo=args.demo))
+    asyncio.run(
+        run(
+            demo=args.demo or args.demo_logged_out, demo_logged_out=args.demo_logged_out
+        )
+    )
 
 
 if __name__ == "__main__":
