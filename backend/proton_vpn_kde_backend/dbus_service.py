@@ -57,6 +57,18 @@ class VpnDbusService(ServiceInterface):
     async def get_servers(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_servers_json(country_code)
 
+    @method(name="GetServerGroups")
+    async def get_server_groups(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        return await self._controller.get_server_groups_json(country_code)
+
+    @method(name="GetGroupServers")
+    async def get_group_servers(
+        self, country_code: "s", group_kind: "s", group_name: "s"  # type: ignore[valid-type]  # noqa: F722,F821
+    ) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        return await self._controller.get_group_servers_json(
+            country_code, group_kind, group_name
+        )
+
     @method(name="GetServerLoads")
     async def get_server_loads(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_server_loads_json(country_code)
@@ -108,6 +120,12 @@ class VpnDbusService(ServiceInterface):
     @method(name="ConnectCountry")
     async def connect_country(self, country_code: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
         await self._controller.connect_country(country_code)
+
+    @method(name="ConnectGroup")
+    async def connect_group(
+        self, country_code: "s", group_kind: "s", group_name: "s"  # type: ignore[valid-type]  # noqa: F722,F821
+    ):
+        await self._controller.connect_group(country_code, group_kind, group_name)
 
     @method(name="ConnectServer")
     async def connect_server(self, server_name: "s"):  # type: ignore[valid-type]  # noqa: F722,F821

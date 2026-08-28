@@ -521,52 +521,117 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(settings.features.split_tunneling.enabled)
         api.save_settings.assert_not_awaited()
 
-    async def test_location_queries_filter_and_serialize_normal_servers(self):
+    async def test_location_queries_include_feature_aware_groups(self):
         from proton.vpn.session.servers import ServerFeatureEnum
 
         api, _ = self.make_api()
-        servers = [
+        def server(name, exit_country, location, load, features, entry_country=None):
+            return SimpleNamespace(
+                name=name,
+                exit_country=exit_country,
+                entry_country=entry_country or exit_country,
+                location=location,
+                load=load,
+                features=features,
+                enabled=True,
+                under_maintenance=False,
+                smart_routing=entry_country not in {None, exit_country},
+            )
+
+        normal = server(
+            "CH#10", "CH", "Zurich", 42, [ServerFeatureEnum.P2P]
+        )
+        tor = server(
+            "CH-TOR#1", "CH", "Zurich", 27, [ServerFeatureEnum.TOR]
+        )
+        secure_core = server(
+            "CH-DE#1",
+            "CH",
+            "Zurich",
+            35,
+            [ServerFeatureEnum.SECURE_CORE],
+            "DE",
+        )
+        us = server(
+            "US-NY#5", "US", "New York, NY", 18,
+            [ServerFeatureEnum.STREAMING],
+        )
+        zurich_group = SimpleNamespace(
+            name="Zurich",
+            servers=[normal, tor],
+            features={ServerFeatureEnum.P2P, ServerFeatureEnum.TOR},
+            under_maintenance=False,
+            smart_routing=False,
+        )
+        secure_core_group = SimpleNamespace(
+            name="Via Secure Core",
+            servers=[secure_core],
+            features={ServerFeatureEnum.SECURE_CORE},
+            under_maintenance=False,
+            smart_routing=True,
+        )
+        countries = [
             SimpleNamespace(
-                name="CH#10",
-                exit_country="CH",
-                location="Zurich",
-                load=42,
-                features=[ServerFeatureEnum.P2P],
+                code="ch",
+                servers=[normal, tor, secure_core],
+                locations=[zurich_group],
+                secure_core_group=secure_core_group,
             ),
             SimpleNamespace(
-                name="US-NY#5",
-                exit_country="US",
-                location="New York, NY",
-                load=18,
-                features=[ServerFeatureEnum.STREAMING],
+                code="us",
+                servers=[us],
+                locations=[],
+                secure_core_group=None,
             ),
         ]
+        servers = [normal, tor, secure_core, us]
         server_list = SimpleNamespace(
             logicals=servers,
             user_tier=2,
-            get_available_servers=Mock(side_effect=lambda *_: iter(servers)),
+            group_by_country=Mock(return_value=countries),
+            get_available_servers=Mock(side_effect=lambda items, *_: iter(items)),
             get_servers_with_features=Mock(side_effect=lambda items, **_: items),
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
 
         countries = await adapter.get_countries()
+        groups = await adapter.get_server_groups("CH")
+        secure_core_servers = await adapter.get_group_servers(
+            "CH", "secure-core", "Via Secure Core"
+        )
         swiss_servers = await adapter.get_servers("CH")
         swiss_loads = await adapter.get_server_loads("CH")
 
         self.assertEqual(["CH", "US"], [country.code for country in countries])
-        self.assertEqual("CH#10", swiss_servers[0].name)
-        self.assertTrue(swiss_servers[0].p2p)
-        self.assertFalse(swiss_servers[0].streaming)
-        self.assertEqual("CH#10", swiss_loads[0].name)
-        self.assertEqual(42, swiss_loads[0].load)
+        self.assertEqual(["location", "secure-core"], [group.kind for group in groups])
+        self.assertTrue(groups[0].tor)
+        self.assertTrue(groups[1].secure_core)
+        self.assertEqual("CH-DE#1", secure_core_servers[0].name)
+        self.assertEqual("DE", secure_core_servers[0].entry_country)
+        self.assertTrue(secure_core_servers[0].smart_routing)
+        normal_info = next(item for item in swiss_servers if item.name == "CH#10")
+        self.assertTrue(normal_info.p2p)
+        self.assertFalse(normal_info.streaming)
+        self.assertEqual(
+            {"CH#10", "CH-TOR#1", "CH-DE#1"},
+            {load.name for load in swiss_loads},
+        )
 
     async def test_targeted_connect_uses_official_server_lookup(self):
         api, connector = self.make_api()
         logical_server = object()
+        group = SimpleNamespace(name="Zurich", servers=[logical_server])
+        country = SimpleNamespace(
+            code="ch", locations=[group], secure_core_group=None
+        )
         server_list = SimpleNamespace(
             get_fastest_in_country=Mock(return_value=logical_server),
             get_by_name=Mock(return_value=logical_server),
+            group_by_country=Mock(return_value=[country]),
+            get_available_servers=Mock(return_value=[logical_server]),
+            get_fastest_server=Mock(return_value=logical_server),
+            user_tier=2,
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
@@ -579,6 +644,11 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connector.connect.reset_mock()
         await adapter.connect_server("CH#10")
         server_list.get_by_name.assert_called_once_with("CH#10")
+        connector.connect.assert_awaited_once()
+
+        connector.connect.reset_mock()
+        await adapter.connect_group("CH", "location", "Zurich")
+        server_list.get_fastest_server.assert_called_once()
         connector.connect.assert_awaited_once()
 
     async def test_close_unsubscribes_and_stops_refresher(self):

@@ -76,6 +76,7 @@ qt_add_qml_module(proton-vpn-kde
         qml/Main.qml
         qml/AccountPage.qml
         qml/CustomDnsPage.qml
+        qml/CountryPage.qml
         qml/LocationsPage.qml
         qml/OverviewPage.qml
         qml/ServersPage.qml

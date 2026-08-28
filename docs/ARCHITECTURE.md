@@ -50,6 +50,8 @@ The additive version-one contract currently contains:
 
 - `GetSnapshot() -> JSON string`
 - `GetCountries() -> JSON string`
+- `GetServerGroups(countryCode) -> JSON string`
+- `GetGroupServers(countryCode, groupKind, groupName) -> JSON string`
 - `GetServers(countryCode) -> JSON string`
 - `GetServerLoads(countryCode) -> JSON string`
 - `GetSettings() -> JSON string`
@@ -60,6 +62,7 @@ The additive version-one contract currently contains:
 - `UpdateCustomDns(JSON patch) -> JSON string`
 - `ConnectFastest()`
 - `ConnectCountry(countryCode)`
+- `ConnectGroup(countryCode, groupKind, groupName)`
 - `ConnectServer(serverName)`
 - `Disconnect()`
 - `GetAuthPublicKey() -> base64 X25519 public key`

@@ -9,6 +9,7 @@ class LocationModelsTest final : public QObject
 
 private slots:
     void parsesCountries();
+    void parsesServerGroups();
     void parsesServers();
     void updatesServerLoadsWithoutResetting();
     void rejectsUnsupportedPayload();
@@ -53,6 +54,31 @@ void LocationModelsTest::parsesCountries()
     QVERIFY(foundUnitedKingdom);
 }
 
+void LocationModelsTest::parsesServerGroups()
+{
+    ServerGroupModel model;
+    QString error;
+    const bool accepted = model.resetFromJson(QStringLiteral(R"json(
+        {"schemaVersion":1,"groups":[
+            {"kind":"location","name":"Zurich","serverCount":14,
+             "accessible":true,"tor":true,"p2p":true},
+            {"kind":"secure-core","name":"Via Secure Core","serverCount":3,
+             "accessible":true,"secureCore":true,"smartRouting":true}
+        ]}
+    )json"), &error);
+
+    QVERIFY2(accepted, qPrintable(error));
+    QCOMPARE(model.rowCount(), 2);
+    const auto roles = model.roleNames();
+    QCOMPARE(model.index(0).data(roles.key("name")).toString(),
+             QStringLiteral("Zurich"));
+    QVERIFY(model.index(0).data(roles.key("tor")).toBool());
+    QCOMPARE(model.index(1).data(roles.key("kind")).toString(),
+             QStringLiteral("secure-core"));
+    QVERIFY(model.index(1).data(roles.key("secureCore")).toBool());
+    QVERIFY(model.index(1).data(roles.key("smartRouting")).toBool());
+}
+
 void LocationModelsTest::parsesServers()
 {
     ServerModel model;
@@ -60,7 +86,9 @@ void LocationModelsTest::parsesServers()
     const bool accepted = model.resetFromJson(QStringLiteral(R"json(
         {"schemaVersion":1,"servers":[{
             "name":"CH#101","location":"Zurich","load":24,
-            "p2p":true,"streaming":false
+            "entryCountry":"DE","accessible":false,
+            "underMaintenance":true,"smartRouting":true,
+            "secureCore":true,"tor":true,"p2p":true,"streaming":false
         }]}
     )json"), &error);
 
@@ -72,6 +100,12 @@ void LocationModelsTest::parsesServers()
     QCOMPARE(index.data(roles.key("load")).toInt(), 24);
     QVERIFY(index.data(roles.key("p2p")).toBool());
     QVERIFY(!index.data(roles.key("streaming")).toBool());
+    QCOMPARE(index.data(roles.key("entryCountry")).toString(), QStringLiteral("DE"));
+    QVERIFY(!index.data(roles.key("accessible")).toBool());
+    QVERIFY(index.data(roles.key("underMaintenance")).toBool());
+    QVERIFY(index.data(roles.key("smartRouting")).toBool());
+    QVERIFY(index.data(roles.key("secureCore")).toBool());
+    QVERIFY(index.data(roles.key("tor")).toBool());
 }
 
 void LocationModelsTest::updatesServerLoadsWithoutResetting()

@@ -14,6 +14,7 @@ class QAbstractItemModel;
 class QJsonObject;
 class CountryModel;
 class LocationFilterProxyModel;
+class ServerGroupModel;
 class ServerModel;
 class InstalledApplicationModel;
 
@@ -37,6 +38,7 @@ class VpnController final : public QObject
     Q_PROPERTY(QString primaryActionText READ primaryActionText NOTIFY snapshotChanged)
     Q_PROPERTY(bool primaryActionEnabled READ primaryActionEnabled NOTIFY snapshotChanged)
     Q_PROPERTY(QAbstractItemModel *countryModel READ countryModel CONSTANT)
+    Q_PROPERTY(QAbstractItemModel *serverGroupModel READ serverGroupModel CONSTANT)
     Q_PROPERTY(QAbstractItemModel *serverModel READ serverModel CONSTANT)
     Q_PROPERTY(QAbstractItemModel *applicationModel READ applicationModel CONSTANT)
     Q_PROPERTY(VpnSettingsModel *settings READ settings CONSTANT)
@@ -63,6 +65,7 @@ public:
     [[nodiscard]] QString primaryActionText() const;
     [[nodiscard]] bool primaryActionEnabled() const;
     [[nodiscard]] QAbstractItemModel *countryModel() const;
+    [[nodiscard]] QAbstractItemModel *serverGroupModel() const;
     [[nodiscard]] QAbstractItemModel *serverModel() const;
     [[nodiscard]] QAbstractItemModel *applicationModel() const;
     [[nodiscard]] VpnSettingsModel *settings() const;
@@ -72,9 +75,17 @@ public:
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void activatePrimaryAction();
     Q_INVOKABLE void loadCountries();
+    Q_INVOKABLE void loadServerGroups(const QString &countryCode);
+    Q_INVOKABLE void loadGroupServers(const QString &countryCode,
+                                      const QString &groupKind,
+                                      const QString &groupName);
     Q_INVOKABLE void loadServers(const QString &countryCode);
+    Q_INVOKABLE void clearGroupServerContext();
     Q_INVOKABLE void clearServerContext();
     Q_INVOKABLE void connectCountry(const QString &countryCode);
+    Q_INVOKABLE void connectGroup(const QString &countryCode,
+                                  const QString &groupKind,
+                                  const QString &groupName);
     Q_INVOKABLE void connectServer(const QString &serverName);
     Q_INVOKABLE void login(const QString &username, const QString &password);
     Q_INVOKABLE void submitTwoFactor(const QString &code);
@@ -130,6 +141,7 @@ private:
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
     void handleCountriesReply(QDBusPendingCallWatcher *watcher);
+    void handleServerGroupsReply(QDBusPendingCallWatcher *watcher);
     void handleServersReply(QDBusPendingCallWatcher *watcher);
     void handleServerLoadsReply(QDBusPendingCallWatcher *watcher);
     void handleSettingsReply(QDBusPendingCallWatcher *watcher);
@@ -138,12 +150,14 @@ private:
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
     CountryModel *m_countryModel = nullptr;
+    ServerGroupModel *m_serverGroupModel = nullptr;
     ServerModel *m_serverModel = nullptr;
     InstalledApplicationModel *m_installedApplicationModel = nullptr;
     VpnSettingsModel *m_settings = nullptr;
     SplitTunnelingModel *m_splitTunneling = nullptr;
     CustomDnsModel *m_customDns = nullptr;
     LocationFilterProxyModel *m_countryFilterModel = nullptr;
+    LocationFilterProxyModel *m_serverGroupFilterModel = nullptr;
     LocationFilterProxyModel *m_serverFilterModel = nullptr;
     LocationFilterProxyModel *m_applicationFilterModel = nullptr;
     bool m_backendAvailable = false;
@@ -158,10 +172,13 @@ private:
     bool m_busy = false;
     bool m_locationsBusy = false;
     bool m_countryRefreshPending = false;
+    bool m_serverGroupRefreshPending = false;
     bool m_serverRefreshPending = false;
     bool m_serverLoadsRefreshPending = false;
     bool m_reconnectionEnabled = true;
     QString m_currentServerCountry;
+    QString m_currentServerGroupKind;
+    QString m_currentServerGroupName;
     QString m_state = QStringLiteral("unavailable");
     QString m_serverName;
     QString m_message = QStringLiteral("Waiting for the Proton backend service");

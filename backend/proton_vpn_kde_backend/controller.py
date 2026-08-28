@@ -51,12 +51,32 @@ class CountryInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class ServerGroupInfo:
+    kind: str
+    name: str
+    server_count: int
+    accessible: bool = True
+    under_maintenance: bool = False
+    smart_routing: bool = False
+    secure_core: bool = False
+    tor: bool = False
+    p2p: bool = False
+    streaming: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class ServerInfo:
     name: str
     location: str = ""
     load: int = 0
     p2p: bool = False
     streaming: bool = False
+    entry_country: str = ""
+    accessible: bool = True
+    under_maintenance: bool = False
+    smart_routing: bool = False
+    secure_core: bool = False
+    tor: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -341,15 +361,24 @@ def custom_dns_patch_from_json(
     return payload
 
 
-LocationInfo = TypeVar("LocationInfo", CountryInfo, ServerInfo, ServerLoadInfo)
+LocationInfo = TypeVar(
+    "LocationInfo", CountryInfo, ServerGroupInfo, ServerInfo, ServerLoadInfo
+)
 
 
 def location_list_to_json(kind: str, items: list[LocationInfo]) -> str:
     payload_items = []
     for item in items:
         payload = asdict(item)
-        if "server_count" in payload:
-            payload["serverCount"] = payload.pop("server_count")
+        for internal_name, external_name in (
+            ("server_count", "serverCount"),
+            ("entry_country", "entryCountry"),
+            ("under_maintenance", "underMaintenance"),
+            ("smart_routing", "smartRouting"),
+            ("secure_core", "secureCore"),
+        ):
+            if internal_name in payload:
+                payload[external_name] = payload.pop(internal_name)
         payload_items.append(payload)
     return json.dumps(
         {"schemaVersion": 1, kind: payload_items},
@@ -374,6 +403,12 @@ class CoreAdapter(Protocol):
         server_data_callback: ServerDataCallback | None = None,
     ) -> VpnSnapshot: ...
     async def get_countries(self) -> list[CountryInfo]: ...
+    async def get_server_groups(
+        self, country_code: str
+    ) -> list[ServerGroupInfo]: ...
+    async def get_group_servers(
+        self, country_code: str, group_kind: str, group_name: str
+    ) -> list[ServerInfo]: ...
     async def get_servers(self, country_code: str) -> list[ServerInfo]: ...
     async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]: ...
     async def get_settings(self) -> VpnSettings: ...
@@ -390,6 +425,9 @@ class CoreAdapter(Protocol):
     ) -> CustomDnsSettings: ...
     async def connect_fastest(self) -> None: ...
     async def connect_country(self, country_code: str) -> None: ...
+    async def connect_group(
+        self, country_code: str, group_kind: str, group_name: str
+    ) -> None: ...
     async def connect_server(self, server_name: str) -> None: ...
     async def login(self, username: str, password: str) -> None: ...
     async def submit_two_factor(self, code: str) -> None: ...
@@ -469,6 +507,28 @@ class BackendController:
         normalized_code = self._validate_country_code(country_code)
         return location_list_to_json(
             "servers", await self._adapter.get_servers(normalized_code)
+        )
+
+    async def get_server_groups_json(self, country_code: str) -> str:
+        self._require_session()
+        normalized_code = self._validate_country_code(country_code)
+        return location_list_to_json(
+            "groups", await self._adapter.get_server_groups(normalized_code)
+        )
+
+    async def get_group_servers_json(
+        self, country_code: str, group_kind: str, group_name: str
+    ) -> str:
+        self._require_session()
+        normalized_code = self._validate_country_code(country_code)
+        normalized_kind, normalized_name = self._validate_server_group(
+            group_kind, group_name
+        )
+        return location_list_to_json(
+            "servers",
+            await self._adapter.get_group_servers(
+                normalized_code, normalized_kind, normalized_name
+            ),
         )
 
     async def get_server_loads_json(self, country_code: str) -> str:
@@ -573,6 +633,20 @@ class BackendController:
             lambda: self._adapter.connect_country(normalized_code)
         )
 
+    async def connect_group(
+        self, country_code: str, group_kind: str, group_name: str
+    ) -> None:
+        self._require_session()
+        normalized_code = self._validate_country_code(country_code)
+        normalized_kind, normalized_name = self._validate_server_group(
+            group_kind, group_name
+        )
+        await self._run_operation(
+            lambda: self._adapter.connect_group(
+                normalized_code, normalized_kind, normalized_name
+            )
+        )
+
     async def connect_server(self, server_name: str) -> None:
         self._require_session()
         normalized_name = server_name.strip()
@@ -649,6 +723,22 @@ class BackendController:
         ):
             raise ValueError("Invalid country code")
         return normalized_code
+
+    @staticmethod
+    def _validate_server_group(group_kind: str, group_name: str) -> tuple[str, str]:
+        normalized_kind = group_kind.strip()
+        normalized_name = group_name.strip()
+        if normalized_kind not in {"location", "secure-core"}:
+            raise ValueError("Invalid Proton server group")
+        if (
+            not normalized_name
+            or len(normalized_name) > 256
+            or "\0" in normalized_name
+            or "\n" in normalized_name
+            or "\r" in normalized_name
+        ):
+            raise ValueError("Invalid Proton server group name")
+        return normalized_kind, normalized_name
 
     async def _run_operation(self, operation: Callable[[], Awaitable[None]]) -> None:
         if self._operation_lock.locked():

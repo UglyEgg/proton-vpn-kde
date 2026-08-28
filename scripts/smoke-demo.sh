@@ -69,6 +69,27 @@ gdbus call --session \
     --object-path /proton/vpn/app/kde/backend \
     --method proton.vpn.app.kde.Backend1.GetServers CH
 
+server_groups="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.GetServerGroups CH)"
+if [[ "$server_groups" != *'"kind":"secure-core"'* \
+    || "$server_groups" != *'"name":"Zurich"'* ]]; then
+    echo "Backend did not return feature-aware server groups" >&2
+    exit 1
+fi
+
+secure_core_servers="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.GetGroupServers \
+    CH secure-core 'Via Secure Core')"
+if [[ "$secure_core_servers" != *'"secureCore":true'* \
+    || "$secure_core_servers" != *'"entryCountry":"DE"'* ]]; then
+    echo "Backend did not return Secure Core servers" >&2
+    exit 1
+fi
+
 gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \

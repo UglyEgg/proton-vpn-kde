@@ -13,6 +13,7 @@ from .controller import (
     CustomDnsValue,
     ProtocolInfo,
     ServerDataCallback,
+    ServerGroupInfo,
     ServerInfo,
     ServerLoadInfo,
     SplitTunnelingSettings,
@@ -76,6 +77,40 @@ class DemoCoreAdapter:
     async def get_countries(self) -> list[CountryInfo]:
         return [CountryInfo("CH", 3), CountryInfo("US", 5)]
 
+    async def get_server_groups(self, country_code: str) -> list[ServerGroupInfo]:
+        demo_groups = {
+            "CH": [
+                ServerGroupInfo("location", "Zurich", 2, p2p=True, streaming=True),
+                ServerGroupInfo(
+                    "secure-core", "Via Secure Core", 1, secure_core=True
+                ),
+            ],
+            "US": [
+                ServerGroupInfo("location", "Chicago, IL", 1, p2p=True),
+                ServerGroupInfo("location", "New York, NY", 1, streaming=True),
+            ],
+        }
+        return demo_groups.get(country_code, [])
+
+    async def get_group_servers(
+        self, country_code: str, group_kind: str, group_name: str
+    ) -> list[ServerInfo]:
+        if country_code == "CH" and group_kind == "secure-core":
+            return [
+                ServerInfo(
+                    "CH-DE#1",
+                    "Via Germany",
+                    entry_country="DE",
+                    load=35,
+                    secure_core=True,
+                )
+            ]
+        return [
+            server
+            for server in await self.get_servers(country_code)
+            if server.location == group_name
+        ]
+
     async def get_servers(self, country_code: str) -> list[ServerInfo]:
         demo_servers = {
             "CH": [
@@ -90,10 +125,12 @@ class DemoCoreAdapter:
         return demo_servers.get(country_code, [])
 
     async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]:
-        return [
-            ServerLoadInfo(server.name, server.load)
-            for server in await self.get_servers(country_code)
-        ]
+        servers = list(await self.get_servers(country_code))
+        if country_code == "CH":
+            servers.extend(
+                await self.get_group_servers("CH", "secure-core", "Via Secure Core")
+            )
+        return [ServerLoadInfo(server.name, server.load) for server in servers]
 
     async def get_settings(self) -> VpnSettings:
         return replace(
@@ -223,6 +260,15 @@ class DemoCoreAdapter:
         await asyncio.sleep(0.15)
         if not self._connection_cancelled:
             await self._transition("connected", f"{country_code}#FASTEST")
+
+    async def connect_group(
+        self, country_code: str, group_kind: str, group_name: str
+    ) -> None:
+        servers = await self.get_group_servers(country_code, group_kind, group_name)
+        available = [server for server in servers if server.accessible]
+        if not available:
+            raise RuntimeError("No server available in the current tier")
+        await self.connect_server(min(available, key=lambda server: server.load).name)
 
     async def connect_server(self, server_name: str) -> None:
         self._connection_cancelled = False
@@ -378,15 +424,60 @@ class ProtonCoreAdapter:
 
     async def get_countries(self) -> list[CountryInfo]:
         server_list = await self._get_server_list()
-        counts: dict[str, int] = {}
-        for server in self._normal_servers(server_list):
-            code = server.exit_country.upper()
-            counts[code] = counts.get(code, 0) + 1
-        return [CountryInfo(code, counts[code]) for code in sorted(counts)]
+        return [
+            CountryInfo(country.code.upper(), len(country.servers))
+            for country in self._countries(server_list)
+        ]
 
-    async def get_servers(self, country_code: str) -> list[ServerInfo]:
+    async def get_server_groups(self, country_code: str) -> list[ServerGroupInfo]:
         from proton.vpn.session.servers import ServerFeatureEnum
 
+        server_list = await self._get_server_list()
+        country = self._country(server_list, country_code)
+        groups = [("location", location) for location in country.locations]
+        if country.secure_core_group is not None:
+            groups.append(("secure-core", country.secure_core_group))
+
+        result = []
+        for kind, group in groups:
+            available = list(
+                server_list.get_available_servers(group.servers, server_list.user_tier)
+            )
+            result.append(
+                ServerGroupInfo(
+                    kind=kind,
+                    name=group.name,
+                    server_count=len(group.servers),
+                    accessible=bool(available),
+                    under_maintenance=group.under_maintenance,
+                    smart_routing=group.smart_routing,
+                    secure_core=ServerFeatureEnum.SECURE_CORE in group.features,
+                    tor=ServerFeatureEnum.TOR in group.features,
+                    p2p=ServerFeatureEnum.P2P in group.features,
+                    streaming=ServerFeatureEnum.STREAMING in group.features,
+                )
+            )
+        return result
+
+    async def get_group_servers(
+        self, country_code: str, group_kind: str, group_name: str
+    ) -> list[ServerInfo]:
+        server_list = await self._get_server_list()
+        group = self._server_group(server_list, country_code, group_kind, group_name)
+        servers = [
+            self._server_info(server_list, server) for server in group.servers
+        ]
+        return sorted(
+            servers,
+            key=lambda item: (
+                not item.accessible,
+                item.under_maintenance,
+                item.load,
+                item.name,
+            ),
+        )
+
+    async def get_servers(self, country_code: str) -> list[ServerInfo]:
         server_list = await self._get_server_list()
         servers = (
             server
@@ -394,13 +485,7 @@ class ProtonCoreAdapter:
             if server.exit_country.upper() == country_code
         )
         return [
-            ServerInfo(
-                name=server.name,
-                location=server.location or "",
-                load=server.load or 0,
-                p2p=ServerFeatureEnum.P2P in server.features,
-                streaming=ServerFeatureEnum.STREAMING in server.features,
-            )
+            self._server_info(server_list, server)
             for server in sorted(
                 servers,
                 key=lambda item: (item.load or 0, item.name),
@@ -411,7 +496,7 @@ class ProtonCoreAdapter:
         server_list = await self._get_server_list()
         return [
             ServerLoadInfo(server.name, server.load or 0)
-            for server in self._normal_servers(server_list)
+            for server in server_list.logicals
             if server.exit_country.upper() == country_code
         ]
 
@@ -586,6 +671,19 @@ class ProtonCoreAdapter:
         server_list = await self._get_server_list()
         await self._connect_logical(server_list.get_fastest_in_country(country_code))
 
+    async def connect_group(
+        self, country_code: str, group_kind: str, group_name: str
+    ) -> None:
+        server_list = await self._get_server_list()
+        group = self._server_group(server_list, country_code, group_kind, group_name)
+        available = server_list.get_available_servers(
+            group.servers, server_list.user_tier
+        )
+        logical_server = server_list.get_fastest_server(available)
+        if logical_server is None:
+            raise RuntimeError("No server available in the current tier")
+        await self._connect_logical(logical_server)
+
     async def connect_server(self, server_name: str) -> None:
         server_list = await self._get_server_list()
         await self._connect_logical(server_list.get_by_name(server_name))
@@ -605,6 +703,54 @@ class ProtonCoreAdapter:
         return server_list.get_servers_with_features(
             available,
             exclude_features=ServerFeatureEnum.SECURE_CORE | ServerFeatureEnum.TOR,
+        )
+
+    @staticmethod
+    def _countries(server_list):
+        return server_list.group_by_country(
+            group_by_location=True,
+            include_free_servers=server_list.user_tier == 0,
+        )
+
+    def _country(self, server_list, country_code: str):
+        for country in self._countries(server_list):
+            if country.code.upper() == country_code:
+                return country
+        raise ValueError("The selected Proton country is no longer available")
+
+    def _server_group(
+        self, server_list, country_code: str, group_kind: str, group_name: str
+    ):
+        country = self._country(server_list, country_code)
+        if group_kind == "secure-core":
+            group = country.secure_core_group
+            if group is not None and group.name == group_name:
+                return group
+        elif group_kind == "location":
+            for location in country.locations:
+                if location.name == group_name:
+                    return location
+        raise ValueError("The selected Proton server group is no longer available")
+
+    @staticmethod
+    def _server_info(server_list, server) -> ServerInfo:
+        from proton.vpn.session.servers import ServerFeatureEnum
+
+        available = list(
+            server_list.get_available_servers([server], server_list.user_tier)
+        )
+        return ServerInfo(
+            name=server.name,
+            location=server.location or "",
+            entry_country=server.entry_country.upper(),
+            load=server.load or 0,
+            accessible=bool(available),
+            under_maintenance=server.under_maintenance,
+            smart_routing=server.smart_routing,
+            secure_core=ServerFeatureEnum.SECURE_CORE in server.features,
+            tor=ServerFeatureEnum.TOR in server.features,
+            p2p=ServerFeatureEnum.P2P in server.features,
+            streaming=ServerFeatureEnum.STREAMING in server.features,
         )
 
     async def _connect_logical(self, logical_server) -> None:

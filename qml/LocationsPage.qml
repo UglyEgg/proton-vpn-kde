@@ -86,7 +86,7 @@ Kirigami.ScrollablePage {
 
             onClicked: {
                 applicationWindow().pageStack.push(
-                    Qt.resolvedUrl("ServersPage.qml"), {
+                    Qt.resolvedUrl("CountryPage.qml"), {
                     "countryCode": countryDelegate.code,
                     "countryName": countryDelegate.name,
                     "countryFlag": countryDelegate.flag

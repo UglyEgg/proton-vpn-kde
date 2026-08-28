@@ -74,18 +74,27 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_location_payloads_are_versioned_and_validated(self):
         countries = await self.controller.get_countries_json()
+        groups = await self.controller.get_server_groups_json(" ch ")
+        group_servers = await self.controller.get_group_servers_json(
+            " ch ", "secure-core", "Via Secure Core"
+        )
         servers = await self.controller.get_servers_json(" ch ")
         loads = await self.controller.get_server_loads_json(" ch ")
 
         self.assertIn('"schemaVersion":1', countries)
         self.assertIn('"code":"CH"', countries)
         self.assertIn('"serverCount":3', countries)
+        self.assertIn('"kind":"secure-core"', groups)
+        self.assertIn('"secureCore":true', groups)
+        self.assertIn('"entryCountry":"DE"', group_servers)
         self.assertIn('"name":"CH#101"', servers)
         self.assertIn('"loads"', loads)
         self.assertIn('"load":24', loads)
 
         with self.assertRaisesRegex(ValueError, "Invalid country code"):
             await self.controller.get_servers_json("Switzerland")
+        with self.assertRaisesRegex(ValueError, "Invalid Proton server group"):
+            await self.controller.get_group_servers_json("CH", "onion", "Zurich")
 
     async def test_targeted_connect_methods_use_normalized_identifiers(self):
         await self.controller.connect_country(" us ")
@@ -93,6 +102,9 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         await self.controller.connect_server(" US-NY#88 ")
         self.assertEqual("US-NY#88", self.controller.snapshot.server_name)
+
+        await self.controller.connect_group("CH", "location", "Zurich")
+        self.assertEqual("CH#101", self.controller.snapshot.server_name)
 
     async def test_reconnection_preference_is_reflected_in_snapshot(self):
         await self.controller.set_reconnection_enabled(False)

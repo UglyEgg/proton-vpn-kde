@@ -37,17 +37,21 @@ VpnController::VpnController(QObject *parent)
               | QDBusServiceWatcher::WatchForUnregistration,
           this))
     , m_countryModel(new CountryModel(this))
+    , m_serverGroupModel(new ServerGroupModel(this))
     , m_serverModel(new ServerModel(this))
     , m_installedApplicationModel(new InstalledApplicationModel(this))
     , m_settings(new VpnSettingsModel(this))
     , m_splitTunneling(new SplitTunnelingModel(this))
     , m_customDns(new CustomDnsModel(this))
     , m_countryFilterModel(new LocationFilterProxyModel(this))
+    , m_serverGroupFilterModel(new LocationFilterProxyModel(this))
     , m_serverFilterModel(new LocationFilterProxyModel(this))
     , m_applicationFilterModel(new LocationFilterProxyModel(this))
 {
     m_countryFilterModel->setSourceModel(m_countryModel);
     m_countryFilterModel->setSearchRoles({CountryModel::CodeRole, CountryModel::NameRole});
+    m_serverGroupFilterModel->setSourceModel(m_serverGroupModel);
+    m_serverGroupFilterModel->setSearchRoles({ServerGroupModel::NameRole});
     m_serverFilterModel->setSourceModel(m_serverModel);
     m_serverFilterModel->setSearchRoles({ServerModel::NameRole, ServerModel::LocationRole});
     m_serverFilterModel->sortByRole(ServerModel::LoadRole);
@@ -139,6 +143,10 @@ bool VpnController::primaryActionEnabled() const
 }
 
 QAbstractItemModel *VpnController::countryModel() const { return m_countryFilterModel; }
+QAbstractItemModel *VpnController::serverGroupModel() const
+{
+    return m_serverGroupFilterModel;
+}
 QAbstractItemModel *VpnController::serverModel() const { return m_serverFilterModel; }
 QAbstractItemModel *VpnController::applicationModel() const
 {
@@ -209,6 +217,8 @@ void VpnController::loadServers(const QString &countryCode)
     }
     const bool countryChanged = m_currentServerCountry != normalizedCode;
     m_currentServerCountry = normalizedCode;
+    m_currentServerGroupKind.clear();
+    m_currentServerGroupName.clear();
     if (countryChanged) {
         m_serverModel->clear();
     }
@@ -234,9 +244,104 @@ void VpnController::loadServers(const QString &countryCode)
             this, &VpnController::handleServersReply);
 }
 
+void VpnController::loadServerGroups(const QString &countryCode)
+{
+    const QString normalizedCode = countryCode.trimmed().toUpper();
+    if (normalizedCode.size() != 2) {
+        return;
+    }
+    const bool countryChanged = m_currentServerCountry != normalizedCode;
+    m_currentServerCountry = normalizedCode;
+    if (countryChanged) {
+        m_serverGroupModel->clear();
+        m_serverModel->clear();
+        m_currentServerGroupKind.clear();
+        m_currentServerGroupName.clear();
+    }
+    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
+        return;
+    }
+    if (m_locationsBusy) {
+        m_serverGroupRefreshPending = true;
+        return;
+    }
+    m_serverGroupRefreshPending = false;
+    setLocationsBusy(true);
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetServerGroups"));
+    message << normalizedCode;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    watcher->setProperty("countryCode", normalizedCode);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleServerGroupsReply);
+}
+
+void VpnController::loadGroupServers(const QString &countryCode,
+                                     const QString &groupKind,
+                                     const QString &groupName)
+{
+    const QString normalizedCode = countryCode.trimmed().toUpper();
+    const QString normalizedKind = groupKind.trimmed();
+    const QString normalizedName = groupName.trimmed();
+    if (normalizedCode.size() != 2
+        || (normalizedKind != QStringLiteral("location")
+            && normalizedKind != QStringLiteral("secure-core"))
+        || normalizedName.isEmpty()) {
+        return;
+    }
+    const bool groupChanged = m_currentServerCountry != normalizedCode
+        || m_currentServerGroupKind != normalizedKind
+        || m_currentServerGroupName != normalizedName;
+    m_currentServerCountry = normalizedCode;
+    m_currentServerGroupKind = normalizedKind;
+    m_currentServerGroupName = normalizedName;
+    if (groupChanged) {
+        m_serverModel->clear();
+    }
+    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
+        return;
+    }
+    if (m_locationsBusy) {
+        m_serverRefreshPending = true;
+        return;
+    }
+    m_serverRefreshPending = false;
+    setLocationsBusy(true);
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetGroupServers"));
+    message << normalizedCode << normalizedKind << normalizedName;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    watcher->setProperty("countryCode", normalizedCode);
+    watcher->setProperty("groupKind", normalizedKind);
+    watcher->setProperty("groupName", normalizedName);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleServersReply);
+}
+
 void VpnController::clearServerContext()
 {
     m_currentServerCountry.clear();
+    m_currentServerGroupKind.clear();
+    m_currentServerGroupName.clear();
+    m_serverGroupRefreshPending = false;
+    m_serverRefreshPending = false;
+    m_serverLoadsRefreshPending = false;
+    m_serverGroupModel->clear();
+    m_serverModel->clear();
+}
+
+void VpnController::clearGroupServerContext()
+{
+    m_currentServerGroupKind.clear();
+    m_currentServerGroupName.clear();
     m_serverRefreshPending = false;
     m_serverLoadsRefreshPending = false;
     m_serverModel->clear();
@@ -246,6 +351,17 @@ void VpnController::connectCountry(const QString &countryCode)
 {
     if (primaryActionEnabled()) {
         callOperation(QStringLiteral("ConnectCountry"), {countryCode});
+    }
+}
+
+void VpnController::connectGroup(const QString &countryCode,
+                                 const QString &groupKind,
+                                 const QString &groupName)
+{
+    if (primaryActionEnabled()) {
+        callOperation(
+            QStringLiteral("ConnectGroup"),
+            {countryCode, groupKind, groupName});
     }
 }
 
@@ -680,11 +796,15 @@ void VpnController::onServiceUnregistered(const QString &)
     m_state = QStringLiteral("unavailable");
     m_message = tr("The Proton backend service stopped");
     m_countryModel->clear();
+    m_serverGroupModel->clear();
     m_serverModel->clear();
     m_countryRefreshPending = false;
+    m_serverGroupRefreshPending = false;
     m_serverRefreshPending = false;
     m_serverLoadsRefreshPending = false;
     m_currentServerCountry.clear();
+    m_currentServerGroupKind.clear();
+    m_currentServerGroupName.clear();
     m_settings->reset(tr("The Proton backend service stopped"));
     m_splitTunneling->reset(tr("The Proton backend service stopped"));
     m_customDns->reset(tr("The Proton backend service stopped"));
@@ -700,7 +820,10 @@ void VpnController::onServerDataChanged(bool topologyChanged)
 {
     if (topologyChanged) {
         m_countryRefreshPending = true;
-        m_serverRefreshPending = !m_currentServerCountry.isEmpty();
+        m_serverGroupRefreshPending = !m_currentServerCountry.isEmpty();
+        m_serverRefreshPending = !m_currentServerCountry.isEmpty()
+            && !m_currentServerGroupKind.isEmpty()
+            && !m_currentServerGroupName.isEmpty();
         m_serverLoadsRefreshPending = false;
     } else if (!m_currentServerCountry.isEmpty()) {
         m_serverLoadsRefreshPending = true;
@@ -784,11 +907,15 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_message = snapshot.value(QStringLiteral("message")).toString();
     if (wasLoggedIn && !m_loggedIn) {
         m_countryModel->clear();
+        m_serverGroupModel->clear();
         m_serverModel->clear();
         m_countryRefreshPending = false;
+        m_serverGroupRefreshPending = false;
         m_serverRefreshPending = false;
         m_serverLoadsRefreshPending = false;
         m_currentServerCountry.clear();
+        m_currentServerGroupKind.clear();
+        m_currentServerGroupName.clear();
         m_settings->reset();
         m_splitTunneling->reset();
         m_customDns->reset();
@@ -920,8 +1047,17 @@ void VpnController::dispatchPendingLocationRefreshes()
     }
     if (m_countryRefreshPending) {
         loadCountries();
+    } else if (m_serverGroupRefreshPending && !m_currentServerCountry.isEmpty()) {
+        loadServerGroups(m_currentServerCountry);
     } else if (m_serverRefreshPending && !m_currentServerCountry.isEmpty()) {
-        loadServers(m_currentServerCountry);
+        if (!m_currentServerGroupKind.isEmpty()
+            && !m_currentServerGroupName.isEmpty()) {
+            loadGroupServers(m_currentServerCountry,
+                             m_currentServerGroupKind,
+                             m_currentServerGroupName);
+        } else {
+            loadServers(m_currentServerCountry);
+        }
     } else if (m_serverLoadsRefreshPending) {
         requestServerLoads();
     }
@@ -987,13 +1123,41 @@ void VpnController::handleCountriesReply(QDBusPendingCallWatcher *watcher)
     dispatchPendingLocationRefreshes();
 }
 
-void VpnController::handleServersReply(QDBusPendingCallWatcher *watcher)
+void VpnController::handleServerGroupsReply(QDBusPendingCallWatcher *watcher)
 {
     const QDBusPendingReply<QString> reply = *watcher;
     const QString requestedCountry = watcher->property("countryCode").toString();
     watcher->deleteLater();
     setLocationsBusy(false);
     if (requestedCountry != m_currentServerCountry) {
+        dispatchPendingLocationRefreshes();
+        return;
+    }
+    if (reply.isError()) {
+        m_message = tr("Unable to load locations");
+        emit snapshotChanged();
+        dispatchPendingLocationRefreshes();
+        return;
+    }
+    QString errorMessage;
+    if (!m_serverGroupModel->resetFromJson(reply.value(), &errorMessage)) {
+        m_message = errorMessage;
+        emit snapshotChanged();
+    }
+    dispatchPendingLocationRefreshes();
+}
+
+void VpnController::handleServersReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<QString> reply = *watcher;
+    const QString requestedCountry = watcher->property("countryCode").toString();
+    const QString requestedKind = watcher->property("groupKind").toString();
+    const QString requestedName = watcher->property("groupName").toString();
+    watcher->deleteLater();
+    setLocationsBusy(false);
+    if (requestedCountry != m_currentServerCountry
+        || requestedKind != m_currentServerGroupKind
+        || requestedName != m_currentServerGroupName) {
         dispatchPendingLocationRefreshes();
         return;
     }

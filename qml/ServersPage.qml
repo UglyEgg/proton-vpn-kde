@@ -9,23 +9,32 @@ Kirigami.ScrollablePage {
     required property string countryCode
     required property string countryName
     required property string countryFlag
+    required property string groupKind
+    required property string groupName
 
-    title: countryFlag + "  " + countryName
+    title: groupKind === "secure-core"
+           ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
+           : countryFlag + "  " + groupName
 
-    Component.onCompleted: vpnController.loadServers(countryCode)
+    Component.onCompleted: vpnController.loadGroupServers(
+        countryCode, groupKind, groupName)
 
     actions: [
         Kirigami.Action {
-            text: qsTr("Connect fastest in %1").arg(page.countryName)
+            text: page.groupKind === "secure-core"
+                  ? qsTr("Connect fastest via Secure Core")
+                  : qsTr("Connect fastest in %1").arg(page.groupName)
             icon.name: "network-connect"
             enabled: vpnController.primaryActionEnabled
-            onTriggered: vpnController.connectCountry(page.countryCode)
+            onTriggered: vpnController.connectGroup(
+                page.countryCode, page.groupKind, page.groupName)
         },
         Kirigami.Action {
             text: qsTr("Refresh")
             icon.name: "view-refresh"
             enabled: !vpnController.locationsBusy
-            onTriggered: vpnController.loadServers(page.countryCode)
+            onTriggered: vpnController.loadGroupServers(
+                page.countryCode, page.groupKind, page.groupName)
         }
     ]
 
@@ -53,7 +62,13 @@ Kirigami.ScrollablePage {
             id: serverDelegate
             required property string name
             required property string location
+            required property string entryCountry
             required property int load
+            required property bool accessible
+            required property bool underMaintenance
+            required property bool smartRouting
+            required property bool secureCore
+            required property bool tor
             required property bool p2p
             required property bool streaming
 
@@ -73,6 +88,16 @@ Kirigami.ScrollablePage {
                             font.bold: true
                         }
                         Controls.Label {
+                            visible: serverDelegate.secureCore
+                            text: qsTr("Secure Core")
+                            color: Kirigami.Theme.positiveTextColor
+                        }
+                        Controls.Label {
+                            visible: serverDelegate.tor
+                            text: qsTr("Tor")
+                            color: Kirigami.Theme.neutralTextColor
+                        }
+                        Controls.Label {
                             visible: serverDelegate.p2p
                             text: qsTr("P2P")
                             color: Kirigami.Theme.positiveTextColor
@@ -86,8 +111,22 @@ Kirigami.ScrollablePage {
 
                     Controls.Label {
                         visible: serverDelegate.location.length > 0
-                        text: serverDelegate.location
+                                 || serverDelegate.entryCountry.length > 0
+                        text: serverDelegate.secureCore
+                              && serverDelegate.entryCountry.length > 0
+                              ? qsTr("Via %1").arg(serverDelegate.entryCountry)
+                              : serverDelegate.location
                         color: Kirigami.Theme.disabledTextColor
+                    }
+                    Controls.Label {
+                        visible: serverDelegate.smartRouting
+                        text: qsTr("Smart Routing")
+                        color: Kirigami.Theme.linkColor
+                    }
+                    Controls.Label {
+                        visible: serverDelegate.underMaintenance
+                        text: qsTr("Under maintenance")
+                        color: Kirigami.Theme.negativeTextColor
                     }
                 }
 
@@ -95,7 +134,9 @@ Kirigami.ScrollablePage {
                     spacing: 0
                     Controls.Label {
                         Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("%1% load").arg(serverDelegate.load)
+                        text: serverDelegate.underMaintenance
+                              ? qsTr("Unavailable")
+                              : qsTr("%1% load").arg(serverDelegate.load)
                         color: serverDelegate.load >= 90
                                ? Kirigami.Theme.negativeTextColor
                                : Kirigami.Theme.textColor
@@ -104,7 +145,7 @@ Kirigami.ScrollablePage {
                         Layout.preferredWidth: Kirigami.Units.gridUnit * 5
                         from: 0
                         to: 100
-                        value: serverDelegate.load
+                        value: serverDelegate.underMaintenance ? 0 : serverDelegate.load
                     }
                 }
 
@@ -112,6 +153,8 @@ Kirigami.ScrollablePage {
                     text: qsTr("Connect")
                     icon.name: "network-connect"
                     enabled: vpnController.primaryActionEnabled
+                             && serverDelegate.accessible
+                             && !serverDelegate.underMaintenance
                     onClicked: vpnController.connectServer(serverDelegate.name)
                 }
             }
@@ -120,6 +163,6 @@ Kirigami.ScrollablePage {
 
     Component.onDestruction: {
         vpnController.setServerFilter("")
-        vpnController.clearServerContext()
+        vpnController.clearGroupServerContext()
     }
 }
