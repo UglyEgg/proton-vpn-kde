@@ -20,5 +20,6 @@ private:
     VpnController *m_controller = nullptr;
     AppSettings *m_settings = nullptr;
     QString m_previousState;
+    int m_previousForwardedPort = 0;
     bool m_initialized = false;
 };

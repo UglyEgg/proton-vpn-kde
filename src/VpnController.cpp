@@ -1,5 +1,6 @@
 #include "VpnController.h"
 
+#include "ConnectionAction.h"
 #include "InstalledApplicationModel.h"
 #include "CustomDnsModel.h"
 #include "LocationModels.h"
@@ -151,9 +152,12 @@ QString VpnController::message() const { return m_message; }
 
 QString VpnController::primaryActionText() const
 {
-    if (m_state == QStringLiteral("connected")
-        || m_state == QStringLiteral("connecting")) {
+    if (m_state == QStringLiteral("connected")) {
         return tr("Disconnect");
+    }
+    if (m_state == QStringLiteral("connecting")
+        || m_state == QStringLiteral("error")) {
+        return tr("Cancel Connection");
     }
     return tr("Connect fastest");
 }
@@ -207,8 +211,7 @@ void VpnController::activatePrimaryAction()
         callControlOperation(QStringLiteral("Disconnect"));
         return;
     }
-    const bool shouldDisconnect = m_state == QStringLiteral("connected")
-        || m_state == QStringLiteral("disconnecting");
+    const bool shouldDisconnect = ProtonVpnKde::primaryActionDisconnects(m_state);
     callOperation(shouldDisconnect ? QStringLiteral("Disconnect")
                                    : QStringLiteral("ConnectFastest"));
 }

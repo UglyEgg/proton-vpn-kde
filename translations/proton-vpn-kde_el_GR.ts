@@ -64,6 +64,46 @@
             <translation>Σφάλμα σύνδεσης: συμπληρώθηκε το όριο περιόδου σύνδεσης</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>Έχετε συμπληρώσει το μέγιστο όριο συσκευών. Για να συνδεθείτε ξανά στο VPN, παρακαλούμε αποσυνδεθείτε από την άλλη συσκευή.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>Σφάλμα σύνδεσης VPN</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Το Proton VPN δεν μπόρεσε να συνδεθεί στο VPN και απέκλεισε την πρόσβαση στο Διαδίκτυο για την προστασία της IP σας.
+
+Κάντε κλικ στην επιλογή "Ακύρωση σύνδεσης" για να επαναφέρετε τη σύνδεσή σας στο Διαδίκτυο. Εάν το πρόβλημα επιμένει, παρακαλούμε δοκιμάστε να αποσυνδεθείτε και να συνδεθείτε.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>Η ταυτοποίηση δύο παραγόντων (2FA) απαιτείται</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>Είστε συνδεδεμένοι στο VPN, αλλά όλη η κίνηση είναι αποκλεισμένη.
+Πρέπει να μεταβείτε στη σελίδα ελέγχου ταυτότητας που παρέχεται από την ασφάλεια και να πραγματοποιήσετε έλεγχο ταυτότητας με το κλειδί υλικού σας.
+Μετά από αυτό, η κίνηση θα ενεργοποιηθεί.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Ενημερώστε την ώρα συστήματός σας.</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Φαίνεται ότι το ρολόι του συστήματός σας δεν είναι συγχρονισμένο.
+Αυτό μπορεί να προκαλέσει προβλήματα κατά τη σύνδεση σε VPN.
+Ενημερώστε την ώρα του συστήματός σας και προσπαθήστε να συνδεθείτε ξανά.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Κάτι πήγε στραβά</translation>
         </message>
@@ -133,6 +173,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>Άνοιγμα θυρών</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -153,6 +200,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>Συμπληρώθηκε το όριο περιόδου σύνδεσης</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>Ενεργοποιήθηκε η λειτουργία split tunneling. Μην ξεχάσετε να επανεκκινήσετε τις εφαρμογές που επηρεάζονται.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -246,6 +297,10 @@
         <message>
             <source>Disconnect</source>
             <translation>Αποσύνδεση</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Ακύρωση Σύνδεσης</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

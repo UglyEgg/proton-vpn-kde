@@ -68,6 +68,48 @@
             <translation>Bağlantı hatası: Oturum sayısı sınırına ulaşıldı</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>En fazla aygıt sayısı sınırınıza ulaştınız. Yeniden VPN bağlantısı kurmak için lütfen başka bir aygıtın bağlantısını kesin.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>VPN bağlantı sorunu</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPN, VPN bağlantısı kuramadı ve IP adresinizi korumak için internet erişimini engelledi.
+
+İnternet bağlantınızı açmak için "Bağlantıyı iptal et" üzerine tıklayın. Sorun sürerse lütfen oturumunuzu kapatıp yeniden oturum açmayı deneyin.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>İki adımlı doğrulama gerekli</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>VPN bağlantınız var, ancak tüm trafik engelleniyor.
+
+Güvenlik tarafından sağlanan kimlik doğrulama sayfasına gitmeniz ve donanım anahtarınızla kimlik doğrulaması yapmanız gerekir.
+
+Bundan sonra trafik akışı açılacak.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Sistem saatini güncelle</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Sistem saatiniz eşitlenmemiş gibi görünüyor.
+Bu durum, VPN bağlantısı kurarken sorun çıkarabilir.
+Sistem saatinizi güncelleyin ve yeniden bağlanmayı deneyin.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Bir sorun çıktı</translation>
         </message>
@@ -137,6 +179,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>Bağlantı noktası yönlendirme</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -157,6 +206,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>Oturum sayısı sınırına ulaşıldı</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>Ayrılmış tünelleme özelliği açıldı. Etkilenen uygulamaları yeniden başlatmayı unutmayın.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -250,6 +303,10 @@
         <message>
             <source>Disconnect</source>
             <translation>Bağlantıyı kes</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Bağlantıyı iptal et</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

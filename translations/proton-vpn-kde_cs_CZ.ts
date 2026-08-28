@@ -64,6 +64,46 @@
             <translation>Chyba připojení: překročen limit aktivních zařízení</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>Dosáhli jste limitu maximálního počtu zařízení. Chcete-li se znovu připojit k VPN, odpojte nejprve jiné zařízení.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>Chyba připojení k VPN</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Aplikace Proton VPN se nemohla připojit k VPN a zablokovala přístup k internetu, aby ochránila vaši IP adresu.
+
+Kliknutím na „Zrušit připojení“ obnovíte internetové připojení. Pokud problém přetrvává, zkuste se odhlásit a znovu přihlásit.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>Vyžadováno 2FA</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>Jste připojeni k VPN, ale veškerý síťový provoz je zablokován.
+Musíte přejít na stránku pro ověření poskytnutou zabezpečením a ověřit se pomocí svého hardwarového klíče.
+Poté bude síťový provoz aktivován.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Aktualizovat systémové hodiny</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Zdá se, že vaše systémové hodiny nejsou synchronizované.
+To může způsobit problémy při připojování k VPN.
+Aktualizujte svůj systémový čas a zkuste se připojit znovu.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Něco se pokazilo</translation>
         </message>
@@ -125,6 +165,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>Přesměrování portů</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -145,6 +192,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>Dosažen limit relace</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>Split tunneling je aktivní. Nezapomeňte restartovat dotčené aplikace.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -227,6 +278,10 @@
         <message>
             <source>Disconnect</source>
             <translation>Odpojit</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Zrušit připojení</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

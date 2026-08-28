@@ -63,6 +63,20 @@ def language_from_converted(root: ET.Element, fallback: str) -> str:
     return language.strip() if language and language.strip() else fallback
 
 
+def normalized_translation(translation: ET.Element) -> ET.Element:
+    result = deepcopy(translation)
+    for element in result.iter():
+        if element.text and "\n" in element.text:
+            element.text = "\n".join(
+                line.rstrip() for line in element.text.split("\n")
+            )
+        if element.tail and "\n" in element.tail:
+            element.tail = "\n".join(
+                line.rstrip() for line in element.tail.split("\n")
+            )
+    return result
+
+
 def write_catalog(
     template: ET.Element,
     translations: dict[str, ET.Element],
@@ -84,7 +98,7 @@ def write_catalog(
                 value = source_message.find(tag)
                 if value is not None:
                     message.append(deepcopy(value))
-            message.append(deepcopy(translations[source]))
+            message.append(normalized_translation(translations[source]))
             messages.append(message)
             count += 1
         if messages:

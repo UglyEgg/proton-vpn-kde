@@ -52,6 +52,25 @@ Kirigami.ApplicationWindow {
         }
     }
 
+    function showConnectionRecoveryDialog(code) {
+        let dialog = null
+        if (code === "maximum_sessions_reached") {
+            dialog = sessionLimitDialog
+        } else if (code === "authentication_denied") {
+            dialog = authenticationErrorDialog
+        } else if (code === "two_factor_required") {
+            dialog = twoFactorRequiredDialog
+        } else if (code === "certificate_not_yet_valid") {
+            dialog = clockErrorDialog
+        }
+        if (dialog !== null) {
+            root.show()
+            root.raise()
+            root.requestActivate()
+            dialog.open()
+        }
+    }
+
     Component.onCompleted: Qt.callLater(root.maybeShowCompatibilityWarning)
     onVisibleChanged: {
         Qt.callLater(root.maybeShowNpsSurvey)
@@ -91,7 +110,49 @@ Kirigami.ApplicationWindow {
         Controls.Label {
             width: Kirigami.Units.gridUnit * 22
             wrapMode: Text.WordWrap
-            text: qsTr("You've reached your maximum device limit. To reconnect to VPN, disconnect from another device.")
+            text: qsTr("You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.")
+        }
+    }
+
+    Controls.Dialog {
+        id: authenticationErrorDialog
+        anchors.centerIn: parent
+        modal: true
+        title: qsTr("VPN connection error")
+        standardButtons: Controls.Dialog.Ok
+
+        Controls.Label {
+            width: Kirigami.Units.gridUnit * 24
+            wrapMode: Text.WordWrap
+            text: qsTr("Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.\n\nClick \"Cancel Connection\" to restore your Internet connection. If the issue persists please try to sign out and in.")
+        }
+    }
+
+    Controls.Dialog {
+        id: twoFactorRequiredDialog
+        anchors.centerIn: parent
+        modal: true
+        title: qsTr("2FA Required")
+        standardButtons: Controls.Dialog.Ok
+
+        Controls.Label {
+            width: Kirigami.Units.gridUnit * 24
+            wrapMode: Text.WordWrap
+            text: qsTr("You are connected to the VPN, but all traffic is blocked.\nYou need to go to the authentication page provided by security and authenticate with your hardware key.\nAfter that, the traffic will be enabled.")
+        }
+    }
+
+    Controls.Dialog {
+        id: clockErrorDialog
+        anchors.centerIn: parent
+        modal: true
+        title: qsTr("Update system clock")
+        standardButtons: Controls.Dialog.Ok
+
+        Controls.Label {
+            width: Kirigami.Units.gridUnit * 24
+            wrapMode: Text.WordWrap
+            text: qsTr("Looks like your system clock is out of sync.\nThis may cause issues when connecting to VPN.\nUpdate your system time and try to connect again.")
         }
     }
 
@@ -296,13 +357,9 @@ Kirigami.ApplicationWindow {
             } else if (root.previousLoggedIn && !vpnController.loggedIn) {
                 root.showPage(Qt.resolvedUrl("SignInPage.qml"))
             }
-            if (vpnController.errorCode === "maximum_sessions_reached"
-                    && root.previousErrorCode
-                       !== "maximum_sessions_reached") {
-                root.show()
-                root.raise()
-                root.requestActivate()
-                sessionLimitDialog.open()
+            if (vpnController.errorCode.length > 0
+                    && vpnController.errorCode !== root.previousErrorCode) {
+                root.showConnectionRecoveryDialog(vpnController.errorCode)
             }
             root.previousLoggedIn = vpnController.loggedIn
             root.previousErrorCode = vpnController.errorCode

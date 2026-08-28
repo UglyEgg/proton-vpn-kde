@@ -56,6 +56,46 @@
             <translation>Verbindingsfout: sessielimiet bereikt</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>U heeft uw maximale apparaatlimiet bereikt. Om opnieuw verbinding te maken met VPN, verbreek de verbinding van een ander apparaat.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>VPN-verbindingsfout</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPN kon geen verbinding maken met de VPN en blokkeerde de toegang tot internet om uw IP te beschermen.
+
+Klik op "Verbinding annuleren" om uw internetverbinding te herstellen. Als het probleem zich blijft voordoen, probeer dan uit en weer in te loggen.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>2FA Vereist</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>U bent verbonden met de VPN, maar al het verkeer wordt geblokkeerd.
+U moet naar de authenticatiepagina gaan die door de beveiliging wordt verstrekt en u authenticeren met uw hardwaresleutel.
+Daarna wordt het verkeer ingeschakeld.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Systeemklok bijwerken</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Het lijkt erop dat uw systeemklok niet synchroon loopt.
+Dit kan problemen veroorzaken bij het verbinden met VPN.
+Pas uw systeemtijd aan en probeer opnieuw verbinding te maken.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Er is iets fout gegaan</translation>
         </message>
@@ -133,6 +173,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>Sessielimiet bereikt</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>Split-tunneling ingeschakeld. Vergeet niet de getroffen apps opnieuw te starten.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -215,6 +259,10 @@
         <message>
             <source>Disconnect</source>
             <translation>Verbreken</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Verbinding afbreken</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

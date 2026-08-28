@@ -68,6 +68,46 @@
             <translation>接続エラー：セッション数の制限に達しました</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>最大のデバイス数に達しました。VPNに再接続するには、他のデバイスで切断してください。</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>VPN接続エラー</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPNはVPNに接続できず、お客様のIPを保護するためにインターネットへのアクセスを遮断しました。
+
+「接続をキャンセル」をクリックして、インターネット接続を復元してください。問題が解決しない場合は、一度サインアウトしてから、再度サインインしてください。</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>2要素認証が必要です</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>お客様はVPNに接続されていますが、すべてのトラフィックが遮断されています。
+セキュリティが提供する認証ページにアクセスし、お客様のハードウェアキーで認証を行う必要があります。
+その後、トラフィックが有効になります。</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>システム時計をアップデート</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>システムの時計が同期されていないようです。
+これにより、VPNへの接続時に問題が発生する可能性があります。
+システムの時刻を更新し、もう一度接続をお試しください。</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>不具合が発生しました。</translation>
         </message>
@@ -129,6 +169,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>ポート転送</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -149,6 +196,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>セッション数の制限に達しました</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>スプリットトンネルが有効になりました。影響を受けるアプリを再起動してください。</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -242,6 +293,10 @@
         <message>
             <source>Disconnect</source>
             <translation>切断</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>接続をキャンセル</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

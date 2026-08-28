@@ -64,6 +64,46 @@
             <translation>Ошибка подключения: достигнут лимит сеансов</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>Достигнуто максимальное количество устройств. Чтобы переподключиться к VPN, отключитесь от другого устройства.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>Ошибка подключения к VPN</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPN не удалось подключиться к VPN, поэтому доступ к Интернету был заблокирован для защиты вашего IP.
+
+Нажмите «Отменить подключение», чтобы восстановить подключение к Интернету. Если проблема сохранится, попробуйте выйти из аккаунта и войти снова.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>Требуется двухфакторная аутентификация</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>Вы подключены к VPN, но весь трафик заблокирован.
+Вам необходимо перейти на страницу аутентификации, предоставленную службой безопасности, и пройти аутентификацию с помощью аппаратного ключа.
+После этого трафик будет включен.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Обновить системное время</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Похоже, ваши системные часы не синхронизированы.
+Это может привести к проблемам при подключении к VPN.
+Обновите системное время и попробуйте подключиться еще раз.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Что-то пошло не так</translation>
         </message>
@@ -121,6 +161,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>Переадресация портов</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -141,6 +188,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>Достигнут лимит сеансов</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>Раздельное туннелирование включено. Не забудьте перезапустить соответствующие приложения.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -234,6 +285,10 @@
         <message>
             <source>Disconnect</source>
             <translation>Отключиться</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Отменить подключение</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

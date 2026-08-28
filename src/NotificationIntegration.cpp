@@ -4,6 +4,7 @@
 #include "VpnController.h"
 
 #include <KNotification>
+#include <QGuiApplication>
 
 NotificationIntegration::NotificationIntegration(
     VpnController *controller, AppSettings *settings, QObject *parent)
@@ -19,18 +20,31 @@ NotificationIntegration::NotificationIntegration(
 void NotificationIntegration::updateState()
 {
     const QString state = m_controller->state();
+    const int forwardedPort = m_controller->forwardedPort();
     if (!m_initialized) {
         m_previousState = state;
+        m_previousForwardedPort = forwardedPort;
         m_initialized = true;
         return;
     }
 
-    if (!m_settings->notificationsEnabled() || state == m_previousState) {
-        m_previousState = state;
-        return;
+    if (m_settings->notificationsEnabled()
+        && state == QStringLiteral("connected")
+        && forwardedPort > 0
+        && forwardedPort != m_previousForwardedPort
+        && QGuiApplication::applicationState() != Qt::ApplicationActive) {
+        KNotification::event(
+            QStringLiteral("portForwarding"),
+            tr("Port forwarding"),
+            tr("Active port is %1").arg(forwardedPort),
+            QStringLiteral("network-server"),
+            KNotification::CloseOnTimeout,
+            QStringLiteral("proton-vpn-kde"));
     }
 
-    if (state == QStringLiteral("connected")) {
+    if (m_settings->notificationsEnabled()
+        && state != m_previousState
+        && state == QStringLiteral("connected")) {
         const QString server = m_controller->serverName();
         KNotification::event(
             QStringLiteral("connected"),
@@ -40,7 +54,9 @@ void NotificationIntegration::updateState()
             QStringLiteral("security-high"),
             KNotification::CloseOnTimeout,
             QStringLiteral("proton-vpn-kde"));
-    } else if (state == QStringLiteral("disconnected")
+    } else if (m_settings->notificationsEnabled()
+               && state != m_previousState
+               && state == QStringLiteral("disconnected")
                && (m_previousState == QStringLiteral("connected")
                    || m_previousState == QStringLiteral("disconnecting"))) {
         KNotification::event(
@@ -50,7 +66,9 @@ void NotificationIntegration::updateState()
             QStringLiteral("network-vpn-disconnected"),
             KNotification::CloseOnTimeout,
             QStringLiteral("proton-vpn-kde"));
-    } else if (state == QStringLiteral("error")) {
+    } else if (m_settings->notificationsEnabled()
+               && state != m_previousState
+               && state == QStringLiteral("error")) {
         KNotification::event(
             QStringLiteral("connectionError"),
             tr("VPN connection problem"),
@@ -63,4 +81,5 @@ void NotificationIntegration::updateState()
     }
 
     m_previousState = state;
+    m_previousForwardedPort = forwardedPort;
 }

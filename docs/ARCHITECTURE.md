@@ -194,8 +194,11 @@ certificate is handed to Proton's official data refresher.
 Connection failures cross D-Bus as a closed set of stable `errorCode` values
 derived only from Proton event class names. The frontend owns their translated
 text and gives the session-limit condition the same explicit recovery dialog as
-the official client. Unknown event classes collapse to `unexpected_error`; raw
-exception text never becomes observable state.
+the official client. Authentication denial, hard-jailed 2FA, and invalid system
+time also receive the official recovery guidance, and an error-state primary
+action always cancels the failed connection so Proton's protective network
+block can be released. Unknown event classes collapse to `unexpected_error`;
+raw exception text never becomes observable state.
 
 Startup compatibility uses the official core's
 `validate_connection_availability()` when present. Fedora's initial 5.5.6

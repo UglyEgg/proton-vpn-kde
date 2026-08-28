@@ -7,6 +7,13 @@ Kirigami.Page {
     id: page
     title: qsTr("Connection")
     property bool portCopied: false
+    property var splitSettings: vpnController.splitTunneling
+
+    Component.onCompleted: {
+        if (vpnController.loggedIn && !splitSettings.loaded) {
+            vpnController.loadSplitTunneling()
+        }
+    }
 
     function countryFlag(code) {
         let upper = code.toUpperCase()
@@ -87,6 +94,15 @@ Kirigami.Page {
                     : qsTr("Start the backend service to manage Proton VPN")
         }
 
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: vpnController.state === "connected"
+                     && page.splitSettings.loaded
+                     && page.splitSettings.enabled
+            type: Kirigami.MessageType.Information
+            text: qsTr("Split tunneling enabled. Remember to restart affected apps.")
+        }
+
         Item { Layout.fillHeight: true }
 
         Kirigami.Icon {
@@ -136,10 +152,12 @@ Kirigami.Page {
             text: vpnController.busy ? qsTr("Working…")
                                      : vpnController.primaryActionText
             icon.name: vpnController.state === "connected"
+                       || vpnController.state === "connecting"
+                       || vpnController.state === "error"
                        ? "network-disconnect"
                        : "network-connect"
             enabled: vpnController.primaryActionEnabled
-            highlighted: vpnController.state !== "connected"
+            highlighted: vpnController.state === "disconnected"
             onClicked: vpnController.activatePrimaryAction()
         }
 

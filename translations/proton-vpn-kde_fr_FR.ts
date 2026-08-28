@@ -60,6 +60,44 @@
             <translation>Erreur de connexion : limite de session atteinte</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>Vous avez atteint la limite maximale d’appareils autorisés. Pour vous reconnecter au VPN, veuillez vous déconnecter d’un autre appareil.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>Erreurs de connexion VPN</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPN n'a pas pu se connecter au VPN et a bloqué l'accès à Internet afin de protéger votre adresse IP.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>A2F requis</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>Vous êtes connecté au VPN, mais tout le trafic est bloqué.
+Vous devez vous rendre sur la page d'authentification fournie par le service de sécurité et vous authentifier à l'aide de votre clé matérielle.
+Une fois cette opération effectuée, le trafic sera réactivé.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Mettre à jour l'horloge système</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Il semblerait que l'horloge de votre système soit désynchronisée.
+Cela peut entraîner des problèmes lors de la connexion au VPN.
+Mettez à jour l'heure de votre système et réessayez de vous connecter.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Une erreur s'est produite</translation>
         </message>
@@ -129,6 +167,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>Redirection de port</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -149,6 +194,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>La limite de session est atteinte</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>Le « split tunneling » est activé. N’oubliez pas de redémarrer les applications concernées.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -227,6 +276,10 @@
         <message>
             <source>Disconnect</source>
             <translation>Déconnecté</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Annuler la connexion</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

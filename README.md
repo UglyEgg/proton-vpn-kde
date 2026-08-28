@@ -47,6 +47,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   previous server, protocol, and backend are reused without a GLib main loop
 - Safe, localized connection-error summaries and Proton-compatible session-limit
   recovery guidance without exposing backend exception details
+- Proton-compatible error-state cancellation that releases a failed connection's
+  protective network block instead of attempting another connection
 - Proton-compatible startup validation with actionable missing-component guidance
   and a fallback for Fedora's initial API-core 5.5.6 package
 - Native Qt translation loading in the app, KRunner, and System Settings, seeded
@@ -56,6 +58,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   system-tray menu
 - Live connection metadata and forwarded-port display with native clipboard
   integration
+- Port-forward changes and split-tunneling restart guidance matching the
+  official client's connection-status behavior
 - Consent-gated troubleshooting packet capture through the selected official
   protocol implementation
 - Native issue reporting through Proton's official support API, with optional
@@ -78,6 +82,9 @@ The real backend is intentionally not auto-started from the development tree.
 This prevents an unfinished frontend from changing a working VPN session.
 Packaged builds install D-Bus and systemd user-service metadata so the backend
 is activated automatically when the GUI requests its first state snapshot.
+
+The audited official-client capability contract and deliberate Plasma
+differences are tracked in [`docs/PARITY.md`](docs/PARITY.md).
 
 ## Build the frontend
 

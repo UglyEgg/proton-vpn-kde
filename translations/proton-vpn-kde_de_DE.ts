@@ -68,6 +68,46 @@
             <translation>Verbindungsfehler: keine weiteren Sitzungen möglich</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>Die maximale Anzahl an Geräten wurde erreicht. Um die VPN-Verbindung wiederherzustellen, trennen Sie bitte die Verbindung eines anderen Geräts.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>VPN-Verbindungsfehler</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPN konnte keine Verbindung zum VPN herstellen und hat daraufhin den Internetzugang gesperrt, um deine IP-Adresse zu schützen.
+
+Klicke auf „Verbindung trennen“, um deine Internetverbindung wiederherzustellen. Sollte das Problem weiterhin bestehen, versuche bitte, dich abzumelden und erneut anzumelden.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>2FA erforderlich</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>Du bist mit dem VPN verbunden, aber der gesamte Datenverkehr ist gestört.
+Du musst die von der Sicherheitsabteilung bereitgestellte Authentifizierungsseite aufrufen und dich mit deinem Hardware-Schlüssel authentifizieren.
+Danach wird der Datenverkehr wiederfreigegeben.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Systemzeit aktualisieren</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Es scheint, als sei Ihre Systemuhr nicht synchron.
+Dies kann zu Problemen bei der VPN-Verbindung führen.
+Aktualisiere deine Systemzeit und versuche erneut, eine Verbindung herzustellen.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Ein Problem ist aufgetreten</translation>
         </message>
@@ -137,6 +177,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>Port-Weiterleitung</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -157,6 +204,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>Keine weiteren Sitzungen möglich</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>Split-Tunneling ist aktiviert. Bitte nicht vergessen, die betroffenen Apps neu zu starten.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -238,6 +289,10 @@
         <name>VpnController</name>
         <message>
             <source>Disconnect</source>
+            <translation>Verbindung trennen</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
             <translation>Verbindung trennen</translation>
         </message>
         <message>

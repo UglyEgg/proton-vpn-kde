@@ -77,6 +77,7 @@ qt_add_executable(proton-vpn-kde
     src/AppSettings.h
     src/CustomDnsModel.cpp
     src/CustomDnsModel.h
+    src/ConnectionAction.h
     src/InstalledApplicationModel.cpp
     src/InstalledApplicationModel.h
     src/NotificationIntegration.cpp
@@ -198,6 +199,17 @@ add_subdirectory(kcm)
 
 if(BUILD_TESTING)
     find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
+    qt_add_executable(connection-action-tests
+        tests/ConnectionActionTest.cpp
+        src/ConnectionAction.h
+    )
+    target_include_directories(connection-action-tests PRIVATE src)
+    target_link_libraries(connection-action-tests PRIVATE Qt6::Core Qt6::Test)
+    target_compile_options(connection-action-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME connection-action-tests COMMAND connection-action-tests)
+
     qt_add_executable(location-model-tests
         tests/LocationModelsTest.cpp
         src/LocationModels.cpp

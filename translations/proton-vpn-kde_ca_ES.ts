@@ -64,6 +64,46 @@
             <translation>Error de connexió: s'ha assolit el límit de la sessió</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>Heu assolit el límit màxim de dispositius. Per tornar-vos a connectar a la VPN, desconnecteu-vos d'un altre dispositiu.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>S'ha produït un error de connexió a la VPN</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPN no s'ha pogut connectar a la VPN i ha bloquejat l'accés a Internet per protegir la vostra IP.
+
+Feu clic a "Cancel·lar la connexió" per restaurar la vostra connexió a Internet. Si el problema persisteix, proveu de tancar i iniciar sessió.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>Es requereix 2FA</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>Esteu connectats a la VPN, però tot el tràfic està bloquejat.
+Heu d'anar a la pàgina d'autenticació proporcionada per seguretat i autenticar-vos amb la vostra clau de maquinari.
+Després d'això, s'activarà el tràfic.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Actualitza el rellotge del sistema</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Sembla que el rellotge del vostre sistema no està sincronitzat.
+Això pot causar problemes quan us connecteu a la VPN.
+Actualitzeu l'hora del sistema i torneu-ho a provar.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Alguna cosa ha anat malament.</translation>
         </message>
@@ -133,6 +173,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>Redirecció de ports</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -153,6 +200,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>S'ha assolit el límit de la sessió</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>S'ha habilitat la tunelització dividida. Recordeu reiniciar les aplicacions afectades.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -239,6 +290,10 @@
         <message>
             <source>Disconnect</source>
             <translation>Desconnecteu-vos</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Cancel·leu la connexió</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

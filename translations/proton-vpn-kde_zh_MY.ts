@@ -68,6 +68,46 @@
             <translation>连接错误：已达到会话限制</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>您已达到设备数量上限。要重新连接 VPN，请先断开其他设备。</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>VPN 连接错误</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPN 无法连接至 VPN，并已阻止访问互联网以保护您的 IP。
+
+点击“取消连接”以恢复您的互联网连接。如果问题仍然存在，请尝试登出并重新登录。</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>需要双重验证</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>您已连接至 VPN，但所有流量都已被阻止。
+您需要前往安全防护提供的身份验证页面，并使用您的硬件密钥进行身份验证。
+在此之后，流量将被启用。</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>更新系统时钟</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>看起来您的系统时钟不同步。
+这可能会导致连接 VPN 时出现问题。
+请更新您的系统时间并尝试重新连接。</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>出错了</translation>
         </message>
@@ -133,6 +173,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>端口转发</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -153,6 +200,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>已达到会话限制</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>拆分隧道已启用，请记得重启受影响的应用。</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -246,6 +297,10 @@
         <message>
             <source>Disconnect</source>
             <translation>断开连接</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>取消连接</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

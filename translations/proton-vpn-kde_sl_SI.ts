@@ -68,6 +68,46 @@
             <translation>Napaka pri povezavi: dosežena omejitev seje</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>Dosegli ste največje število naprav. Če se želite znova povezati z VPN, prekinite povezavo z drugo napravo.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>Napaka povezave VPN</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPN se ni mogel povezati z VPN in je blokiral dostop do interneta, da bi zaščitil vaš IP.
+
+Kliknite "Prekliči povezavo", da obnovite svojo internetno povezavo. Če se težava še naprej pojavlja, se poskusite izpisati in znova vpisati.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>Zahtevan je 2FA</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>Povezani ste z VPN, vendar je ves promet blokiran.
+Morate iti na stran za preverjanje pristnosti, ki jo zagotavlja varnostna služba, in potrditi svojo pristnost s svojim strojnim ključem.
+Po tem bo promet omogočen.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Posodobi sistemsko uro</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Videti je, da sistemska ura ni sinhronizirana.
+To lahko povzroči težave pri povezovanju z VPN.
+Posodobite sistemski čas in se poskusite znova povezati.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Nekaj je šlo narobe</translation>
         </message>
@@ -129,6 +169,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>Posredovanje vrat</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -149,6 +196,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>Dosežena omejitev seje</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>Deljeno tuneliranje je vklopljeno. Ne pozabite ponovno zagnati prizadete aplikacije.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -235,6 +286,10 @@
         <message>
             <source>Disconnect</source>
             <translation>Prekini</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Prekliči povezavo</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>

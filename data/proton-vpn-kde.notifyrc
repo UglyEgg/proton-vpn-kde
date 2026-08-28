@@ -18,3 +18,8 @@ Name=VPN connection problem
 Comment=The Proton VPN tunnel encountered an error
 Action=Popup
 Urgency=Critical
+
+[Event/portForwarding]
+Name=Port forwarding
+Comment=The active forwarded port changed
+Action=Popup

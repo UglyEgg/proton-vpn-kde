@@ -64,6 +64,46 @@
             <translation>Eroare conexiune: s-a atins limita de sesiuni</translation>
         </message>
         <message>
+            <source>You've reached your maximum device limit. To reconnect to VPN, please disconnect from another device.</source>
+            <translation>Ați atins limita maximă de dispozitive. Pentru a vă reconecta la VPN, deconectați-vă de la un alt dispozitiv.</translation>
+        </message>
+        <message>
+            <source>VPN connection error</source>
+            <translation>Eroare conexiune VPN</translation>
+        </message>
+        <message>
+            <source>Proton VPN could not connect to the VPN and blocked access to Internet to protect your IP.
+
+Click "Cancel Connection" to restore your Internet connection. If the issue persists please try to sign out and in.</source>
+            <translation>Proton VPN nu s-a putut conecta la VPN și a blocat accesul la internet pentru a vă proteja adresa IP.
+
+Faceți clic pe „Anulare conexiune” pentru a restabili conexiunea la internet. Dacă problema persistă, încercați să vă deconectați și să vă reconectați.</translation>
+        </message>
+        <message>
+            <source>2FA Required</source>
+            <translation>A2F obligatorie</translation>
+        </message>
+        <message>
+            <source>You are connected to the VPN, but all traffic is blocked.
+You need to go to the authentication page provided by security and authenticate with your hardware key.
+After that, the traffic will be enabled.</source>
+            <translation>Ești v-ați conectat la VPN, dar tot traficul este blocat.
+Trebuie să accesați pagina de autentificare furnizată de securitate și să vă autentificați cu cheia hardware.
+După aceea, traficul va fi activat.</translation>
+        </message>
+        <message>
+            <source>Update system clock</source>
+            <translation>Actualizare ceas sistem</translation>
+        </message>
+        <message>
+            <source>Looks like your system clock is out of sync.
+This may cause issues when connecting to VPN.
+Update your system time and try to connect again.</source>
+            <translation>Se pare că ceasul sistemului nu este sincronizat.
+Acest lucru poate cauza probleme la conectarea la VPN.
+Actualizați ora sistemului și încercați să vă reconectați.</translation>
+        </message>
+        <message>
             <source>Something went wrong</source>
             <translation>Ceva nu a funcționat corect</translation>
         </message>
@@ -133,6 +173,13 @@
         </message>
     </context>
     <context>
+        <name>NotificationIntegration</name>
+        <message>
+            <source>Port forwarding</source>
+            <translation>Redirecționare port</translation>
+        </message>
+    </context>
+    <context>
         <name>OverviewPage</name>
         <message>
             <source>Connection</source>
@@ -153,6 +200,10 @@
         <message>
             <source>Session limit reached</source>
             <translation>S-a atins limita de sesiuni</translation>
+        </message>
+        <message>
+            <source>Split tunneling enabled. Remember to restart affected apps.</source>
+            <translation>Divizarea traficului este activată. Reporniți aplicațiile afectate.</translation>
         </message>
         <message>
             <source>Sign in</source>
@@ -235,6 +286,10 @@
         <message>
             <source>Disconnect</source>
             <translation>Deconectare</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Anulare conexiune</translation>
         </message>
         <message>
             <source>Your issue has been reported</source>
