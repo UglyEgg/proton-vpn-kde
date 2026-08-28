@@ -244,6 +244,13 @@ class SupportReport:
     include_logs: bool = True
 
 
+@dataclass(frozen=True, slots=True)
+class NpsSurveyResponse:
+    score: int = 0
+    comments: str = ""
+    dismissed: bool = False
+
+
 _EMAIL_PATTERN = re.compile(r"[^@\s]+@[^@\s]{2,}\.[^@\s.\-]{2,}")
 
 
@@ -281,6 +288,24 @@ def validate_support_report(
         description=normalized_description,
         include_logs=include_logs == "true",
     )
+
+
+def validate_nps_survey_response(
+    score: str, comments: str, response_type: str
+) -> NpsSurveyResponse:
+    if response_type not in {"submit", "dismiss"}:
+        raise ValueError("The survey response type is invalid")
+    if response_type == "dismiss":
+        return NpsSurveyResponse(dismissed=True)
+    try:
+        numeric_score = int(score)
+    except ValueError as error:
+        raise ValueError("Select a survey score") from error
+    if numeric_score < 0 or numeric_score > 10:
+        raise ValueError("Select a survey score from 0 through 10")
+    if len(comments) > 250 or "\0" in comments:
+        raise ValueError("The survey feedback is too long")
+    return NpsSurveyResponse(score=numeric_score, comments=comments)
 
 
 SettingsValue: TypeAlias = str | int | bool
@@ -559,6 +584,8 @@ class CoreAdapter(Protocol):
     async def start_packet_capture(self, directory_path: str) -> None: ...
     async def stop_packet_capture(self) -> None: ...
     async def submit_support_report(self, report: SupportReport) -> None: ...
+    async def take_pending_nps_survey(self) -> bool: ...
+    async def submit_nps_survey(self, response: NpsSurveyResponse) -> None: ...
     async def login(self, username: str, password: str) -> None: ...
     async def submit_two_factor(self, code: str) -> None: ...
     async def cancel_login(self) -> None: ...
@@ -687,6 +714,24 @@ class BackendController:
         settings = await self._adapter.get_settings()
         self._publish_settings(settings)
         return settings.to_json()
+
+    async def get_pending_nps_survey_json(self) -> str:
+        self._require_session()
+        available = await self._adapter.take_pending_nps_survey()
+        return json.dumps(
+            {"schemaVersion": 1, "available": available},
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+    async def submit_nps_survey(
+        self, score: str, comments: str, response_type: str
+    ) -> None:
+        self._require_session()
+        response = validate_nps_survey_response(
+            score, comments, response_type
+        )
+        await self._adapter.submit_nps_survey(response)
 
     async def update_settings_json(self, patch_json: str) -> str:
         self._require_session()

@@ -18,6 +18,7 @@ from .controller import (
     CustomDnsSettings,
     CustomDnsValue,
     LocationSearchInfo,
+    NpsSurveyResponse,
     ProtocolInfo,
     ServerDataCallback,
     ServerGroupInfo,
@@ -52,7 +53,12 @@ def _fold_search_text(value: str) -> str:
 class DemoCoreAdapter:
     """Deterministic adapter that never touches the network or credentials."""
 
-    def __init__(self, logged_in: bool = True, kill_switch: int = 0):
+    def __init__(
+        self,
+        logged_in: bool = True,
+        kill_switch: int = 0,
+        nps_survey_available: bool = False,
+    ):
         self._callback: SnapshotCallback | None = None
         self._server_data_callback: ServerDataCallback | None = None
         self._logged_in = logged_in
@@ -77,7 +83,9 @@ class DemoCoreAdapter:
             paid_features_available=logged_in,
         )
         self._packet_capture_active = False
+        self._nps_survey_available = nps_survey_available
         self.last_support_report: SupportReport | None = None
+        self.last_nps_response: NpsSurveyResponse | None = None
         self._snapshot = self._build_snapshot(message="Safe demo backend")
 
     async def initialize(
@@ -382,6 +390,14 @@ class DemoCoreAdapter:
     async def submit_support_report(self, report: SupportReport) -> None:
         await asyncio.sleep(0.01)
         self.last_support_report = report
+
+    async def take_pending_nps_survey(self) -> bool:
+        available = self._nps_survey_available
+        self._nps_survey_available = False
+        return available
+
+    async def submit_nps_survey(self, response: NpsSurveyResponse) -> None:
+        self.last_nps_response = response
 
     async def login(self, username: str, password: str) -> None:
         if self._settings.kill_switch == 2:
@@ -995,6 +1011,43 @@ class ProtonCoreAdapter:
                     raise RuntimeError(
                         "Proton could not submit the issue report"
                     ) from None
+
+    async def take_pending_nps_survey(self) -> bool:
+        try:
+            notifications = list(
+                self._api.refresher.notifications.get_nps_survey_notifications()
+            )
+        except AttributeError:
+            return False
+        while notifications:
+            survey = notifications.pop()
+            if not survey.seen and survey.is_active:
+                await asyncio.to_thread(
+                    self._api.set_notification_seen, survey.survey_id
+                )
+                return True
+        return False
+
+    async def submit_nps_survey(self, response: NpsSurveyResponse) -> None:
+        from proton.vpn.session.dataclasses import NPSSurveyResponse
+
+        response_type = (
+            NPSSurveyResponse.ResponseType.DISMISS
+            if response.dismissed
+            else NPSSurveyResponse.ResponseType.SUBMIT
+        )
+        try:
+            await self._api.submit_nps_response(
+                NPSSurveyResponse(
+                    user_score=response.score,
+                    user_comments=response.comments,
+                    response_type=response_type,
+                )
+            )
+        except Exception:
+            raise RuntimeError(
+                "Proton could not submit the survey response"
+            ) from None
 
     async def _get_server_list(self):
         try:

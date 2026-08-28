@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock
 
 from proton_vpn_kde_backend.adapters import ProtonCoreAdapter
-from proton_vpn_kde_backend.controller import SupportReport
+from proton_vpn_kde_backend.controller import NpsSurveyResponse, SupportReport
 
 
 def state_named(name: str):
@@ -42,6 +42,9 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_up_to_date_server_list=AsyncMock(),
             get_up_to_date_client_config=AsyncMock(return_value="client-config"),
             feature_flags={},
+            notifications=SimpleNamespace(
+                get_nps_survey_notifications=Mock(return_value=[])
+            ),
         )
         exclude_config = SimpleNamespace(
             app_paths=["/usr/bin/firefox"],
@@ -101,6 +104,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             submit_2fa_fido2=AsyncMock(),
             logout=AsyncMock(),
             submit_bug_report=AsyncMock(),
+            submit_nps_response=AsyncMock(),
+            set_notification_seen=Mock(),
             load_settings=AsyncMock(return_value=settings),
             save_settings=AsyncMock(),
         )
@@ -125,6 +130,28 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("test-user", form.username)
         self.assertEqual("KDE Plasma GUI", form.client)
         self.assertEqual([], form.attachments)
+
+    async def test_nps_survey_uses_cached_notification_and_official_api(self):
+        api, _ = self.make_api()
+        survey = SimpleNamespace(
+            survey_id="survey-1", seen=False, is_active=True
+        )
+        api.refresher.notifications.get_nps_survey_notifications.return_value = [
+            survey
+        ]
+        adapter = ProtonCoreAdapter(api)
+
+        self.assertTrue(await adapter.take_pending_nps_survey())
+        api.set_notification_seen.assert_called_once_with("survey-1")
+
+        await adapter.submit_nps_survey(
+            NpsSurveyResponse(score=10, comments="Excellent")
+        )
+        api.submit_nps_response.assert_awaited_once()
+        response = api.submit_nps_response.await_args.args[0]
+        self.assertEqual(10, response.user_score)
+        self.assertEqual("Excellent", response.user_comments)
+        self.assertEqual("SUBMIT", response.response_type.name)
 
     async def test_initialize_reuses_core_and_subscribes_without_connecting(self):
         api, connector = self.make_api()

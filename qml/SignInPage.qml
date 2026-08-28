@@ -157,7 +157,30 @@ Kirigami.ScrollablePage {
                 visible: vpnController.authState === "human_verification"
                 text: qsTr("Open Proton account")
                 icon.name: "internet-web-browser"
-                onClicked: Qt.openUrlExternally("https://account.proton.me/")
+                onClicked: Qt.openUrlExternally(
+                    "https://account.protonvpn.com/account")
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Controls.Button {
+                    flat: true
+                    text: qsTr("Create Account")
+                    onClicked: Qt.openUrlExternally(
+                        "https://account.protonvpn.com/signup?ref=linux")
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
+                Controls.Button {
+                    flat: true
+                    text: qsTr("Need Help?")
+                    onClicked: Qt.openUrlExternally(
+                        "https://protonvpn.com/support")
+                }
             }
 
         }

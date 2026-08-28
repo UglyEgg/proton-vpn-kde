@@ -34,6 +34,15 @@ Kirigami.ApplicationWindow {
         showPage(Qt.resolvedUrl("SettingsPage.qml"))
     }
 
+    function maybeShowNpsSurvey() {
+        if (root.visible && vpnController.npsSurveyAvailable
+                && !npsDialog.visible) {
+            npsDialog.open()
+        }
+    }
+
+    onVisibleChanged: Qt.callLater(root.maybeShowNpsSurvey)
+
     property bool previousLoggedIn: vpnController.loggedIn
 
     Controls.Dialog {
@@ -55,6 +64,162 @@ Kirigami.ApplicationWindow {
         onRejected: appLifecycle.cancelQuit()
     }
 
+    Controls.ButtonGroup {
+        id: npsScoreGroup
+    }
+
+    Controls.Dialog {
+        id: npsDialog
+        anchors.centerIn: parent
+        width: Math.min(root.width - Kirigami.Units.gridUnit * 2,
+                        Kirigami.Units.gridUnit * 28)
+        modal: true
+        title: submitted ? qsTr("Thanks for your feedback")
+                         : qsTr("How likely are you to recommend Proton VPN to a friend?")
+        closePolicy: Controls.Popup.CloseOnEscape
+
+        property int selectedScore: -1
+        property bool responseSent: false
+        property bool submitted: false
+
+        onOpened: {
+            selectedScore = -1
+            responseSent = false
+            submitted = false
+            feedback.clear()
+            for (let button of npsScoreGroup.buttons) {
+                button.checked = false
+            }
+        }
+        onClosed: {
+            if (!responseSent) {
+                responseSent = true
+                vpnController.dismissNpsSurvey()
+            }
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: Kirigami.Units.largeSpacing
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: !npsDialog.submitted
+                spacing: Kirigami.Units.largeSpacing
+
+                GridLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    columns: 6
+
+                    Repeater {
+                        model: 11
+
+                        Controls.RadioButton {
+                            required property int modelData
+                            text: modelData.toString()
+                            Controls.ButtonGroup.group: npsScoreGroup
+                            onClicked: npsDialog.selectedScore = modelData
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Controls.Label {
+                        text: qsTr("0 is very unlikely")
+                        color: Kirigami.Theme.disabledTextColor
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                    Controls.Label {
+                        text: qsTr("10 is very likely")
+                        color: Kirigami.Theme.disabledTextColor
+                    }
+                }
+
+                Controls.Label {
+                    Layout.fillWidth: true
+                    visible: npsDialog.selectedScore >= 0
+                    text: qsTr("Please let us know why you gave that rating (optional)")
+                    wrapMode: Text.WordWrap
+                }
+
+                Controls.ScrollView {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Kirigami.Units.gridUnit * 7
+                    visible: npsDialog.selectedScore >= 0
+
+                    Controls.TextArea {
+                        id: feedback
+                        placeholderText: qsTr("Optional feedback")
+                        wrapMode: TextEdit.Wrap
+                        onTextChanged: {
+                            if (length > 250) {
+                                text = text.slice(0, 250)
+                                cursorPosition = length
+                            }
+                        }
+                    }
+                }
+
+                Controls.Label {
+                    Layout.alignment: Qt.AlignRight
+                    visible: npsDialog.selectedScore >= 0
+                    text: qsTr("%1/250").arg(feedback.length)
+                    color: Kirigami.Theme.disabledTextColor
+                }
+
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+
+                    Controls.Button {
+                        text: qsTr("Not now")
+                        onClicked: npsDialog.reject()
+                    }
+
+                    Controls.Button {
+                        text: qsTr("Share anonymously")
+                        highlighted: true
+                        enabled: npsDialog.selectedScore >= 0
+                        onClicked: {
+                            npsDialog.responseSent = true
+                            vpnController.submitNpsSurvey(
+                                npsDialog.selectedScore, feedback.text)
+                            npsDialog.submitted = true
+                        }
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: npsDialog.submitted
+                spacing: Kirigami.Units.largeSpacing
+
+                Kirigami.Icon {
+                    Layout.alignment: Qt.AlignHCenter
+                    source: "emblem-success"
+                    implicitWidth: Kirigami.Units.iconSizes.huge
+                    implicitHeight: implicitWidth
+                }
+
+                Controls.Label {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: qsTr("Your feedback helps us improve Proton VPN.")
+                    wrapMode: Text.WordWrap
+                }
+
+                Controls.Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr("Close")
+                    onClicked: npsDialog.accept()
+                }
+            }
+        }
+    }
+
     Connections {
         target: appLifecycle
         function onQuitConfirmationRequested() {
@@ -74,6 +239,9 @@ Kirigami.ApplicationWindow {
                 root.showPage(Qt.resolvedUrl("SignInPage.qml"))
             }
             root.previousLoggedIn = vpnController.loggedIn
+        }
+        function onNpsSurveyChanged() {
+            Qt.callLater(root.maybeShowNpsSurvey)
         }
     }
 

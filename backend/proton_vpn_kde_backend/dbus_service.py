@@ -78,6 +78,10 @@ class VpnDbusService(ServiceInterface):
     async def search_locations(self, query: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.search_locations_json(query)
 
+    @method(name="GetPendingNpsSurvey")
+    async def get_pending_nps_survey(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        return await self._controller.get_pending_nps_survey_json()
+
     @method(name="GetSettings")
     async def get_settings(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         try:
@@ -163,6 +167,16 @@ class VpnDbusService(ServiceInterface):
             )
         except (RuntimeError, ValueError) as error:
             raise DBusError(INVALID_SUPPORT_REPORT_ERROR, str(error)) from error
+
+    @method(name="SubmitNpsSurvey")
+    async def submit_nps_survey(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
+        payload = self._read_secret(
+            secret_fd,
+            {"score", "comments", "responseType"},
+        )
+        await self._controller.submit_nps_survey(
+            payload["score"], payload["comments"], payload["responseType"]
+        )
 
     @method(name="Login")
     async def login(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821

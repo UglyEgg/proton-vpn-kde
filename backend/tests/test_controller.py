@@ -6,6 +6,7 @@ import unittest
 from proton_vpn_kde_backend.adapters import DemoCoreAdapter
 from proton_vpn_kde_backend.controller import (
     BackendController,
+    NpsSurveyResponse,
     VpnSnapshot,
     custom_dns_patch_from_json,
     settings_patch_from_json,
@@ -99,6 +100,26 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("demo-user", self.controller._adapter.last_support_report.username)
         self.assertFalse(self.controller._adapter.last_support_report.include_logs)
         self.assertEqual("Your issue has been reported", self.controller.snapshot.message)
+
+    async def test_pending_nps_survey_is_taken_and_submitted_once(self):
+        adapter = DemoCoreAdapter(nps_survey_available=True)
+        controller = BackendController(adapter)
+        await controller.start()
+
+        self.assertIn(
+            '"available":true', await controller.get_pending_nps_survey_json()
+        )
+        self.assertIn(
+            '"available":false', await controller.get_pending_nps_survey_json()
+        )
+        await controller.submit_nps_survey("9", "Works well on Plasma", "submit")
+
+        self.assertEqual(
+            NpsSurveyResponse(score=9, comments="Works well on Plasma"),
+            adapter.last_nps_response,
+        )
+        with self.assertRaisesRegex(ValueError, "0 through 10"):
+            await controller.submit_nps_survey("11", "", "submit")
 
     def test_support_report_rejects_invalid_or_oversized_fields(self):
         with self.assertRaisesRegex(ValueError, "valid email"):

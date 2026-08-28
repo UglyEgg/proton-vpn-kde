@@ -132,6 +132,7 @@ int VpnController::killSwitch() const { return m_killSwitch; }
 bool VpnController::busy() const { return m_busy; }
 bool VpnController::locationsBusy() const { return m_locationsBusy; }
 bool VpnController::locationSearchBusy() const { return m_locationSearchBusy; }
+bool VpnController::npsSurveyAvailable() const { return m_npsSurveyAvailable; }
 QString VpnController::state() const { return m_state; }
 QString VpnController::serverName() const { return m_serverName; }
 QString VpnController::serverLocation() const { return m_serverLocation; }
@@ -413,6 +414,36 @@ void VpnController::searchLocations(const QString &query)
 void VpnController::clearLocationSearch()
 {
     searchLocations({});
+}
+
+void VpnController::submitNpsSurvey(int score, const QString &comments)
+{
+    if (!m_npsSurveyAvailable || score < 0 || score > 10) {
+        return;
+    }
+    m_npsSurveyAvailable = false;
+    emit npsSurveyChanged();
+    callSecretOperation(
+        QStringLiteral("SubmitNpsSurvey"),
+        {{QStringLiteral("score"), QString::number(score)},
+         {QStringLiteral("comments"), comments.left(250)},
+         {QStringLiteral("responseType"), QStringLiteral("submit")}},
+        false);
+}
+
+void VpnController::dismissNpsSurvey()
+{
+    if (!m_npsSurveyAvailable) {
+        return;
+    }
+    m_npsSurveyAvailable = false;
+    emit npsSurveyChanged();
+    callSecretOperation(
+        QStringLiteral("SubmitNpsSurvey"),
+        {{QStringLiteral("score"), QStringLiteral("0")},
+         {QStringLiteral("comments"), QString()},
+         {QStringLiteral("responseType"), QStringLiteral("dismiss")}},
+        false);
 }
 
 void VpnController::loadServers(const QString &countryCode)
@@ -1094,6 +1125,9 @@ void VpnController::onServiceUnregistered(const QString &)
     m_locationSearchQuery.clear();
     ++m_locationSearchGeneration;
     m_locationSearchBusy = false;
+    m_npsSurveyChecked = false;
+    m_npsSurveyAvailable = false;
+    emit npsSurveyChanged();
     m_settings->reset(tr("The Proton backend service stopped"));
     m_splitTunneling->reset(tr("The Proton backend service stopped"));
     m_customDns->reset(tr("The Proton backend service stopped"));
@@ -1226,11 +1260,17 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_locationSearchQuery.clear();
         ++m_locationSearchGeneration;
         m_locationSearchBusy = false;
+        m_npsSurveyChecked = false;
+        m_npsSurveyAvailable = false;
+        emit npsSurveyChanged();
         m_settings->reset();
         m_splitTunneling->reset();
         m_customDns->reset();
     }
     emit snapshotChanged();
+    if (m_loggedIn && !m_npsSurveyChecked) {
+        loadPendingNpsSurvey();
+    }
     if (m_loggedIn && m_countryModel->rowCount() == 0 && !m_locationsBusy) {
         loadCountries();
     }
@@ -1461,6 +1501,46 @@ void VpnController::handleLocationSearchReply(QDBusPendingCallWatcher *watcher)
         emit snapshotChanged();
     }
     emit locationsChanged();
+}
+
+void VpnController::loadPendingNpsSurvey()
+{
+    if (m_npsSurveyChecked || !m_backendAvailable || !m_ready || !m_loggedIn) {
+        return;
+    }
+    m_npsSurveyChecked = true;
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetPendingNpsSurvey"));
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 10000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handlePendingNpsSurveyReply);
+}
+
+void VpnController::handlePendingNpsSurveyReply(
+    QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<QString> reply = *watcher;
+    watcher->deleteLater();
+    if (reply.isError() || !m_loggedIn) {
+        return;
+    }
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(
+        reply.value().toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()
+        || document.object().value(QStringLiteral("schemaVersion")).toInt() != 1) {
+        return;
+    }
+    const bool available = document.object()
+                               .value(QStringLiteral("available")).toBool();
+    if (m_npsSurveyAvailable != available) {
+        m_npsSurveyAvailable = available;
+        emit npsSurveyChanged();
+    }
 }
 
 void VpnController::handleServerGroupsReply(QDBusPendingCallWatcher *watcher)

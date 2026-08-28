@@ -34,7 +34,8 @@ Kirigami.ScrollablePage {
             Kirigami.FormData.label: qsTr("Online:")
             text: qsTr("Manage Proton account")
             icon.name: "internet-web-browser"
-            onClicked: Qt.openUrlExternally("https://account.proton.me/")
+            onClicked: Qt.openUrlExternally(
+                "https://account.protonvpn.com/account")
         }
 
         Controls.Label {

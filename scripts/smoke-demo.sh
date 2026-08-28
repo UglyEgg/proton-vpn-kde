@@ -89,6 +89,15 @@ if [[ "$server_search" != *'"kind":"server"'* \
     exit 1
 fi
 
+nps_survey="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.GetPendingNpsSurvey)"
+if [[ "$nps_survey" != *'"available":false'* ]]; then
+    echo "Backend did not return the demo survey state" >&2
+    exit 1
+fi
+
 server_groups="$(gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \

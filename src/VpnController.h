@@ -35,6 +35,7 @@ class VpnController final : public QObject
     Q_PROPERTY(bool busy READ busy NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool locationSearchBusy READ locationSearchBusy NOTIFY locationsChanged)
+    Q_PROPERTY(bool npsSurveyAvailable READ npsSurveyAvailable NOTIFY npsSurveyChanged)
     Q_PROPERTY(QString state READ state NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverName READ serverName NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverLocation READ serverLocation NOTIFY snapshotChanged)
@@ -75,6 +76,7 @@ public:
     [[nodiscard]] bool busy() const;
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] bool locationSearchBusy() const;
+    [[nodiscard]] bool npsSurveyAvailable() const;
     [[nodiscard]] QString state() const;
     [[nodiscard]] QString serverName() const;
     [[nodiscard]] QString serverLocation() const;
@@ -112,6 +114,8 @@ public:
     Q_INVOKABLE void loadCountries();
     Q_INVOKABLE void searchLocations(const QString &query);
     Q_INVOKABLE void clearLocationSearch();
+    Q_INVOKABLE void submitNpsSurvey(int score, const QString &comments);
+    Q_INVOKABLE void dismissNpsSurvey();
     Q_INVOKABLE void loadServerGroups(const QString &countryCode);
     Q_INVOKABLE void loadGroupServers(const QString &countryCode,
                                       const QString &groupKind,
@@ -159,6 +163,7 @@ signals:
     void backendAvailableChanged();
     void snapshotChanged();
     void locationsChanged();
+    void npsSurveyChanged();
     void supportReportFinished(bool success, const QString &message);
 
 private slots:
@@ -185,12 +190,14 @@ private:
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
     void handleCountriesReply(QDBusPendingCallWatcher *watcher);
     void handleLocationSearchReply(QDBusPendingCallWatcher *watcher);
+    void handlePendingNpsSurveyReply(QDBusPendingCallWatcher *watcher);
     void handleServerGroupsReply(QDBusPendingCallWatcher *watcher);
     void handleServersReply(QDBusPendingCallWatcher *watcher);
     void handleServerLoadsReply(QDBusPendingCallWatcher *watcher);
     void handleSettingsReply(QDBusPendingCallWatcher *watcher);
     void handleSplitTunnelingReply(QDBusPendingCallWatcher *watcher);
     void handleCustomDnsReply(QDBusPendingCallWatcher *watcher);
+    void loadPendingNpsSurvey();
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
     CountryModel *m_countryModel = nullptr;
@@ -220,6 +227,8 @@ private:
     bool m_locationSearchBusy = false;
     quint64 m_locationSearchGeneration = 0;
     QString m_locationSearchQuery;
+    bool m_npsSurveyChecked = false;
+    bool m_npsSurveyAvailable = false;
     bool m_countryRefreshPending = false;
     bool m_serverGroupRefreshPending = false;
     bool m_serverRefreshPending = false;

@@ -55,6 +55,7 @@ The additive version-one contract currently contains:
 - `GetServers(countryCode) -> JSON string`
 - `GetServerLoads(countryCode) -> JSON string`
 - `SearchLocations(query) -> JSON string`
+- `GetPendingNpsSurvey() -> JSON string`
 - `GetSettings() -> JSON string`
 - `UpdateSettings(JSON patch) -> JSON string`
 - `GetSplitTunneling() -> JSON string`
@@ -64,6 +65,7 @@ The additive version-one contract currently contains:
 - `StartPacketCapture(directoryPath)`
 - `StopPacketCapture()`
 - `SubmitSupportReport(sealedReportFd)`
+- `SubmitNpsSurvey(sealedResponseFd)`
 - `ConnectFastest()`
 - `ConnectCountry(countryCode)`
 - `ConnectGroup(countryCode, groupKind, groupName)`
@@ -87,6 +89,11 @@ The additive version-one contract currently contains:
 JSON keeps the prototype easy to inspect while `schemaVersion` protects the
 boundary. Before a public release, frequently accessed fields can become typed
 D-Bus properties without breaking the version-one interface.
+
+The NPS prompt consumes only Proton core's cached active notification, marks it
+seen through the official persistence API when offered, and submits or dismisses
+it through the official survey API. Optional free-form feedback uses the sealed
+file-descriptor transport so it is not visible in D-Bus message arguments.
 
 No token, password, certificate, private key, or raw API response may appear in
 the D-Bus message body or state snapshot. Authentication fields are encrypted

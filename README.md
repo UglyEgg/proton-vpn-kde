@@ -60,6 +60,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   close-to-tray, and start-minimized behavior
 - Native sign-in, TOTP/recovery-code authentication, security-key/FIDO2
   interaction, account metadata, session expiry, and logout
+- Official account/help links and service-driven anonymous NPS surveys using
+  Proton's cached notification and response APIs
 - Pre-login permanent-kill-switch recovery, kill-switch-safe sign-out, and a
   confirmed disconnect-before-quit flow matching the official client
 - Ephemeral X25519/AES-GCM encryption plus sealed one-use memory-file transport
