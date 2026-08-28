@@ -1,6 +1,7 @@
 #include "AppSettings.h"
 #include "NotificationIntegration.h"
 #include "TrayIntegration.h"
+#include "UpdateChannel.h"
 #include "VpnController.h"
 
 #include <QApplication>
@@ -23,6 +24,7 @@ int main(int argc, char *argv[])
     QApplication::setQuitOnLastWindowClosed(false);
 
     AppSettings settings;
+    UpdateChannel updateChannel;
     VpnController controller;
     bool startupActionHandled = false;
     controller.setReconnectionEnabled(settings.reconnectEnabled());
@@ -51,6 +53,8 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("vpnController"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"), &settings);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("updateChannel"), &updateChannel);
     engine.rootContext()->setContextProperty(
         QStringLiteral("startMinimized"), settings.startMinimized());
     engine.rootContext()->setContextProperty(

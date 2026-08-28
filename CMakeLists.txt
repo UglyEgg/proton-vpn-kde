@@ -62,6 +62,8 @@ qt_add_executable(proton-vpn-kde
     src/LocationModels.h
     src/TrayIntegration.cpp
     src/TrayIntegration.h
+    src/UpdateChannel.cpp
+    src/UpdateChannel.h
     src/VpnController.cpp
     src/VpnController.h
     src/VpnSettingsModel.cpp
@@ -147,6 +149,21 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME app-settings-tests COMMAND app-settings-tests)
+
+    qt_add_executable(update-channel-tests
+        tests/UpdateChannelTest.cpp
+        src/UpdateChannel.cpp
+        src/UpdateChannel.h
+    )
+    target_include_directories(update-channel-tests PRIVATE src)
+    target_link_libraries(update-channel-tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    target_compile_options(update-channel-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME update-channel-tests COMMAND update-channel-tests)
 
     qt_add_executable(vpn-settings-model-tests
         tests/VpnSettingsModelTest.cpp

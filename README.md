@@ -42,6 +42,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   protocol implementation
 - Native issue reporting through Proton's official support API, with optional
   fixed-scope journal attachments and protected form transport
+- Fedora stable/Beta repository selection through an exact-package, no-shell
+  Polkit action while Discover retains control of package updates
 - Persistent Plasma settings through KConfig for reconnection, notifications,
   close-to-tray, and start-minimized behavior
 - Native sign-in, TOTP/recovery-code authentication, security-key/FIDO2

@@ -24,6 +24,26 @@ Kirigami.ScrollablePage {
         onAccepted: appSettings.setPacketCaptureDirectoryUrl(selectedFolder)
     }
 
+    Controls.Dialog {
+        id: updateChannelDialog
+        property bool enableBeta: false
+        anchors.centerIn: parent
+        modal: true
+        title: enableBeta ? qsTr("Enable Beta access?")
+                          : qsTr("Disable Beta access?")
+        standardButtons: Controls.Dialog.Yes | Controls.Dialog.Cancel
+
+        Controls.Label {
+            width: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            text: updateChannelDialog.enableBeta
+                  ? qsTr("This will replace Proton's stable Fedora repository package with its Beta repository package. Install the offered updates afterward to use Beta components.")
+                  : qsTr("This will replace Proton's Beta Fedora repository package with its stable repository package. Install the offered updates afterward to return to stable components.")
+        }
+
+        onAccepted: updateChannel.setBetaEnabled(enableBeta)
+    }
+
     Component.onDestruction: {
         if (vpnController.packetCaptureActive) {
             vpnController.stopPacketCapture()
@@ -40,6 +60,7 @@ Kirigami.ScrollablePage {
         if (vpnController.loggedIn && !customDns.loaded) {
             vpnController.loadCustomDns()
         }
+        updateChannel.refresh()
     }
 
     Connections {
@@ -534,6 +555,55 @@ Kirigami.ScrollablePage {
             visible: appSettings.startMinimized
             type: Kirigami.MessageType.Information
             text: qsTr("This controls window visibility only. Enable application autostart separately in Plasma System Settings.")
+        }
+
+        Controls.Label {
+            Kirigami.FormData.isSection: true
+            visible: updateChannel.available
+            text: qsTr("Updates")
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            visible: updateChannel.available
+
+            Controls.Switch {
+                id: betaAccessSwitch
+                text: qsTr("Beta access")
+                checked: updateChannel.betaEnabled
+                enabled: !updateChannel.busy
+                onClicked: {
+                    updateChannelDialog.enableBeta = !updateChannel.betaEnabled
+                    checked = Qt.binding(function() {
+                        return updateChannel.betaEnabled
+                    })
+                    updateChannelDialog.open()
+                }
+            }
+
+            Controls.BusyIndicator {
+                visible: updateChannel.busy
+                running: visible
+                implicitWidth: Kirigami.Units.iconSizes.small
+                implicitHeight: implicitWidth
+            }
+        }
+
+        Controls.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            visible: updateChannel.available
+            text: qsTr("Selects Proton's Fedora package repository. Package installation remains managed by Discover or dnf.")
+            color: Kirigami.Theme.disabledTextColor
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: updateChannel.available
+                     && updateChannel.message.length > 0
+            type: updateChannel.error ? Kirigami.MessageType.Error
+                                      : Kirigami.MessageType.Information
+            text: updateChannel.message
         }
     }
 }

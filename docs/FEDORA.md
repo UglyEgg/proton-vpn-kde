@@ -70,6 +70,14 @@ and D-Bus Unix file-descriptor passing. These are available on supported Fedora
 releases and require no filesystem storage, privileged helper, or custom SELinux
 rule.
 
+The optional Beta access control is shown only when either Proton's
+`protonvpn-stable-release` or `protonvpn-beta-release` repository package is
+installed and both `pkexec` and `dnf` are available. It swaps only those exact
+repository packages after an interactive Polkit authorization. It deliberately
+does not reinstall `proton-vpn-gnome-desktop`, replace this KDE package, or run a
+general system upgrade; the user applies offered package updates afterward in
+Discover or with `dnf`.
+
 ## Suggested package checks
 
 ```bash

@@ -205,6 +205,15 @@ lowest-load order; search handles deliberate server or location selection
 without exposing low-value implementation-centric sort controls. The KDE layer
 does not add a polling schedule or make its own server-list API requests.
 
+Fedora update-channel selection is intentionally a frontend packaging concern,
+not a VPN backend operation. The native settings page detects Proton's exact
+stable or Beta release-package names with `rpm`. After an explicit confirmation
+and a normal Polkit prompt, it invokes `pkexec` with a fixed argument vector for
+`dnf swap`; no shell command or user-controlled package name is constructed.
+The repository switch does not reinstall this community frontend or perform a
+system upgrade. Discover or `dnf` remains responsible for showing and applying
+the resulting official Proton component updates.
+
 ## Safety rules
 
 - The backend never auto-connects in development mode.
@@ -219,6 +228,5 @@ does not add a polling schedule or make its own server-list API requests.
 
 1. Add KRunner actions and Plasma shortcuts on top of the stable D-Bus API.
 2. Add a KCM-compatible configuration surface for the stable settings models.
-3. Complete the remaining application-level support, release-information, and
-   update-channel surfaces without moving desktop or packaging policy into the
-   networking backend.
+3. Verify feature parity against the official client's regression suite and
+   package the next native Plasma preview.
