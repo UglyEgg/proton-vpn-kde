@@ -201,6 +201,8 @@ class DemoCoreAdapter:
                 "mode": "mode",
                 "excludeAppPaths": "exclude_app_paths",
                 "includeAppPaths": "include_app_paths",
+                "excludeIpRanges": "exclude_ip_ranges",
+                "includeIpRanges": "include_ip_ranges",
             }[key]: tuple(value) if isinstance(value, list) else value
             for key, value in patch.items()
         }
@@ -209,10 +211,10 @@ class DemoCoreAdapter:
             updated.enabled
             and updated.mode == "include"
             and not updated.include_app_paths
-            and updated.include_ip_range_count == 0
+            and not updated.include_ip_ranges
         ):
             raise ValueError(
-                "Select at least one included application before enabling this mode"
+                "Select at least one included application or IP range before enabling this mode"
             )
         self._split_tunneling = updated
         self._settings = replace(
@@ -622,9 +624,12 @@ class ProtonCoreAdapter:
                 include_paths = patch.get(
                     "includeAppPaths", split_tunneling.include.app_paths
                 )
-                if not include_paths and not split_tunneling.include.ip_ranges:
+                include_ranges = patch.get(
+                    "includeIpRanges", split_tunneling.include.ip_ranges
+                )
+                if not include_paths and not include_ranges:
                     raise ValueError(
-                        "Select at least one included application before enabling this mode"
+                        "Select at least one included application or IP range before enabling this mode"
                     )
 
         if "mode" in patch:
@@ -635,6 +640,10 @@ class ProtonCoreAdapter:
             split_tunneling.exclude.app_paths = list(patch["excludeAppPaths"])
         if "includeAppPaths" in patch:
             split_tunneling.include.app_paths = list(patch["includeAppPaths"])
+        if "excludeIpRanges" in patch:
+            split_tunneling.exclude.ip_ranges = list(patch["excludeIpRanges"])
+        if "includeIpRanges" in patch:
+            split_tunneling.include.ip_ranges = list(patch["includeIpRanges"])
         if "enabled" in patch:
             split_tunneling.enabled = bool(patch["enabled"])
 
@@ -814,8 +823,12 @@ class ProtonCoreAdapter:
             mode=self._mode_value(split_tunneling.mode),
             exclude_app_paths=tuple(split_tunneling.exclude.app_paths),
             include_app_paths=tuple(split_tunneling.include.app_paths),
-            exclude_ip_range_count=len(split_tunneling.exclude.ip_ranges),
-            include_ip_range_count=len(split_tunneling.include.ip_ranges),
+            exclude_ip_ranges=tuple(
+                str(ip_range) for ip_range in split_tunneling.exclude.ip_ranges
+            ),
+            include_ip_ranges=tuple(
+                str(ip_range) for ip_range in split_tunneling.include.ip_ranges
+            ),
         )
 
     def _custom_dns_from_core(self, settings: Any) -> CustomDnsSettings:

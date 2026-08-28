@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass, replace
-from ipaddress import ip_address
+from ipaddress import ip_address, ip_network
 import json
 from typing import Callable, Protocol, TypeAlias, TypeVar
 
@@ -158,8 +158,8 @@ class SplitTunnelingSettings:
     mode: str = "exclude"
     exclude_app_paths: tuple[str, ...] = ()
     include_app_paths: tuple[str, ...] = ()
-    exclude_ip_range_count: int = 0
-    include_ip_range_count: int = 0
+    exclude_ip_ranges: tuple[str, ...] = ()
+    include_ip_ranges: tuple[str, ...] = ()
 
     def to_json(self) -> str:
         return json.dumps(
@@ -171,8 +171,10 @@ class SplitTunnelingSettings:
                 "mode": self.mode,
                 "excludeAppPaths": list(self.exclude_app_paths),
                 "includeAppPaths": list(self.include_app_paths),
-                "excludeIpRangeCount": self.exclude_ip_range_count,
-                "includeIpRangeCount": self.include_ip_range_count,
+                "excludeIpRanges": list(self.exclude_ip_ranges),
+                "includeIpRanges": list(self.include_ip_ranges),
+                "excludeIpRangeCount": len(self.exclude_ip_ranges),
+                "includeIpRangeCount": len(self.include_ip_ranges),
             },
             separators=(",", ":"),
             sort_keys=True,
@@ -263,6 +265,8 @@ _SPLIT_TUNNELING_TYPES: dict[str, type[bool] | type[str] | type[list]] = {
     "mode": str,
     "excludeAppPaths": list,
     "includeAppPaths": list,
+    "excludeIpRanges": list,
+    "includeIpRanges": list,
 }
 _FORBIDDEN_SPLIT_TUNNELING_COMMANDS = {
     "/",
@@ -320,6 +324,33 @@ def split_tunneling_patch_from_json(
             if path in seen:
                 raise ValueError("A split-tunneling application was selected twice")
             seen.add(path)
+    for key in ("excludeIpRanges", "includeIpRanges"):
+        if key not in payload:
+            continue
+        ranges = payload[key]
+        if not isinstance(ranges, list) or len(ranges) > 256:
+            raise ValueError("Too many split-tunneling IP ranges were selected")
+        normalized_ranges: list[str] = []
+        seen_ranges: set[str] = set()
+        for value in ranges:
+            if (
+                type(value) is not str
+                or not value
+                or len(value) > 64
+                or value != value.strip()
+            ):
+                raise ValueError("A split-tunneling IP range is invalid")
+            try:
+                normalized = ip_network(value, strict=False).with_prefixlen
+            except ValueError as error:
+                raise ValueError(
+                    "Enter a valid IPv4 or IPv6 address or CIDR range"
+                ) from error
+            if normalized in seen_ranges:
+                raise ValueError("A split-tunneling IP range was selected twice")
+            seen_ranges.add(normalized)
+            normalized_ranges.append(normalized)
+        payload[key] = normalized_ranges
     return payload
 
 

@@ -605,20 +605,25 @@ void VpnController::updateSplitTunneling(const QString &name,
         }
         jsonValue = mode;
     } else if (name == QStringLiteral("excludeAppPaths")
-               || name == QStringLiteral("includeAppPaths")) {
+               || name == QStringLiteral("includeAppPaths")
+               || name == QStringLiteral("excludeIpRanges")
+               || name == QStringLiteral("includeIpRanges")) {
         const QStringList paths = value.toStringList();
         if (paths.size() > 256) {
             m_splitTunneling->setMessage(
-                tr("Too many split-tunneling applications are selected"));
+                tr("Too many split-tunneling rules are selected"));
             return;
         }
+        const bool ipRanges = name.endsWith(QStringLiteral("IpRanges"));
         QJsonArray pathArray;
         for (const QString &path : paths) {
-            if (path.isEmpty() || path.size() > 4096
+            if (path.isEmpty() || path.size() > (ipRanges ? 64 : 4096)
                 || path.contains(QLatin1Char('\n'))
                 || path.contains(QLatin1Char('\r'))) {
                 m_splitTunneling->setMessage(
-                    tr("A split-tunneling application path is invalid"));
+                    ipRanges
+                        ? tr("A split-tunneling IP range is invalid")
+                        : tr("A split-tunneling application path is invalid"));
                 return;
             }
             pathArray.append(path);
@@ -684,6 +689,56 @@ void VpnController::clearSplitTunnelingApplications()
     const QString field = m_splitTunneling->mode() == QStringLiteral("include")
         ? QStringLiteral("includeAppPaths")
         : QStringLiteral("excludeAppPaths");
+    updateSplitTunneling(field, QStringList{});
+}
+
+void VpnController::addSplitTunnelingIpRange(const QString &ipRange)
+{
+    if (!m_splitTunneling->loaded() || m_splitTunneling->busy()) {
+        return;
+    }
+    const QString normalized = ipRange.trimmed();
+    if (normalized.isEmpty() || normalized.size() > 64
+        || normalized.contains(QLatin1Char('\n'))
+        || normalized.contains(QLatin1Char('\r'))) {
+        m_splitTunneling->setMessage(
+            tr("Enter a valid IPv4 or IPv6 address or CIDR range"));
+        return;
+    }
+    QStringList ranges = m_splitTunneling->selectedIpRanges();
+    if (ranges.contains(normalized)) {
+        return;
+    }
+    ranges.append(normalized);
+    const QString field = m_splitTunneling->mode() == QStringLiteral("include")
+        ? QStringLiteral("includeIpRanges")
+        : QStringLiteral("excludeIpRanges");
+    updateSplitTunneling(field, ranges);
+}
+
+void VpnController::removeSplitTunnelingIpRange(const QString &ipRange)
+{
+    if (!m_splitTunneling->loaded() || m_splitTunneling->busy()) {
+        return;
+    }
+    QStringList ranges = m_splitTunneling->selectedIpRanges();
+    if (!ranges.removeOne(ipRange)) {
+        return;
+    }
+    const QString field = m_splitTunneling->mode() == QStringLiteral("include")
+        ? QStringLiteral("includeIpRanges")
+        : QStringLiteral("excludeIpRanges");
+    updateSplitTunneling(field, ranges);
+}
+
+void VpnController::clearSplitTunnelingIpRanges()
+{
+    if (!m_splitTunneling->loaded() || m_splitTunneling->busy()) {
+        return;
+    }
+    const QString field = m_splitTunneling->mode() == QStringLiteral("include")
+        ? QStringLiteral("includeIpRanges")
+        : QStringLiteral("excludeIpRanges");
     updateSplitTunneling(field, QStringList{});
 }
 

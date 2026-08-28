@@ -13,6 +13,8 @@ const auto kValidSettings = R"json({
     "mode": "exclude",
     "excludeAppPaths": ["/usr/bin/firefox"],
     "includeAppPaths": ["/usr/bin/konsole"],
+    "excludeIpRanges": ["10.0.0.0/8"],
+    "includeIpRanges": [],
     "excludeIpRangeCount": 1,
     "includeIpRangeCount": 0
 })json";
@@ -43,6 +45,7 @@ void SplitTunnelingModelTest::appliesVersionedSettingsAtomically()
     QCOMPARE(model.modeIndex(), 0);
     QCOMPARE(model.selectedAppPaths(), QStringList{QStringLiteral("/usr/bin/firefox")});
     QCOMPARE(model.selectedIpRangeCount(), 1);
+    QCOMPARE(model.selectedIpRanges(), QStringList{QStringLiteral("10.0.0.0/8")});
     QVERIFY(model.containsApplication(QStringLiteral("/usr/bin/firefox")));
     QCOMPARE(changed.count(), 1);
 }

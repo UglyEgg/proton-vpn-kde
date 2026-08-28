@@ -129,9 +129,10 @@ updated_split_tunneling="$(gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \
     --method proton.vpn.app.kde.Backend1.UpdateSplitTunneling \
-    '{"excludeAppPaths":["/usr/bin/demo-browser"],"enabled":true}')"
+    '{"excludeAppPaths":["/usr/bin/demo-browser"],"excludeIpRanges":["192.168.1.50/24"],"enabled":true}')"
 if [[ "$updated_split_tunneling" != *'"enabled":true'* \
-    || "$updated_split_tunneling" != *'"excludeAppPaths":["/usr/bin/demo-browser"]'* ]]; then
+    || "$updated_split_tunneling" != *'"excludeAppPaths":["/usr/bin/demo-browser"]'* \
+    || "$updated_split_tunneling" != *'"excludeIpRanges":["192.168.1.0/24"]'* ]]; then
     echo "Backend did not apply the demo split-tunneling settings" >&2
     exit 1
 fi

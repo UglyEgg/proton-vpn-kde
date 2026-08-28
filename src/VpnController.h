@@ -126,6 +126,9 @@ public:
     Q_INVOKABLE void setSplitTunnelingApplication(
         const QString &executable, bool selected);
     Q_INVOKABLE void clearSplitTunnelingApplications();
+    Q_INVOKABLE void addSplitTunnelingIpRange(const QString &ipRange);
+    Q_INVOKABLE void removeSplitTunnelingIpRange(const QString &ipRange);
+    Q_INVOKABLE void clearSplitTunnelingIpRanges();
     Q_INVOKABLE void loadCustomDns();
     Q_INVOKABLE void updateCustomDns(const QString &name,
                                      const QVariant &value);

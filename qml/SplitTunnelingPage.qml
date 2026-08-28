@@ -7,7 +7,7 @@ import org.kde.kirigami as Kirigami
 
 Kirigami.ScrollablePage {
     id: page
-    title: qsTr("Split tunneling applications")
+    title: qsTr("Split tunneling rules")
 
     property var splitSettings: vpnController.splitTunneling
     property var vpnSettings: vpnController.settings
@@ -43,15 +43,6 @@ Kirigami.ScrollablePage {
                 visible: splitSettings.message.length > 0
                 type: Kirigami.MessageType.Error
                 text: splitSettings.message
-            }
-
-            Kirigami.InlineMessage {
-                Layout.fillWidth: true
-                visible: splitSettings.loaded
-                         && splitSettings.selectedIpRangeCount > 0
-                type: Kirigami.MessageType.Information
-                text: qsTr("%n IP rule(s) are also active in this mode. They are preserved unchanged.",
-                           "", splitSettings.selectedIpRangeCount)
             }
 
             Kirigami.InlineMessage {
@@ -108,13 +99,94 @@ Kirigami.ScrollablePage {
                 color: Kirigami.Theme.disabledTextColor
             }
 
+            RowLayout {
+                Layout.fillWidth: true
+
+                Controls.TextField {
+                    id: ipRangeInput
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("IP address or CIDR range, e.g. 10.0.0.0/8")
+                    enabled: splitSettings.loaded && !splitSettings.busy
+                             && page.configurationEditable
+                    onAccepted: vpnController.addSplitTunnelingIpRange(text)
+                }
+
+                Controls.Button {
+                    text: qsTr("Add IP rule")
+                    icon.name: "list-add"
+                    enabled: ipRangeInput.enabled
+                             && ipRangeInput.text.trim().length > 0
+                    onClicked: vpnController.addSplitTunnelingIpRange(
+                        ipRangeInput.text)
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: splitSettings.selectedIpRanges.length > 0
+
+                Controls.Label {
+                    Layout.fillWidth: true
+                    text: qsTr("Selected IP ranges")
+                    font.bold: true
+                }
+
+                Controls.Button {
+                    text: qsTr("Clear")
+                    icon.name: "edit-clear-all"
+                    enabled: !splitSettings.busy
+                             && page.configurationEditable
+                    onClicked: vpnController.clearSplitTunnelingIpRanges()
+                }
+            }
+
+            Repeater {
+                model: splitSettings.selectedIpRanges
+
+                delegate: RowLayout {
+                    id: selectedIpRangeDelegate
+                    required property string modelData
+                    Layout.fillWidth: true
+
+                    Kirigami.Icon {
+                        source: "network-wired"
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: implicitWidth
+                    }
+
+                    Controls.Label {
+                        Layout.fillWidth: true
+                        text: selectedIpRangeDelegate.modelData
+                        font.family: "monospace"
+                    }
+
+                    Controls.ToolButton {
+                        icon.name: "list-remove"
+                        text: qsTr("Remove")
+                        display: Controls.AbstractButton.IconOnly
+                        enabled: !splitSettings.busy
+                                 && page.configurationEditable
+                        onClicked: vpnController.removeSplitTunnelingIpRange(
+                            selectedIpRangeDelegate.modelData)
+
+                        Controls.ToolTip.visible: hovered
+                        Controls.ToolTip.text: text
+                    }
+                }
+            }
+
+            Kirigami.Separator {
+                Layout.fillWidth: true
+                visible: splitSettings.selectedIpRanges.length > 0
+            }
+
             Controls.Label {
                 Layout.fillWidth: true
                 visible: splitSettings.mode === "include"
                          && splitSettings.selectedAppPaths.length === 0
                          && splitSettings.selectedIpRangeCount === 0
                 wrapMode: Text.WordWrap
-                text: qsTr("Choose at least one application before enabling include-only mode.")
+                text: qsTr("Choose at least one application or IP range before enabling include-only mode.")
                 color: Kirigami.Theme.neutralTextColor
             }
 

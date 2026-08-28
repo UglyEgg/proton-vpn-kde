@@ -18,44 +18,36 @@ bool readBoolean(const QJsonObject &object, const QString &key, bool *value)
     return true;
 }
 
-bool readCount(const QJsonObject &object, const QString &key, int *value)
+bool readStringList(const QJsonObject &object, const QString &key,
+                    int maximumLength, QStringList *values)
 {
     const QJsonValue item = object.value(key);
-    if (!item.isDouble()) {
+    if (!item.isArray() || item.toArray().size() > 256) {
         return false;
     }
-    const int count = item.toInt(-1);
-    if (count < 0) {
-        return false;
+    QStringList parsedValues;
+    QSet<QString> seen;
+    for (const QJsonValue value : item.toArray()) {
+        if (!value.isString()) {
+            return false;
+        }
+        const QString text = value.toString();
+        if (text.isEmpty() || text.size() > maximumLength
+            || text.contains(QLatin1Char('\n'))
+            || text.contains(QLatin1Char('\r')) || seen.contains(text)) {
+            return false;
+        }
+        seen.insert(text);
+        parsedValues.append(text);
     }
-    *value = count;
+    *values = parsedValues;
     return true;
 }
 
 bool readApplicationPaths(const QJsonObject &object, const QString &key,
                           QStringList *paths)
 {
-    const QJsonValue item = object.value(key);
-    if (!item.isArray() || item.toArray().size() > 256) {
-        return false;
-    }
-    QStringList parsedPaths;
-    QSet<QString> seen;
-    for (const QJsonValue pathValue : item.toArray()) {
-        if (!pathValue.isString()) {
-            return false;
-        }
-        const QString path = pathValue.toString();
-        if (path.isEmpty() || path.size() > 4096
-            || path.contains(QLatin1Char('\n'))
-            || path.contains(QLatin1Char('\r')) || seen.contains(path)) {
-            return false;
-        }
-        seen.insert(path);
-        parsedPaths.append(path);
-    }
-    *paths = parsedPaths;
-    return true;
+    return readStringList(object, key, 4096, paths);
 }
 }
 
@@ -83,10 +75,14 @@ QStringList SplitTunnelingModel::selectedAppPaths() const
     return m_mode == QStringLiteral("include") ? m_includeAppPaths
                                                 : m_excludeAppPaths;
 }
+QStringList SplitTunnelingModel::selectedIpRanges() const
+{
+    return m_mode == QStringLiteral("include") ? m_includeIpRanges
+                                                : m_excludeIpRanges;
+}
 int SplitTunnelingModel::selectedIpRangeCount() const
 {
-    return m_mode == QStringLiteral("include") ? m_includeIpRangeCount
-                                                : m_excludeIpRangeCount;
+    return selectedIpRanges().size();
 }
 QStringList SplitTunnelingModel::excludeAppPaths() const
 {
@@ -95,6 +91,14 @@ QStringList SplitTunnelingModel::excludeAppPaths() const
 QStringList SplitTunnelingModel::includeAppPaths() const
 {
     return m_includeAppPaths;
+}
+QStringList SplitTunnelingModel::excludeIpRanges() const
+{
+    return m_excludeIpRanges;
+}
+QStringList SplitTunnelingModel::includeIpRanges() const
+{
+    return m_includeIpRanges;
 }
 
 bool SplitTunnelingModel::containsApplication(const QString &executable) const
@@ -134,10 +138,10 @@ bool SplitTunnelingModel::applyJson(const QString &settingsJson,
     bool available = false;
     bool paidFeaturesAvailable = false;
     bool enabled = false;
-    int excludeIpRangeCount = 0;
-    int includeIpRangeCount = 0;
     QStringList excludeAppPaths;
     QStringList includeAppPaths;
+    QStringList excludeIpRanges;
+    QStringList includeIpRanges;
     if (!readBoolean(object, QStringLiteral("available"), &available)
         || !readBoolean(object, QStringLiteral("paidFeaturesAvailable"),
                         &paidFeaturesAvailable)
@@ -146,10 +150,10 @@ bool SplitTunnelingModel::applyJson(const QString &settingsJson,
                                  &excludeAppPaths)
         || !readApplicationPaths(object, QStringLiteral("includeAppPaths"),
                                  &includeAppPaths)
-        || !readCount(object, QStringLiteral("excludeIpRangeCount"),
-                      &excludeIpRangeCount)
-        || !readCount(object, QStringLiteral("includeIpRangeCount"),
-                      &includeIpRangeCount)) {
+        || !readStringList(object, QStringLiteral("excludeIpRanges"), 64,
+                           &excludeIpRanges)
+        || !readStringList(object, QStringLiteral("includeIpRanges"), 64,
+                           &includeIpRanges)) {
         return fail(tr("The backend returned incomplete split-tunneling settings"));
     }
 
@@ -159,8 +163,8 @@ bool SplitTunnelingModel::applyJson(const QString &settingsJson,
     m_mode = mode;
     m_excludeAppPaths = excludeAppPaths;
     m_includeAppPaths = includeAppPaths;
-    m_excludeIpRangeCount = excludeIpRangeCount;
-    m_includeIpRangeCount = includeIpRangeCount;
+    m_excludeIpRanges = excludeIpRanges;
+    m_includeIpRanges = includeIpRanges;
     m_loaded = true;
     m_busy = false;
     m_message.clear();
@@ -177,8 +181,8 @@ void SplitTunnelingModel::reset(const QString &message)
     m_enabled = false;
     m_excludeAppPaths.clear();
     m_includeAppPaths.clear();
-    m_excludeIpRangeCount = 0;
-    m_includeIpRangeCount = 0;
+    m_excludeIpRanges.clear();
+    m_includeIpRanges.clear();
     emit changed();
 }
 

@@ -342,7 +342,7 @@ Kirigami.ScrollablePage {
 
         Controls.Button {
             Kirigami.FormData.label: qsTr("Rules:")
-            text: qsTr("Choose applications…")
+            text: qsTr("Choose applications and IP ranges…")
             icon.name: "applications-all"
             enabled: splitSettings.loaded && splitSettings.available
                      && splitSettings.paidFeaturesAvailable
@@ -392,7 +392,7 @@ Kirigami.ScrollablePage {
             wrapMode: Text.WordWrap
             visible: splitSettings.loaded
                      && splitSettings.selectedIpRangeCount > 0
-            text: qsTr("%n existing IP rule(s) in this mode are preserved. This editor changes application rules only.",
+            text: qsTr("%n IP rule(s) are configured in this mode.",
                        "", splitSettings.selectedIpRangeCount)
             color: Kirigami.Theme.disabledTextColor
         }

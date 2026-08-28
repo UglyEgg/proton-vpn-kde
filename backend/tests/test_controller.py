@@ -155,13 +155,16 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         initial = await self.controller.get_split_tunneling_json()
         updated = await self.controller.update_split_tunneling_json(
-            '{"excludeAppPaths":["/usr/bin/firefox"],"enabled":true}'
+            '{"excludeAppPaths":["/usr/bin/firefox"],'
+            '"excludeIpRanges":["192.168.1.23/24"],"enabled":true}'
         )
 
         self.assertIn('"available":true', initial)
         self.assertIn('"excludeAppPaths":["/usr/bin/firefox"]', updated)
+        self.assertIn('"excludeIpRanges":["192.168.1.0/24"]', updated)
         self.assertIn('"enabled":true', updated)
         self.assertEqual(("/usr/bin/firefox",), events[-1].exclude_app_paths)
+        self.assertEqual(("192.168.1.0/24",), events[-1].exclude_ip_ranges)
         self.assertTrue(settings_events[-1].split_tunneling_enabled)
 
     async def test_split_tunneling_patch_rejects_unsafe_application_paths(self):
@@ -178,6 +181,14 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "selected twice"):
             split_tunneling_patch_from_json(
                 '{"excludeAppPaths":["/usr/bin/firefox","/usr/bin/firefox"]}'
+            )
+        with self.assertRaisesRegex(ValueError, "valid IPv4 or IPv6"):
+            split_tunneling_patch_from_json(
+                '{"excludeIpRanges":["not-a-network"]}'
+            )
+        with self.assertRaisesRegex(ValueError, "selected twice"):
+            split_tunneling_patch_from_json(
+                '{"excludeIpRanges":["10.0.0.1/8","10.0.0.0/8"]}'
             )
 
     async def test_custom_dns_payload_updates_and_syncs_scalar_settings(self):

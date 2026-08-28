@@ -442,11 +442,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         current = await adapter.get_split_tunneling()
         self.assertTrue(current.available)
         self.assertEqual(("/usr/bin/firefox",), current.exclude_app_paths)
-        self.assertEqual(1, current.exclude_ip_range_count)
+        self.assertEqual(("10.0.0.0/8",), current.exclude_ip_ranges)
 
         updated = await adapter.update_split_tunneling(
             {
                 "excludeAppPaths": ["/usr/bin/firefox", "/usr/bin/thunderbird"],
+                "excludeIpRanges": ["192.168.0.0/16", "2001:db8::/32"],
                 "enabled": True,
             }
         )
@@ -458,7 +459,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             saved.features.split_tunneling.exclude.app_paths,
         )
         self.assertEqual(
-            ["10.0.0.0/8"], saved.features.split_tunneling.exclude.ip_ranges
+            ["192.168.0.0/16", "2001:db8::/32"],
+            saved.features.split_tunneling.exclude.ip_ranges,
+        )
+        self.assertEqual(
+            ("192.168.0.0/16", "2001:db8::/32"),
+            updated.exclude_ip_ranges,
         )
         self.assertTrue(updated.enabled)
 
