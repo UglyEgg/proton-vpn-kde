@@ -131,7 +131,24 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         snapshot = await adapter.initialize(Mock())
 
         self.assertFalse(snapshot.startup_compatible)
-        connector.iter_available_protocols.assert_called_once_with()
+        connector.iter_available_protocols.assert_called_once_with("generic")
+
+    async def test_packet_capture_probe_uses_fedora_protocol_group_contract(self):
+        api, connector = self.make_api()
+        protocol = connector.iter_available_protocols.return_value[0]
+        protocol.supports_packet_capture.return_value = True
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        settings = await adapter.get_settings()
+
+        self.assertTrue(settings.packet_capture_supported)
+        self.assertTrue(
+            all(
+                call.args == ("generic",)
+                for call in connector.iter_available_protocols.call_args_list
+            )
+        )
 
     async def test_support_report_uses_official_api_without_logs(self):
         api, _ = self.make_api()

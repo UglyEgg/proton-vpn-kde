@@ -20,6 +20,11 @@ class FailingDemoAdapter(DemoCoreAdapter):
         raise RuntimeError("credential=must-not-reach-snapshot")
 
 
+class FailingInitializationAdapter(DemoCoreAdapter):
+    async def initialize(self, callback, server_data_callback=None):
+        raise RuntimeError("credential=must-not-reach-log")
+
+
 class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.controller = BackendController(DemoCoreAdapter())
@@ -34,6 +39,22 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot.logged_in)
         self.assertEqual("disconnected", snapshot.state)
         self.assertEqual(1, snapshot.schema_version)
+
+    async def test_startup_failure_logs_only_exception_class(self):
+        controller = BackendController(FailingInitializationAdapter())
+
+        with self.assertLogs(
+            "proton_vpn_kde_backend.controller", level="ERROR"
+        ) as captured:
+            await controller.start()
+
+        self.assertEqual("error", controller.snapshot.state)
+        self.assertEqual(
+            "Backend initialization failed", controller.snapshot.message
+        )
+        output = "\n".join(captured.output)
+        self.assertIn("RuntimeError", output)
+        self.assertNotIn("credential=", output)
 
     async def test_connect_and_disconnect_publish_state_transitions(self):
         await self.controller.connect_fastest()

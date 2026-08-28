@@ -563,9 +563,7 @@ class ProtonCoreAdapter:
             # validator used by GUI v4.18.0. Its connector protocol registry is
             # the closest public compatibility check and avoids private core
             # internals until distributions pick up the helper.
-            self._startup_compatible = bool(
-                list(self._connector.iter_available_protocols())
-            )
+            self._startup_compatible = any(self._iter_available_protocols())
         self._api.refresher.set_server_list_updated_callback(
             self._on_server_list_updated
         )
@@ -1194,22 +1192,15 @@ class ProtonCoreAdapter:
     def _available_protocols(self, current_protocol: str) -> tuple[ProtocolInfo, ...]:
         protocols: list[ProtocolInfo] = []
         seen: set[str] = set()
-        groups = ["generic"]
         try:
-            if self._api.refresher.feature_flags.get("ProTunV1"):
-                groups.append("protun")
-        except (AttributeError, TypeError):
-            pass
-        try:
-            for group in groups:
-                for candidate in self._connector.iter_available_protocols(group):
-                    protocol_id = str(candidate.protocol)
-                    if protocol_id in seen:
-                        continue
-                    seen.add(protocol_id)
-                    protocols.append(
-                        ProtocolInfo(protocol_id, str(candidate.ui_protocol))
-                    )
+            for candidate in self._iter_available_protocols():
+                protocol_id = str(candidate.protocol)
+                if protocol_id in seen:
+                    continue
+                seen.add(protocol_id)
+                protocols.append(
+                    ProtocolInfo(protocol_id, str(candidate.ui_protocol))
+                )
         except (AttributeError, TypeError):
             pass
         if current_protocol not in seen:
@@ -1227,7 +1218,7 @@ class ProtonCoreAdapter:
 
     def _protocol_supports_packet_capture(self, protocol: str) -> bool:
         try:
-            for candidate in self._connector.iter_available_protocols():
+            for candidate in self._iter_available_protocols():
                 if (
                     str(candidate.protocol) == protocol
                     and bool(candidate.supports_packet_capture())
@@ -1236,6 +1227,16 @@ class ProtonCoreAdapter:
         except (AttributeError, TypeError):
             pass
         return False
+
+    def _iter_available_protocols(self):
+        groups = ["generic"]
+        try:
+            if self._api.refresher.feature_flags.get("ProTunV1"):
+                groups.append("protun")
+        except (AttributeError, TypeError):
+            pass
+        for group in groups:
+            yield from self._connector.iter_available_protocols(group)
 
     @staticmethod
     def _connection_supports_packet_capture(connection: Any) -> bool:

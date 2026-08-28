@@ -7,8 +7,12 @@ from collections.abc import Awaitable
 from dataclasses import asdict, dataclass, replace
 from ipaddress import ip_address, ip_network
 import json
+import logging
 import re
 from typing import Callable, Protocol, TypeAlias, TypeVar
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -643,7 +647,10 @@ class BackendController:
                 self._on_adapter_snapshot,
                 self._on_adapter_server_data,
             )
-        except Exception:  # Keep D-Bus available to report startup errors.
+        except Exception as error:  # Keep D-Bus available to report startup errors.
+            logger.error(
+                "Backend initialization failed (%s)", type(error).__name__
+            )
             self._publish(
                 replace(
                     self._snapshot,
