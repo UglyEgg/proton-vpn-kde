@@ -36,6 +36,7 @@ find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 find_package(KF6StatusNotifierItem QUIET)
 find_package(KF6Config 6.0 REQUIRED)
 find_package(KF6CoreAddons 6.0 REQUIRED)
+find_package(KF6DBusAddons 6.0 REQUIRED)
 find_package(KF6GlobalAccel 6.0 REQUIRED)
 find_package(KF6Notifications 6.0 REQUIRED)
 find_package(KF6Runner 6.0 REQUIRED)
@@ -103,6 +104,7 @@ target_link_libraries(proton-vpn-kde PRIVATE
     Qt6::Widgets
     KF6::ConfigCore
     KF6::CoreAddons
+    KF6::DBusAddons
     KF6::GlobalAccel
     KF6::Notifications
     KF6::Service

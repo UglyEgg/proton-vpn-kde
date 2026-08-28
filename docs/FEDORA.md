@@ -9,6 +9,7 @@ The native frontend currently needs:
 - Extra CMake Modules
 - `kf6-kconfig-devel`
 - `kf6-kcoreaddons-devel`
+- `kf6-kdbusaddons-devel`
 - `kf6-kglobalaccel-devel`
 - `kf6-knotifications-devel`
 - `kf6-krunner-devel`
@@ -29,6 +30,7 @@ Proton modules instead of a user virtual environment.
 - `kf6-kirigami`
 - `kf6-kconfig`
 - `kf6-kcoreaddons`
+- `kf6-kdbusaddons`
 - `kf6-kglobalaccel`
 - `kf6-knotifications`
 - `kf6-krunner`

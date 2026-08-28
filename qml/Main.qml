@@ -24,6 +24,10 @@ Kirigami.ApplicationWindow {
         pageStack.push(pageUrl)
     }
 
+    function showSettings() {
+        showPage(Qt.resolvedUrl("SettingsPage.qml"))
+    }
+
     property bool previousLoggedIn: vpnController.loggedIn
 
     Connections {
@@ -38,7 +42,7 @@ Kirigami.ApplicationWindow {
         }
     }
 
-    pageStack.initialPage: Qt.resolvedUrl("OverviewPage.qml")
+    pageStack.initialPage: Qt.resolvedUrl(initialPageName)
 
     globalDrawer: Kirigami.GlobalDrawer {
         title: qsTr("Proton VPN")

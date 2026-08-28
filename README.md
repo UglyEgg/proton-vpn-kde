@@ -16,6 +16,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   unbound by default and user-configurable in System Settings
 - Native KRunner actions: type `vpn` to open the client, connect fastest,
   disconnect, or connect by country code or exact server name
+- Single-instance Plasma activation with a `--settings` deep link for desktop
+  integration surfaces
 - Versioned D-Bus contract with JSON snapshots
 - D-Bus activation and a systemd user service for installed builds
 - Safe demo backend for UI development
@@ -78,7 +80,8 @@ For full Plasma tray integration on Fedora:
 
 ```bash
 sudo dnf install kf6-kconfig-devel kf6-knotifications-devel \
-    kf6-kcoreaddons-devel kf6-kglobalaccel-devel kf6-krunner-devel \
+    kf6-kcoreaddons-devel kf6-kdbusaddons-devel \
+    kf6-kglobalaccel-devel kf6-krunner-devel \
     kf6-kservice-devel \
     kf6-kstatusnotifieritem-devel openssl-devel
 ```

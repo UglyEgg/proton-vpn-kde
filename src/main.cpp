@@ -5,7 +5,10 @@
 #include "UpdateChannel.h"
 #include "VpnController.h"
 
+#include <KDBusService>
 #include <QApplication>
+#include <QCommandLineOption>
+#include <QCommandLineParser>
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -14,7 +17,7 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    QApplication::setApplicationName(QStringLiteral("Proton VPN"));
+    QApplication::setApplicationName(QStringLiteral("proton-vpn-kde"));
     QApplication::setApplicationDisplayName(QStringLiteral("Proton VPN for Plasma"));
     QApplication::setApplicationVersion(
         QStringLiteral(PROTON_VPN_KDE_VERSION));
@@ -23,6 +26,18 @@ int main(int argc, char *argv[])
     QApplication::setWindowIcon(QIcon::fromTheme(QStringLiteral("proton-vpn-kde"),
                                                   QIcon::fromTheme(QStringLiteral("network-vpn"))));
     QApplication::setQuitOnLastWindowClosed(false);
+
+    QCommandLineParser commandLine;
+    commandLine.setApplicationDescription(
+        QStringLiteral("Native Proton VPN client for KDE Plasma"));
+    commandLine.addHelpOption();
+    commandLine.addVersionOption();
+    const QCommandLineOption settingsOption(
+        QStringLiteral("settings"),
+        QStringLiteral("Open the Proton VPN settings page"));
+    commandLine.addOption(settingsOption);
+    commandLine.process(app);
+    const bool openSettings = commandLine.isSet(settingsOption);
 
     AppSettings settings;
     UpdateChannel updateChannel;
@@ -57,7 +72,12 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("updateChannel"), &updateChannel);
     engine.rootContext()->setContextProperty(
-        QStringLiteral("startMinimized"), settings.startMinimized());
+        QStringLiteral("startMinimized"),
+        settings.startMinimized() && !openSettings);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("initialPageName"),
+        openSettings ? QStringLiteral("SettingsPage.qml")
+                     : QStringLiteral("OverviewPage.qml"));
     engine.rootContext()->setContextProperty(
         QStringLiteral("appVersion"), QApplication::applicationVersion());
     engine.loadFromModule(QStringLiteral("Proton.VPN.KDE"), QStringLiteral("Main"));
@@ -66,6 +86,17 @@ int main(int argc, char *argv[])
     }
 
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+    KDBusService applicationService(KDBusService::Unique);
+    QObject::connect(
+        &applicationService, &KDBusService::activateRequested, window,
+        [window](const QStringList &arguments, const QString &) {
+            if (arguments.contains(QStringLiteral("--settings"))) {
+                QMetaObject::invokeMethod(window, "showSettings");
+            }
+            window->show();
+            window->raise();
+            window->requestActivate();
+        });
     TrayIntegration tray(&controller, &settings, window);
     ShortcutIntegration shortcuts(&controller, window);
     NotificationIntegration notifications(&controller, &settings);

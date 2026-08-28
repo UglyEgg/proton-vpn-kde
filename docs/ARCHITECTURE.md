@@ -229,6 +229,13 @@ same versioned session D-Bus service, allowing normal D-Bus activation without
 starting a second frontend. No query is interpreted as a command line or shell
 fragment.
 
+`KDBusService` gives the frontend one Plasma session instance. Reopening the
+application activates and raises the existing window, while the fixed
+`--settings` option also replaces its current page with the native settings
+page. This gives KRunner and System Settings a stable handoff without creating
+multiple tray items or multiple frontend controllers; the independent backend
+and an active tunnel continue to outlive the window as designed.
+
 ## Safety rules
 
 - The backend never auto-connects in development mode.

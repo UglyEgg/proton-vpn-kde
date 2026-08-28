@@ -15,6 +15,7 @@ BuildRequires:  extra-cmake-modules
 BuildRequires:  gcc-c++
 BuildRequires:  kf6-kconfig-devel
 BuildRequires:  kf6-kcoreaddons-devel
+BuildRequires:  kf6-kdbusaddons-devel
 BuildRequires:  kf6-kglobalaccel-devel
 BuildRequires:  kf6-knotifications-devel
 BuildRequires:  kf6-krunner-devel
@@ -32,6 +33,7 @@ BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
 
 Requires:       kf6-kirigami
+Requires:       kf6-kdbusaddons
 Requires:       kf6-kglobalaccel
 Requires:       kf6-krunner
 Requires:       python3-cryptography
