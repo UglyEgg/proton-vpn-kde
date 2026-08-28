@@ -255,17 +255,6 @@ void VpnController::setServerFilter(const QString &filterText)
     m_serverFilterModel->setFilterText(filterText);
 }
 
-void VpnController::setServerSortMode(const QString &mode)
-{
-    if (mode == QStringLiteral("name")) {
-        m_serverFilterModel->sortByRole(ServerModel::NameRole);
-    } else if (mode == QStringLiteral("location")) {
-        m_serverFilterModel->sortByRole(ServerModel::LocationRole);
-    } else {
-        m_serverFilterModel->sortByRole(ServerModel::LoadRole);
-    }
-}
-
 void VpnController::setReconnectionEnabled(bool enabled)
 {
     m_reconnectionEnabled = enabled;
@@ -293,6 +282,7 @@ void VpnController::onServiceUnregistered(const QString &)
     setBackendAvailable(false);
     m_ready = false;
     m_busy = false;
+    setLocationsBusy(false);
     m_state = QStringLiteral("unavailable");
     m_message = tr("The Proton backend service stopped");
     m_countryModel->clear();

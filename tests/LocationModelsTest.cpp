@@ -13,7 +13,7 @@ private slots:
     void updatesServerLoadsWithoutResetting();
     void rejectsUnsupportedPayload();
     void filtersAcrossConfiguredRoles();
-    void sortsAcrossConfiguredRoles();
+    void reordersWhenServerLoadsChange();
 };
 
 void LocationModelsTest::parsesCountries()
@@ -140,7 +140,7 @@ void LocationModelsTest::filtersAcrossConfiguredRoles()
         QStringLiteral("CH#101"));
 }
 
-void LocationModelsTest::sortsAcrossConfiguredRoles()
+void LocationModelsTest::reordersWhenServerLoadsChange()
 {
     ServerModel sourceModel;
     QVERIFY(sourceModel.resetFromJson(QStringLiteral(R"json(
@@ -157,12 +157,6 @@ void LocationModelsTest::sortsAcrossConfiguredRoles()
         proxyModel.index(0, 0).data(ServerModel::NameRole).toString(),
         QStringLiteral("CH#202"));
 
-    proxyModel.sortByRole(ServerModel::NameRole);
-    QCOMPARE(
-        proxyModel.index(0, 0).data(ServerModel::NameRole).toString(),
-        QStringLiteral("CH#101"));
-
-    proxyModel.sortByRole(ServerModel::LoadRole);
     QVERIFY(sourceModel.updateLoadsFromJson(QStringLiteral(R"json(
         {"schemaVersion":1,"loads":[
             {"name":"CH#202","load":90},

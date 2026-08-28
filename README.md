@@ -21,7 +21,7 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Native country/server filtering without rebuilding or copying location data
 - Proton-driven server refresh notifications with compact load-only updates;
   existing Qt rows change in place instead of rebuilding the server list
-- Native server sorting by load, server name, or location
+- Native server ordering by current load, updated without resetting the list
 - Provider-agnostic Secret Service initialization that cannot block D-Bus
 - Desktop-neutral asyncio reconnection after an unexpected tunnel drop; the
   previous server, protocol, and backend are reused without a GLib main loop

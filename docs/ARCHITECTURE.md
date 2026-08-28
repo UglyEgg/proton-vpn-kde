@@ -138,8 +138,10 @@ The backend subscribes to Proton core's separate full-list and load-only
 refresh callbacks. A full-list change refreshes country counts and the visible
 country's topology. A load-only change transfers only server names and load
 percentages; the Qt model emits targeted `dataChanged` notifications and the
-sorting proxy reorders rows only when necessary. The KDE layer does not add a
-polling schedule or make its own server-list API requests.
+sorting proxy reorders rows only when necessary. The user-facing list stays in
+lowest-load order; search handles deliberate server or location selection
+without exposing low-value implementation-centric sort controls. The KDE layer
+does not add a polling schedule or make its own server-list API requests.
 
 ## Safety rules
 

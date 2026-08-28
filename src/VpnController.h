@@ -72,7 +72,6 @@ public:
     Q_INVOKABLE void logout();
     Q_INVOKABLE void setCountryFilter(const QString &filterText);
     Q_INVOKABLE void setServerFilter(const QString &filterText);
-    Q_INVOKABLE void setServerSortMode(const QString &mode);
     Q_INVOKABLE void setReconnectionEnabled(bool enabled);
 
 signals:
