@@ -39,6 +39,7 @@ class DemoCoreAdapter:
         self._logged_in = logged_in
         self._auth_state = "signed_in" if logged_in else "signed_out"
         self._reconnection_enabled = True
+        self._connection_cancelled = False
         self._settings = VpnSettings(
             protocols=(
                 ProtocolInfo("wireguard", "WireGuard"),
@@ -66,9 +67,11 @@ class DemoCoreAdapter:
         return self._snapshot
 
     async def connect_fastest(self) -> None:
+        self._connection_cancelled = False
         await self._transition("connecting", "")
         await asyncio.sleep(0.15)
-        await self._transition("connected", "US-IL#600")
+        if not self._connection_cancelled:
+            await self._transition("connected", "US-IL#600")
 
     async def get_countries(self) -> list[CountryInfo]:
         return [CountryInfo("CH", 3), CountryInfo("US", 5)]
@@ -215,16 +218,21 @@ class DemoCoreAdapter:
         return await self.get_custom_dns()
 
     async def connect_country(self, country_code: str) -> None:
+        self._connection_cancelled = False
         await self._transition("connecting", "")
         await asyncio.sleep(0.15)
-        await self._transition("connected", f"{country_code}#FASTEST")
+        if not self._connection_cancelled:
+            await self._transition("connected", f"{country_code}#FASTEST")
 
     async def connect_server(self, server_name: str) -> None:
+        self._connection_cancelled = False
         await self._transition("connecting", server_name)
         await asyncio.sleep(0.15)
-        await self._transition("connected", server_name)
+        if not self._connection_cancelled:
+            await self._transition("connected", server_name)
 
     async def disconnect(self) -> None:
+        self._connection_cancelled = True
         await self._transition("disconnecting", self._snapshot.server_name)
         await asyncio.sleep(0.1)
         await self._transition("disconnected", "")

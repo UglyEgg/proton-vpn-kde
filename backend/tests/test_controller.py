@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
 
 from proton_vpn_kde_backend.adapters import DemoCoreAdapter
@@ -44,6 +45,25 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         states = [snapshot.state for snapshot in self.snapshots]
         self.assertIn("connecting", states)
         self.assertIn("disconnecting", states)
+
+    async def test_connecting_tunnel_can_be_cancelled_concurrently(self):
+        connection = asyncio.create_task(self.controller.connect_fastest())
+        for _ in range(20):
+            if self.controller.snapshot.state == "connecting":
+                break
+            await asyncio.sleep(0)
+
+        self.assertEqual("connecting", self.controller.snapshot.state)
+        self.assertTrue(self.controller.snapshot.busy)
+
+        await self.controller.disconnect()
+        await connection
+
+        self.assertEqual("disconnected", self.controller.snapshot.state)
+        self.assertFalse(self.controller.snapshot.busy)
+        states = [snapshot.state for snapshot in self.snapshots]
+        disconnecting_index = states.index("disconnecting")
+        self.assertNotIn("connected", states[disconnecting_index + 1 :])
 
     async def test_snapshot_json_uses_stable_external_field_names(self):
         payload = self.controller.snapshot.to_json()

@@ -134,7 +134,8 @@ QString VpnController::primaryActionText() const
 
 bool VpnController::primaryActionEnabled() const
 {
-    return m_backendAvailable && m_ready && m_loggedIn && !m_busy;
+    return m_backendAvailable && m_ready && m_loggedIn
+        && (!m_busy || m_state == QStringLiteral("connecting"));
 }
 
 QAbstractItemModel *VpnController::countryModel() const { return m_countryFilterModel; }
@@ -168,8 +169,12 @@ void VpnController::activatePrimaryAction()
     if (!primaryActionEnabled()) {
         return;
     }
+    if (m_state == QStringLiteral("connecting")) {
+        callControlOperation(QStringLiteral("Disconnect"));
+        return;
+    }
     const bool shouldDisconnect = m_state == QStringLiteral("connected")
-        || m_state == QStringLiteral("connecting");
+        || m_state == QStringLiteral("disconnecting");
     callOperation(shouldDisconnect ? QStringLiteral("Disconnect")
                                    : QStringLiteral("ConnectFastest"));
 }

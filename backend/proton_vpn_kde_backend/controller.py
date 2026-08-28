@@ -616,6 +616,15 @@ class BackendController:
         await self._run_operation(self._adapter.logout)
 
     async def disconnect(self) -> None:
+        self._require_session()
+        if self._operation_lock.locked():
+            if self._snapshot.state != "connecting":
+                raise RuntimeError("Another VPN operation is already in progress")
+            # Proton's connector accepts a Down event while an Up event is in
+            # progress. Let that control operation bypass the serialization
+            # lock so a slow or stalled connection can always be cancelled.
+            await self._adapter.disconnect()
+            return
         await self._run_operation(self._adapter.disconnect)
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
