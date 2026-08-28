@@ -97,6 +97,10 @@ public:
     Q_INVOKABLE void copyForwardedPort();
     Q_INVOKABLE void startPacketCapture(const QString &directoryPath);
     Q_INVOKABLE void stopPacketCapture();
+    Q_INVOKABLE void submitSupportReport(const QString &username,
+                                         const QString &email,
+                                         const QString &description,
+                                         bool includeLogs);
     Q_INVOKABLE void loadCountries();
     Q_INVOKABLE void loadServerGroups(const QString &countryCode);
     Q_INVOKABLE void loadGroupServers(const QString &countryCode,
@@ -144,6 +148,7 @@ signals:
     void backendAvailableChanged();
     void snapshotChanged();
     void locationsChanged();
+    void supportReportFinished(bool success, const QString &message);
 
 private slots:
     void onServiceRegistered(const QString &service);

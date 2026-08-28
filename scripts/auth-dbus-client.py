@@ -227,6 +227,25 @@ async def main() -> None:
     )
     assert updated_custom_dns["enabled"]
 
+    report_fd = sealed_payload(
+        {
+            "username": "demo-user",
+            "email": "demo@example.com",
+            "description": (
+                "The demo support report verifies encrypted transport and "
+                "submission without collecting any local diagnostic logs."
+            ),
+            "includeLogs": "false",
+        },
+        await interface.call_get_auth_public_key(),
+    )
+    try:
+        await interface.call_submit_support_report(report_fd)
+    finally:
+        os.close(report_fd)
+    report_snapshot = await snapshot(interface)
+    assert report_snapshot["message"] == "Your issue has been reported"
+
     await interface.call_logout()
     signed_out = await snapshot(interface)
     assert signed_out["authState"] == "signed_out"

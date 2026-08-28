@@ -21,6 +21,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMetaType>
+#include <QRegularExpression>
 #include <QSet>
 #include <algorithm>
 
@@ -234,6 +235,101 @@ void VpnController::stopPacketCapture()
         return;
     }
     callOperation(QStringLiteral("StopPacketCapture"));
+}
+
+void VpnController::submitSupportReport(const QString &username,
+                                        const QString &email,
+                                        const QString &description,
+                                        bool includeLogs)
+{
+    const QString normalizedUsername = username.trimmed();
+    const QString normalizedEmail = email.trimmed();
+    const QString normalizedDescription = description.trimmed();
+    static const QRegularExpression emailPattern(
+        QRegularExpression::anchoredPattern(
+            QStringLiteral("[^@\\s]+@[^@\\s]{2,}\\.[^@\\s.\\-]{2,}")));
+    QString validationMessage;
+    if (normalizedUsername.isEmpty() || normalizedUsername.size() > 255
+        || normalizedUsername.contains(QLatin1Char('\0'))) {
+        validationMessage = tr("Enter your Proton username");
+    } else if (normalizedEmail.size() > 254
+               || normalizedEmail.contains(QLatin1Char('\0'))
+               || !emailPattern.match(normalizedEmail).hasMatch()) {
+        validationMessage = tr("Enter a valid email address");
+    } else if (normalizedDescription.contains(QLatin1Char('\0'))
+               || normalizedDescription.size() < 50) {
+        validationMessage = tr("Describe the issue using at least 50 characters");
+    } else if (normalizedDescription.size() > 8000) {
+        validationMessage = tr("The issue description is too long");
+    }
+    if (!validationMessage.isEmpty()) {
+        emit supportReportFinished(false, validationMessage);
+        return;
+    }
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_busy) {
+        emit supportReportFinished(
+            false, tr("Sign in and wait for the current VPN operation to finish"));
+        return;
+    }
+
+    const QJsonObject fields{
+        {QStringLiteral("username"), normalizedUsername},
+        {QStringLiteral("email"), normalizedEmail},
+        {QStringLiteral("description"), normalizedDescription},
+        {QStringLiteral("includeLogs"),
+         includeLogs ? QStringLiteral("true") : QStringLiteral("false")},
+    };
+    QDBusMessage keyRequest = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetAuthPublicKey"));
+    auto *keyWatcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(keyRequest, 5000), this);
+    connect(keyWatcher, &QDBusPendingCallWatcher::finished, this,
+            [this, fields](QDBusPendingCallWatcher *finished) {
+        const QDBusPendingReply<QString> keyReply = *finished;
+        finished->deleteLater();
+        if (keyReply.isError()) {
+            emit supportReportFinished(
+                false, tr("Unable to protect the issue report"));
+            return;
+        }
+
+        QString errorMessage;
+        const QByteArray publicKey = QByteArray::fromBase64(
+            keyReply.value().toLatin1());
+        const QDBusUnixFileDescriptor descriptor =
+            SecretTransport::createSealedPayload(fields, publicKey, &errorMessage);
+        if (!descriptor.isValid()) {
+            emit supportReportFinished(
+                false, tr("Unable to protect the issue report"));
+            return;
+        }
+
+        QDBusMessage reportRequest = QDBusMessage::createMethodCall(
+            QString::fromLatin1(kBackendService),
+            QString::fromLatin1(kBackendPath),
+            QString::fromLatin1(kBackendInterface),
+            QStringLiteral("SubmitSupportReport"));
+        reportRequest << QVariant::fromValue(descriptor);
+        auto *reportWatcher = new QDBusPendingCallWatcher(
+            QDBusConnection::sessionBus().asyncCall(reportRequest, 120000), this);
+        connect(reportWatcher, &QDBusPendingCallWatcher::finished, this,
+                [this](QDBusPendingCallWatcher *reportFinished) {
+            const QDBusPendingReply<> reportReply = *reportFinished;
+            reportFinished->deleteLater();
+            if (reportReply.isError()) {
+                refresh();
+                emit supportReportFinished(
+                    false, tr("The issue report could not be submitted"));
+                return;
+            }
+            refresh();
+            emit supportReportFinished(
+                true, tr("Your issue has been reported"));
+        });
+    });
 }
 
 void VpnController::loadCountries()

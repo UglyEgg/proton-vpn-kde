@@ -10,6 +10,7 @@ from proton_vpn_kde_backend.controller import (
     custom_dns_patch_from_json,
     settings_patch_from_json,
     split_tunneling_patch_from_json,
+    validate_support_report,
 )
 
 
@@ -83,6 +84,28 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         await self.controller.stop_packet_capture()
         self.assertFalse(self.controller.snapshot.packet_capture_active)
+
+    async def test_support_report_is_validated_and_submitted(self):
+        description = "A sufficiently detailed description of the VPN issue I found."
+
+        await self.controller.submit_support_report(
+            " demo-user ",
+            " user@example.com ",
+            f" {description} ",
+            "false",
+        )
+
+        self.assertEqual("demo-user", self.controller._adapter.last_support_report.username)
+        self.assertFalse(self.controller._adapter.last_support_report.include_logs)
+        self.assertEqual("Your issue has been reported", self.controller.snapshot.message)
+
+    def test_support_report_rejects_invalid_or_oversized_fields(self):
+        with self.assertRaisesRegex(ValueError, "valid email"):
+            validate_support_report("user", "invalid", "x" * 50, "true")
+        with self.assertRaisesRegex(ValueError, "at least 50"):
+            validate_support_report("user", "user@example.com", "too short", "true")
+        with self.assertRaisesRegex(ValueError, "log choice"):
+            validate_support_report("user", "user@example.com", "x" * 50, "yes")
 
     async def test_location_payloads_are_versioned_and_validated(self):
         countries = await self.controller.get_countries_json()

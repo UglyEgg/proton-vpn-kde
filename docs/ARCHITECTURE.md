@@ -62,6 +62,7 @@ The additive version-one contract currently contains:
 - `UpdateCustomDns(JSON patch) -> JSON string`
 - `StartPacketCapture(directoryPath)`
 - `StopPacketCapture()`
+- `SubmitSupportReport(sealedReportFd)`
 - `ConnectFastest()`
 - `ConnectCountry(countryCode)`
 - `ConnectGroup(countryCode, groupKind, groupName)`
@@ -92,7 +93,9 @@ for a one-use backend X25519 public key with HKDF-SHA256 and AES-256-GCM, then
 cross the process boundary as ciphertext in a sealed Linux `memfd` sent with
 D-Bus Unix file-descriptor passing. The backend rotates its key before every
 decryption attempt, reads the bounded payload once, closes the descriptor, and
-overwrites its mutable input buffer.
+overwrites its mutable input buffer. The same protected transport carries the
+username, contact email, and description in an explicitly submitted support
+report; they never appear as ordinary D-Bus strings.
 
 Installed builds use D-Bus activation backed by a systemd user service. The
 service is demand-started by the first `GetSnapshot` call and remains separate
@@ -135,6 +138,14 @@ and capture is allowed only for a connected tunnel and an existing writable
 absolute directory chosen with Plasma's native folder dialog. Leaving Settings,
 disconnecting, or stopping the backend ends an active capture. The KDE client
 does not inspect, rename, upload, or otherwise process the resulting PCAP file.
+
+Issue reports use Proton core's official support endpoint and validated public
+`BugReportForm`. Diagnostic attachment is an explicit checkbox at submission
+time. When selected, the backend runs fixed `journalctl` argument lists without
+a shell and attaches only available logs from the previous 24 hours for its
+user service, NetworkManager, and Proton's split-tunneling unit. Temporary files
+and descriptors are closed immediately after the API request, whether it
+succeeds or fails.
 
 ## Authentication
 

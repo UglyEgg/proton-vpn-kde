@@ -24,6 +24,7 @@ INVALID_SPLIT_TUNNELING_ERROR = (
     "proton.vpn.app.kde.Error.InvalidSplitTunneling"
 )
 INVALID_CUSTOM_DNS_ERROR = "proton.vpn.app.kde.Error.InvalidCustomDns"
+INVALID_SUPPORT_REPORT_ERROR = "proton.vpn.app.kde.Error.InvalidSupportReport"
 
 
 class VpnDbusService(ServiceInterface):
@@ -142,6 +143,22 @@ class VpnDbusService(ServiceInterface):
     @method(name="StopPacketCapture")
     async def stop_packet_capture(self):
         await self._controller.stop_packet_capture()
+
+    @method(name="SubmitSupportReport")
+    async def submit_support_report(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
+        payload = self._read_secret(
+            secret_fd,
+            {"username", "email", "description", "includeLogs"},
+        )
+        try:
+            await self._controller.submit_support_report(
+                payload["username"],
+                payload["email"],
+                payload["description"],
+                payload["includeLogs"],
+            )
+        except (RuntimeError, ValueError) as error:
+            raise DBusError(INVALID_SUPPORT_REPORT_ERROR, str(error)) from error
 
     @method(name="Login")
     async def login(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821

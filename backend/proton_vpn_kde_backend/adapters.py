@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import ExitStack
 from dataclasses import replace
 import os
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
+from . import __version__
 from .controller import (
     CountryInfo,
     CustomDnsServer,
@@ -22,11 +25,13 @@ from .controller import (
     SplitTunnelingValue,
     SettingsValue,
     SnapshotCallback,
+    SupportReport,
     VpnSettings,
     VpnSnapshot,
 )
 from .fido_interaction import FidoInteraction
 from .reconnector import AsyncReconnector
+from .support import collect_support_logs
 
 
 def _supports_split_tunneling(protocol: str) -> bool:
@@ -60,6 +65,7 @@ class DemoCoreAdapter:
             paid_features_available=logged_in,
         )
         self._packet_capture_active = False
+        self.last_support_report: SupportReport | None = None
         self._snapshot = self._build_snapshot(message="Safe demo backend")
 
     async def initialize(
@@ -310,6 +316,10 @@ class DemoCoreAdapter:
             state=self._snapshot.state,
             server_name=self._snapshot.server_name,
         ))
+
+    async def submit_support_report(self, report: SupportReport) -> None:
+        await asyncio.sleep(0.01)
+        self.last_support_report = report
 
     async def login(self, username: str, password: str) -> None:
         await asyncio.sleep(0.05)
@@ -777,6 +787,35 @@ class ProtonCoreAdapter:
             raise RuntimeError("Proton could not stop packet capture") from None
         self._packet_capture_active = False
         self._publish_snapshot()
+
+    async def submit_support_report(self, report: SupportReport) -> None:
+        from proton.vpn.session.dataclasses import BugReportForm
+
+        with TemporaryDirectory(prefix="proton-vpn-kde-support-") as directory:
+            log_paths = (
+                await asyncio.to_thread(collect_support_logs, Path(directory))
+                if report.include_logs
+                else []
+            )
+            with ExitStack() as attachments:
+                report_form = BugReportForm(
+                    username=report.username,
+                    email=report.email,
+                    title="Report from KDE Plasma app",
+                    description=report.description,
+                    client_version=__version__,
+                    client="KDE Plasma GUI",
+                    attachments=[
+                        attachments.enter_context(path.open("rb"))
+                        for path in log_paths
+                    ],
+                )
+                try:
+                    await self._api.submit_bug_report(report_form)
+                except Exception:
+                    raise RuntimeError(
+                        "Proton could not submit the issue report"
+                    ) from None
 
     async def _get_server_list(self):
         try:

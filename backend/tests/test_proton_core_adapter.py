@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock
 
 from proton_vpn_kde_backend.adapters import ProtonCoreAdapter
+from proton_vpn_kde_backend.controller import SupportReport
 
 
 def state_named(name: str):
@@ -99,10 +100,31 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             generate_2fa_fido2_assertion=AsyncMock(),
             submit_2fa_fido2=AsyncMock(),
             logout=AsyncMock(),
+            submit_bug_report=AsyncMock(),
             load_settings=AsyncMock(return_value=settings),
             save_settings=AsyncMock(),
         )
         return api, connector
+
+    async def test_support_report_uses_official_api_without_logs(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        await adapter.submit_support_report(
+            SupportReport(
+                username="test-user",
+                email="user@example.com",
+                description="A detailed support report that is long enough for submission.",
+                include_logs=False,
+            )
+        )
+
+        api.submit_bug_report.assert_awaited_once()
+        form = api.submit_bug_report.await_args.args[0]
+        self.assertEqual("test-user", form.username)
+        self.assertEqual("KDE Plasma GUI", form.client)
+        self.assertEqual([], form.attachments)
 
     async def test_initialize_reuses_core_and_subscribes_without_connecting(self):
         api, connector = self.make_api()

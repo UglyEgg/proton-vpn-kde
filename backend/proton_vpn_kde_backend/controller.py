@@ -7,6 +7,7 @@ from collections.abc import Awaitable
 from dataclasses import asdict, dataclass, replace
 from ipaddress import ip_address, ip_network
 import json
+import re
 from typing import Callable, Protocol, TypeAlias, TypeVar
 
 
@@ -213,6 +214,55 @@ class CustomDnsSettings:
             separators=(",", ":"),
             sort_keys=True,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class SupportReport:
+    """Validated user-supplied Proton support request."""
+
+    username: str
+    email: str
+    description: str
+    include_logs: bool = True
+
+
+_EMAIL_PATTERN = re.compile(r"[^@\s]+@[^@\s]{2,}\.[^@\s.\-]{2,}")
+
+
+def validate_support_report(
+    username: str,
+    email: str,
+    description: str,
+    include_logs: str,
+) -> SupportReport:
+    """Bound and validate fields received through the protected payload."""
+    normalized_username = username.strip()
+    normalized_email = email.strip()
+    normalized_description = description.strip()
+    if (
+        not normalized_username
+        or len(normalized_username) > 255
+        or "\0" in normalized_username
+    ):
+        raise ValueError("Enter your Proton username")
+    if (
+        len(normalized_email) > 254
+        or "\0" in normalized_email
+        or _EMAIL_PATTERN.fullmatch(normalized_email) is None
+    ):
+        raise ValueError("Enter a valid email address")
+    if "\0" in normalized_description or len(normalized_description) < 50:
+        raise ValueError("Describe the issue using at least 50 characters")
+    if len(normalized_description) > 8000:
+        raise ValueError("The issue description is too long")
+    if include_logs not in {"true", "false"}:
+        raise ValueError("The support-report log choice is invalid")
+    return SupportReport(
+        username=normalized_username,
+        email=normalized_email,
+        description=normalized_description,
+        include_logs=include_logs == "true",
+    )
 
 
 SettingsValue: TypeAlias = str | int | bool
@@ -481,6 +531,7 @@ class CoreAdapter(Protocol):
     async def connect_server(self, server_name: str) -> None: ...
     async def start_packet_capture(self, directory_path: str) -> None: ...
     async def stop_packet_capture(self) -> None: ...
+    async def submit_support_report(self, report: SupportReport) -> None: ...
     async def login(self, username: str, password: str) -> None: ...
     async def submit_two_factor(self, code: str) -> None: ...
     async def cancel_login(self) -> None: ...
@@ -723,6 +774,40 @@ class BackendController:
     async def stop_packet_capture(self) -> None:
         self._require_session()
         await self._run_operation(self._adapter.stop_packet_capture)
+
+    async def submit_support_report(
+        self,
+        username: str,
+        email: str,
+        description: str,
+        include_logs: str,
+    ) -> None:
+        self._require_session()
+        report = validate_support_report(
+            username, email, description, include_logs
+        )
+        if self._operation_lock.locked():
+            raise RuntimeError("Another VPN operation is already in progress")
+        async with self._operation_lock:
+            self._publish(replace(self._snapshot, busy=True, message=""))
+            try:
+                await self._adapter.submit_support_report(report)
+            except Exception:
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=False,
+                        message="The issue report could not be submitted",
+                    )
+                )
+                raise
+            self._publish(
+                replace(
+                    self._snapshot,
+                    busy=False,
+                    message="Your issue has been reported",
+                )
+            )
 
     async def login(self, username: str, password: str) -> None:
         normalized_username = username.strip()

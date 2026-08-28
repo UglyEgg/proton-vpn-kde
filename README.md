@@ -17,7 +17,7 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Opt-in Proton core adapter for the existing logged-in session
 - Fastest, country, and individual-server connection actions
 - Native country and server lists with localized country names, load, P2P,
-  and streaming metadata
+  streaming, Tor, Smart Routing, Secure Core, and location metadata
 - Native country/server filtering without rebuilding or copying location data
 - Proton-driven server refresh notifications with compact load-only updates;
   existing Qt rows change in place instead of rebuilding the server list
@@ -25,7 +25,7 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Native Proton settings for protocol, kill switch, NetShield, VPN Accelerator,
   moderate NAT, port forwarding, IPv6, and anonymous crash reports
 - Native split-tunneling controls and a Plasma application chooser backed by
-  `KApplicationTrader`; existing Proton IP rules remain untouched
+  `KApplicationTrader`, including validated IPv4/IPv6 CIDR rules
 - Native custom-DNS controls with validated IPv4/IPv6 entries, preserved
   per-entry state, and explicit NetShield conflict handling
 - Conflict-aware settings controls that preserve Proton core's paid-plan,
@@ -34,6 +34,14 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Desktop-neutral asyncio reconnection after an unexpected tunnel drop; the
   previous server, protocol, and backend are reused without a GLib main loop
 - Plasma connection notifications through `KNotification`
+- Auto-connect targets and pinned country/server actions in the native Plasma
+  system-tray menu
+- Live connection metadata and forwarded-port display with native clipboard
+  integration
+- Consent-gated troubleshooting packet capture through the selected official
+  protocol implementation
+- Native issue reporting through Proton's official support API, with optional
+  fixed-scope journal attachments and protected form transport
 - Persistent Plasma settings through KConfig for reconnection, notifications,
   close-to-tray, and start-minimized behavior
 - Native sign-in, TOTP/recovery-code authentication, security-key/FIDO2

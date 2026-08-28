@@ -69,6 +69,12 @@ Kirigami.ApplicationWindow {
                 onTriggered: root.showPage(Qt.resolvedUrl("SettingsPage.qml"))
             },
             Kirigami.Action {
+                text: qsTr("Report an issue")
+                icon.name: "tools-report-bug"
+                enabled: vpnController.loggedIn
+                onTriggered: root.showPage(Qt.resolvedUrl("ReportIssuePage.qml"))
+            },
+            Kirigami.Action {
                 text: qsTr("About")
                 icon.name: "help-about"
                 enabled: false
