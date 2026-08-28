@@ -38,6 +38,7 @@ find_package(KF6Config 6.0 REQUIRED)
 find_package(KF6CoreAddons 6.0 REQUIRED)
 find_package(KF6DBusAddons 6.0 REQUIRED)
 find_package(KF6GlobalAccel 6.0 REQUIRED)
+find_package(KF6KCMUtils 6.0 REQUIRED)
 find_package(KF6Notifications 6.0 REQUIRED)
 find_package(KF6Runner 6.0 REQUIRED)
 find_package(KF6Service 6.0 REQUIRED)
@@ -159,6 +160,10 @@ target_compile_options(proton-vpn-kde-runner PRIVATE
 
 if(BUILD_TESTING)
     find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
+endif()
+add_subdirectory(kcm)
+
+if(BUILD_TESTING)
     find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
     qt_add_executable(location-model-tests
         tests/LocationModelsTest.cpp
@@ -186,7 +191,15 @@ if(BUILD_TESTING)
     target_compile_options(app-settings-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
-    add_test(NAME app-settings-tests COMMAND app-settings-tests)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(
+            NAME app-settings-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} --
+                $<TARGET_FILE:app-settings-tests>
+        )
+    else()
+        add_test(NAME app-settings-tests COMMAND app-settings-tests)
+    endif()
 
     qt_add_executable(update-channel-tests
         tests/UpdateChannelTest.cpp

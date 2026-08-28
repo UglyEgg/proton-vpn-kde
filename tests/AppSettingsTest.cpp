@@ -1,5 +1,6 @@
 #include "AppSettings.h"
 
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -54,6 +55,12 @@ void AppSettingsTest::persistsKConfigPreferences()
     QVERIFY(reloaded.autoConnectTarget().isEmpty());
     reloaded.togglePinnedServer(QStringLiteral("CH#101"));
     QVERIFY(!reloaded.isServerPinned(QStringLiteral("CH#101")));
+
+    QSignalSpy notificationChanged(
+        &reloaded, &AppSettings::notificationsEnabledChanged);
+    initial.setNotificationsEnabled(true);
+    QTRY_VERIFY(reloaded.notificationsEnabled());
+    QCOMPARE(notificationChanged.count(), 1);
 }
 
 QTEST_GUILESS_MAIN(AppSettingsTest)

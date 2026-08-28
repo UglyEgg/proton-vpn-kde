@@ -17,6 +17,7 @@ BuildRequires:  kf6-kconfig-devel
 BuildRequires:  kf6-kcoreaddons-devel
 BuildRequires:  kf6-kdbusaddons-devel
 BuildRequires:  kf6-kglobalaccel-devel
+BuildRequires:  kf6-kcmutils-devel
 BuildRequires:  kf6-knotifications-devel
 BuildRequires:  kf6-krunner-devel
 BuildRequires:  kf6-kservice-devel
@@ -35,6 +36,7 @@ BuildRequires:  qt6-qtdeclarative-devel
 Requires:       kf6-kirigami
 Requires:       kf6-kdbusaddons
 Requires:       kf6-kglobalaccel
+Requires:       kf6-kcmutils
 Requires:       kf6-krunner
 Requires:       python3-cryptography
 Requires:       python3-dbus-fast
@@ -88,16 +90,19 @@ desktop-file-validate \
 %{_bindir}/proton-vpn-kde-backend
 %{_libexecdir}/proton-vpn-kde/
 %{_datadir}/applications/proton-vpn-kde.desktop
+%{_datadir}/applications/kcm_proton_vpn_kde.desktop
 %{_datadir}/dbus-1/services/proton.vpn.app.kde.backend.service
 %{_datadir}/icons/hicolor/scalable/apps/proton-vpn-kde.svg
 %{_datadir}/knotifications6/proton-vpn-kde.notifyrc
 %{_kf6_plugindir}/krunner/proton-vpn-kde-runner.so
+%{_qt6_plugindir}/plasma/kcms/systemsettings/kcm_proton_vpn_kde.so
 %{_userunitdir}/proton-vpn-kde-backend.service
 
 %changelog
 * Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.8.1-1
 - Restart a running user backend after upgrades so the GUI and D-Bus API stay in sync.
 - Add Plasma global shortcuts and native KRunner connection actions.
+- Add a native System Settings module with live KConfig synchronization.
 
 * Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.8.0-1
 - Add a native custom-DNS editor with IPv4 and IPv6 validation.

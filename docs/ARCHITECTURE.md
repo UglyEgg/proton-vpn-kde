@@ -236,6 +236,17 @@ page. This gives KRunner and System Settings a stable handoff without creating
 multiple tray items or multiple frontend controllers; the independent backend
 and an active tunnel continue to outlive the window as designed.
 
+The `Proton VPN` System Settings module owns only desktop integration choices:
+startup, auto-connect target, unexpected-drop recovery, window/tray behavior,
+notifications, pinned targets, and packet-capture storage. These are persisted
+immediately through the same `proton-vpn-kderc` KConfig file used by the client.
+Writes carry KConfig's cross-process notification flag, and both the client and
+KCM watch the file, so a running tray client applies changes without a restart.
+The module links to Plasma's Global Shortcuts page and uses the fixed
+`--settings` activation option for account-bound VPN settings. Protocol, DNS,
+split tunneling, and other live Proton-core values are not duplicated into a
+second controller.
+
 ## Safety rules
 
 - The backend never auto-connects in development mode.
@@ -248,6 +259,5 @@ and an active tunnel continue to outlive the window as designed.
 
 ## Next milestones
 
-1. Add a KCM-compatible configuration surface for the stable settings models.
-2. Verify feature parity against the official client's regression suite and
+1. Verify feature parity against the official client's regression suite and
    package the next native Plasma preview.

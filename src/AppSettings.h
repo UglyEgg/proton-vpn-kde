@@ -1,5 +1,7 @@
 #pragma once
 
+#include <KConfigWatcher>
+#include <KSharedConfig>
 #include <QObject>
 #include <QStringList>
 #include <QUrl>
@@ -49,12 +51,15 @@ signals:
     void packetCaptureDirectoryChanged();
 
 private:
+    void reloadSettings();
     void writeSetting(const char *key, bool value);
     void writeSetting(const char *key, const QString &value);
     void writeSetting(const char *key, const QStringList &value);
     static QString normalizeConnectionTarget(const QString &target);
     static QStringList normalizePinnedServers(const QString &servers);
 
+    KSharedConfig::Ptr m_config;
+    KConfigWatcher::Ptr m_configWatcher;
     bool m_notificationsEnabled = true;
     bool m_reconnectEnabled = true;
     bool m_startMinimized = false;

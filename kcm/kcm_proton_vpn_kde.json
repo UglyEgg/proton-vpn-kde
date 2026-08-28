@@ -1,0 +1,20 @@
+{
+    "Categories": "Qt;KDE;X-KDE-settings-network;",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "uglyegg@entropy.quest",
+                "Name": "uglyegg"
+            }
+        ],
+        "Description": "Configure Proton VPN integration with KDE Plasma",
+        "EnabledByDefault": true,
+        "Icon": "proton-vpn-kde",
+        "License": "GPL-3.0-or-later",
+        "Name": "Proton VPN",
+        "Website": "https://protonvpn.com/"
+    },
+    "X-KDE-Keywords": "vpn,proton,privacy,network,plasma",
+    "X-KDE-System-Settings-Parent-Category": "network",
+    "X-KDE-Weight": 80
+}

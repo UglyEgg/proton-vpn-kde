@@ -1,7 +1,6 @@
 #include "AppSettings.h"
 
 #include <KConfigGroup>
-#include <KSharedConfig>
 #include <QDir>
 
 namespace
@@ -12,19 +11,16 @@ constexpr auto kGeneralGroup = "General";
 
 AppSettings::AppSettings(QObject *parent)
     : QObject(parent)
+    , m_config(KSharedConfig::openConfig(QString::fromLatin1(kConfigFile)))
+    , m_configWatcher(KConfigWatcher::create(m_config))
 {
-    const KConfigGroup group(KSharedConfig::openConfig(QString::fromLatin1(kConfigFile)),
-                             QString::fromLatin1(kGeneralGroup));
-    m_notificationsEnabled = group.readEntry("NotificationsEnabled", true);
-    m_reconnectEnabled = group.readEntry("ReconnectEnabled", true);
-    m_startMinimized = group.readEntry("StartMinimized", false);
-    m_closeToTray = group.readEntry("CloseToTray", true);
-    m_autoConnectTarget = normalizeConnectionTarget(
-        group.readEntry("AutoConnectTarget", QString()));
-    m_pinnedServers = normalizePinnedServers(
-        group.readEntry("PinnedServers", QStringList()).join(QLatin1Char(',')));
-    m_packetCaptureDirectory = group.readEntry(
-        "PacketCaptureDirectory", QDir::tempPath());
+    reloadSettings();
+    connect(m_configWatcher.data(), &KConfigWatcher::configChanged, this,
+            [this](const KConfigGroup &group, const QByteArrayList &) {
+                if (group.name() == QString::fromLatin1(kGeneralGroup)) {
+                    reloadSettings();
+                }
+            });
 }
 
 bool AppSettings::notificationsEnabled() const { return m_notificationsEnabled; }
@@ -147,28 +143,69 @@ void AppSettings::setPacketCaptureDirectoryUrl(const QUrl &directory)
     }
 }
 
+void AppSettings::reloadSettings()
+{
+    const KConfigGroup group(m_config, QString::fromLatin1(kGeneralGroup));
+    const bool notifications = group.readEntry("NotificationsEnabled", true);
+    const bool reconnect = group.readEntry("ReconnectEnabled", true);
+    const bool startMinimized = group.readEntry("StartMinimized", false);
+    const bool closeToTray = group.readEntry("CloseToTray", true);
+    const QString autoConnect = normalizeConnectionTarget(
+        group.readEntry("AutoConnectTarget", QString()));
+    const QStringList pinned = normalizePinnedServers(
+        group.readEntry("PinnedServers", QStringList()).join(QLatin1Char(',')));
+    const QString captureDirectory = group.readEntry(
+        "PacketCaptureDirectory", QDir::tempPath());
+
+    if (m_notificationsEnabled != notifications) {
+        m_notificationsEnabled = notifications;
+        emit notificationsEnabledChanged();
+    }
+    if (m_reconnectEnabled != reconnect) {
+        m_reconnectEnabled = reconnect;
+        emit reconnectEnabledChanged();
+    }
+    if (m_startMinimized != startMinimized) {
+        m_startMinimized = startMinimized;
+        emit startMinimizedChanged();
+    }
+    if (m_closeToTray != closeToTray) {
+        m_closeToTray = closeToTray;
+        emit closeToTrayChanged();
+    }
+    if (m_autoConnectTarget != autoConnect) {
+        m_autoConnectTarget = autoConnect;
+        emit autoConnectTargetChanged();
+    }
+    if (m_pinnedServers != pinned) {
+        m_pinnedServers = pinned;
+        emit pinnedServersChanged();
+    }
+    if (m_packetCaptureDirectory != captureDirectory) {
+        m_packetCaptureDirectory = captureDirectory;
+        emit packetCaptureDirectoryChanged();
+    }
+}
+
 void AppSettings::writeSetting(const char *key, bool value)
 {
-    const auto config = KSharedConfig::openConfig(QString::fromLatin1(kConfigFile));
-    KConfigGroup group(config, QString::fromLatin1(kGeneralGroup));
-    group.writeEntry(key, value);
-    config->sync();
+    KConfigGroup group(m_config, QString::fromLatin1(kGeneralGroup));
+    group.writeEntry(key, value, KConfigBase::Notify);
+    m_config->sync();
 }
 
 void AppSettings::writeSetting(const char *key, const QString &value)
 {
-    const auto config = KSharedConfig::openConfig(QString::fromLatin1(kConfigFile));
-    KConfigGroup group(config, QString::fromLatin1(kGeneralGroup));
-    group.writeEntry(key, value);
-    config->sync();
+    KConfigGroup group(m_config, QString::fromLatin1(kGeneralGroup));
+    group.writeEntry(key, value, KConfigBase::Notify);
+    m_config->sync();
 }
 
 void AppSettings::writeSetting(const char *key, const QStringList &value)
 {
-    const auto config = KSharedConfig::openConfig(QString::fromLatin1(kConfigFile));
-    KConfigGroup group(config, QString::fromLatin1(kGeneralGroup));
-    group.writeEntry(key, value);
-    config->sync();
+    KConfigGroup group(m_config, QString::fromLatin1(kGeneralGroup));
+    group.writeEntry(key, value, KConfigBase::Notify);
+    m_config->sync();
 }
 
 QString AppSettings::normalizeConnectionTarget(const QString &target)

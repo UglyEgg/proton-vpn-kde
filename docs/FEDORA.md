@@ -11,6 +11,7 @@ The native frontend currently needs:
 - `kf6-kcoreaddons-devel`
 - `kf6-kdbusaddons-devel`
 - `kf6-kglobalaccel-devel`
+- `kf6-kcmutils-devel`
 - `kf6-knotifications-devel`
 - `kf6-krunner-devel`
 - `kf6-kservice-devel`
@@ -32,6 +33,7 @@ Proton modules instead of a user virtual environment.
 - `kf6-kcoreaddons`
 - `kf6-kdbusaddons`
 - `kf6-kglobalaccel`
+- `kf6-kcmutils`
 - `kf6-knotifications`
 - `kf6-krunner`
 - `kf6-kservice`
@@ -51,6 +53,12 @@ The KRunner module is installed under the Qt 6 plug-in path at
 `kf6/krunner/proton-vpn-kde-runner.so`. Users can type `vpn` in KRunner to
 open or control the client. A newly installed or upgraded plug-in may require
 KRunner to be restarted before it is discovered.
+
+The System Settings module is installed as
+`plasma/kcms/systemsettings/kcm_proton_vpn_kde.so`, with its generated desktop
+metadata under `/usr/share/applications`. It appears in the Network category
+and stores only Plasma integration preferences. KConfig D-Bus notifications
+keep an already-running client synchronized with changes made in the module.
 
 Add `kf6-kstatusnotifieritem` when the frontend was built with its development
 component; otherwise the Qt tray fallback has no KF6 StatusNotifierItem runtime

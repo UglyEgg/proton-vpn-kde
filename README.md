@@ -18,6 +18,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   disconnect, or connect by country code or exact server name
 - Single-instance Plasma activation with a `--settings` deep link for desktop
   integration surfaces
+- A native System Settings module for auto-connect, recovery, tray behavior,
+  notifications, favorites, packet-capture storage, and shortcut handoff
 - Versioned D-Bus contract with JSON snapshots
 - D-Bus activation and a systemd user service for installed builds
 - Safe demo backend for UI development
@@ -81,7 +83,7 @@ For full Plasma tray integration on Fedora:
 ```bash
 sudo dnf install kf6-kconfig-devel kf6-knotifications-devel \
     kf6-kcoreaddons-devel kf6-kdbusaddons-devel \
-    kf6-kglobalaccel-devel kf6-krunner-devel \
+    kf6-kglobalaccel-devel kf6-kcmutils-devel kf6-krunner-devel \
     kf6-kservice-devel \
     kf6-kstatusnotifieritem-devel openssl-devel
 ```
