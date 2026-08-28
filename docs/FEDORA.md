@@ -11,6 +11,7 @@ The native frontend currently needs:
 - `kf6-kcoreaddons-devel`
 - `kf6-kglobalaccel-devel`
 - `kf6-knotifications-devel`
+- `kf6-krunner-devel`
 - `kf6-kservice-devel`
 - `openssl-devel`
 - the system Python 3 interpreter
@@ -30,6 +31,7 @@ Proton modules instead of a user virtual environment.
 - `kf6-kcoreaddons`
 - `kf6-kglobalaccel`
 - `kf6-knotifications`
+- `kf6-krunner`
 - `kf6-kservice`
 - `python3-dbus-fast`
 - `python3-cryptography`
@@ -43,6 +45,10 @@ chooser. The frontend does not load Gio or parse desktop-entry files itself.
 `KGlobalAccel` registers optional Plasma-wide connection and window actions.
 No shortcut is assigned by the package; users choose keys in System Settings,
 and their assignments are preserved by Plasma.
+The KRunner module is installed under the Qt 6 plug-in path at
+`kf6/krunner/proton-vpn-kde-runner.so`. Users can type `vpn` in KRunner to
+open or control the client. A newly installed or upgraded plug-in may require
+KRunner to be restarted before it is discovered.
 
 Add `kf6-kstatusnotifieritem` when the frontend was built with its development
 component; otherwise the Qt tray fallback has no KF6 StatusNotifierItem runtime

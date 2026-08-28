@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.24)
 
 project(proton-vpn-kde VERSION 0.8.1 LANGUAGES CXX)
 
-include(GNUInstallDirs)
+find_package(ECM 6.0 REQUIRED NO_MODULE)
+list(APPEND CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
+include(KDEInstallDirs6)
 include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -31,15 +33,12 @@ find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 # KStatusNotifierItem is deliberately optional at configure time so the Qt and
 # D-Bus boundary can be developed on systems without KDE development headers.
 # Fedora/Plasma production builds should install kf6-kstatusnotifieritem-devel.
-find_package(ECM 6.0 QUIET NO_MODULE)
-if(ECM_FOUND)
-    list(APPEND CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
-    find_package(KF6StatusNotifierItem QUIET)
-endif()
+find_package(KF6StatusNotifierItem QUIET)
 find_package(KF6Config 6.0 REQUIRED)
 find_package(KF6CoreAddons 6.0 REQUIRED)
 find_package(KF6GlobalAccel 6.0 REQUIRED)
 find_package(KF6Notifications 6.0 REQUIRED)
+find_package(KF6Runner 6.0 REQUIRED)
 find_package(KF6Service 6.0 REQUIRED)
 find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
 
@@ -124,8 +123,41 @@ if(TARGET KF6::StatusNotifierItem)
     target_compile_definitions(proton-vpn-kde PRIVATE HAVE_KSTATUSNOTIFIERITEM=1)
 endif()
 
+add_library(proton-vpn-kde-runner MODULE
+    runner/ProtonVpnRunner.cpp
+    runner/ProtonVpnRunner.h
+    runner/RunnerCommand.cpp
+    runner/RunnerCommand.h
+)
+configure_file(
+    runner/proton-vpn-kde-runner.json.in
+    ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-runner.json
+    @ONLY
+)
+set_target_properties(proton-vpn-kde-runner PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/kf6/krunner"
+    PREFIX ""
+)
+target_include_directories(proton-vpn-kde-runner PRIVATE
+    runner
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
+target_link_libraries(proton-vpn-kde-runner PRIVATE
+    Qt6::Core
+    Qt6::DBus
+    KF6::CoreAddons
+    KF6::Runner
+)
+target_compile_definitions(proton-vpn-kde-runner PRIVATE
+    PROTON_VPN_KDE_EXECUTABLE="${CMAKE_INSTALL_FULL_BINDIR}/proton-vpn-kde"
+)
+target_compile_options(proton-vpn-kde-runner PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+)
+
 if(BUILD_TESTING)
     find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
+    find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
     qt_add_executable(location-model-tests
         tests/LocationModelsTest.cpp
         src/LocationModels.cpp
@@ -168,6 +200,38 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME update-channel-tests COMMAND update-channel-tests)
+
+    qt_add_executable(runner-command-tests
+        tests/RunnerCommandTest.cpp
+        runner/RunnerCommand.cpp
+        runner/RunnerCommand.h
+    )
+    target_include_directories(runner-command-tests PRIVATE runner)
+    target_link_libraries(runner-command-tests PRIVATE Qt6::Core Qt6::Test)
+    target_compile_options(runner-command-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME runner-command-tests COMMAND runner-command-tests)
+
+    qt_add_executable(krunner-plugin-tests
+        tests/ProtonVpnRunnerTest.cpp
+    )
+    target_link_libraries(krunner-plugin-tests PRIVATE
+        Qt6::Core
+        Qt6::DBus
+        Qt6::Test
+        KF6::Runner
+    )
+    krunner_configure_test(krunner-plugin-tests proton-vpn-kde-runner)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(
+            NAME krunner-plugin-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} --
+                $<TARGET_FILE:krunner-plugin-tests>
+        )
+    else()
+        add_test(NAME krunner-plugin-tests COMMAND krunner-plugin-tests)
+    endif()
 
     qt_add_executable(vpn-settings-model-tests
         tests/VpnSettingsModelTest.cpp
@@ -283,7 +347,6 @@ if(BUILD_TESTING)
             -s ${CMAKE_CURRENT_SOURCE_DIR}/backend/tests -v
     )
 
-    find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
     if(DBUS_RUN_SESSION_EXECUTABLE)
         file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data)
         add_test(
@@ -313,6 +376,10 @@ configure_file(
 )
 
 install(TARGETS proton-vpn-kde RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(
+    TARGETS proton-vpn-kde-runner
+    LIBRARY DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/krunner
+)
 install(
     PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-backend
     DESTINATION ${CMAKE_INSTALL_BINDIR}

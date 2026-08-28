@@ -221,6 +221,14 @@ System Settings. Registration uses autoloading so a user's assignments survive
 frontend restarts and upgrades. The actions call the same controller operations
 as the visible interface and do not add a second networking path.
 
+The native KRunner plug-in recognizes only the explicit `vpn` and `proton vpn`
+prefixes. It offers the visible client, fastest connection, disconnection,
+two-letter country targets, and syntactically validated exact server names.
+Connection actions send fixed method names and typed string arguments to the
+same versioned session D-Bus service, allowing normal D-Bus activation without
+starting a second frontend. No query is interpreted as a command line or shell
+fragment.
+
 ## Safety rules
 
 - The backend never auto-connects in development mode.
@@ -233,7 +241,6 @@ as the visible interface and do not add a second networking path.
 
 ## Next milestones
 
-1. Add KRunner actions on top of the stable D-Bus API.
-2. Add a KCM-compatible configuration surface for the stable settings models.
-3. Verify feature parity against the official client's regression suite and
+1. Add a KCM-compatible configuration surface for the stable settings models.
+2. Verify feature parity against the official client's regression suite and
    package the next native Plasma preview.

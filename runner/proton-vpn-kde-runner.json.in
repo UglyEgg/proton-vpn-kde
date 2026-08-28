@@ -1,0 +1,18 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "uglyegg@entropy.quest",
+                "Name": "uglyegg"
+            }
+        ],
+        "Description": "Control Proton VPN from KRunner",
+        "EnabledByDefault": true,
+        "Icon": "proton-vpn-kde",
+        "License": "GPL-3.0-or-later",
+        "Name": "Proton VPN",
+        "Version": "@PROJECT_VERSION@",
+        "Website": "https://protonvpn.com/"
+    },
+    "X-Plasma-Runner-Min-Letter-Count": 3
+}
