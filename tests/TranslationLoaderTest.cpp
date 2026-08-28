@@ -9,7 +9,7 @@ class TranslationLoaderTest final : public QObject
     Q_OBJECT
 
 private slots:
-    void loadsProtonRegionalFallbackFromCompiledCatalog()
+    void loadsProtonRegionalFallback()
     {
         QVERIFY(TranslationLoader::install(*QCoreApplication::instance(),
                                            QLocale(QStringLiteral("es_MX"))));

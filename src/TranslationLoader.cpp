@@ -1,8 +1,10 @@
 #include "TranslationLoader.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QLibraryInfo>
 #include <QLocale>
+#include <QStandardPaths>
 #include <QStringList>
 #include <QTranslator>
 #include <QVariant>
@@ -43,6 +45,22 @@ QString regionalFallback(const QLocale &locale)
     }
     return {};
 }
+
+QStringList catalogDirectories()
+{
+    QStringList directories{
+        QStringLiteral(PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR),
+    };
+    const QStringList dataLocations =
+        QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation);
+    for (const QString &dataLocation : dataLocations) {
+        directories.append(
+            QDir(dataLocation).filePath(
+                QStringLiteral("proton-vpn-kde/translations")));
+    }
+    directories.removeDuplicates();
+    return directories;
+}
 }
 
 bool TranslationLoader::install(QCoreApplication &application,
@@ -56,14 +74,8 @@ bool TranslationLoader::install(QCoreApplication &application,
     loadCatalog(application, locale, QStringLiteral("qtbase"),
                 QLibraryInfo::path(QLibraryInfo::TranslationsPath));
 
-    QStringList directories{
-        QStringLiteral(PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR),
-        QStringLiteral(PROTON_VPN_KDE_INSTALL_TRANSLATIONS_DIR),
-    };
-    directories.removeDuplicates();
-
     bool loaded = false;
-    for (const QString &directory : directories) {
+    for (const QString &directory : catalogDirectories()) {
         if (loadCatalog(application, locale, QStringLiteral("proton-vpn-kde"),
                         directory)) {
             loaded = true;

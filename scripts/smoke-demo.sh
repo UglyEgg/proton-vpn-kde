@@ -5,8 +5,13 @@ project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 build_dir="${PROTON_KDE_BUILD_DIR:-$project_dir/build}"
 backend_pid=""
 frontend_pid=""
+app_pid=""
 
 cleanup() {
+    if [[ -n "$app_pid" ]]; then
+        kill "$app_pid" 2>/dev/null || true
+        wait "$app_pid" 2>/dev/null || true
+    fi
     if [[ -n "$frontend_pid" ]]; then
         kill "$frontend_pid" 2>/dev/null || true
         wait "$frontend_pid" 2>/dev/null || true
@@ -18,8 +23,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-PYTHONPATH="$project_dir/backend" \
-    python3 -m proton_vpn_kde_backend --demo &
+if [[ -n "${PROTON_KDE_BACKEND_EXECUTABLE:-}" ]]; then
+    "$PROTON_KDE_BACKEND_EXECUTABLE" --demo &
+else
+    PYTHONPATH="$project_dir/backend" \
+        python3 -m proton_vpn_kde_backend --demo &
+fi
 backend_pid=$!
 
 for _ in {1..40}; do
@@ -40,9 +49,8 @@ gdbus introspect --session \
 xvfb-run -a "$build_dir/proton-vpn-kde" &
 frontend_pid=$!
 
-app_pid=""
 for _ in {1..100}; do
-    app_pid="$(pgrep -n -x proton-vpn-kde || true)"
+    app_pid="$(pgrep -P "$frontend_pid" -x proton-vpn-kde || true)"
     if [[ -n "$app_pid" ]]; then
         break
     fi
@@ -51,6 +59,12 @@ done
 
 if [[ -z "$app_pid" ]]; then
     echo "Frontend did not start" >&2
+    exit 1
+fi
+
+sleep 0.25
+if ! kill -0 "$app_pid" 2>/dev/null; then
+    echo "Frontend exited while loading QML" >&2
     exit 1
 fi
 
@@ -245,6 +259,11 @@ snapshot="$(gdbus call --session \
     --method proton.vpn.app.kde.Backend1.GetSnapshot)"
 if [[ "$snapshot" != *'"reconnectEnabled":false'* ]]; then
     echo "Backend did not retain the reconnection preference" >&2
+    exit 1
+fi
+
+if ! kill -0 "$app_pid" 2>/dev/null; then
+    echo "Frontend exited during the smoke test" >&2
     exit 1
 fi
 

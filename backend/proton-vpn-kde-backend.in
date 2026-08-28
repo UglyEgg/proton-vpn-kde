@@ -2,8 +2,13 @@
 """Installed launcher for the Proton VPN KDE backend."""
 
 import sys
+from pathlib import Path
 
-sys.path.insert(0, "@CMAKE_INSTALL_FULL_LIBEXECDIR@/proton-vpn-kde")
+install_prefix = Path(__file__).resolve().parents[1]
+sys.path.insert(
+    0,
+    str(install_prefix / "@CMAKE_INSTALL_LIBEXECDIR@" / "proton-vpn-kde"),
+)
 
 from proton_vpn_kde_backend.__main__ import main
 

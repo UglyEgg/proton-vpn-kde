@@ -24,7 +24,7 @@ AppSettings *ProtonVpnKcm::appSettings() const
 
 void ProtonVpnKcm::openFullSettings()
 {
-    QProcess::startDetached(QStringLiteral(PROTON_VPN_KDE_EXECUTABLE),
+    QProcess::startDetached(QStringLiteral("proton-vpn-kde"),
                             {QStringLiteral("--settings")});
 }
 

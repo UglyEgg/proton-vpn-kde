@@ -52,8 +52,6 @@ file(GLOB PROTON_VPN_KDE_TS_FILES CONFIGURE_DEPENDS
 )
 set(PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR
     "${CMAKE_CURRENT_BINARY_DIR}/translations")
-set(PROTON_VPN_KDE_INSTALL_TRANSLATIONS_DIR
-    "${CMAKE_INSTALL_FULL_DATADIR}/proton-vpn-kde/translations")
 qt_add_lrelease(
     LRELEASE_TARGET proton-vpn-kde-translations
     TS_FILES ${PROTON_VPN_KDE_TS_FILES}
@@ -65,7 +63,6 @@ qt_add_lrelease(
 function(proton_vpn_kde_enable_translations target)
     target_compile_definitions(${target} PRIVATE
         PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR="${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}"
-        PROTON_VPN_KDE_INSTALL_TRANSLATIONS_DIR="${PROTON_VPN_KDE_INSTALL_TRANSLATIONS_DIR}"
     )
     add_dependencies(${target} proton-vpn-kde-translations)
 endfunction()
@@ -184,9 +181,6 @@ target_link_libraries(proton-vpn-kde-runner PRIVATE
     Qt6::DBus
     KF6::CoreAddons
     KF6::Runner
-)
-target_compile_definitions(proton-vpn-kde-runner PRIVATE
-    PROTON_VPN_KDE_EXECUTABLE="${CMAKE_INSTALL_FULL_BINDIR}/proton-vpn-kde"
 )
 target_compile_options(proton-vpn-kde-runner PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
@@ -400,6 +394,42 @@ if(BUILD_TESTING)
     )
     add_test(NAME translation-loader-tests COMMAND translation-loader-tests)
 
+    set(PROTON_VPN_KDE_TEST_DATA_DIR
+        "${CMAKE_CURRENT_BINARY_DIR}/installed-translation-test-data")
+    add_custom_target(installed-translation-test-data
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${PROTON_VPN_KDE_TEST_DATA_DIR}/proton-vpn-kde/translations"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}/proton-vpn-kde_es_LA.qm"
+            "${PROTON_VPN_KDE_TEST_DATA_DIR}/proton-vpn-kde/translations/"
+        DEPENDS proton-vpn-kde-translations
+    )
+    qt_add_executable(installed-translation-loader-tests
+        tests/TranslationLoaderTest.cpp
+        src/TranslationLoader.cpp
+        src/TranslationLoader.h
+    )
+    target_include_directories(installed-translation-loader-tests PRIVATE src)
+    target_link_libraries(installed-translation-loader-tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    target_compile_definitions(installed-translation-loader-tests PRIVATE
+        PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR="/nonexistent"
+    )
+    add_dependencies(installed-translation-loader-tests
+        installed-translation-test-data)
+    target_compile_options(installed-translation-loader-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(
+        NAME installed-translation-loader-tests
+        COMMAND installed-translation-loader-tests
+    )
+    set_tests_properties(installed-translation-loader-tests PROPERTIES
+        ENVIRONMENT "XDG_DATA_DIRS=${PROTON_VPN_KDE_TEST_DATA_DIR}"
+    )
+
     qt_add_executable(secret-transport-vector
         tests/SecretTransportVector.cpp
         src/SecretTransport.cpp
@@ -440,6 +470,11 @@ if(BUILD_TESTING)
                 "XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
                 ${DBUS_RUN_SESSION_EXECUTABLE} --
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-auth-demo.sh
+        )
+        add_test(
+            NAME staged-install-smoke
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-staged-install.sh
+                ${CMAKE_CURRENT_BINARY_DIR}
         )
     endif()
 endif()

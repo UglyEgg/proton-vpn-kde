@@ -1,4 +1,4 @@
 [D-BUS Service]
 Name=proton.vpn.app.kde.backend
-Exec=@CMAKE_INSTALL_FULL_BINDIR@/proton-vpn-kde-backend
+Exec=/usr/bin/env proton-vpn-kde-backend
 SystemdService=proton-vpn-kde-backend.service
