@@ -54,6 +54,8 @@ The additive version-one contract currently contains:
 - `GetServerLoads(countryCode) -> JSON string`
 - `GetSettings() -> JSON string`
 - `UpdateSettings(JSON patch) -> JSON string`
+- `GetSplitTunneling() -> JSON string`
+- `UpdateSplitTunneling(JSON patch) -> JSON string`
 - `ConnectFastest()`
 - `ConnectCountry(countryCode)`
 - `ConnectServer(serverName)`
@@ -70,6 +72,7 @@ The additive version-one contract currently contains:
 - `SnapshotChanged(JSON string)`
 - `ServerDataChanged(topologyChanged)`
 - `SettingsChanged(JSON string)`
+- `SplitTunnelingChanged(JSON string)`
 
 JSON keeps the prototype easy to inspect while `schemaVersion` protects the
 boundary. Before a public release, frequently accessed fields can become typed
@@ -98,7 +101,16 @@ patch; values are type- and range-checked before they reach the core. Protocol
 and kill-switch changes require a disconnected tunnel, paid features respect
 the account tier, and existing custom-DNS or split-tunneling conflicts are
 reported instead of silently disabling another feature. Structured DNS and
-split-tunneling data are deliberately not exposed by this scalar contract yet.
+split-tunneling data use separate contracts so scalar setting updates cannot
+replace either collection accidentally. Structured DNS is deliberately not
+exposed yet.
+
+Split-tunneling writes use Proton core's existing `SplitTunneling` and
+`SplitTunnelingConfig` objects and the official save/apply path. The bounded
+D-Bus patch can change only enabled state, mode, and the per-mode application
+paths. It never replaces IP ranges, changes the protocol, disables the kill
+switch, or talks directly to the privileged split-tunneling daemon. Incompatible
+settings are reported to the user instead of being silently rewritten.
 
 ## Authentication
 
@@ -141,7 +153,11 @@ state as a dropped tunnel.
 The frontend keeps desktop concerns out of the backend. `KNotification` owns
 connection popups, KConfig stores user preferences in
 `proton-vpn-kderc`, and a `QSortFilterProxyModel` provides zero-copy filtering
-for country and server lists. The system tray remains a native
+for country, server, and application lists. `KApplicationTrader` supplies the
+localized Plasma application catalog, icon names, desktop visibility, and
+launch commands without a GTK/Gio dependency. Native executable paths follow
+Proton's daemon matching contract; Flatpak and Snap launchers receive the same
+prefix transformations required by the official client. The system tray remains a native
 `KStatusNotifierItem` when the KF6 development component is present at build
 time.
 
@@ -166,8 +182,8 @@ does not add a polling schedule or make its own server-list API requests.
 
 ## Next milestones
 
-1. Add structured custom-DNS and split-tunneling editors plus a KCM-compatible
-   configuration surface.
+1. Add a structured custom-DNS editor and a KCM-compatible configuration
+   surface.
 2. KRunner actions and Plasma shortcuts.
-3. Split-tunneling application discovery through `KService`, not `.desktop`
-   parsing in the GUI.
+3. Add explicit split-tunneling IP-range editing without changing the
+   application-only editor's preservation guarantee.

@@ -1,7 +1,9 @@
 #include "VpnController.h"
 
+#include "InstalledApplicationModel.h"
 #include "LocationModels.h"
 #include "SecretTransport.h"
+#include "SplitTunnelingModel.h"
 #include "VpnSettingsModel.h"
 
 #include <QAbstractItemModel>
@@ -13,6 +15,7 @@
 #include <QDBusPendingReply>
 #include <QDBusServiceWatcher>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QMetaType>
 #include <QSet>
@@ -34,15 +37,24 @@ VpnController::VpnController(QObject *parent)
           this))
     , m_countryModel(new CountryModel(this))
     , m_serverModel(new ServerModel(this))
+    , m_installedApplicationModel(new InstalledApplicationModel(this))
     , m_settings(new VpnSettingsModel(this))
+    , m_splitTunneling(new SplitTunnelingModel(this))
     , m_countryFilterModel(new LocationFilterProxyModel(this))
     , m_serverFilterModel(new LocationFilterProxyModel(this))
+    , m_applicationFilterModel(new LocationFilterProxyModel(this))
 {
     m_countryFilterModel->setSourceModel(m_countryModel);
     m_countryFilterModel->setSearchRoles({CountryModel::CodeRole, CountryModel::NameRole});
     m_serverFilterModel->setSourceModel(m_serverModel);
     m_serverFilterModel->setSearchRoles({ServerModel::NameRole, ServerModel::LocationRole});
     m_serverFilterModel->sortByRole(ServerModel::LoadRole);
+    m_applicationFilterModel->setSourceModel(m_installedApplicationModel);
+    m_applicationFilterModel->setSearchRoles({
+        InstalledApplicationModel::NameRole,
+        InstalledApplicationModel::ExecutableRole,
+        InstalledApplicationModel::CommentRole,
+    });
 
     connect(m_serviceWatcher, &QDBusServiceWatcher::serviceRegistered,
             this, &VpnController::onServiceRegistered);
@@ -70,6 +82,13 @@ VpnController::VpnController(QObject *parent)
         QStringLiteral("SettingsChanged"),
         this,
         SLOT(onSettingsChanged(QString)));
+    QDBusConnection::sessionBus().connect(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("SplitTunnelingChanged"),
+        this,
+        SLOT(onSplitTunnelingChanged(QString)));
 
     const auto *interface = QDBusConnection::sessionBus().interface();
     setBackendAvailable(interface && interface->isServiceRegistered(
@@ -111,7 +130,15 @@ bool VpnController::primaryActionEnabled() const
 
 QAbstractItemModel *VpnController::countryModel() const { return m_countryFilterModel; }
 QAbstractItemModel *VpnController::serverModel() const { return m_serverFilterModel; }
+QAbstractItemModel *VpnController::applicationModel() const
+{
+    return m_applicationFilterModel;
+}
 VpnSettingsModel *VpnController::settings() const { return m_settings; }
+SplitTunnelingModel *VpnController::splitTunneling() const
+{
+    return m_splitTunneling;
+}
 
 void VpnController::refresh()
 {
@@ -267,6 +294,11 @@ void VpnController::setServerFilter(const QString &filterText)
     m_serverFilterModel->setFilterText(filterText);
 }
 
+void VpnController::setApplicationFilter(const QString &filterText)
+{
+    m_applicationFilterModel->setFilterText(filterText);
+}
+
 void VpnController::setReconnectionEnabled(bool enabled)
 {
     m_reconnectionEnabled = enabled;
@@ -362,6 +394,136 @@ void VpnController::updateSetting(const QString &name, const QVariant &value)
             this, &VpnController::handleSettingsReply);
 }
 
+void VpnController::loadSplitTunneling()
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn
+        || m_splitTunneling->busy()) {
+        return;
+    }
+    m_splitTunneling->setBusy(true);
+    m_splitTunneling->setMessage(QString{});
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetSplitTunneling"));
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 10000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleSplitTunnelingReply);
+}
+
+void VpnController::updateSplitTunneling(const QString &name,
+                                         const QVariant &value)
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn
+        || !m_splitTunneling->loaded() || m_splitTunneling->busy()) {
+        return;
+    }
+
+    QJsonValue jsonValue;
+    if (name == QStringLiteral("enabled")) {
+        if (value.metaType().id() != QMetaType::Bool) {
+            m_splitTunneling->setMessage(tr("The split-tunneling value is invalid"));
+            return;
+        }
+        jsonValue = value.toBool();
+    } else if (name == QStringLiteral("mode")) {
+        const QString mode = value.toString();
+        if (mode != QStringLiteral("exclude")
+            && mode != QStringLiteral("include")) {
+            m_splitTunneling->setMessage(tr("Select a valid split-tunneling mode"));
+            return;
+        }
+        jsonValue = mode;
+    } else if (name == QStringLiteral("excludeAppPaths")
+               || name == QStringLiteral("includeAppPaths")) {
+        const QStringList paths = value.toStringList();
+        if (paths.size() > 256) {
+            m_splitTunneling->setMessage(
+                tr("Too many split-tunneling applications are selected"));
+            return;
+        }
+        QJsonArray pathArray;
+        for (const QString &path : paths) {
+            if (path.isEmpty() || path.size() > 4096
+                || path.contains(QLatin1Char('\n'))
+                || path.contains(QLatin1Char('\r'))) {
+                m_splitTunneling->setMessage(
+                    tr("A split-tunneling application path is invalid"));
+                return;
+            }
+            pathArray.append(path);
+        }
+        jsonValue = pathArray;
+    } else {
+        m_splitTunneling->setMessage(
+            tr("That split-tunneling setting is not supported"));
+        return;
+    }
+
+    const QString patchJson = QString::fromUtf8(
+        QJsonDocument(QJsonObject{{name, jsonValue}}).toJson(
+            QJsonDocument::Compact));
+    m_splitTunneling->setBusy(true);
+    m_splitTunneling->setMessage(QString{});
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("UpdateSplitTunneling"));
+    message << patchJson;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleSplitTunnelingReply);
+}
+
+void VpnController::setSplitTunnelingApplication(
+    const QString &executable, bool selected)
+{
+    if (!m_splitTunneling->loaded() || m_splitTunneling->busy()) {
+        return;
+    }
+    if (selected
+        && !InstalledApplicationModel::isSafeVpnApplicationChoice(executable)) {
+        m_splitTunneling->setMessage(
+            tr("The Proton VPN client cannot bypass its own tunnel"));
+        return;
+    }
+
+    QStringList paths = m_splitTunneling->selectedAppPaths();
+    const bool alreadySelected = paths.contains(executable);
+    if (selected == alreadySelected) {
+        return;
+    }
+    if (selected) {
+        paths.append(executable);
+    } else {
+        paths.removeAll(executable);
+    }
+    const QString field = m_splitTunneling->mode() == QStringLiteral("include")
+        ? QStringLiteral("includeAppPaths")
+        : QStringLiteral("excludeAppPaths");
+    updateSplitTunneling(field, paths);
+}
+
+void VpnController::clearSplitTunnelingApplications()
+{
+    if (!m_splitTunneling->loaded() || m_splitTunneling->busy()) {
+        return;
+    }
+    const QString field = m_splitTunneling->mode() == QStringLiteral("include")
+        ? QStringLiteral("includeAppPaths")
+        : QStringLiteral("excludeAppPaths");
+    updateSplitTunneling(field, QStringList{});
+}
+
+QString VpnController::applicationName(const QString &executable) const
+{
+    return m_installedApplicationModel->nameForExecutable(executable);
+}
+
 void VpnController::onServiceRegistered(const QString &)
 {
     setBackendAvailable(true);
@@ -384,6 +546,7 @@ void VpnController::onServiceUnregistered(const QString &)
     m_serverLoadsRefreshPending = false;
     m_currentServerCountry.clear();
     m_settings->reset(tr("The Proton backend service stopped"));
+    m_splitTunneling->reset(tr("The Proton backend service stopped"));
     emit snapshotChanged();
 }
 
@@ -410,6 +573,15 @@ void VpnController::onSettingsChanged(const QString &settingsJson)
     if (!m_settings->applyJson(settingsJson, &errorMessage)) {
         m_settings->setBusy(false);
         m_settings->setMessage(errorMessage);
+    }
+}
+
+void VpnController::onSplitTunnelingChanged(const QString &settingsJson)
+{
+    QString errorMessage;
+    if (!m_splitTunneling->applyJson(settingsJson, &errorMessage)) {
+        m_splitTunneling->setBusy(false);
+        m_splitTunneling->setMessage(errorMessage);
     }
 }
 
@@ -465,6 +637,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_serverLoadsRefreshPending = false;
         m_currentServerCountry.clear();
         m_settings->reset();
+        m_splitTunneling->reset();
     }
     emit snapshotChanged();
     if (m_loggedIn && m_countryModel->rowCount() == 0 && !m_locationsBusy) {
@@ -730,5 +903,33 @@ void VpnController::handleSettingsReply(QDBusPendingCallWatcher *watcher)
     QString errorMessage;
     if (!m_settings->applyJson(reply.value(), &errorMessage)) {
         m_settings->setMessage(errorMessage);
+    }
+}
+
+void VpnController::handleSplitTunnelingReply(
+    QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<QString> reply = *watcher;
+    watcher->deleteLater();
+    m_splitTunneling->setBusy(false);
+    if (reply.isError()) {
+        if (reply.error().name()
+            == QStringLiteral(
+                "proton.vpn.app.kde.Error.InvalidSplitTunneling")) {
+            QString message = reply.error().message().trimmed();
+            if (message.isEmpty() || message.size() > 256
+                || message.contains(QLatin1Char('\n'))) {
+                message = tr("The split-tunneling setting could not be changed");
+            }
+            m_splitTunneling->setMessage(message);
+        } else {
+            m_splitTunneling->setMessage(
+                tr("Unable to save split-tunneling settings"));
+        }
+        return;
+    }
+    QString errorMessage;
+    if (!m_splitTunneling->applyJson(reply.value(), &errorMessage)) {
+        m_splitTunneling->setMessage(errorMessage);
     }
 }

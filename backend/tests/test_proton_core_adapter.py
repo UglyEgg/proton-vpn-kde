@@ -25,6 +25,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             connect=AsyncMock(),
             disconnect=AsyncMock(),
             iter_available_protocols=Mock(return_value=[protocol]),
+            is_split_tunneling_available=True,
         )
         refresher = SimpleNamespace(
             enable=AsyncMock(),
@@ -34,6 +35,25 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_up_to_date_server_list=AsyncMock(),
             get_up_to_date_client_config=AsyncMock(return_value="client-config"),
             feature_flags={},
+        )
+        exclude_config = SimpleNamespace(
+            app_paths=["/usr/bin/firefox"],
+            ip_ranges=["10.0.0.0/8"],
+        )
+        include_config = SimpleNamespace(app_paths=[], ip_ranges=[])
+        split_tunneling = SimpleNamespace(
+            enabled=False,
+            mode=SimpleNamespace(value="exclude"),
+            exclude=exclude_config,
+            include=include_config,
+        )
+        split_tunneling.get_config = Mock(
+            side_effect=lambda: (
+                split_tunneling.exclude
+                if getattr(split_tunneling.mode, "value", split_tunneling.mode)
+                == "exclude"
+                else split_tunneling.include
+            )
         )
         settings = SimpleNamespace(
             protocol="wireguard",
@@ -46,7 +66,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 moderate_nat=False,
                 vpn_accelerator=True,
                 port_forwarding=False,
-                split_tunneling=SimpleNamespace(enabled=False),
+                split_tunneling=split_tunneling,
             ),
         )
         api = SimpleNamespace(
@@ -377,6 +397,66 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         ) as save_error:
             await adapter.update_settings({"ipv6": False})
         self.assertNotIn("must-not-escape", str(save_error.exception))
+
+    async def test_split_tunneling_round_trip_preserves_ip_ranges(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        current = await adapter.get_split_tunneling()
+        self.assertTrue(current.available)
+        self.assertEqual(("/usr/bin/firefox",), current.exclude_app_paths)
+        self.assertEqual(1, current.exclude_ip_range_count)
+
+        updated = await adapter.update_split_tunneling(
+            {
+                "excludeAppPaths": ["/usr/bin/firefox", "/usr/bin/thunderbird"],
+                "enabled": True,
+            }
+        )
+
+        saved = api.save_settings.await_args.args[0]
+        self.assertTrue(saved.features.split_tunneling.enabled)
+        self.assertEqual(
+            ["/usr/bin/firefox", "/usr/bin/thunderbird"],
+            saved.features.split_tunneling.exclude.app_paths,
+        )
+        self.assertEqual(
+            ["10.0.0.0/8"], saved.features.split_tunneling.exclude.ip_ranges
+        )
+        self.assertTrue(updated.enabled)
+
+    async def test_split_tunneling_conflicts_do_not_mutate_other_settings(self):
+        api, connector = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 1
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(ValueError, "kill switch"):
+            await adapter.update_split_tunneling({"enabled": True})
+        self.assertEqual(1, settings.killswitch)
+        api.save_settings.assert_not_awaited()
+
+        settings.killswitch = 0
+        connector.is_split_tunneling_available = False
+        with self.assertRaisesRegex(RuntimeError, "unavailable"):
+            await adapter.update_split_tunneling({"enabled": True})
+        api.save_settings.assert_not_awaited()
+
+    async def test_include_mode_requires_a_target_before_enabling(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(ValueError, "at least one included"):
+            await adapter.update_split_tunneling(
+                {"mode": "include", "enabled": True}
+            )
+        self.assertEqual("exclude", settings.features.split_tunneling.mode.value)
+        self.assertFalse(settings.features.split_tunneling.enabled)
+        api.save_settings.assert_not_awaited()
 
     async def test_location_queries_filter_and_serialize_normal_servers(self):
         from proton.vpn.session.servers import ServerFeatureEnum

@@ -111,7 +111,40 @@ class VpnSettings:
         return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
 
+@dataclass(frozen=True, slots=True)
+class SplitTunnelingSettings:
+    """Validated view of Proton core's split-tunneling configuration."""
+
+    schema_version: int = 1
+    available: bool = False
+    paid_features_available: bool = False
+    enabled: bool = False
+    mode: str = "exclude"
+    exclude_app_paths: tuple[str, ...] = ()
+    include_app_paths: tuple[str, ...] = ()
+    exclude_ip_range_count: int = 0
+    include_ip_range_count: int = 0
+
+    def to_json(self) -> str:
+        return json.dumps(
+            {
+                "schemaVersion": self.schema_version,
+                "available": self.available,
+                "paidFeaturesAvailable": self.paid_features_available,
+                "enabled": self.enabled,
+                "mode": self.mode,
+                "excludeAppPaths": list(self.exclude_app_paths),
+                "includeAppPaths": list(self.include_app_paths),
+                "excludeIpRangeCount": self.exclude_ip_range_count,
+                "includeIpRangeCount": self.include_ip_range_count,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+
 SettingsValue: TypeAlias = str | int | bool
+SplitTunnelingValue: TypeAlias = bool | str | list[str]
 
 _SETTING_TYPES: dict[str, type[str] | type[int] | type[bool]] = {
     "protocol": str,
@@ -157,6 +190,71 @@ def settings_patch_from_json(patch_json: str) -> dict[str, SettingsValue]:
     return payload
 
 
+_SPLIT_TUNNELING_TYPES: dict[str, type[bool] | type[str] | type[list]] = {
+    "enabled": bool,
+    "mode": str,
+    "excludeAppPaths": list,
+    "includeAppPaths": list,
+}
+_FORBIDDEN_SPLIT_TUNNELING_COMMANDS = {
+    "/",
+    "/app",
+    "/bin",
+    "/snap",
+    "/usr",
+    "/usr/bin",
+}
+
+
+def split_tunneling_patch_from_json(
+    patch_json: str,
+) -> dict[str, SplitTunnelingValue]:
+    if not patch_json or len(patch_json) > 65536:
+        raise ValueError("The split-tunneling update is empty or too large")
+    try:
+        payload = json.loads(patch_json)
+    except json.JSONDecodeError as error:
+        raise ValueError("The split-tunneling update is not valid JSON") from error
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("The split-tunneling update must be a non-empty object")
+    unknown = set(payload) - set(_SPLIT_TUNNELING_TYPES)
+    if unknown:
+        raise ValueError("The split-tunneling update contains an unsupported field")
+    for key, value in payload.items():
+        if type(value) is not _SPLIT_TUNNELING_TYPES[key]:
+            raise ValueError(f"The {key} split-tunneling value has the wrong type")
+    if "mode" in payload and payload["mode"] not in {"exclude", "include"}:
+        raise ValueError("Select a valid split-tunneling mode")
+    for key in ("excludeAppPaths", "includeAppPaths"):
+        if key not in payload:
+            continue
+        app_paths = payload[key]
+        if not isinstance(app_paths, list) or len(app_paths) > 256:
+            raise ValueError("Too many split-tunneling applications were selected")
+        seen: set[str] = set()
+        for path in app_paths:
+            if (
+                type(path) is not str
+                or not path
+                or len(path) > 4096
+                or "\0" in path
+                or "\n" in path
+                or "\r" in path
+                or path != path.strip()
+            ):
+                raise ValueError("A split-tunneling application path is invalid")
+            command = path.split(maxsplit=1)[0].rstrip("/") or "/"
+            if command in _FORBIDDEN_SPLIT_TUNNELING_COMMANDS:
+                raise ValueError("Select a specific application executable")
+            lowered = command.casefold()
+            if "proton-vpn-kde" in lowered or "protonvpn-app" in lowered:
+                raise ValueError("The Proton VPN client cannot bypass its own tunnel")
+            if path in seen:
+                raise ValueError("A split-tunneling application was selected twice")
+            seen.add(path)
+    return payload
+
+
 LocationInfo = TypeVar("LocationInfo", CountryInfo, ServerInfo, ServerLoadInfo)
 
 
@@ -177,6 +275,7 @@ def location_list_to_json(kind: str, items: list[LocationInfo]) -> str:
 SnapshotCallback = Callable[[VpnSnapshot], None]
 ServerDataCallback = Callable[[bool], None]
 SettingsCallback = Callable[[VpnSettings], None]
+SplitTunnelingCallback = Callable[[SplitTunnelingSettings], None]
 
 
 class CoreAdapter(Protocol):
@@ -194,6 +293,10 @@ class CoreAdapter(Protocol):
     async def update_settings(
         self, patch: dict[str, SettingsValue]
     ) -> VpnSettings: ...
+    async def get_split_tunneling(self) -> SplitTunnelingSettings: ...
+    async def update_split_tunneling(
+        self, patch: dict[str, SplitTunnelingValue]
+    ) -> SplitTunnelingSettings: ...
     async def connect_fastest(self) -> None: ...
     async def connect_country(self, country_code: str) -> None: ...
     async def connect_server(self, server_name: str) -> None: ...
@@ -218,6 +321,7 @@ class BackendController:
         self._listeners: list[SnapshotCallback] = []
         self._server_data_listeners: list[ServerDataCallback] = []
         self._settings_listeners: list[SettingsCallback] = []
+        self._split_tunneling_listeners: list[SplitTunnelingCallback] = []
         self._operation_lock = asyncio.Lock()
 
     @property
@@ -232,6 +336,11 @@ class BackendController:
 
     def subscribe_settings(self, callback: SettingsCallback) -> None:
         self._settings_listeners.append(callback)
+
+    def subscribe_split_tunneling(
+        self, callback: SplitTunnelingCallback
+    ) -> None:
+        self._split_tunneling_listeners.append(callback)
 
     async def start(self) -> None:
         try:
@@ -301,6 +410,36 @@ class BackendController:
             self._publish(replace(self._snapshot, busy=False))
         self._publish_settings(settings)
         return settings.to_json()
+
+    async def get_split_tunneling_json(self) -> str:
+        self._require_session()
+        settings = await self._adapter.get_split_tunneling()
+        self._publish_split_tunneling(settings)
+        return settings.to_json()
+
+    async def update_split_tunneling_json(self, patch_json: str) -> str:
+        self._require_session()
+        patch = split_tunneling_patch_from_json(patch_json)
+        if self._operation_lock.locked():
+            raise RuntimeError("Another VPN operation is already in progress")
+        async with self._operation_lock:
+            self._publish(replace(self._snapshot, busy=True, message=""))
+            try:
+                split_tunneling = await self._adapter.update_split_tunneling(patch)
+                settings = await self._adapter.get_settings()
+            except Exception:
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=False,
+                        message="The split-tunneling settings could not be updated",
+                    )
+                )
+                raise
+            self._publish(replace(self._snapshot, busy=False))
+        self._publish_split_tunneling(split_tunneling)
+        self._publish_settings(settings)
+        return split_tunneling.to_json()
 
     async def connect_country(self, country_code: str) -> None:
         self._require_session()
@@ -406,6 +545,12 @@ class BackendController:
 
     def _publish_settings(self, settings: VpnSettings) -> None:
         for listener in tuple(self._settings_listeners):
+            listener(settings)
+
+    def _publish_split_tunneling(
+        self, settings: SplitTunnelingSettings
+    ) -> None:
+        for listener in tuple(self._split_tunneling_listeners):
             listener(settings)
 
     def _publish(self, snapshot: VpnSnapshot) -> None:

@@ -8,10 +8,20 @@ Kirigami.ScrollablePage {
     title: qsTr("Settings")
 
     property var vpnSettings: vpnController.settings
+    property var splitSettings: vpnController.splitTunneling
+    readonly property bool splitProtocolCompatible:
+        vpnSettings.protocol === "wireguard"
+        || vpnSettings.protocol.indexOf("protun-") === 0
+    readonly property bool splitConfigurationEditable:
+        !splitSettings.enabled
+        || (splitProtocolCompatible && vpnSettings.killSwitch === 0)
 
     Component.onCompleted: {
         if (vpnController.loggedIn && !vpnSettings.loaded) {
             vpnController.loadSettings()
+        }
+        if (vpnController.loggedIn && !splitSettings.loaded) {
+            vpnController.loadSplitTunneling()
         }
     }
 
@@ -21,6 +31,10 @@ Kirigami.ScrollablePage {
             if (vpnController.loggedIn && !page.vpnSettings.loaded
                     && !page.vpnSettings.busy) {
                 vpnController.loadSettings()
+            }
+            if (vpnController.loggedIn && !page.splitSettings.loaded
+                    && !page.splitSettings.busy) {
+                vpnController.loadSplitTunneling()
             }
         }
     }
@@ -186,14 +200,126 @@ Kirigami.ScrollablePage {
             text: qsTr("NetShield, VPN Accelerator, moderate NAT, and port forwarding require a paid Proton VPN plan.")
         }
 
+        Controls.Label {
+            Kirigami.FormData.isSection: true
+            text: qsTr("Split tunneling")
+        }
+
         Kirigami.InlineMessage {
             Layout.fillWidth: true
-            visible: vpnSettings.splitTunnelingEnabled
-                     || vpnSettings.customDnsEnabled
+            visible: splitSettings.message.length > 0
+            type: Kirigami.MessageType.Error
+            text: splitSettings.message
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            visible: vpnController.loggedIn && splitSettings.busy
+
+            Controls.BusyIndicator {
+                running: parent.visible
+                implicitWidth: Kirigami.Units.iconSizes.small
+                implicitHeight: implicitWidth
+            }
+
+            Controls.Label {
+                text: qsTr("Updating split-tunneling settings…")
+                color: Kirigami.Theme.disabledTextColor
+            }
+        }
+
+        Controls.Switch {
+            Kirigami.FormData.label: qsTr("Applications:")
+            text: qsTr("Enable split tunneling")
+            checked: splitSettings.enabled
+            enabled: splitSettings.loaded && splitSettings.available
+                     && splitSettings.paidFeaturesAvailable
+                     && !splitSettings.busy
+                     && (checked || (vpnSettings.killSwitch === 0
+                                     && page.splitProtocolCompatible))
+            onClicked: vpnController.updateSplitTunneling("enabled", checked)
+        }
+
+        Controls.ComboBox {
+            id: splitModeCombo
+            Kirigami.FormData.label: qsTr("Mode:")
+            Layout.fillWidth: true
+            model: [
+                { "id": "exclude", "name": qsTr("Exclude selected apps") },
+                { "id": "include", "name": qsTr("Only include selected apps") }
+            ]
+            textRole: "name"
+            valueRole: "id"
+            currentIndex: splitSettings.modeIndex
+            enabled: splitSettings.loaded && splitSettings.available
+                     && splitSettings.paidFeaturesAvailable
+                     && !splitSettings.busy
+                     && page.splitConfigurationEditable
+            onActivated: vpnController.updateSplitTunneling("mode", currentValue)
+        }
+
+        Controls.Button {
+            Kirigami.FormData.label: qsTr("Rules:")
+            text: qsTr("Choose applications…")
+            icon.name: "applications-all"
+            enabled: splitSettings.loaded && splitSettings.available
+                     && splitSettings.paidFeaturesAvailable
+                     && !splitSettings.busy
+                     && page.splitConfigurationEditable
+            onClicked: applicationWindow().pageStack.push(
+                Qt.resolvedUrl("SplitTunnelingPage.qml"))
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: splitSettings.loaded && !splitSettings.available
             type: Kirigami.MessageType.Information
-            text: vpnSettings.splitTunnelingEnabled
-                  ? qsTr("Split tunneling is enabled. Conflicting protocol and kill-switch changes are blocked until its native editor is available.")
-                  : qsTr("Custom DNS is enabled. Conflicting NetShield changes are blocked until its native editor is available.")
+            text: qsTr("The installed Proton VPN backend reports that split tunneling is unavailable on this system.")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: splitSettings.loaded && splitSettings.available
+                     && !splitSettings.paidFeaturesAvailable
+            type: Kirigami.MessageType.Information
+            text: qsTr("Split tunneling requires a paid Proton VPN plan.")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: splitSettings.loaded && vpnSettings.loaded
+                     && vpnSettings.killSwitch !== 0
+            type: Kirigami.MessageType.Warning
+            text: splitSettings.enabled
+                  ? qsTr("Turn split tunneling off before editing its rules, or disable the kill switch first.")
+                  : qsTr("Disable the kill switch before enabling split tunneling.")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: splitSettings.loaded && vpnSettings.loaded
+                     && !page.splitProtocolCompatible
+            type: Kirigami.MessageType.Warning
+            text: splitSettings.enabled
+                  ? qsTr("Turn split tunneling off before editing its rules, or select WireGuard first.")
+                  : qsTr("Select WireGuard or a compatible protocol before enabling split tunneling.")
+        }
+
+        Controls.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            visible: splitSettings.loaded
+                     && splitSettings.selectedIpRangeCount > 0
+            text: qsTr("%n existing IP rule(s) in this mode are preserved. This editor changes application rules only.",
+                       "", splitSettings.selectedIpRangeCount)
+            color: Kirigami.Theme.disabledTextColor
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: vpnSettings.customDnsEnabled
+            type: Kirigami.MessageType.Information
+            text: qsTr("Custom DNS is enabled. Conflicting NetShield changes remain blocked until its native editor is available.")
         }
 
         Controls.Label {

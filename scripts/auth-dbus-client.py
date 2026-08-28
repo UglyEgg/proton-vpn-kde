@@ -149,6 +149,44 @@ async def main() -> None:
     else:
         raise AssertionError("an unsupported setting was accepted")
 
+    split_tunneling = json.loads(
+        await interface.call_get_split_tunneling()
+    )
+    assert split_tunneling["schemaVersion"] == 1
+    assert split_tunneling["available"]
+    assert split_tunneling["paidFeaturesAvailable"]
+    assert split_tunneling["mode"] == "exclude"
+
+    updated_split_tunneling = json.loads(
+        await interface.call_update_split_tunneling(
+            json.dumps(
+                {
+                    "excludeAppPaths": ["/usr/bin/demo-browser"],
+                    "enabled": True,
+                },
+                separators=(",", ":"),
+            )
+        )
+    )
+    assert updated_split_tunneling["enabled"]
+    assert updated_split_tunneling["excludeAppPaths"] == [
+        "/usr/bin/demo-browser"
+    ]
+    assert updated_split_tunneling["excludeIpRangeCount"] == 0
+
+    try:
+        await interface.call_update_split_tunneling(
+            '{"excludeAppPaths":["/usr/bin"]}'
+        )
+    except DBusError as error:
+        assert error.type == (
+            "proton.vpn.app.kde.Error.InvalidSplitTunneling"
+        )
+        assert "specific application" in error.text
+        assert "Traceback" not in str(error)
+    else:
+        raise AssertionError("an unsafe split-tunneling path was accepted")
+
     await interface.call_logout()
     signed_out = await snapshot(interface)
     assert signed_out["authState"] == "signed_out"

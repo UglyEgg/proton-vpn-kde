@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.6.0 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.7.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
@@ -36,7 +36,9 @@ if(ECM_FOUND)
     find_package(KF6StatusNotifierItem QUIET)
 endif()
 find_package(KF6Config 6.0 REQUIRED)
+find_package(KF6CoreAddons 6.0 REQUIRED)
 find_package(KF6Notifications 6.0 REQUIRED)
+find_package(KF6Service 6.0 REQUIRED)
 find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
 
 qt_standard_project_setup(REQUIRES 6.8)
@@ -44,10 +46,14 @@ qt_standard_project_setup(REQUIRES 6.8)
 qt_add_executable(proton-vpn-kde
     src/AppSettings.cpp
     src/AppSettings.h
+    src/InstalledApplicationModel.cpp
+    src/InstalledApplicationModel.h
     src/NotificationIntegration.cpp
     src/NotificationIntegration.h
     src/SecretTransport.cpp
     src/SecretTransport.h
+    src/SplitTunnelingModel.cpp
+    src/SplitTunnelingModel.h
     src/main.cpp
     src/LocationModels.cpp
     src/LocationModels.h
@@ -71,6 +77,7 @@ qt_add_qml_module(proton-vpn-kde
         qml/ServersPage.qml
         qml/SettingsPage.qml
         qml/SignInPage.qml
+        qml/SplitTunnelingPage.qml
 )
 
 target_link_libraries(proton-vpn-kde PRIVATE
@@ -82,7 +89,9 @@ target_link_libraries(proton-vpn-kde PRIVATE
     Qt6::QuickControls2
     Qt6::Widgets
     KF6::ConfigCore
+    KF6::CoreAddons
     KF6::Notifications
+    KF6::Service
     OpenSSL::Crypto
 )
 
@@ -140,6 +149,39 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME vpn-settings-model-tests COMMAND vpn-settings-model-tests)
+
+    qt_add_executable(split-tunneling-model-tests
+        tests/SplitTunnelingModelTest.cpp
+        src/SplitTunnelingModel.cpp
+        src/SplitTunnelingModel.h
+    )
+    target_include_directories(split-tunneling-model-tests PRIVATE src)
+    target_link_libraries(split-tunneling-model-tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    target_compile_options(split-tunneling-model-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME split-tunneling-model-tests COMMAND split-tunneling-model-tests)
+
+    qt_add_executable(installed-application-model-tests
+        tests/InstalledApplicationModelTest.cpp
+        src/InstalledApplicationModel.cpp
+        src/InstalledApplicationModel.h
+    )
+    target_include_directories(installed-application-model-tests PRIVATE src)
+    target_link_libraries(installed-application-model-tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+        KF6::CoreAddons
+        KF6::Service
+    )
+    target_compile_options(installed-application-model-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME installed-application-model-tests
+        COMMAND installed-application-model-tests)
 
     qt_add_executable(secret-transport-tests
         tests/SecretTransportTest.cpp

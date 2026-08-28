@@ -94,6 +94,27 @@ if [[ "$updated_settings" != *'"netShield":2'* \
     exit 1
 fi
 
+split_tunneling="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.GetSplitTunneling)"
+if [[ "$split_tunneling" != *'"available":true'* \
+    || "$split_tunneling" != *'"mode":"exclude"'* ]]; then
+    echo "Backend did not return the demo split-tunneling settings" >&2
+    exit 1
+fi
+
+updated_split_tunneling="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.UpdateSplitTunneling \
+    '{"excludeAppPaths":["/usr/bin/demo-browser"],"enabled":true}')"
+if [[ "$updated_split_tunneling" != *'"enabled":true'* \
+    || "$updated_split_tunneling" != *'"excludeAppPaths":["/usr/bin/demo-browser"]'* ]]; then
+    echo "Backend did not apply the demo split-tunneling settings" >&2
+    exit 1
+fi
+
 gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \

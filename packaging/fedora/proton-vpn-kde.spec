@@ -1,7 +1,7 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.6.0
+Version:        0.7.0
 Release:        1%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
@@ -14,7 +14,9 @@ BuildRequires:  desktop-file-utils
 BuildRequires:  extra-cmake-modules
 BuildRequires:  gcc-c++
 BuildRequires:  kf6-kconfig-devel
+BuildRequires:  kf6-kcoreaddons-devel
 BuildRequires:  kf6-knotifications-devel
+BuildRequires:  kf6-kservice-devel
 %if %{with kstatusnotifier}
 BuildRequires:  kf6-kstatusnotifieritem-devel
 %endif
@@ -77,6 +79,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-backend.service
 
 %changelog
+* Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.7.0-1
+- Add a native Plasma split-tunneling application editor.
+- Discover installed applications through KService without GTK or Gio.
+- Preserve Proton core's existing IP rules and compatibility constraints.
+
 * Thu Aug 27 2026 uglyegg <uglyegg@entropy.quest> - 0.6.0-1
 - Add native, conflict-aware Proton VPN settings.
 - Keep settings persistence and feature constraints in the official core.

@@ -24,6 +24,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Native server ordering by current load, updated without resetting the list
 - Native Proton settings for protocol, kill switch, NetShield, VPN Accelerator,
   moderate NAT, port forwarding, IPv6, and anonymous crash reports
+- Native split-tunneling controls and a Plasma application chooser backed by
+  `KApplicationTrader`; existing Proton IP rules remain untouched
 - Conflict-aware settings controls that preserve Proton core's paid-plan,
   split-tunneling, custom-DNS, and connected-state constraints
 - Provider-agnostic Secret Service initialization that cannot block D-Bus
@@ -59,6 +61,7 @@ For full Plasma tray integration on Fedora:
 
 ```bash
 sudo dnf install kf6-kconfig-devel kf6-knotifications-devel \
+    kf6-kcoreaddons-devel kf6-kservice-devel \
     kf6-kstatusnotifieritem-devel openssl-devel
 ```
 

@@ -7,6 +7,7 @@ from proton_vpn_kde_backend.controller import (
     BackendController,
     VpnSnapshot,
     settings_patch_from_json,
+    split_tunneling_patch_from_json,
 )
 
 
@@ -101,6 +102,39 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             settings_patch_from_json('{"killSwitch":true}')
         with self.assertRaisesRegex(ValueError, "valid NetShield"):
             settings_patch_from_json('{"netShield":9}')
+
+    async def test_split_tunneling_payload_updates_and_syncs_scalar_settings(self):
+        events = []
+        settings_events = []
+        self.controller.subscribe_split_tunneling(events.append)
+        self.controller.subscribe_settings(settings_events.append)
+
+        initial = await self.controller.get_split_tunneling_json()
+        updated = await self.controller.update_split_tunneling_json(
+            '{"excludeAppPaths":["/usr/bin/firefox"],"enabled":true}'
+        )
+
+        self.assertIn('"available":true', initial)
+        self.assertIn('"excludeAppPaths":["/usr/bin/firefox"]', updated)
+        self.assertIn('"enabled":true', updated)
+        self.assertEqual(("/usr/bin/firefox",), events[-1].exclude_app_paths)
+        self.assertTrue(settings_events[-1].split_tunneling_enabled)
+
+    async def test_split_tunneling_patch_rejects_unsafe_application_paths(self):
+        with self.assertRaisesRegex(ValueError, "unsupported field"):
+            split_tunneling_patch_from_json('{"password":"no"}')
+        with self.assertRaisesRegex(ValueError, "wrong type"):
+            split_tunneling_patch_from_json('{"enabled":1}')
+        with self.assertRaisesRegex(ValueError, "specific application"):
+            split_tunneling_patch_from_json('{"excludeAppPaths":["/"]}')
+        with self.assertRaisesRegex(ValueError, "cannot bypass"):
+            split_tunneling_patch_from_json(
+                '{"excludeAppPaths":["/usr/bin/proton-vpn-kde"]}'
+            )
+        with self.assertRaisesRegex(ValueError, "selected twice"):
+            split_tunneling_patch_from_json(
+                '{"excludeAppPaths":["/usr/bin/firefox","/usr/bin/firefox"]}'
+            )
 
     async def test_demo_authentication_and_logout_lifecycle(self):
         controller = BackendController(DemoCoreAdapter(logged_in=False))

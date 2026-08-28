@@ -8,7 +8,9 @@ The native frontend currently needs:
 - Qt 6 Core, DBus, Gui, QML, Quick, Quick Controls, and Widgets development files
 - Extra CMake Modules
 - `kf6-kconfig-devel`
+- `kf6-kcoreaddons-devel`
 - `kf6-knotifications-devel`
+- `kf6-kservice-devel`
 - `openssl-devel`
 - the system Python 3 interpreter
 
@@ -24,13 +26,18 @@ Proton modules instead of a user virtual environment.
 
 - `kf6-kirigami`
 - `kf6-kconfig`
+- `kf6-kcoreaddons`
 - `kf6-knotifications`
+- `kf6-kservice`
 - `python3-dbus-fast`
 - `python3-cryptography`
 - `python3-fido2`
 - `python3-proton-vpn-api-core`
 - Proton's existing protocol, NetworkManager, kill-switch, and
-  split-tunneling packages pulled in by the core
+split-tunneling packages pulled in by the core
+
+`KService` provides the application catalog used by the split-tunneling
+chooser. The frontend does not load Gio or parse desktop-entry files itself.
 
 Add `kf6-kstatusnotifieritem` when the frontend was built with its development
 component; otherwise the Qt tray fallback has no KF6 StatusNotifierItem runtime

@@ -12,6 +12,8 @@ from .controller import (
     ServerDataCallback,
     ServerInfo,
     ServerLoadInfo,
+    SplitTunnelingSettings,
+    SplitTunnelingValue,
     SettingsValue,
     SnapshotCallback,
     VpnSettings,
@@ -19,6 +21,10 @@ from .controller import (
 )
 from .fido_interaction import FidoInteraction
 from .reconnector import AsyncReconnector
+
+
+def _supports_split_tunneling(protocol: str) -> bool:
+    return protocol == "wireguard" or protocol.startswith("protun-")
 
 
 class DemoCoreAdapter:
@@ -36,6 +42,10 @@ class DemoCoreAdapter:
                 ProtocolInfo("openvpn-udp", "OpenVPN (UDP)"),
                 ProtocolInfo("openvpn-tcp", "OpenVPN (TCP)"),
             ),
+            paid_features_available=logged_in,
+        )
+        self._split_tunneling = SplitTunnelingSettings(
+            available=True,
             paid_features_available=logged_in,
         )
         self._snapshot = self._build_snapshot(message="Safe demo backend")
@@ -119,6 +129,51 @@ class DemoCoreAdapter:
             raise ValueError("Select an available VPN protocol")
         self._settings = replace(self._settings, **replacements)
         return await self.get_settings()
+
+    async def get_split_tunneling(self) -> SplitTunnelingSettings:
+        return replace(
+            self._split_tunneling,
+            paid_features_available=self._logged_in,
+        )
+
+    async def update_split_tunneling(
+        self, patch: dict[str, SplitTunnelingValue]
+    ) -> SplitTunnelingSettings:
+        if not self._logged_in:
+            raise RuntimeError("A Proton account session is required")
+        if not self._split_tunneling.available:
+            raise RuntimeError("Split tunneling is unavailable on this system")
+        if patch.get("enabled") is True:
+            if self._settings.kill_switch != 0:
+                raise ValueError("Disable the kill switch before enabling split tunneling")
+            if not _supports_split_tunneling(self._settings.protocol):
+                raise ValueError("Select WireGuard or a compatible protocol first")
+
+        replacements = {
+            {
+                "enabled": "enabled",
+                "mode": "mode",
+                "excludeAppPaths": "exclude_app_paths",
+                "includeAppPaths": "include_app_paths",
+            }[key]: tuple(value) if isinstance(value, list) else value
+            for key, value in patch.items()
+        }
+        updated = replace(self._split_tunneling, **replacements)
+        if (
+            updated.enabled
+            and updated.mode == "include"
+            and not updated.include_app_paths
+            and updated.include_ip_range_count == 0
+        ):
+            raise ValueError(
+                "Select at least one included application before enabling this mode"
+            )
+        self._split_tunneling = updated
+        self._settings = replace(
+            self._settings,
+            split_tunneling_enabled=updated.enabled,
+        )
+        return await self.get_split_tunneling()
 
     async def connect_country(self, country_code: str) -> None:
         await self._transition("connecting", "")
@@ -317,6 +372,10 @@ class ProtonCoreAdapter:
         settings = await self._load_settings()
         return self._settings_from_core(settings)
 
+    async def get_split_tunneling(self) -> SplitTunnelingSettings:
+        settings = await self._load_settings()
+        return self._split_tunneling_from_core(settings)
+
     async def update_settings(
         self, patch: dict[str, SettingsValue]
     ) -> VpnSettings:
@@ -383,13 +442,50 @@ class ProtonCoreAdapter:
             elif key == "anonymousCrashReports":
                 settings.anonymous_crash_reports = value
 
-        try:
-            await self._api.save_settings(settings)
-        except Exception as error:
-            if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
-                await self._raise_session_error(error)
-            raise RuntimeError("Proton could not save the VPN settings") from None
+        await self._save_settings(settings)
         return self._settings_from_core(settings)
+
+    async def update_split_tunneling(
+        self, patch: dict[str, SplitTunnelingValue]
+    ) -> SplitTunnelingSettings:
+        settings = await self._load_settings()
+        split_tunneling = settings.features.split_tunneling
+        if not bool(self._connector.is_split_tunneling_available):
+            raise RuntimeError("Split tunneling is unavailable on this system")
+        if self._user_tier() < 1:
+            raise RuntimeError("Split tunneling requires a paid Proton VPN plan")
+
+        final_enabled = patch.get("enabled", split_tunneling.enabled)
+        final_mode = patch.get(
+            "mode", self._mode_value(split_tunneling.mode)
+        )
+        if final_enabled:
+            if int(settings.killswitch) != 0:
+                raise ValueError("Disable the kill switch before enabling split tunneling")
+            if not self._protocol_supports_split_tunneling(settings.protocol):
+                raise ValueError("Select WireGuard or a compatible protocol first")
+            if final_mode == "include":
+                include_paths = patch.get(
+                    "includeAppPaths", split_tunneling.include.app_paths
+                )
+                if not include_paths and not split_tunneling.include.ip_ranges:
+                    raise ValueError(
+                        "Select at least one included application before enabling this mode"
+                    )
+
+        if "mode" in patch:
+            from proton.vpn.core.settings.split_tunneling import SplitTunnelingMode
+
+            split_tunneling.mode = SplitTunnelingMode(patch["mode"])
+        if "excludeAppPaths" in patch:
+            split_tunneling.exclude.app_paths = list(patch["excludeAppPaths"])
+        if "includeAppPaths" in patch:
+            split_tunneling.include.app_paths = list(patch["includeAppPaths"])
+        if "enabled" in patch:
+            split_tunneling.enabled = bool(patch["enabled"])
+
+        await self._save_settings(settings)
+        return self._split_tunneling_from_core(settings)
 
     async def _load_settings(self):
         try:
@@ -398,6 +494,14 @@ class ProtonCoreAdapter:
             if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
                 await self._raise_session_error(error)
             raise RuntimeError("Proton could not load the VPN settings") from None
+
+    async def _save_settings(self, settings: Any) -> None:
+        try:
+            await self._api.save_settings(settings)
+        except Exception as error:
+            if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
+                await self._raise_session_error(error)
+            raise RuntimeError("Proton could not save the VPN settings") from None
 
     async def connect_country(self, country_code: str) -> None:
         server_list = await self._get_server_list()
@@ -456,6 +560,21 @@ class ProtonCoreAdapter:
             custom_dns_enabled=bool(settings.custom_dns.enabled),
         )
 
+    def _split_tunneling_from_core(
+        self, settings: Any
+    ) -> SplitTunnelingSettings:
+        split_tunneling = settings.features.split_tunneling
+        return SplitTunnelingSettings(
+            available=bool(self._connector.is_split_tunneling_available),
+            paid_features_available=self._user_tier() >= 1,
+            enabled=bool(split_tunneling.enabled),
+            mode=self._mode_value(split_tunneling.mode),
+            exclude_app_paths=tuple(split_tunneling.exclude.app_paths),
+            include_app_paths=tuple(split_tunneling.include.app_paths),
+            exclude_ip_range_count=len(split_tunneling.exclude.ip_ranges),
+            include_ip_range_count=len(split_tunneling.include.ip_ranges),
+        )
+
     def _available_protocols(self, current_protocol: str) -> tuple[ProtocolInfo, ...]:
         protocols: list[ProtocolInfo] = []
         seen: set[str] = set()
@@ -489,6 +608,10 @@ class ProtonCoreAdapter:
     @staticmethod
     def _protocol_supports_split_tunneling(protocol: str) -> bool:
         return protocol == "wireguard" or protocol.startswith("protun-")
+
+    @staticmethod
+    def _mode_value(mode: Any) -> str:
+        return str(getattr(mode, "value", mode))
 
     async def disconnect(self) -> None:
         await self._connector.disconnect()

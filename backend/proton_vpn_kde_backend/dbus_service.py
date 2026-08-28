@@ -5,7 +5,12 @@ from __future__ import annotations
 from dbus_fast.errors import DBusError
 from dbus_fast.service import ServiceInterface, method, signal
 
-from .controller import BackendController, VpnSettings, VpnSnapshot
+from .controller import (
+    BackendController,
+    SplitTunnelingSettings,
+    VpnSettings,
+    VpnSnapshot,
+)
 from .secret_payload import SecretPayloadReader
 
 
@@ -14,6 +19,9 @@ OBJECT_PATH = "/proton/vpn/app/kde/backend"
 INTERFACE_NAME = "proton.vpn.app.kde.Backend1"
 INVALID_SECRET_ERROR = "proton.vpn.app.kde.Error.InvalidSecretPayload"
 INVALID_SETTINGS_ERROR = "proton.vpn.app.kde.Error.InvalidSettings"
+INVALID_SPLIT_TUNNELING_ERROR = (
+    "proton.vpn.app.kde.Error.InvalidSplitTunneling"
+)
 
 
 class VpnDbusService(ServiceInterface):
@@ -24,6 +32,7 @@ class VpnDbusService(ServiceInterface):
         controller.subscribe(self._on_snapshot)
         controller.subscribe_server_data(self._on_server_data)
         controller.subscribe_settings(self._on_settings)
+        controller.subscribe_split_tunneling(self._on_split_tunneling)
 
     @method(name="GetSnapshot")
     def get_snapshot(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
@@ -62,6 +71,22 @@ class VpnDbusService(ServiceInterface):
             return await self._controller.update_settings_json(patch_json)
         except (RuntimeError, ValueError) as error:
             raise DBusError(INVALID_SETTINGS_ERROR, str(error)) from error
+
+    @method(name="GetSplitTunneling")
+    async def get_split_tunneling(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        try:
+            return await self._controller.get_split_tunneling_json()
+        except (RuntimeError, ValueError) as error:
+            raise DBusError(INVALID_SPLIT_TUNNELING_ERROR, str(error)) from error
+
+    @method(name="UpdateSplitTunneling")
+    async def update_split_tunneling(self, patch_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        try:
+            return await self._controller.update_split_tunneling_json(
+                patch_json
+            )
+        except (RuntimeError, ValueError) as error:
+            raise DBusError(INVALID_SPLIT_TUNNELING_ERROR, str(error)) from error
 
     @method(name="ConnectCountry")
     async def connect_country(self, country_code: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
@@ -122,6 +147,10 @@ class VpnDbusService(ServiceInterface):
     def settings_changed(self, settings_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return settings_json
 
+    @signal(name="SplitTunnelingChanged")
+    def split_tunneling_changed(self, settings_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        return settings_json
+
     def _on_snapshot(self, snapshot: VpnSnapshot) -> None:
         self.snapshot_changed(snapshot.to_json())
 
@@ -130,6 +159,11 @@ class VpnDbusService(ServiceInterface):
 
     def _on_settings(self, settings: VpnSettings) -> None:
         self.settings_changed(settings.to_json())
+
+    def _on_split_tunneling(
+        self, settings: SplitTunnelingSettings
+    ) -> None:
+        self.split_tunneling_changed(settings.to_json())
 
     def _read_secret(
         self,
