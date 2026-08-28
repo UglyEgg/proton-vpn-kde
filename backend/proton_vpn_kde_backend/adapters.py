@@ -344,6 +344,15 @@ class DemoCoreAdapter:
         account_name: str = "demo-user",
         message: str = "",
     ) -> VpnSnapshot:
+        details = {
+            "CH#101": ("Zurich", "CH", "", False),
+            "CH#202": ("Zurich", "CH", "", False),
+            "CH-DE#1": ("Zurich", "CH", "DE", True),
+            "US-IL#600": ("Chicago, IL", "US", "", False),
+            "US-NY#88": ("New York, NY", "US", "", False),
+            "US#FASTEST": ("Fastest available", "US", "", False),
+            "CH#FASTEST": ("Fastest available", "CH", "", False),
+        }.get(server_name, ("", "", "", False))
         return VpnSnapshot(
             ready=True,
             logged_in=self._logged_in,
@@ -355,6 +364,15 @@ class DemoCoreAdapter:
             reconnect_enabled=self._reconnection_enabled,
             state=state,
             server_name=server_name,
+            server_location=details[0],
+            exit_country=details[1],
+            entry_country=details[2],
+            forwarded_port=(
+                51820
+                if state == "connected" and self._settings.port_forwarding
+                else 0
+            ),
+            secure_core=details[3],
             message=message,
         )
 
@@ -1112,6 +1130,41 @@ class ProtonCoreAdapter:
 
         connection = self._connector.current_connection if self._connector else None
         server_name = connection.server_name if connection else ""
+        logical_server = None
+        if server_name and self._logged_in:
+            try:
+                logical_server = self._api.refresher.server_list.get_by_name(
+                    server_name
+                )
+            except Exception:
+                logical_server = None
+        forwarded_port = 0
+        if state_name == "connected":
+            try:
+                candidate_port = state.forwarded_port
+                if type(candidate_port) is int and 0 < candidate_port <= 65535:
+                    forwarded_port = candidate_port
+            except Exception:
+                forwarded_port = 0
+        server_location = ""
+        exit_country = ""
+        entry_country = ""
+        secure_core = False
+        tor = False
+        p2p = False
+        streaming = False
+        smart_routing = False
+        if logical_server is not None:
+            from proton.vpn.session.servers import ServerFeatureEnum
+
+            server_location = logical_server.location or ""
+            exit_country = logical_server.exit_country.upper()
+            entry_country = logical_server.entry_country.upper()
+            secure_core = ServerFeatureEnum.SECURE_CORE in logical_server.features
+            tor = ServerFeatureEnum.TOR in logical_server.features
+            p2p = ServerFeatureEnum.P2P in logical_server.features
+            streaming = ServerFeatureEnum.STREAMING in logical_server.features
+            smart_routing = logical_server.smart_routing
         account_name = ""
         plan_title = ""
         user_tier = 0
@@ -1146,6 +1199,15 @@ class ProtonCoreAdapter:
             reconnect_enabled=self._reconnection_enabled,
             state=state_name,
             server_name=server_name,
+            server_location=server_location,
+            exit_country=exit_country,
+            entry_country=entry_country,
+            forwarded_port=forwarded_port,
+            secure_core=secure_core,
+            tor=tor,
+            p2p=p2p,
+            streaming=streaming,
+            smart_routing=smart_routing,
             message=(
                 self._status_message
                 if self._logged_in

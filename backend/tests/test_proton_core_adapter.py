@@ -300,10 +300,23 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connector.unregister.assert_called_once_with(adapter)
 
     async def test_state_mapping_exposes_only_safe_connection_metadata(self):
+        from proton.vpn.session.servers import ServerFeatureEnum
+
         api, connector = self.make_api()
         connector.current_connection = SimpleNamespace(server_name="US-IL#42")
+        logical_server = SimpleNamespace(
+            location="Chicago, IL",
+            exit_country="US",
+            entry_country="CA",
+            features=[ServerFeatureEnum.P2P, ServerFeatureEnum.TOR],
+            smart_routing=True,
+        )
+        api.refresher.server_list = SimpleNamespace(
+            get_by_name=Mock(return_value=logical_server)
+        )
         adapter = ProtonCoreAdapter(api)
         adapter._connector = connector
+        adapter._logged_in = True
 
         for state_name in (
             "Connected",
@@ -312,9 +325,23 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             "Disconnected",
             "Error",
         ):
-            snapshot = adapter._snapshot_from_state(state_named(state_name))
+            state = state_named(state_name)
+            if state_name == "Connected":
+                state.forwarded_port = 43123
+            snapshot = adapter._snapshot_from_state(state)
             self.assertEqual(state_name.lower(), snapshot.state)
             self.assertEqual("US-IL#42", snapshot.server_name)
+
+        self.assertEqual("Chicago, IL", snapshot.server_location)
+        connected = state_named("Connected")
+        connected.forwarded_port = 43123
+        snapshot = adapter._snapshot_from_state(connected)
+        self.assertEqual(43123, snapshot.forwarded_port)
+        self.assertEqual("US", snapshot.exit_country)
+        self.assertEqual("CA", snapshot.entry_country)
+        self.assertTrue(snapshot.tor)
+        self.assertTrue(snapshot.p2p)
+        self.assertTrue(snapshot.smart_routing)
 
         self.assertEqual(
             "error", adapter._snapshot_from_state(state_named("FutureState")).state

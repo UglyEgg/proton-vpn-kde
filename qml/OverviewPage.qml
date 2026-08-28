@@ -6,6 +6,26 @@ import org.kde.kirigami as Kirigami
 Kirigami.Page {
     id: page
     title: qsTr("Connection")
+    property bool portCopied: false
+
+    function countryFlag(code) {
+        let upper = code.toUpperCase()
+        if (upper === "UK") {
+            upper = "GB"
+        }
+        if (upper.length !== 2) {
+            return ""
+        }
+        return String.fromCodePoint(
+            0x1F1E6 + upper.charCodeAt(0) - 65,
+            0x1F1E6 + upper.charCodeAt(1) - 65)
+    }
+
+    Timer {
+        id: copiedTimer
+        interval: 1500
+        onTriggered: page.portCopied = false
+    }
 
     function stateLabel(state) {
         const labels = {
@@ -116,13 +136,94 @@ Kirigami.Page {
                 spacing: Kirigami.Units.smallSpacing
 
                 Controls.Label {
-                    text: qsTr("Native Plasma milestone")
+                    text: vpnController.state === "connected"
+                          ? qsTr("Connection details")
+                          : qsTr("Server selection")
                     font.bold: true
+                }
+                RowLayout {
+                    visible: vpnController.state === "connected"
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Controls.Label {
+                        text: page.countryFlag(vpnController.exitCountry)
+                        font.pixelSize: Kirigami.Units.gridUnit * 1.4
+                    }
+                    ColumnLayout {
+                        spacing: 0
+                        Controls.Label {
+                            text: vpnController.serverLocation.length > 0
+                                  ? vpnController.serverLocation
+                                  : vpnController.exitCountry
+                            font.bold: true
+                        }
+                        Controls.Label {
+                            text: vpnController.secureCore
+                                  && vpnController.entryCountry.length > 0
+                                  ? qsTr("%1 · Via %2")
+                                        .arg(vpnController.serverName)
+                                        .arg(vpnController.entryCountry)
+                                  : vpnController.serverName
+                            color: Kirigami.Theme.disabledTextColor
+                        }
+                    }
+                }
+                RowLayout {
+                    visible: vpnController.state === "connected"
+                             && (vpnController.secureCore
+                                 || vpnController.tor
+                                 || vpnController.p2p
+                                 || vpnController.streaming
+                                 || vpnController.smartRouting)
+                    Controls.Label {
+                        visible: vpnController.secureCore
+                        text: qsTr("Secure Core")
+                        color: Kirigami.Theme.positiveTextColor
+                    }
+                    Controls.Label {
+                        visible: vpnController.tor
+                        text: qsTr("Tor")
+                        color: Kirigami.Theme.neutralTextColor
+                    }
+                    Controls.Label {
+                        visible: vpnController.p2p
+                        text: qsTr("P2P")
+                        color: Kirigami.Theme.positiveTextColor
+                    }
+                    Controls.Label {
+                        visible: vpnController.streaming
+                        text: qsTr("Streaming")
+                        color: Kirigami.Theme.linkColor
+                    }
+                    Controls.Label {
+                        visible: vpnController.smartRouting
+                        text: qsTr("Smart Routing")
+                        color: Kirigami.Theme.linkColor
+                    }
+                }
+                RowLayout {
+                    visible: vpnController.state === "connected"
+                             && vpnController.forwardedPort > 0
+                    Controls.Label {
+                        text: qsTr("Active forwarded port: %1").arg(
+                            vpnController.forwardedPort)
+                    }
+                    Controls.Button {
+                        flat: true
+                        icon.name: page.portCopied ? "dialog-ok" : "edit-copy"
+                        text: page.portCopied ? qsTr("Copied") : qsTr("Copy")
+                        onClicked: {
+                            vpnController.copyForwardedPort()
+                            page.portCopied = true
+                            copiedTimer.restart()
+                        }
+                    }
                 }
                 Controls.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: qsTr("Native sign-in, server selection, recovery, and Plasma integration. Proton's official core continues to own networking and security behavior.")
+                    visible: vpnController.state !== "connected"
+                    text: qsTr("Choose the fastest available server, or browse countries and locations.")
                     color: Kirigami.Theme.disabledTextColor
                 }
                 Controls.Button {

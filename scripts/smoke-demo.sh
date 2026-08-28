@@ -166,6 +166,31 @@ fi
 gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.UpdateSettings \
+    '{"portForwarding":true}' >/dev/null
+gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.ConnectGroup \
+    CH secure-core 'Via Secure Core'
+connected_snapshot="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.GetSnapshot)"
+if [[ "$connected_snapshot" != *'"serverName":"CH-DE#1"'* \
+    || "$connected_snapshot" != *'"forwardedPort":51820'* \
+    || "$connected_snapshot" != *'"secureCore":true'* ]]; then
+    echo "Backend did not publish live Secure Core connection details" >&2
+    exit 1
+fi
+gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.Disconnect
+
+gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
     --method proton.vpn.app.kde.Backend1.SetReconnectionEnabled false
 
 snapshot="$(gdbus call --session \

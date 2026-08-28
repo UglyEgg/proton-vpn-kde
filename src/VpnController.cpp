@@ -8,6 +8,7 @@
 #include "VpnSettingsModel.h"
 
 #include <QAbstractItemModel>
+#include <QClipboard>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusError>
@@ -15,11 +16,13 @@
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QDBusServiceWatcher>
+#include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMetaType>
 #include <QSet>
+#include <algorithm>
 
 namespace
 {
@@ -125,6 +128,15 @@ bool VpnController::busy() const { return m_busy; }
 bool VpnController::locationsBusy() const { return m_locationsBusy; }
 QString VpnController::state() const { return m_state; }
 QString VpnController::serverName() const { return m_serverName; }
+QString VpnController::serverLocation() const { return m_serverLocation; }
+QString VpnController::exitCountry() const { return m_exitCountry; }
+QString VpnController::entryCountry() const { return m_entryCountry; }
+int VpnController::forwardedPort() const { return m_forwardedPort; }
+bool VpnController::secureCore() const { return m_secureCore; }
+bool VpnController::tor() const { return m_tor; }
+bool VpnController::p2p() const { return m_p2p; }
+bool VpnController::streaming() const { return m_streaming; }
+bool VpnController::smartRouting() const { return m_smartRouting; }
 QString VpnController::message() const { return m_message; }
 
 QString VpnController::primaryActionText() const
@@ -185,6 +197,16 @@ void VpnController::activatePrimaryAction()
         || m_state == QStringLiteral("disconnecting");
     callOperation(shouldDisconnect ? QStringLiteral("Disconnect")
                                    : QStringLiteral("ConnectFastest"));
+}
+
+void VpnController::copyForwardedPort()
+{
+    if (m_forwardedPort <= 0) {
+        return;
+    }
+    if (QClipboard *clipboard = QGuiApplication::clipboard()) {
+        clipboard->setText(QString::number(m_forwardedPort));
+    }
 }
 
 void VpnController::loadCountries()
@@ -904,6 +926,16 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_customDns->setRestartRequired(false);
     }
     m_serverName = snapshot.value(QStringLiteral("serverName")).toString();
+    m_serverLocation = snapshot.value(QStringLiteral("serverLocation")).toString();
+    m_exitCountry = snapshot.value(QStringLiteral("exitCountry")).toString();
+    m_entryCountry = snapshot.value(QStringLiteral("entryCountry")).toString();
+    m_forwardedPort = std::clamp(
+        snapshot.value(QStringLiteral("forwardedPort")).toInt(), 0, 65535);
+    m_secureCore = snapshot.value(QStringLiteral("secureCore")).toBool();
+    m_tor = snapshot.value(QStringLiteral("tor")).toBool();
+    m_p2p = snapshot.value(QStringLiteral("p2p")).toBool();
+    m_streaming = snapshot.value(QStringLiteral("streaming")).toBool();
+    m_smartRouting = snapshot.value(QStringLiteral("smartRouting")).toBool();
     m_message = snapshot.value(QStringLiteral("message")).toString();
     if (wasLoggedIn && !m_loggedIn) {
         m_countryModel->clear();

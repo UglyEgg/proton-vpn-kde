@@ -71,6 +71,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"schemaVersion":1', payload)
         self.assertIn('"loggedIn":true', payload)
         self.assertIn('"serverName":""', payload)
+        self.assertIn('"forwardedPort":0', payload)
 
     async def test_location_payloads_are_versioned_and_validated(self):
         countries = await self.controller.get_countries_json()
@@ -105,6 +106,16 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         await self.controller.connect_group("CH", "location", "Zurich")
         self.assertEqual("CH#101", self.controller.snapshot.server_name)
+
+    async def test_connected_snapshot_exposes_assigned_forwarded_port(self):
+        await self.controller.update_settings_json('{"portForwarding":true}')
+        await self.controller.connect_server("CH-DE#1")
+
+        snapshot = self.controller.snapshot
+        self.assertEqual(51820, snapshot.forwarded_port)
+        self.assertEqual("CH", snapshot.exit_country)
+        self.assertEqual("DE", snapshot.entry_country)
+        self.assertTrue(snapshot.secure_core)
 
     async def test_reconnection_preference_is_reflected_in_snapshot(self):
         await self.controller.set_reconnection_enabled(False)

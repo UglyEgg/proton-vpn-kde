@@ -27,6 +27,15 @@ class VpnSnapshot:
     busy: bool = False
     state: str = "starting"
     server_name: str = ""
+    server_location: str = ""
+    exit_country: str = ""
+    entry_country: str = ""
+    forwarded_port: int = 0
+    secure_core: bool = False
+    tor: bool = False
+    p2p: bool = False
+    streaming: bool = False
+    smart_routing: bool = False
     message: str = ""
 
     def to_json(self) -> str:
@@ -41,6 +50,12 @@ class VpnSnapshot:
         payload["fido2Available"] = payload.pop("fido2_available")
         payload["reconnectEnabled"] = payload.pop("reconnect_enabled")
         payload["serverName"] = payload.pop("server_name")
+        payload["serverLocation"] = payload.pop("server_location")
+        payload["exitCountry"] = payload.pop("exit_country")
+        payload["entryCountry"] = payload.pop("entry_country")
+        payload["forwardedPort"] = payload.pop("forwarded_port")
+        payload["secureCore"] = payload.pop("secure_core")
+        payload["smartRouting"] = payload.pop("smart_routing")
         return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
 

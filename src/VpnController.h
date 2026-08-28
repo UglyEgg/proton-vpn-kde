@@ -34,6 +34,15 @@ class VpnController final : public QObject
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(QString state READ state NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverName READ serverName NOTIFY snapshotChanged)
+    Q_PROPERTY(QString serverLocation READ serverLocation NOTIFY snapshotChanged)
+    Q_PROPERTY(QString exitCountry READ exitCountry NOTIFY snapshotChanged)
+    Q_PROPERTY(QString entryCountry READ entryCountry NOTIFY snapshotChanged)
+    Q_PROPERTY(int forwardedPort READ forwardedPort NOTIFY snapshotChanged)
+    Q_PROPERTY(bool secureCore READ secureCore NOTIFY snapshotChanged)
+    Q_PROPERTY(bool tor READ tor NOTIFY snapshotChanged)
+    Q_PROPERTY(bool p2p READ p2p NOTIFY snapshotChanged)
+    Q_PROPERTY(bool streaming READ streaming NOTIFY snapshotChanged)
+    Q_PROPERTY(bool smartRouting READ smartRouting NOTIFY snapshotChanged)
     Q_PROPERTY(QString message READ message NOTIFY snapshotChanged)
     Q_PROPERTY(QString primaryActionText READ primaryActionText NOTIFY snapshotChanged)
     Q_PROPERTY(bool primaryActionEnabled READ primaryActionEnabled NOTIFY snapshotChanged)
@@ -61,6 +70,15 @@ public:
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] QString state() const;
     [[nodiscard]] QString serverName() const;
+    [[nodiscard]] QString serverLocation() const;
+    [[nodiscard]] QString exitCountry() const;
+    [[nodiscard]] QString entryCountry() const;
+    [[nodiscard]] int forwardedPort() const;
+    [[nodiscard]] bool secureCore() const;
+    [[nodiscard]] bool tor() const;
+    [[nodiscard]] bool p2p() const;
+    [[nodiscard]] bool streaming() const;
+    [[nodiscard]] bool smartRouting() const;
     [[nodiscard]] QString message() const;
     [[nodiscard]] QString primaryActionText() const;
     [[nodiscard]] bool primaryActionEnabled() const;
@@ -74,6 +92,7 @@ public:
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void activatePrimaryAction();
+    Q_INVOKABLE void copyForwardedPort();
     Q_INVOKABLE void loadCountries();
     Q_INVOKABLE void loadServerGroups(const QString &countryCode);
     Q_INVOKABLE void loadGroupServers(const QString &countryCode,
@@ -181,5 +200,14 @@ private:
     QString m_currentServerGroupName;
     QString m_state = QStringLiteral("unavailable");
     QString m_serverName;
+    QString m_serverLocation;
+    QString m_exitCountry;
+    QString m_entryCountry;
+    int m_forwardedPort = 0;
+    bool m_secureCore = false;
+    bool m_tor = false;
+    bool m_p2p = false;
+    bool m_streaming = false;
+    bool m_smartRouting = false;
     QString m_message = QStringLiteral("Waiting for the Proton backend service");
 };
