@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QStringList>
+#include <QUrl>
 
 class AppSettings final : public QObject
 {
@@ -12,6 +13,7 @@ class AppSettings final : public QObject
     Q_PROPERTY(bool closeToTray READ closeToTray WRITE setCloseToTray NOTIFY closeToTrayChanged)
     Q_PROPERTY(QString autoConnectTarget READ autoConnectTarget WRITE setAutoConnectTarget NOTIFY autoConnectTargetChanged)
     Q_PROPERTY(QString pinnedServersText READ pinnedServersText WRITE setPinnedServersText NOTIFY pinnedServersChanged)
+    Q_PROPERTY(QString packetCaptureDirectory READ packetCaptureDirectory WRITE setPacketCaptureDirectory NOTIFY packetCaptureDirectoryChanged)
 
 public:
     explicit AppSettings(QObject *parent = nullptr);
@@ -23,6 +25,7 @@ public:
     [[nodiscard]] QString autoConnectTarget() const;
     [[nodiscard]] QString pinnedServersText() const;
     [[nodiscard]] QStringList pinnedServers() const;
+    [[nodiscard]] QString packetCaptureDirectory() const;
 
     void setNotificationsEnabled(bool enabled);
     void setReconnectEnabled(bool enabled);
@@ -30,9 +33,11 @@ public:
     void setCloseToTray(bool enabled);
     void setAutoConnectTarget(const QString &target);
     void setPinnedServersText(const QString &servers);
+    void setPacketCaptureDirectory(const QString &directory);
 
     Q_INVOKABLE bool isServerPinned(const QString &server) const;
     Q_INVOKABLE void togglePinnedServer(const QString &server);
+    Q_INVOKABLE void setPacketCaptureDirectoryUrl(const QUrl &directory);
 
 signals:
     void notificationsEnabledChanged();
@@ -41,6 +46,7 @@ signals:
     void closeToTrayChanged();
     void autoConnectTargetChanged();
     void pinnedServersChanged();
+    void packetCaptureDirectoryChanged();
 
 private:
     void writeSetting(const char *key, bool value);
@@ -55,4 +61,5 @@ private:
     bool m_closeToTray = true;
     QString m_autoConnectTarget;
     QStringList m_pinnedServers;
+    QString m_packetCaptureDirectory;
 };

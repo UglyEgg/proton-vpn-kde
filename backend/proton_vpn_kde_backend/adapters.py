@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
+import os
+from pathlib import Path
 from typing import Any
 
 from .controller import (
@@ -44,6 +46,7 @@ class DemoCoreAdapter:
         self._settings = VpnSettings(
             protocols=(
                 ProtocolInfo("wireguard", "WireGuard"),
+                ProtocolInfo("protun-udp", "WireGuard UDP"),
                 ProtocolInfo("openvpn-udp", "OpenVPN (UDP)"),
                 ProtocolInfo("openvpn-tcp", "OpenVPN (TCP)"),
             ),
@@ -56,6 +59,7 @@ class DemoCoreAdapter:
         self._custom_dns = CustomDnsSettings(
             paid_features_available=logged_in,
         )
+        self._packet_capture_active = False
         self._snapshot = self._build_snapshot(message="Safe demo backend")
 
     async def initialize(
@@ -138,6 +142,7 @@ class DemoCoreAdapter:
             paid_features_available=self._logged_in,
             protocol_editable=self._snapshot.state == "disconnected",
             kill_switch_editable=self._snapshot.state == "disconnected",
+            packet_capture_supported=self._settings.protocol.startswith("protun-"),
         )
 
     async def update_settings(
@@ -281,9 +286,30 @@ class DemoCoreAdapter:
 
     async def disconnect(self) -> None:
         self._connection_cancelled = True
+        self._packet_capture_active = False
         await self._transition("disconnecting", self._snapshot.server_name)
         await asyncio.sleep(0.1)
         await self._transition("disconnected", "")
+
+    async def start_packet_capture(self, directory_path: str) -> None:
+        if self._snapshot.state != "connected":
+            raise RuntimeError("Connect the VPN before starting packet capture")
+        if not self._settings.protocol.startswith("protun-"):
+            raise RuntimeError("The selected protocol does not support packet capture")
+        if not Path(directory_path).is_absolute():
+            raise ValueError("Select a valid packet-capture folder")
+        self._packet_capture_active = True
+        self._publish(self._build_snapshot(
+            state=self._snapshot.state,
+            server_name=self._snapshot.server_name,
+        ))
+
+    async def stop_packet_capture(self) -> None:
+        self._packet_capture_active = False
+        self._publish(self._build_snapshot(
+            state=self._snapshot.state,
+            server_name=self._snapshot.server_name,
+        ))
 
     async def login(self, username: str, password: str) -> None:
         await asyncio.sleep(0.05)
@@ -375,6 +401,7 @@ class DemoCoreAdapter:
                 else 0
             ),
             secure_core=details[3],
+            packet_capture_active=self._packet_capture_active,
             message=message,
         )
 
@@ -403,6 +430,7 @@ class ProtonCoreAdapter:
         self._auth_state = "signed_out"
         self._session_services_enabled = False
         self._fido_interaction: FidoInteraction | None = None
+        self._packet_capture_active = False
 
     async def initialize(
         self,
@@ -715,6 +743,41 @@ class ProtonCoreAdapter:
         server_list = await self._get_server_list()
         await self._connect_logical(server_list.get_by_name(server_name))
 
+    async def start_packet_capture(self, directory_path: str) -> None:
+        if type(self._connector.current_state).__name__.lower() != "connected":
+            raise RuntimeError("Connect the VPN before starting packet capture")
+        connection = self._connector.current_connection
+        if connection is None or not self._connection_supports_packet_capture(connection):
+            raise RuntimeError("The selected protocol does not support packet capture")
+        path = Path(directory_path)
+        if not path.is_absolute():
+            raise ValueError("Select a valid packet-capture folder")
+        try:
+            resolved = path.resolve(strict=True)
+        except OSError as error:
+            raise ValueError("Select an existing packet-capture folder") from error
+        if not resolved.is_dir() or not os.access(resolved, os.W_OK | os.X_OK):
+            raise ValueError("Select a writable packet-capture folder")
+        try:
+            connection.settings.packet_capture.directory_path = str(resolved)
+            await connection.start_packet_capture()
+        except Exception:
+            raise RuntimeError("Proton could not start packet capture") from None
+        self._packet_capture_active = True
+        self._publish_snapshot()
+
+    async def stop_packet_capture(self) -> None:
+        connection = self._connector.current_connection
+        if not self._packet_capture_active:
+            return
+        try:
+            if connection is not None:
+                await connection.stop_packet_capture()
+        except Exception:
+            raise RuntimeError("Proton could not stop packet capture") from None
+        self._packet_capture_active = False
+        self._publish_snapshot()
+
     async def _get_server_list(self):
         try:
             return await self._api.refresher.get_up_to_date_server_list()
@@ -810,6 +873,9 @@ class ProtonCoreAdapter:
                 settings.features.split_tunneling.enabled
             ),
             custom_dns_enabled=bool(settings.custom_dns.enabled),
+            packet_capture_supported=self._protocol_supports_packet_capture(
+                settings.protocol
+            ),
         )
 
     def _split_tunneling_from_core(
@@ -877,6 +943,25 @@ class ProtonCoreAdapter:
     @staticmethod
     def _protocol_supports_split_tunneling(protocol: str) -> bool:
         return protocol == "wireguard" or protocol.startswith("protun-")
+
+    def _protocol_supports_packet_capture(self, protocol: str) -> bool:
+        try:
+            for candidate in self._connector.iter_available_protocols():
+                if (
+                    str(candidate.protocol) == protocol
+                    and bool(candidate.supports_packet_capture())
+                ):
+                    return True
+        except (AttributeError, TypeError):
+            pass
+        return False
+
+    @staticmethod
+    def _connection_supports_packet_capture(connection: Any) -> bool:
+        try:
+            return bool(connection.supports_packet_capture())
+        except (AttributeError, TypeError):
+            return False
 
     @staticmethod
     def _mode_value(mode: Any) -> str:
@@ -1014,6 +1099,11 @@ class ProtonCoreAdapter:
 
     async def close(self) -> None:
         await self.cancel_fido2()
+        if self._packet_capture_active:
+            try:
+                await self.stop_packet_capture()
+            except RuntimeError:
+                self._packet_capture_active = False
         if self._api:
             self._api.refresher.set_server_list_updated_callback(None)
             self._api.refresher.set_server_loads_updated_callback(None)
@@ -1140,6 +1230,8 @@ class ProtonCoreAdapter:
         }
         if state_name not in allowed_states:
             state_name = "error"
+        if state_name != "connected":
+            self._packet_capture_active = False
 
         connection = self._connector.current_connection if self._connector else None
         server_name = connection.server_name if connection else ""
@@ -1221,6 +1313,7 @@ class ProtonCoreAdapter:
             p2p=p2p,
             streaming=streaming,
             smart_routing=smart_routing,
+            packet_capture_active=self._packet_capture_active,
             message=(
                 self._status_message
                 if self._logged_in

@@ -25,6 +25,7 @@ class VpnSettingsModel final : public QObject
     Q_PROPERTY(bool killSwitchEditable READ killSwitchEditable NOTIFY changed)
     Q_PROPERTY(bool splitTunnelingEnabled READ splitTunnelingEnabled NOTIFY changed)
     Q_PROPERTY(bool customDnsEnabled READ customDnsEnabled NOTIFY changed)
+    Q_PROPERTY(bool packetCaptureSupported READ packetCaptureSupported NOTIFY changed)
 
 public:
     explicit VpnSettingsModel(QObject *parent = nullptr);
@@ -47,6 +48,7 @@ public:
     [[nodiscard]] bool killSwitchEditable() const;
     [[nodiscard]] bool splitTunnelingEnabled() const;
     [[nodiscard]] bool customDnsEnabled() const;
+    [[nodiscard]] bool packetCaptureSupported() const;
 
     bool applyJson(const QString &settingsJson, QString *errorMessage = nullptr);
     void reset(const QString &message = {});
@@ -74,4 +76,5 @@ private:
     bool m_killSwitchEditable = false;
     bool m_splitTunnelingEnabled = false;
     bool m_customDnsEnabled = false;
+    bool m_packetCaptureSupported = false;
 };

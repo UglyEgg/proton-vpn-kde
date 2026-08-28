@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from ipaddress import ip_address
 import threading
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock
@@ -16,7 +17,11 @@ def state_named(name: str):
 
 class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     def make_api(self, *, logged_in: bool = True):
-        protocol = SimpleNamespace(protocol="wireguard", ui_protocol="WireGuard")
+        protocol = SimpleNamespace(
+            protocol="wireguard",
+            ui_protocol="WireGuard",
+            supports_packet_capture=Mock(return_value=False),
+        )
         connector = SimpleNamespace(
             current_state=state_named("Disconnected"),
             current_connection=None,
@@ -398,6 +403,36 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             await adapter.update_settings({"killSwitch": 1})
 
         api.save_settings.assert_not_awaited()
+
+    async def test_packet_capture_uses_connected_protocol_and_selected_folder(self):
+        api, connector = self.make_api()
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(directory_path="/tmp")
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = ProtonCoreAdapter(api)
+        snapshots = []
+        await adapter.initialize(snapshots.append)
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            await adapter.start_packet_capture(capture_directory)
+            self.assertEqual(
+                capture_directory,
+                connection.settings.packet_capture.directory_path,
+            )
+        connection.start_packet_capture.assert_awaited_once_with()
+        self.assertTrue(snapshots[-1].packet_capture_active)
+
+        await adapter.stop_packet_capture()
+        connection.stop_packet_capture.assert_awaited_once_with()
+        self.assertFalse(snapshots[-1].packet_capture_active)
 
     async def test_settings_conflicts_are_rejected_without_side_effects(self):
         api, _ = self.make_api()

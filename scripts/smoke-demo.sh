@@ -168,7 +168,7 @@ gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \
     --method proton.vpn.app.kde.Backend1.UpdateSettings \
-    '{"portForwarding":true}' >/dev/null
+    '{"protocol":"protun-udp","portForwarding":true}' >/dev/null
 gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \
@@ -184,6 +184,22 @@ if [[ "$connected_snapshot" != *'"serverName":"CH-DE#1"'* \
     echo "Backend did not publish live Secure Core connection details" >&2
     exit 1
 fi
+gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.StartPacketCapture /tmp
+capture_snapshot="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.GetSnapshot)"
+if [[ "$capture_snapshot" != *'"packetCaptureActive":true'* ]]; then
+    echo "Backend did not publish packet-capture state" >&2
+    exit 1
+fi
+gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.StopPacketCapture
 gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \

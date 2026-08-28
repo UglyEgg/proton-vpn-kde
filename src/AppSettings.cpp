@@ -2,6 +2,7 @@
 
 #include <KConfigGroup>
 #include <KSharedConfig>
+#include <QDir>
 
 namespace
 {
@@ -22,6 +23,8 @@ AppSettings::AppSettings(QObject *parent)
         group.readEntry("AutoConnectTarget", QString()));
     m_pinnedServers = normalizePinnedServers(
         group.readEntry("PinnedServers", QStringList()).join(QLatin1Char(',')));
+    m_packetCaptureDirectory = group.readEntry(
+        "PacketCaptureDirectory", QDir::tempPath());
 }
 
 bool AppSettings::notificationsEnabled() const { return m_notificationsEnabled; }
@@ -34,6 +37,10 @@ QString AppSettings::pinnedServersText() const
     return m_pinnedServers.join(QStringLiteral(", "));
 }
 QStringList AppSettings::pinnedServers() const { return m_pinnedServers; }
+QString AppSettings::packetCaptureDirectory() const
+{
+    return m_packetCaptureDirectory;
+}
 
 void AppSettings::setNotificationsEnabled(bool enabled)
 {
@@ -119,6 +126,25 @@ void AppSettings::togglePinnedServer(const QString &server)
     m_pinnedServers = updated;
     writeSetting("PinnedServers", updated);
     emit pinnedServersChanged();
+}
+
+void AppSettings::setPacketCaptureDirectory(const QString &directory)
+{
+    const QString normalized = QDir::cleanPath(directory.trimmed());
+    if (normalized.isEmpty() || !QDir::isAbsolutePath(normalized)
+        || normalized.size() > 4096 || m_packetCaptureDirectory == normalized) {
+        return;
+    }
+    m_packetCaptureDirectory = normalized;
+    writeSetting("PacketCaptureDirectory", normalized);
+    emit packetCaptureDirectoryChanged();
+}
+
+void AppSettings::setPacketCaptureDirectoryUrl(const QUrl &directory)
+{
+    if (directory.isLocalFile()) {
+        setPacketCaptureDirectory(directory.toLocalFile());
+    }
 }
 
 void AppSettings::writeSetting(const char *key, bool value)

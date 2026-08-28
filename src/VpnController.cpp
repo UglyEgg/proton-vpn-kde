@@ -137,6 +137,7 @@ bool VpnController::tor() const { return m_tor; }
 bool VpnController::p2p() const { return m_p2p; }
 bool VpnController::streaming() const { return m_streaming; }
 bool VpnController::smartRouting() const { return m_smartRouting; }
+bool VpnController::packetCaptureActive() const { return m_packetCaptureActive; }
 QString VpnController::message() const { return m_message; }
 
 QString VpnController::primaryActionText() const
@@ -207,6 +208,32 @@ void VpnController::copyForwardedPort()
     if (QClipboard *clipboard = QGuiApplication::clipboard()) {
         clipboard->setText(QString::number(m_forwardedPort));
     }
+}
+
+void VpnController::startPacketCapture(const QString &directoryPath)
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_busy
+        || m_state != QStringLiteral("connected") || m_packetCaptureActive) {
+        return;
+    }
+    const QString normalized = directoryPath.trimmed();
+    if (normalized.isEmpty() || normalized.size() > 4096
+        || normalized.contains(QLatin1Char('\n'))
+        || normalized.contains(QLatin1Char('\r'))) {
+        m_message = tr("Select a valid packet-capture folder");
+        emit snapshotChanged();
+        return;
+    }
+    callOperation(QStringLiteral("StartPacketCapture"), {normalized});
+}
+
+void VpnController::stopPacketCapture()
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_busy
+        || !m_packetCaptureActive) {
+        return;
+    }
+    callOperation(QStringLiteral("StopPacketCapture"));
 }
 
 void VpnController::loadCountries()
@@ -1006,6 +1033,8 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_p2p = snapshot.value(QStringLiteral("p2p")).toBool();
     m_streaming = snapshot.value(QStringLiteral("streaming")).toBool();
     m_smartRouting = snapshot.value(QStringLiteral("smartRouting")).toBool();
+    m_packetCaptureActive = snapshot.value(
+        QStringLiteral("packetCaptureActive")).toBool();
     m_message = snapshot.value(QStringLiteral("message")).toString();
     if (wasLoggedIn && !m_loggedIn) {
         m_countryModel->clear();

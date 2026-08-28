@@ -23,7 +23,8 @@ const auto kValidSettings = R"json({
     "protocolEditable": true,
     "killSwitchEditable": true,
     "splitTunnelingEnabled": false,
-    "customDnsEnabled": false
+    "customDnsEnabled": false,
+    "packetCaptureSupported": true
 })json";
 }
 
@@ -53,6 +54,7 @@ void VpnSettingsModelTest::appliesVersionedSettingsAtomically()
     QVERIFY(model.vpnAccelerator());
     QVERIFY(!model.anonymousCrashReports());
     QVERIFY(model.paidFeaturesAvailable());
+    QVERIFY(model.packetCaptureSupported());
     QCOMPARE(changed.count(), 1);
 }
 

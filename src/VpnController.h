@@ -43,6 +43,7 @@ class VpnController final : public QObject
     Q_PROPERTY(bool p2p READ p2p NOTIFY snapshotChanged)
     Q_PROPERTY(bool streaming READ streaming NOTIFY snapshotChanged)
     Q_PROPERTY(bool smartRouting READ smartRouting NOTIFY snapshotChanged)
+    Q_PROPERTY(bool packetCaptureActive READ packetCaptureActive NOTIFY snapshotChanged)
     Q_PROPERTY(QString message READ message NOTIFY snapshotChanged)
     Q_PROPERTY(QString primaryActionText READ primaryActionText NOTIFY snapshotChanged)
     Q_PROPERTY(bool primaryActionEnabled READ primaryActionEnabled NOTIFY snapshotChanged)
@@ -79,6 +80,7 @@ public:
     [[nodiscard]] bool p2p() const;
     [[nodiscard]] bool streaming() const;
     [[nodiscard]] bool smartRouting() const;
+    [[nodiscard]] bool packetCaptureActive() const;
     [[nodiscard]] QString message() const;
     [[nodiscard]] QString primaryActionText() const;
     [[nodiscard]] bool primaryActionEnabled() const;
@@ -93,6 +95,8 @@ public:
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void activatePrimaryAction();
     Q_INVOKABLE void copyForwardedPort();
+    Q_INVOKABLE void startPacketCapture(const QString &directoryPath);
+    Q_INVOKABLE void stopPacketCapture();
     Q_INVOKABLE void loadCountries();
     Q_INVOKABLE void loadServerGroups(const QString &countryCode);
     Q_INVOKABLE void loadGroupServers(const QString &countryCode,
@@ -213,5 +217,6 @@ private:
     bool m_p2p = false;
     bool m_streaming = false;
     bool m_smartRouting = false;
+    bool m_packetCaptureActive = false;
     QString m_message = QStringLiteral("Waiting for the Proton backend service");
 };

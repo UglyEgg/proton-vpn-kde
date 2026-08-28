@@ -36,6 +36,7 @@ class VpnSnapshot:
     p2p: bool = False
     streaming: bool = False
     smart_routing: bool = False
+    packet_capture_active: bool = False
     message: str = ""
 
     def to_json(self) -> str:
@@ -56,6 +57,7 @@ class VpnSnapshot:
         payload["forwardedPort"] = payload.pop("forwarded_port")
         payload["secureCore"] = payload.pop("secure_core")
         payload["smartRouting"] = payload.pop("smart_routing")
+        payload["packetCaptureActive"] = payload.pop("packet_capture_active")
         return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
 
@@ -125,6 +127,7 @@ class VpnSettings:
     kill_switch_editable: bool = True
     split_tunneling_enabled: bool = False
     custom_dns_enabled: bool = False
+    packet_capture_supported: bool = False
 
     def to_json(self) -> str:
         payload = {
@@ -143,6 +146,7 @@ class VpnSettings:
             "killSwitchEditable": self.kill_switch_editable,
             "splitTunnelingEnabled": self.split_tunneling_enabled,
             "customDnsEnabled": self.custom_dns_enabled,
+            "packetCaptureSupported": self.packet_capture_supported,
         }
         return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
@@ -475,6 +479,8 @@ class CoreAdapter(Protocol):
         self, country_code: str, group_kind: str, group_name: str
     ) -> None: ...
     async def connect_server(self, server_name: str) -> None: ...
+    async def start_packet_capture(self, directory_path: str) -> None: ...
+    async def stop_packet_capture(self) -> None: ...
     async def login(self, username: str, password: str) -> None: ...
     async def submit_two_factor(self, code: str) -> None: ...
     async def cancel_login(self) -> None: ...
@@ -699,6 +705,24 @@ class BackendController:
         if not normalized_name or len(normalized_name) > 128:
             raise ValueError("Invalid Proton server name")
         await self._run_operation(lambda: self._adapter.connect_server(normalized_name))
+
+    async def start_packet_capture(self, directory_path: str) -> None:
+        self._require_session()
+        if (
+            not directory_path
+            or len(directory_path) > 4096
+            or "\0" in directory_path
+            or "\n" in directory_path
+            or "\r" in directory_path
+        ):
+            raise ValueError("Select a valid packet-capture folder")
+        await self._run_operation(
+            lambda: self._adapter.start_packet_capture(directory_path)
+        )
+
+    async def stop_packet_capture(self) -> None:
+        self._require_session()
+        await self._run_operation(self._adapter.stop_packet_capture)
 
     async def login(self, username: str, password: str) -> None:
         normalized_username = username.strip()

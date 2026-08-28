@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls as Controls
+import QtQuick.Dialogs as Dialogs
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
@@ -16,6 +17,18 @@ Kirigami.ScrollablePage {
     readonly property bool splitConfigurationEditable:
         !splitSettings.enabled
         || (splitProtocolCompatible && vpnSettings.killSwitch === 0)
+
+    Dialogs.FolderDialog {
+        id: packetCaptureFolderDialog
+        title: qsTr("Select packet capture folder")
+        onAccepted: appSettings.setPacketCaptureDirectoryUrl(selectedFolder)
+    }
+
+    Component.onDestruction: {
+        if (vpnController.packetCaptureActive) {
+            vpnController.stopPacketCapture()
+        }
+    }
 
     Component.onCompleted: {
         if (vpnController.loggedIn && !vpnSettings.loaded) {
@@ -408,6 +421,68 @@ Kirigami.ScrollablePage {
             checked: vpnSettings.anonymousCrashReports
             enabled: vpnSettings.loaded && !vpnSettings.busy
             onClicked: vpnController.updateSetting("anonymousCrashReports", checked)
+        }
+
+        Controls.Label {
+            Kirigami.FormData.isSection: true
+            visible: vpnSettings.packetCaptureSupported
+            text: qsTr("Troubleshooting capture")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: vpnSettings.packetCaptureSupported
+            type: Kirigami.MessageType.Warning
+            text: qsTr("A packet capture records all internet activity during the capture session. Only create one when diagnosing a specific problem, and review it before sharing.")
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            visible: vpnSettings.packetCaptureSupported
+
+            Controls.Label {
+                Layout.fillWidth: true
+                text: appSettings.packetCaptureDirectory
+                elide: Text.ElideMiddle
+                color: Kirigami.Theme.disabledTextColor
+            }
+
+            Controls.Button {
+                text: qsTr("Browse…")
+                icon.name: "folder-open"
+                enabled: !vpnController.packetCaptureActive
+                onClicked: packetCaptureFolderDialog.open()
+            }
+
+            Controls.Button {
+                text: vpnController.packetCaptureActive
+                      ? qsTr("Stop capture")
+                      : qsTr("Start capture")
+                icon.name: vpnController.packetCaptureActive
+                           ? "media-playback-stop"
+                           : "media-record"
+                highlighted: vpnController.packetCaptureActive
+                enabled: !vpnController.busy
+                         && (vpnController.packetCaptureActive
+                             || vpnController.state === "connected")
+                onClicked: {
+                    if (vpnController.packetCaptureActive) {
+                        vpnController.stopPacketCapture()
+                    } else {
+                        vpnController.startPacketCapture(
+                            appSettings.packetCaptureDirectory)
+                    }
+                }
+            }
+        }
+
+        Controls.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            visible: vpnSettings.packetCaptureSupported
+                     && vpnController.state !== "connected"
+            text: qsTr("Connect the VPN before starting a troubleshooting capture.")
+            color: Kirigami.Theme.disabledTextColor
         }
 
         Controls.Label {

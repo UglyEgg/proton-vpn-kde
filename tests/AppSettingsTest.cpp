@@ -24,6 +24,7 @@ void AppSettingsTest::persistsKConfigPreferences()
     QVERIFY(!initial.startMinimized());
     QVERIFY(initial.autoConnectTarget().isEmpty());
     QVERIFY(initial.pinnedServers().isEmpty());
+    QVERIFY(!initial.packetCaptureDirectory().isEmpty());
 
     initial.setNotificationsEnabled(false);
     initial.setReconnectEnabled(false);
@@ -32,6 +33,7 @@ void AppSettingsTest::persistsKConfigPreferences()
     initial.setAutoConnectTarget(QStringLiteral(" ch#101 "));
     initial.setPinnedServersText(QStringLiteral(" us, ch#101, US, fastest "));
     initial.togglePinnedServer(QStringLiteral("nl#42"));
+    initial.setPacketCaptureDirectory(QStringLiteral("/tmp/proton-captures"));
 
     AppSettings reloaded;
     QVERIFY(!reloaded.notificationsEnabled());
@@ -44,6 +46,9 @@ void AppSettingsTest::persistsKConfigPreferences()
         QStringList({QStringLiteral("US"), QStringLiteral("CH#101"),
                      QStringLiteral("NL#42")}));
     QVERIFY(reloaded.isServerPinned(QStringLiteral(" ch#101 ")));
+    QCOMPARE(
+        reloaded.packetCaptureDirectory(),
+        QStringLiteral("/tmp/proton-captures"));
 
     reloaded.setAutoConnectTarget(QStringLiteral("off"));
     QVERIFY(reloaded.autoConnectTarget().isEmpty());

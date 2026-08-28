@@ -60,6 +60,8 @@ The additive version-one contract currently contains:
 - `UpdateSplitTunneling(JSON patch) -> JSON string`
 - `GetCustomDns() -> JSON string`
 - `UpdateCustomDns(JSON patch) -> JSON string`
+- `StartPacketCapture(directoryPath)`
+- `StopPacketCapture()`
 - `ConnectFastest()`
 - `ConnectCountry(countryCode)`
 - `ConnectGroup(countryCode, groupKind, groupName)`
@@ -121,9 +123,18 @@ an active tunnel are clearly marked for application on the next connection.
 Split-tunneling writes use Proton core's existing `SplitTunneling` and
 `SplitTunnelingConfig` objects and the official save/apply path. The bounded
 D-Bus patch can change only enabled state, mode, and the per-mode application
-paths. It never replaces IP ranges, changes the protocol, disables the kill
-switch, or talks directly to the privileged split-tunneling daemon. Incompatible
-settings are reported to the user instead of being silently rewritten.
+paths and IP ranges. IP ranges are parsed and canonicalized with strict bounded
+validation before they reach Proton core. The client never changes the protocol,
+disables the kill switch, or talks directly to the privileged split-tunneling
+daemon. Incompatible settings are reported to the user instead of being silently
+rewritten.
+
+Packet capture remains an operation of Proton's active protocol implementation.
+The UI is shown only when that implementation advertises packet-capture support,
+and capture is allowed only for a connected tunnel and an existing writable
+absolute directory chosen with Plasma's native folder dialog. Leaving Settings,
+disconnecting, or stopping the backend ends an active capture. The KDE client
+does not inspect, rename, upload, or otherwise process the resulting PCAP file.
 
 ## Authentication
 
@@ -197,5 +208,6 @@ does not add a polling schedule or make its own server-list API requests.
 
 1. Add KRunner actions and Plasma shortcuts on top of the stable D-Bus API.
 2. Add a KCM-compatible configuration surface for the stable settings models.
-3. Add explicit split-tunneling IP-range editing without changing the
-   application-only editor's preservation guarantee.
+3. Complete the remaining application-level support, release-information, and
+   update-channel surfaces without moving desktop or packaging policy into the
+   networking backend.

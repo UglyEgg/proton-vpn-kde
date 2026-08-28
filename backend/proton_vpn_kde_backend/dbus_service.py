@@ -135,6 +135,14 @@ class VpnDbusService(ServiceInterface):
     async def disconnect(self):
         await self._controller.disconnect()
 
+    @method(name="StartPacketCapture")
+    async def start_packet_capture(self, directory_path: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
+        await self._controller.start_packet_capture(directory_path)
+
+    @method(name="StopPacketCapture")
+    async def stop_packet_capture(self):
+        await self._controller.stop_packet_capture()
+
     @method(name="Login")
     async def login(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
         payload = self._read_secret(secret_fd, {"username", "password"})

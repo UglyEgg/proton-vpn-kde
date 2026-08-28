@@ -56,6 +56,10 @@ bool VpnSettingsModel::protocolEditable() const { return m_protocolEditable; }
 bool VpnSettingsModel::killSwitchEditable() const { return m_killSwitchEditable; }
 bool VpnSettingsModel::splitTunnelingEnabled() const { return m_splitTunnelingEnabled; }
 bool VpnSettingsModel::customDnsEnabled() const { return m_customDnsEnabled; }
+bool VpnSettingsModel::packetCaptureSupported() const
+{
+    return m_packetCaptureSupported;
+}
 
 int VpnSettingsModel::protocolIndex() const
 {
@@ -130,6 +134,7 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
     bool killSwitchEditable = false;
     bool splitTunnelingEnabled = false;
     bool customDnsEnabled = false;
+    bool packetCaptureSupported = false;
     if (!readMode(object, QStringLiteral("killSwitch"), &killSwitch)
         || !readMode(object, QStringLiteral("netShield"), &netShield)
         || !readBoolean(object, QStringLiteral("vpnAccelerator"), &vpnAccelerator)
@@ -141,7 +146,9 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
         || !readBoolean(object, QStringLiteral("protocolEditable"), &protocolEditable)
         || !readBoolean(object, QStringLiteral("killSwitchEditable"), &killSwitchEditable)
         || !readBoolean(object, QStringLiteral("splitTunnelingEnabled"), &splitTunnelingEnabled)
-        || !readBoolean(object, QStringLiteral("customDnsEnabled"), &customDnsEnabled)) {
+        || !readBoolean(object, QStringLiteral("customDnsEnabled"), &customDnsEnabled)
+        || !readBoolean(object, QStringLiteral("packetCaptureSupported"),
+                        &packetCaptureSupported)) {
         return fail(tr("The backend returned incomplete VPN settings"));
     }
 
@@ -159,6 +166,7 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
     m_killSwitchEditable = killSwitchEditable;
     m_splitTunnelingEnabled = splitTunnelingEnabled;
     m_customDnsEnabled = customDnsEnabled;
+    m_packetCaptureSupported = packetCaptureSupported;
     m_loaded = true;
     m_busy = false;
     m_message.clear();

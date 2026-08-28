@@ -72,6 +72,17 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"loggedIn":true', payload)
         self.assertIn('"serverName":""', payload)
         self.assertIn('"forwardedPort":0', payload)
+        self.assertIn('"packetCaptureActive":false', payload)
+
+    async def test_packet_capture_lifecycle_is_reflected_in_snapshot(self):
+        await self.controller.update_settings_json('{"protocol":"protun-udp"}')
+        await self.controller.connect_fastest()
+
+        await self.controller.start_packet_capture("/tmp")
+        self.assertTrue(self.controller.snapshot.packet_capture_active)
+
+        await self.controller.stop_packet_capture()
+        self.assertFalse(self.controller.snapshot.packet_capture_active)
 
     async def test_location_payloads_are_versioned_and_validated(self):
         countries = await self.controller.get_countries_json()
