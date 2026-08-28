@@ -109,6 +109,19 @@ class ServerLoadInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class LocationSearchInfo:
+    kind: str
+    name: str
+    country_code: str
+    location: str = ""
+    group_kind: str = "location"
+    group_name: str = ""
+    load: int = -1
+    accessible: bool = True
+    under_maintenance: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class ProtocolInfo:
     id: str
     name: str
@@ -467,7 +480,12 @@ def custom_dns_patch_from_json(
 
 
 LocationInfo = TypeVar(
-    "LocationInfo", CountryInfo, ServerGroupInfo, ServerInfo, ServerLoadInfo
+    "LocationInfo",
+    CountryInfo,
+    ServerGroupInfo,
+    ServerInfo,
+    ServerLoadInfo,
+    LocationSearchInfo,
 )
 
 
@@ -477,6 +495,9 @@ def location_list_to_json(kind: str, items: list[LocationInfo]) -> str:
         payload = asdict(item)
         for internal_name, external_name in (
             ("server_count", "serverCount"),
+            ("country_code", "countryCode"),
+            ("group_kind", "groupKind"),
+            ("group_name", "groupName"),
             ("entry_country", "entryCountry"),
             ("under_maintenance", "underMaintenance"),
             ("smart_routing", "smartRouting"),
@@ -516,6 +537,7 @@ class CoreAdapter(Protocol):
     ) -> list[ServerInfo]: ...
     async def get_servers(self, country_code: str) -> list[ServerInfo]: ...
     async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]: ...
+    async def search_locations(self, query: str) -> list[LocationSearchInfo]: ...
     async def get_settings(self) -> VpnSettings: ...
     async def update_settings(
         self, patch: dict[str, SettingsValue]
@@ -645,6 +667,19 @@ class BackendController:
         normalized_code = self._validate_country_code(country_code)
         return location_list_to_json(
             "loads", await self._adapter.get_server_loads(normalized_code)
+        )
+
+    async def search_locations_json(self, query: str) -> str:
+        self._require_session()
+        normalized_query = " ".join(query.split())
+        if (
+            not normalized_query
+            or len(normalized_query) > 128
+            or "\0" in normalized_query
+        ):
+            raise ValueError("Enter a valid location search")
+        return location_list_to_json(
+            "results", await self._adapter.search_locations(normalized_query)
         )
 
     async def get_settings_json(self) -> str:

@@ -29,7 +29,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   streaming, Tor, Smart Routing, Secure Core, and location metadata
 - Free-plan discovery parity: free locations remain connectable while paid-only
   countries, locations, and servers stay visible with native upgrade actions
-- Native country/server filtering without rebuilding or copying location data
+- Native global search across localized country names, cities, and exact
+  servers, with bounded on-demand results instead of a duplicate server cache
 - Proton-driven server refresh notifications with compact load-only updates;
   existing Qt rows change in place instead of rebuilding the server list
 - Native server ordering by current load, updated without resetting the list

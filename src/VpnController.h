@@ -13,6 +13,7 @@ class QDBusServiceWatcher;
 class QAbstractItemModel;
 class QJsonObject;
 class CountryModel;
+class LocationSearchModel;
 class LocationFilterProxyModel;
 class ServerGroupModel;
 class ServerModel;
@@ -33,6 +34,7 @@ class VpnController final : public QObject
     Q_PROPERTY(int killSwitch READ killSwitch NOTIFY snapshotChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
+    Q_PROPERTY(bool locationSearchBusy READ locationSearchBusy NOTIFY locationsChanged)
     Q_PROPERTY(QString state READ state NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverName READ serverName NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverLocation READ serverLocation NOTIFY snapshotChanged)
@@ -49,6 +51,7 @@ class VpnController final : public QObject
     Q_PROPERTY(QString primaryActionText READ primaryActionText NOTIFY snapshotChanged)
     Q_PROPERTY(bool primaryActionEnabled READ primaryActionEnabled NOTIFY snapshotChanged)
     Q_PROPERTY(QAbstractItemModel *countryModel READ countryModel CONSTANT)
+    Q_PROPERTY(QAbstractItemModel *locationSearchModel READ locationSearchModel CONSTANT)
     Q_PROPERTY(QAbstractItemModel *serverGroupModel READ serverGroupModel CONSTANT)
     Q_PROPERTY(QAbstractItemModel *serverModel READ serverModel CONSTANT)
     Q_PROPERTY(QAbstractItemModel *applicationModel READ applicationModel CONSTANT)
@@ -71,6 +74,7 @@ public:
     [[nodiscard]] int killSwitch() const;
     [[nodiscard]] bool busy() const;
     [[nodiscard]] bool locationsBusy() const;
+    [[nodiscard]] bool locationSearchBusy() const;
     [[nodiscard]] QString state() const;
     [[nodiscard]] QString serverName() const;
     [[nodiscard]] QString serverLocation() const;
@@ -87,6 +91,7 @@ public:
     [[nodiscard]] QString primaryActionText() const;
     [[nodiscard]] bool primaryActionEnabled() const;
     [[nodiscard]] QAbstractItemModel *countryModel() const;
+    [[nodiscard]] QAbstractItemModel *locationSearchModel() const;
     [[nodiscard]] QAbstractItemModel *serverGroupModel() const;
     [[nodiscard]] QAbstractItemModel *serverModel() const;
     [[nodiscard]] QAbstractItemModel *applicationModel() const;
@@ -105,6 +110,8 @@ public:
                                          const QString &description,
                                          bool includeLogs);
     Q_INVOKABLE void loadCountries();
+    Q_INVOKABLE void searchLocations(const QString &query);
+    Q_INVOKABLE void clearLocationSearch();
     Q_INVOKABLE void loadServerGroups(const QString &countryCode);
     Q_INVOKABLE void loadGroupServers(const QString &countryCode,
                                       const QString &groupKind,
@@ -177,6 +184,7 @@ private:
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
     void handleCountriesReply(QDBusPendingCallWatcher *watcher);
+    void handleLocationSearchReply(QDBusPendingCallWatcher *watcher);
     void handleServerGroupsReply(QDBusPendingCallWatcher *watcher);
     void handleServersReply(QDBusPendingCallWatcher *watcher);
     void handleServerLoadsReply(QDBusPendingCallWatcher *watcher);
@@ -186,6 +194,7 @@ private:
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
     CountryModel *m_countryModel = nullptr;
+    LocationSearchModel *m_locationSearchModel = nullptr;
     ServerGroupModel *m_serverGroupModel = nullptr;
     ServerModel *m_serverModel = nullptr;
     InstalledApplicationModel *m_installedApplicationModel = nullptr;
@@ -208,6 +217,9 @@ private:
     int m_killSwitch = 0;
     bool m_busy = false;
     bool m_locationsBusy = false;
+    bool m_locationSearchBusy = false;
+    quint64 m_locationSearchGeneration = 0;
+    QString m_locationSearchQuery;
     bool m_countryRefreshPending = false;
     bool m_serverGroupRefreshPending = false;
     bool m_serverRefreshPending = false;

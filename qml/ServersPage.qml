@@ -13,13 +13,18 @@ Kirigami.ScrollablePage {
     required property string groupName
     required property bool groupAccessible
     required property bool groupUnderMaintenance
+    property string initialServerFilter: ""
 
     title: groupKind === "secure-core"
            ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
            : countryFlag + "  " + groupName
 
-    Component.onCompleted: vpnController.loadGroupServers(
-        countryCode, groupKind, groupName)
+    Component.onCompleted: {
+        vpnController.loadGroupServers(countryCode, groupKind, groupName)
+        if (initialServerFilter.length > 0) {
+            serverSearch.text = initialServerFilter
+        }
+    }
 
     actions: [
         Kirigami.Action {
@@ -57,6 +62,7 @@ Kirigami.ScrollablePage {
         spacing: Kirigami.Units.smallSpacing
 
         header: Kirigami.SearchField {
+            id: serverSearch
             width: serverList.width
             placeholderText: qsTr("Search servers or locations")
             onTextChanged: vpnController.setServerFilter(text)

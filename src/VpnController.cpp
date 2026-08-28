@@ -41,6 +41,7 @@ VpnController::VpnController(QObject *parent)
               | QDBusServiceWatcher::WatchForUnregistration,
           this))
     , m_countryModel(new CountryModel(this))
+    , m_locationSearchModel(new LocationSearchModel(this))
     , m_serverGroupModel(new ServerGroupModel(this))
     , m_serverModel(new ServerModel(this))
     , m_installedApplicationModel(new InstalledApplicationModel(this))
@@ -130,6 +131,7 @@ bool VpnController::fido2Available() const { return m_fido2Available; }
 int VpnController::killSwitch() const { return m_killSwitch; }
 bool VpnController::busy() const { return m_busy; }
 bool VpnController::locationsBusy() const { return m_locationsBusy; }
+bool VpnController::locationSearchBusy() const { return m_locationSearchBusy; }
 QString VpnController::state() const { return m_state; }
 QString VpnController::serverName() const { return m_serverName; }
 QString VpnController::serverLocation() const { return m_serverLocation; }
@@ -160,6 +162,10 @@ bool VpnController::primaryActionEnabled() const
 }
 
 QAbstractItemModel *VpnController::countryModel() const { return m_countryFilterModel; }
+QAbstractItemModel *VpnController::locationSearchModel() const
+{
+    return m_locationSearchModel;
+}
 QAbstractItemModel *VpnController::serverGroupModel() const
 {
     return m_serverGroupFilterModel;
@@ -364,6 +370,49 @@ void VpnController::loadCountries()
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleCountriesReply);
+}
+
+void VpnController::searchLocations(const QString &query)
+{
+    const QString normalizedQuery = query.simplified();
+    m_locationSearchQuery = normalizedQuery;
+    const quint64 generation = ++m_locationSearchGeneration;
+    if (normalizedQuery.isEmpty()) {
+        m_locationSearchBusy = false;
+        m_locationSearchModel->clear();
+        emit locationsChanged();
+        return;
+    }
+
+    QString errorMessage;
+    m_locationSearchModel->resetFromJson(
+        QStringLiteral(R"json({"schemaVersion":1,"results":[]})json"),
+        *m_countryModel, normalizedQuery, &errorMessage);
+    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
+        m_locationSearchBusy = false;
+        emit locationsChanged();
+        return;
+    }
+
+    m_locationSearchBusy = true;
+    emit locationsChanged();
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("SearchLocations"));
+    message << normalizedQuery;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    watcher->setProperty("query", normalizedQuery);
+    watcher->setProperty("generation", QVariant::fromValue(generation));
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleLocationSearchReply);
+}
+
+void VpnController::clearLocationSearch()
+{
+    searchLocations({});
 }
 
 void VpnController::loadServers(const QString &countryCode)
@@ -1034,6 +1083,7 @@ void VpnController::onServiceUnregistered(const QString &)
     m_countryModel->clear();
     m_serverGroupModel->clear();
     m_serverModel->clear();
+    m_locationSearchModel->clear();
     m_countryRefreshPending = false;
     m_serverGroupRefreshPending = false;
     m_serverRefreshPending = false;
@@ -1041,6 +1091,9 @@ void VpnController::onServiceUnregistered(const QString &)
     m_currentServerCountry.clear();
     m_currentServerGroupKind.clear();
     m_currentServerGroupName.clear();
+    m_locationSearchQuery.clear();
+    ++m_locationSearchGeneration;
+    m_locationSearchBusy = false;
     m_settings->reset(tr("The Proton backend service stopped"));
     m_splitTunneling->reset(tr("The Proton backend service stopped"));
     m_customDns->reset(tr("The Proton backend service stopped"));
@@ -1063,6 +1116,9 @@ void VpnController::onServerDataChanged(bool topologyChanged)
         m_serverLoadsRefreshPending = false;
     } else if (!m_currentServerCountry.isEmpty()) {
         m_serverLoadsRefreshPending = true;
+    }
+    if (topologyChanged && !m_locationSearchQuery.isEmpty()) {
+        searchLocations(m_locationSearchQuery);
     }
     dispatchPendingLocationRefreshes();
 }
@@ -1159,6 +1215,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_countryModel->clear();
         m_serverGroupModel->clear();
         m_serverModel->clear();
+        m_locationSearchModel->clear();
         m_countryRefreshPending = false;
         m_serverGroupRefreshPending = false;
         m_serverRefreshPending = false;
@@ -1166,6 +1223,9 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_currentServerCountry.clear();
         m_currentServerGroupKind.clear();
         m_currentServerGroupName.clear();
+        m_locationSearchQuery.clear();
+        ++m_locationSearchGeneration;
+        m_locationSearchBusy = false;
         m_settings->reset();
         m_splitTunneling->reset();
         m_customDns->reset();
@@ -1370,7 +1430,37 @@ void VpnController::handleCountriesReply(QDBusPendingCallWatcher *watcher)
         m_message = errorMessage;
         emit snapshotChanged();
     }
+    if (!m_locationSearchQuery.isEmpty()) {
+        searchLocations(m_locationSearchQuery);
+    }
     dispatchPendingLocationRefreshes();
+}
+
+void VpnController::handleLocationSearchReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<QString> reply = *watcher;
+    const QString requestedQuery = watcher->property("query").toString();
+    const quint64 generation = watcher->property("generation").toULongLong();
+    watcher->deleteLater();
+    if (generation != m_locationSearchGeneration
+        || requestedQuery != m_locationSearchQuery) {
+        return;
+    }
+
+    m_locationSearchBusy = false;
+    if (reply.isError()) {
+        m_message = tr("Unable to search locations and servers");
+        emit snapshotChanged();
+        emit locationsChanged();
+        return;
+    }
+    QString errorMessage;
+    if (!m_locationSearchModel->resetFromJson(
+            reply.value(), *m_countryModel, requestedQuery, &errorMessage)) {
+        m_message = errorMessage;
+        emit snapshotChanged();
+    }
+    emit locationsChanged();
 }
 
 void VpnController::handleServerGroupsReply(QDBusPendingCallWatcher *watcher)

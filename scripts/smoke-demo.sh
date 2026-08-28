@@ -69,6 +69,26 @@ gdbus call --session \
     --object-path /proton/vpn/app/kde/backend \
     --method proton.vpn.app.kde.Backend1.GetServers CH
 
+location_search="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.SearchLocations zur)"
+if [[ "$location_search" != *'"kind":"location"'* \
+    || "$location_search" != *'"name":"Zurich"'* ]]; then
+    echo "Backend did not return global location search results" >&2
+    exit 1
+fi
+
+server_search="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.SearchLocations CH#)"
+if [[ "$server_search" != *'"kind":"server"'* \
+    || "$server_search" != *'"name":"CH#101"'* ]]; then
+    echo "Backend did not return global server search results" >&2
+    exit 1
+fi
+
 server_groups="$(gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \

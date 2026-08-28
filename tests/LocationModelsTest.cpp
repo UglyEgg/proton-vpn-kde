@@ -9,6 +9,7 @@ class LocationModelsTest final : public QObject
 
 private slots:
     void parsesCountries();
+    void parsesGlobalSearchResults();
     void parsesServerGroups();
     void parsesServers();
     void updatesServerLoadsWithoutResetting();
@@ -59,6 +60,48 @@ void LocationModelsTest::parsesCountries()
     }
     QVERIFY(foundSwitzerland);
     QVERIFY(foundUnitedKingdom);
+}
+
+void LocationModelsTest::parsesGlobalSearchResults()
+{
+    CountryModel countries;
+    QVERIFY(countries.resetFromJson(QStringLiteral(R"json(
+        {"schemaVersion":1,"countries":[
+            {"code":"CH","serverCount":12,"accessible":true},
+            {"code":"US","serverCount":40,"accessible":false}
+        ]}
+    )json")));
+
+    LocationSearchModel model;
+    QString error;
+    QVERIFY(model.resetFromJson(QStringLiteral(R"json(
+        {"schemaVersion":1,"results":[
+            {"kind":"location","name":"Chicago, IL","countryCode":"US",
+             "accessible":false},
+            {"kind":"server","name":"CH#101","countryCode":"CH",
+             "location":"Zurich","groupKind":"location",
+             "groupName":"Zurich","load":24,"accessible":true},
+            {"kind":"unsupported","name":"ignored","countryCode":"CH"}
+        ]}
+    )json"), countries, QStringLiteral("ch"), &error));
+
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(model.rowCount(), 3);
+    const auto roles = model.roleNames();
+    QCOMPARE(model.index(0).data(roles.key("kind")).toString(),
+             QStringLiteral("country"));
+    QCOMPARE(model.index(0).data(roles.key("countryCode")).toString(),
+             QStringLiteral("CH"));
+    QCOMPARE(model.index(0).data(roles.key("serverCount")).toInt(), 12);
+    QCOMPARE(model.index(1).data(roles.key("kind")).toString(),
+             QStringLiteral("location"));
+    QVERIFY(!model.index(1).data(roles.key("accessible")).toBool());
+    QCOMPARE(model.index(2).data(roles.key("name")).toString(),
+             QStringLiteral("CH#101"));
+    QCOMPARE(model.index(2).data(roles.key("load")).toInt(), 24);
+    QCOMPARE(model.index(2).data(roles.key("groupName")).toString(),
+             QStringLiteral("Zurich"));
+    QVERIFY(!model.index(2).data(roles.key("countryName")).toString().isEmpty());
 }
 
 void LocationModelsTest::parsesServerGroups()

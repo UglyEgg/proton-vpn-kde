@@ -74,6 +74,10 @@ class VpnDbusService(ServiceInterface):
     async def get_server_loads(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_server_loads_json(country_code)
 
+    @method(name="SearchLocations")
+    async def search_locations(self, query: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        return await self._controller.search_locations_json(query)
+
     @method(name="GetSettings")
     async def get_settings(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         try:

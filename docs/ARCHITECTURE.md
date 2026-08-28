@@ -54,6 +54,7 @@ The additive version-one contract currently contains:
 - `GetGroupServers(countryCode, groupKind, groupName) -> JSON string`
 - `GetServers(countryCode) -> JSON string`
 - `GetServerLoads(countryCode) -> JSON string`
+- `SearchLocations(query) -> JSON string`
 - `GetSettings() -> JSON string`
 - `UpdateSettings(JSON patch) -> JSON string`
 - `GetSplitTunneling() -> JSON string`
@@ -210,6 +211,10 @@ sorting proxy reorders rows only when necessary. The user-facing list stays in
 lowest-load order; search handles deliberate server or location selection
 without exposing low-value implementation-centric sort controls. The KDE layer
 does not add a polling schedule or make its own server-list API requests.
+Global search keeps localized country matching in Qt and asks the existing core
+list for at most 100 matching locations and 100 accessible exact servers per
+query. It therefore matches the official client's search sections without
+retaining a second, multi-thousand-row frontend model.
 The same core access checks annotate countries, locations, and servers for the
 active account tier. Accessible rows sort first; paid-only and maintenance rows
 remain visible but cannot accidentally reach a connect operation, matching the

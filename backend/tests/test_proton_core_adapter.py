@@ -634,6 +634,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             return SimpleNamespace(
                 name=name,
                 exit_country=exit_country,
+                exit_country_name=exit_country,
                 entry_country=entry_country or exit_country,
                 location=location,
                 load=load,
@@ -707,6 +708,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         swiss_servers = await adapter.get_servers("CH")
         swiss_loads = await adapter.get_server_loads("CH")
+        location_search = await adapter.search_locations("zur")
+        server_search = await adapter.search_locations("ch#")
 
         self.assertEqual(["CH", "US"], [country.code for country in countries])
         self.assertEqual(["location", "secure-core"], [group.kind for group in groups])
@@ -722,6 +725,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             {"CH#10", "CH-TOR#1", "CH-DE#1"},
             {load.name for load in swiss_loads},
         )
+        self.assertEqual(["Zurich"], [item.name for item in location_search])
+        self.assertEqual(["CH#10"], [item.name for item in server_search])
 
     async def test_free_tier_location_queries_keep_paid_servers_visible(self):
         api, _ = self.make_api()

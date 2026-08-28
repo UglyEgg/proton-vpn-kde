@@ -6,6 +6,7 @@ import asyncio
 from contextlib import ExitStack
 from dataclasses import replace
 import os
+import unicodedata
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -16,6 +17,7 @@ from .controller import (
     CustomDnsServer,
     CustomDnsSettings,
     CustomDnsValue,
+    LocationSearchInfo,
     ProtocolInfo,
     ServerDataCallback,
     ServerGroupInfo,
@@ -36,6 +38,15 @@ from .support import collect_support_logs
 
 def _supports_split_tunneling(protocol: str) -> bool:
     return protocol == "wireguard" or protocol.startswith("protun-")
+
+
+def _fold_search_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value.casefold())
+    return "".join(
+        character
+        for character in normalized
+        if not unicodedata.combining(character)
+    )
 
 
 class DemoCoreAdapter:
@@ -145,6 +156,53 @@ class DemoCoreAdapter:
                 await self.get_group_servers("CH", "secure-core", "Via Secure Core")
             )
         return [ServerLoadInfo(server.name, server.load) for server in servers]
+
+    async def search_locations(self, query: str) -> list[LocationSearchInfo]:
+        needle = _fold_search_text(query)
+        locations: dict[tuple[str, str], LocationSearchInfo] = {}
+        servers: list[LocationSearchInfo] = []
+        for country_code in ("CH", "US"):
+            country_servers = list(await self.get_servers(country_code))
+            if country_code == "CH":
+                country_servers.extend(
+                    await self.get_group_servers(
+                        "CH", "secure-core", "Via Secure Core"
+                    )
+                )
+            for server in country_servers:
+                if server.location and needle in _fold_search_text(server.location):
+                    locations[(country_code, server.location)] = LocationSearchInfo(
+                        kind="location",
+                        name=server.location,
+                        country_code=country_code,
+                        group_name=server.location,
+                        accessible=server.accessible,
+                    )
+                if server.accessible and needle in _fold_search_text(server.name):
+                    servers.append(
+                        LocationSearchInfo(
+                            kind="server",
+                            name=server.name,
+                            country_code=country_code,
+                            location=server.location,
+                            group_kind=(
+                                "secure-core" if server.secure_core else "location"
+                            ),
+                            group_name=(
+                                "Via Secure Core"
+                                if server.secure_core
+                                else server.location
+                            ),
+                            load=server.load,
+                        )
+                    )
+        return [
+            *sorted(
+                locations.values(),
+                key=lambda item: (item.name, item.country_code),
+            )[:100],
+            *sorted(servers, key=lambda item: item.name)[:100],
+        ]
 
     async def get_settings(self) -> VpnSettings:
         return replace(
@@ -599,6 +657,85 @@ class ProtonCoreAdapter:
             for server in server_list.logicals
             if server.exit_country.upper() == country_code
         ]
+
+    async def search_locations(self, query: str) -> list[LocationSearchInfo]:
+        from proton.vpn.session.servers import ServerFeatureEnum
+        from proton.vpn.session.servers.logicals import (
+            sort_servers_alphabetically_by_country_and_server_name,
+        )
+
+        server_list = await self._get_server_list()
+        logicals = list(server_list.logicals)
+        available_names = {
+            server.name
+            for server in server_list.get_available_servers(
+                logicals, server_list.user_tier
+            )
+        }
+        needle = _fold_search_text(query)
+        countries = {
+            country.code.upper(): country for country in self._countries(server_list)
+        }
+        locations: dict[tuple[str, str], LocationSearchInfo] = {}
+        matching_servers = []
+        for server in logicals:
+            if server.under_maintenance:
+                continue
+            country_code = server.exit_country.upper()
+            location = server.location or ""
+            if location and needle in _fold_search_text(location):
+                key = (country_code, location)
+                accessible = server.name in available_names
+                previous = locations.get(key)
+                locations[key] = LocationSearchInfo(
+                    kind="location",
+                    name=location,
+                    country_code=country_code,
+                    group_name=location,
+                    accessible=accessible or bool(previous and previous.accessible),
+                )
+            if (
+                server.name in available_names
+                and needle in _fold_search_text(server.name)
+            ):
+                matching_servers.append(server)
+
+        location_results = sorted(
+            locations.values(),
+            key=lambda item: (_fold_search_text(item.name), item.country_code),
+        )[:100]
+        server_results = [
+            LocationSearchInfo(
+                kind="server",
+                name=server.name,
+                country_code=server.exit_country.upper(),
+                location=server.location or "",
+                group_kind=(
+                    "secure-core"
+                    if ServerFeatureEnum.SECURE_CORE in server.features
+                    else "location"
+                ),
+                group_name=(
+                    getattr(
+                        getattr(
+                            countries.get(server.exit_country.upper()),
+                            "secure_core_group",
+                            None,
+                        ),
+                        "name",
+                        "Via Secure Core",
+                    )
+                    if ServerFeatureEnum.SECURE_CORE in server.features
+                    else server.location or ""
+                ),
+                load=server.load or 0,
+            )
+            for server in sorted(
+                matching_servers,
+                key=sort_servers_alphabetically_by_country_and_server_name,
+            )[:100]
+        ]
+        return [*location_results, *server_results]
 
     async def get_settings(self) -> VpnSettings:
         settings = await self._load_settings()
