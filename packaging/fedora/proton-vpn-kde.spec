@@ -1,7 +1,7 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.8.0
+Version:        0.8.1
 Release:        1%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
@@ -66,6 +66,15 @@ mv %{buildroot}%{_libdir}/systemd/user/proton-vpn-kde-backend.service \
 desktop-file-validate \
     %{buildroot}%{_datadir}/applications/proton-vpn-kde.desktop
 
+%post
+%systemd_user_post proton-vpn-kde-backend.service
+
+%preun
+%systemd_user_preun proton-vpn-kde-backend.service
+
+%posttrans
+%systemd_user_posttrans_with_restart proton-vpn-kde-backend.service
+
 %files
 %license LICENSE COPYING.md
 %doc README.md docs
@@ -79,6 +88,9 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-backend.service
 
 %changelog
+* Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.8.1-1
+- Restart a running user backend after upgrades so the GUI and D-Bus API stay in sync.
+
 * Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.8.0-1
 - Add a native custom-DNS editor with IPv4 and IPv6 validation.
 - Preserve Proton core per-entry state and use its official save path.

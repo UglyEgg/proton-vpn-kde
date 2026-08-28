@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.8.0 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.8.1 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
