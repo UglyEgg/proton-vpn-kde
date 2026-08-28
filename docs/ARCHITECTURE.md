@@ -160,6 +160,12 @@ errors are mapped to fixed user-facing messages so exception strings cannot
 accidentally echo credentials. A session-expired API response disables recovery
 and returns the UI to sign-in state.
 
+The signed-out snapshot contains only the numeric kill-switch mode needed to
+detect permanent mode. A dedicated operation can turn that setting off before
+authentication but cannot alter any other VPN setting. Login is rejected until
+permanent mode is disabled, and sign-out disables the kill switch before the
+Proton session is removed.
+
 FIDO2 remains implemented by Proton's official `python3-fido2` integration. The
 backend bridges touch, key-selection, and PIN prompts into its authentication
 state machine; PINs use the same encrypted descriptor transport. Proton's
@@ -252,6 +258,10 @@ second controller.
 - The backend never auto-connects in development mode.
 - Mutating operations are serialized.
 - The GUI disables connection actions while an operation is active.
+- A signed-out process can only disable the kill switch through a dedicated
+  method; it cannot mutate the general Proton settings surface.
+- Quit waits for a confirmed active tunnel to reach the disconnected state;
+  ordinary window closing still follows the user's close-to-tray preference.
 - Demo mode is the default path used by tests and visual development.
 - The official GTK client may remain installed during development, but is no
   longer required to create the Proton session.

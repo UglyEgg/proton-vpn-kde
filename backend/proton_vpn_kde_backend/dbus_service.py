@@ -191,6 +191,13 @@ class VpnDbusService(ServiceInterface):
     async def logout(self):
         await self._controller.logout()
 
+    @method(name="DisableKillSwitchForLogin")
+    async def disable_kill_switch_for_login(self):
+        try:
+            await self._controller.disable_kill_switch_for_login()
+        except (RuntimeError, ValueError) as error:
+            raise DBusError(INVALID_SETTINGS_ERROR, str(error)) from error
+
     @method(name="SetReconnectionEnabled")
     async def set_reconnection_enabled(self, enabled: "b"):  # type: ignore[valid-type]  # noqa: F722,F821
         await self._controller.set_reconnection_enabled(enabled)

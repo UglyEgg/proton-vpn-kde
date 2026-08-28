@@ -1,3 +1,4 @@
+#include "AppLifecycle.h"
 #include "AppSettings.h"
 #include "NotificationIntegration.h"
 #include "ShortcutIntegration.h"
@@ -40,6 +41,7 @@ int main(int argc, char *argv[])
     const bool openSettings = commandLine.isSet(settingsOption);
 
     AppSettings settings;
+    AppLifecycle lifecycle;
     UpdateChannel updateChannel;
     VpnController controller;
     bool startupActionHandled = false;
@@ -64,11 +66,20 @@ int main(int argc, char *argv[])
                              controller.connectTarget(settings.autoConnectTarget());
                          }
                      });
+    QObject::connect(&controller, &VpnController::snapshotChanged,
+                     &lifecycle, [&controller, &lifecycle] {
+                         lifecycle.observeConnectionState(controller.state());
+                     });
+    QObject::connect(&lifecycle, &AppLifecycle::disconnectRequested,
+                     &controller, &VpnController::disconnect);
+    QObject::connect(&lifecycle, &AppLifecycle::quitReady,
+                     &app, &QApplication::quit);
     QApplication::setQuitOnLastWindowClosed(!settings.closeToTray());
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("vpnController"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"), &settings);
+    engine.rootContext()->setContextProperty(QStringLiteral("appLifecycle"), &lifecycle);
     engine.rootContext()->setContextProperty(
         QStringLiteral("updateChannel"), &updateChannel);
     engine.rootContext()->setContextProperty(
@@ -97,7 +108,7 @@ int main(int argc, char *argv[])
             window->raise();
             window->requestActivate();
         });
-    TrayIntegration tray(&controller, &settings, window);
+    TrayIntegration tray(&controller, &settings, &lifecycle, window);
     ShortcutIntegration shortcuts(&controller, window);
     NotificationIntegration notifications(&controller, &settings);
 

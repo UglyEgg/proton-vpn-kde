@@ -41,7 +41,7 @@ def _supports_split_tunneling(protocol: str) -> bool:
 class DemoCoreAdapter:
     """Deterministic adapter that never touches the network or credentials."""
 
-    def __init__(self, logged_in: bool = True):
+    def __init__(self, logged_in: bool = True, kill_switch: int = 0):
         self._callback: SnapshotCallback | None = None
         self._server_data_callback: ServerDataCallback | None = None
         self._logged_in = logged_in
@@ -56,6 +56,7 @@ class DemoCoreAdapter:
                 ProtocolInfo("openvpn-tcp", "OpenVPN (TCP)"),
             ),
             paid_features_available=logged_in,
+            kill_switch=kill_switch,
         )
         self._split_tunneling = SplitTunnelingSettings(
             available=True,
@@ -322,6 +323,8 @@ class DemoCoreAdapter:
         self.last_support_report = report
 
     async def login(self, username: str, password: str) -> None:
+        if self._settings.kill_switch == 2:
+            raise RuntimeError("Disable the permanent kill switch before signing in")
         await asyncio.sleep(0.05)
         if password == "2fa":
             self._auth_state = "two_factor"
@@ -361,7 +364,16 @@ class DemoCoreAdapter:
             await self.disconnect()
         self._logged_in = False
         self._auth_state = "signed_out"
+        self._settings = replace(self._settings, kill_switch=0)
         self._publish(self._build_snapshot(message="Signed out"))
+
+    async def disable_kill_switch_for_login(self) -> None:
+        self._settings = replace(self._settings, kill_switch=0)
+        self._publish(
+            self._build_snapshot(
+                message="Kill switch disabled; you can now sign in"
+            )
+        )
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
         self._reconnection_enabled = enabled
@@ -400,6 +412,7 @@ class DemoCoreAdapter:
             user_tier=2 if self._logged_in else 0,
             max_connections=10 if self._logged_in else 0,
             reconnect_enabled=self._reconnection_enabled,
+            kill_switch=self._settings.kill_switch,
             state=state,
             server_name=server_name,
             server_location=details[0],
@@ -441,6 +454,7 @@ class ProtonCoreAdapter:
         self._session_services_enabled = False
         self._fido_interaction: FidoInteraction | None = None
         self._packet_capture_active = False
+        self._kill_switch = 0
 
     async def initialize(
         self,
@@ -469,6 +483,14 @@ class ProtonCoreAdapter:
         self._api.refresher.set_server_loads_updated_callback(
             self._on_server_loads_updated
         )
+
+        if not self._logged_in:
+            try:
+                settings = await self._api.load_settings()
+            except Exception:
+                self._kill_switch = 0
+            else:
+                self._kill_switch = self._kill_switch_value(settings)
 
         if self._logged_in:
             await self._enable_session_services()
@@ -892,13 +914,14 @@ class ProtonCoreAdapter:
             await self._raise_session_error(error)
 
     def _settings_from_core(self, settings: Any) -> VpnSettings:
+        self._kill_switch = self._kill_switch_value(settings)
         disconnected = (
             type(self._connector.current_state).__name__.lower() == "disconnected"
         )
         return VpnSettings(
             protocol=settings.protocol,
             protocols=self._available_protocols(settings.protocol),
-            kill_switch=int(settings.killswitch),
+            kill_switch=self._kill_switch,
             net_shield=int(settings.features.netshield),
             vpn_accelerator=bool(settings.features.vpn_accelerator),
             moderate_nat=bool(settings.features.moderate_nat),
@@ -1010,6 +1033,10 @@ class ProtonCoreAdapter:
         await self._connector.disconnect()
 
     async def login(self, username: str, password: str) -> None:
+        settings = await self._load_settings()
+        self._kill_switch = self._kill_switch_value(settings)
+        if self._kill_switch == 2:
+            raise RuntimeError("Disable the permanent kill switch before signing in")
         self._auth_state = "signing_in"
         self._status_message = "Signing in…"
         self._publish_snapshot()
@@ -1111,6 +1138,11 @@ class ProtonCoreAdapter:
         await self.cancel_fido2()
         if type(self._connector.current_state).__name__ != "Disconnected":
             await self._connector.disconnect()
+        settings = await self._load_settings()
+        if self._kill_switch_value(settings) != 0:
+            settings.killswitch = 0
+            await self._save_settings(settings)
+        self._kill_switch = 0
         if self._reconnector:
             await self._reconnector.disable()
         self._session_services_enabled = False
@@ -1126,6 +1158,15 @@ class ProtonCoreAdapter:
                 ) from None
             raise RuntimeError("Proton could not complete sign-out") from None
         await self._set_signed_out("Signed out")
+
+    async def disable_kill_switch_for_login(self) -> None:
+        settings = await self._load_settings()
+        if self._kill_switch_value(settings) != 0:
+            settings.killswitch = 0
+            await self._save_settings(settings)
+        self._kill_switch = 0
+        self._status_message = "Kill switch disabled; you can now sign in"
+        self._publish_snapshot()
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
         self._reconnection_enabled = enabled
@@ -1341,6 +1382,7 @@ class ProtonCoreAdapter:
                 and bool(self._api.supports_fido2)
             ),
             reconnect_enabled=self._reconnection_enabled,
+            kill_switch=self._kill_switch,
             state=state_name,
             server_name=server_name,
             server_location=server_location,
@@ -1359,3 +1401,11 @@ class ProtonCoreAdapter:
                 else self._status_message or "Sign in to Proton VPN to continue"
             ),
         )
+
+    @staticmethod
+    def _kill_switch_value(settings: Any) -> int:
+        try:
+            value = int(settings.killswitch)
+        except (AttributeError, TypeError, ValueError):
+            return 0
+        return value if value in {0, 1, 2} else 0

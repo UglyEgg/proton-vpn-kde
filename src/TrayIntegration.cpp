@@ -1,5 +1,6 @@
 #include "TrayIntegration.h"
 
+#include "AppLifecycle.h"
 #include "AppSettings.h"
 #include "VpnController.h"
 
@@ -17,11 +18,12 @@
 #endif
 
 TrayIntegration::TrayIntegration(VpnController *controller, AppSettings *settings,
-                                 QWindow *window,
+                                 AppLifecycle *lifecycle, QWindow *window,
                                  QObject *parent)
     : QObject(parent)
     , m_controller(controller)
     , m_settings(settings)
+    , m_lifecycle(lifecycle)
     , m_window(window)
     , m_menu(new QMenu)
 {
@@ -33,7 +35,12 @@ TrayIntegration::TrayIntegration(VpnController *controller, AppSettings *setting
     connect(m_showAction, &QAction::triggered, this, &TrayIntegration::toggleWindow);
     connect(m_connectionAction, &QAction::triggered,
             m_controller, &VpnController::activatePrimaryAction);
-    connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
+    connect(quitAction, &QAction::triggered, this, [this] {
+        m_lifecycle->requestQuit(
+            m_controller->state(),
+            m_controller->backendAvailable() && m_controller->ready()
+                && m_controller->loggedIn());
+    });
     connect(m_controller, &VpnController::snapshotChanged,
             this, &TrayIntegration::updateState);
     connect(m_settings, &AppSettings::pinnedServersChanged,

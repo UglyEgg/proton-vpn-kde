@@ -74,6 +74,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"serverName":""', payload)
         self.assertIn('"forwardedPort":0', payload)
         self.assertIn('"packetCaptureActive":false', payload)
+        self.assertIn('"killSwitch":0', payload)
 
     async def test_packet_capture_lifecycle_is_reflected_in_snapshot(self):
         await self.controller.update_settings_json('{"protocol":"protun-udp"}')
@@ -282,6 +283,30 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         await controller.logout()
         self.assertFalse(controller.snapshot.logged_in)
         self.assertEqual("signed_out", controller.snapshot.auth_state)
+
+    async def test_permanent_kill_switch_must_be_disabled_before_login(self):
+        controller = BackendController(
+            DemoCoreAdapter(logged_in=False, kill_switch=2)
+        )
+        await controller.start()
+
+        self.assertEqual(2, controller.snapshot.kill_switch)
+        with self.assertRaisesRegex(RuntimeError, "permanent kill switch"):
+            await controller.login("demo-user", "password")
+
+        await controller.disable_kill_switch_for_login()
+        self.assertEqual(0, controller.snapshot.kill_switch)
+        await controller.login("demo-user", "password")
+        self.assertTrue(controller.snapshot.logged_in)
+
+    async def test_logout_disables_kill_switch(self):
+        controller = BackendController(DemoCoreAdapter(kill_switch=2))
+        await controller.start()
+
+        await controller.logout()
+
+        self.assertFalse(controller.snapshot.logged_in)
+        self.assertEqual(0, controller.snapshot.kill_switch)
 
     async def test_authentication_input_is_validated_before_reaching_adapter(self):
         controller = BackendController(DemoCoreAdapter(logged_in=False))

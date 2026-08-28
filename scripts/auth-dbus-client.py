@@ -73,6 +73,11 @@ async def main() -> None:
 
     initial = await snapshot(interface)
     assert initial["authState"] == "signed_out"
+    assert initial["killSwitch"] == 0
+
+    await interface.call_disable_kill_switch_for_login()
+    pre_login = await snapshot(interface)
+    assert pre_login["killSwitch"] == 0
 
     rejected_fd = sealed_payload(
         {"username": "demo-user", "password": "tampered"},

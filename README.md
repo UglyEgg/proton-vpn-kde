@@ -57,6 +57,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   close-to-tray, and start-minimized behavior
 - Native sign-in, TOTP/recovery-code authentication, security-key/FIDO2
   interaction, account metadata, session expiry, and logout
+- Pre-login permanent-kill-switch recovery, kill-switch-safe sign-out, and a
+  confirmed disconnect-before-quit flow matching the official client
 - Ephemeral X25519/AES-GCM encryption plus sealed one-use memory-file transport
   for passwords, codes, and security-key PINs; plaintext never appears in D-Bus
   messages, observable descriptors, or state snapshots

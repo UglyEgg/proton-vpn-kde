@@ -16,6 +16,12 @@ Kirigami.ApplicationWindow {
         if (appSettings.closeToTray) {
             close.accepted = false
             root.hide()
+        } else {
+            close.accepted = false
+            appLifecycle.requestQuit(
+                vpnController.state,
+                vpnController.backendAvailable && vpnController.ready
+                    && vpnController.loggedIn)
         }
     }
 
@@ -29,6 +35,35 @@ Kirigami.ApplicationWindow {
     }
 
     property bool previousLoggedIn: vpnController.loggedIn
+
+    Controls.Dialog {
+        id: quitDialog
+        anchors.centerIn: parent
+        modal: true
+        title: qsTr("Disconnect and quit Proton VPN?")
+        standardButtons: Controls.Dialog.Yes | Controls.Dialog.Cancel
+
+        Controls.Label {
+            width: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            text: vpnController.settings.killSwitch === 2
+                  ? qsTr("The VPN tunnel will be disconnected. The permanent kill switch will remain active after the app exits.")
+                  : qsTr("The active VPN tunnel will be disconnected before the app exits.")
+        }
+
+        onAccepted: appLifecycle.confirmQuit()
+        onRejected: appLifecycle.cancelQuit()
+    }
+
+    Connections {
+        target: appLifecycle
+        function onQuitConfirmationRequested() {
+            root.show()
+            root.raise()
+            root.requestActivate()
+            quitDialog.open()
+        }
+    }
 
     Connections {
         target: vpnController
@@ -87,6 +122,14 @@ Kirigami.ApplicationWindow {
                 text: qsTr("About")
                 icon.name: "help-about"
                 onTriggered: root.showPage(Qt.resolvedUrl("AboutPage.qml"))
+            },
+            Kirigami.Action {
+                text: qsTr("Quit")
+                icon.name: "application-exit"
+                onTriggered: appLifecycle.requestQuit(
+                    vpnController.state,
+                    vpnController.backendAvailable && vpnController.ready
+                        && vpnController.loggedIn)
             }
         ]
     }

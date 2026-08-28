@@ -25,6 +25,7 @@ class VpnSnapshot:
     max_connections: int = 0
     fido2_available: bool = False
     reconnect_enabled: bool = True
+    kill_switch: int = 0
     busy: bool = False
     state: str = "starting"
     server_name: str = ""
@@ -51,6 +52,7 @@ class VpnSnapshot:
         payload["maxConnections"] = payload.pop("max_connections")
         payload["fido2Available"] = payload.pop("fido2_available")
         payload["reconnectEnabled"] = payload.pop("reconnect_enabled")
+        payload["killSwitch"] = payload.pop("kill_switch")
         payload["serverName"] = payload.pop("server_name")
         payload["serverLocation"] = payload.pop("server_location")
         payload["exitCountry"] = payload.pop("exit_country")
@@ -539,6 +541,7 @@ class CoreAdapter(Protocol):
     async def submit_fido2_pin(self, pin: str) -> None: ...
     async def cancel_fido2(self) -> None: ...
     async def logout(self) -> None: ...
+    async def disable_kill_switch_for_login(self) -> None: ...
     async def set_reconnection_enabled(self, enabled: bool) -> None: ...
     async def disconnect(self) -> None: ...
     async def close(self) -> None: ...
@@ -815,6 +818,10 @@ class BackendController:
             raise ValueError("Enter a valid Proton username")
         if not password or len(password) > 4096:
             raise ValueError("Enter a valid Proton password")
+        if self._snapshot.kill_switch == 2:
+            raise RuntimeError(
+                "Disable the permanent kill switch before signing in"
+            )
         await self._run_operation(
             lambda: self._adapter.login(normalized_username, password)
         )
@@ -843,6 +850,13 @@ class BackendController:
 
     async def logout(self) -> None:
         await self._run_operation(self._adapter.logout)
+
+    async def disable_kill_switch_for_login(self) -> None:
+        if not self._snapshot.ready:
+            raise RuntimeError("The Proton backend is not ready")
+        if self._snapshot.logged_in:
+            raise RuntimeError("The Proton account is already signed in")
+        await self._run_operation(self._adapter.disable_kill_switch_for_login)
 
     async def disconnect(self) -> None:
         self._require_session()

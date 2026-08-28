@@ -196,6 +196,21 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(snapshot.logged_in)
         self.assertEqual("Sign in to Proton VPN to continue", snapshot.message)
 
+    async def test_logged_out_start_exposes_and_disables_permanent_kill_switch(self):
+        api, _ = self.make_api(logged_in=False)
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        api.load_settings.reset_mock()
+        adapter = ProtonCoreAdapter(api)
+
+        snapshot = await adapter.initialize(Mock())
+        self.assertEqual(2, snapshot.kill_switch)
+
+        await adapter.disable_kill_switch_for_login()
+
+        self.assertEqual(0, settings.killswitch)
+        api.save_settings.assert_awaited_once_with(settings)
+
     async def test_login_without_two_factor_enables_session_services(self):
         api, connector = self.make_api(logged_in=False)
         api.login.return_value = SimpleNamespace(

@@ -30,6 +30,7 @@ class VpnController final : public QObject
     Q_PROPERTY(int userTier READ userTier NOTIFY snapshotChanged)
     Q_PROPERTY(int maxConnections READ maxConnections NOTIFY snapshotChanged)
     Q_PROPERTY(bool fido2Available READ fido2Available NOTIFY snapshotChanged)
+    Q_PROPERTY(int killSwitch READ killSwitch NOTIFY snapshotChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(QString state READ state NOTIFY snapshotChanged)
@@ -67,6 +68,7 @@ public:
     [[nodiscard]] int userTier() const;
     [[nodiscard]] int maxConnections() const;
     [[nodiscard]] bool fido2Available() const;
+    [[nodiscard]] int killSwitch() const;
     [[nodiscard]] bool busy() const;
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] QString state() const;
@@ -94,6 +96,7 @@ public:
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void activatePrimaryAction();
+    Q_INVOKABLE void disconnect();
     Q_INVOKABLE void copyForwardedPort();
     Q_INVOKABLE void startPacketCapture(const QString &directoryPath);
     Q_INVOKABLE void stopPacketCapture();
@@ -122,6 +125,7 @@ public:
     Q_INVOKABLE void submitFido2Pin(const QString &pin);
     Q_INVOKABLE void cancelFido2();
     Q_INVOKABLE void logout();
+    Q_INVOKABLE void disableKillSwitchForLogin();
     Q_INVOKABLE void setCountryFilter(const QString &filterText);
     Q_INVOKABLE void setServerFilter(const QString &filterText);
     Q_INVOKABLE void setApplicationFilter(const QString &filterText);
@@ -201,6 +205,7 @@ private:
     int m_userTier = 0;
     int m_maxConnections = 0;
     bool m_fido2Available = false;
+    int m_killSwitch = 0;
     bool m_busy = false;
     bool m_locationsBusy = false;
     bool m_countryRefreshPending = false;

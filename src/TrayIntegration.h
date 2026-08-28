@@ -7,6 +7,7 @@ class QAction;
 class QMenu;
 class QWindow;
 class AppSettings;
+class AppLifecycle;
 class VpnController;
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM
@@ -20,7 +21,8 @@ class TrayIntegration final : public QObject
     Q_OBJECT
 
 public:
-    TrayIntegration(VpnController *controller, AppSettings *settings, QWindow *window,
+    TrayIntegration(VpnController *controller, AppSettings *settings,
+                    AppLifecycle *lifecycle, QWindow *window,
                     QObject *parent = nullptr);
 
 private:
@@ -30,6 +32,7 @@ private:
 
     VpnController *m_controller = nullptr;
     AppSettings *m_settings = nullptr;
+    AppLifecycle *m_lifecycle = nullptr;
     QWindow *m_window = nullptr;
     QMenu *m_menu = nullptr;
     QAction *m_showAction = nullptr;

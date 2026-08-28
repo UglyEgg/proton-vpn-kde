@@ -125,6 +125,7 @@ QString VpnController::planTitle() const { return m_planTitle; }
 int VpnController::userTier() const { return m_userTier; }
 int VpnController::maxConnections() const { return m_maxConnections; }
 bool VpnController::fido2Available() const { return m_fido2Available; }
+int VpnController::killSwitch() const { return m_killSwitch; }
 bool VpnController::busy() const { return m_busy; }
 bool VpnController::locationsBusy() const { return m_locationsBusy; }
 QString VpnController::state() const { return m_state; }
@@ -199,6 +200,15 @@ void VpnController::activatePrimaryAction()
         || m_state == QStringLiteral("disconnecting");
     callOperation(shouldDisconnect ? QStringLiteral("Disconnect")
                                    : QStringLiteral("ConnectFastest"));
+}
+
+void VpnController::disconnect()
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn
+        || m_state == QStringLiteral("disconnected")) {
+        return;
+    }
+    callControlOperation(QStringLiteral("Disconnect"));
 }
 
 void VpnController::copyForwardedPort()
@@ -573,6 +583,15 @@ void VpnController::cancelFido2()
 void VpnController::logout()
 {
     callOperation(QStringLiteral("Logout"));
+}
+
+void VpnController::disableKillSwitchForLogin()
+{
+    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy
+        || m_killSwitch == 0) {
+        return;
+    }
+    callOperation(QStringLiteral("DisableKillSwitchForLogin"));
 }
 
 void VpnController::setCountryFilter(const QString &filterText)
@@ -1112,6 +1131,8 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_userTier = snapshot.value(QStringLiteral("userTier")).toInt();
     m_maxConnections = snapshot.value(QStringLiteral("maxConnections")).toInt();
     m_fido2Available = snapshot.value(QStringLiteral("fido2Available")).toBool();
+    m_killSwitch = std::clamp(
+        snapshot.value(QStringLiteral("killSwitch")).toInt(), 0, 2);
     m_busy = snapshot.value(QStringLiteral("busy")).toBool();
     m_state = snapshot.value(QStringLiteral("state")).toString(
         QStringLiteral("unavailable"));

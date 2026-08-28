@@ -46,7 +46,9 @@ Kirigami.ScrollablePage {
             Layout.fillWidth: true
             type: Kirigami.MessageType.Warning
             visible: vpnController.state !== "disconnected"
-            text: qsTr("Signing out will disconnect the active VPN tunnel.")
+            text: vpnController.settings.killSwitch > 0
+                  ? qsTr("Signing out will disconnect the active VPN tunnel and disable the kill switch.")
+                  : qsTr("Signing out will disconnect the active VPN tunnel.")
         }
 
         Controls.Button {
@@ -67,9 +69,11 @@ Kirigami.ScrollablePage {
         Controls.Label {
             width: Kirigami.Units.gridUnit * 20
             wrapMode: Text.WordWrap
-            text: vpnController.state === "disconnected"
-                  ? qsTr("The saved Proton session will be removed from your Secret Service provider.")
-                  : qsTr("The VPN tunnel will be disconnected and the saved Proton session will be removed from your Secret Service provider.")
+            text: vpnController.settings.killSwitch > 0
+                  ? qsTr("The VPN tunnel will be disconnected, the kill switch will be disabled, and the saved Proton session will be removed from your Secret Service provider.")
+                  : vpnController.state === "disconnected"
+                    ? qsTr("The saved Proton session will be removed from your Secret Service provider.")
+                    : qsTr("The VPN tunnel will be disconnected and the saved Proton session will be removed from your Secret Service provider.")
         }
 
         onAccepted: vpnController.logout()

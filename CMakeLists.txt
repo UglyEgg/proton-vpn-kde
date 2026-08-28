@@ -47,6 +47,8 @@ find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
 qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(proton-vpn-kde
+    src/AppLifecycle.cpp
+    src/AppLifecycle.h
     src/AppSettings.cpp
     src/AppSettings.h
     src/CustomDnsModel.cpp
@@ -176,6 +178,18 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME location-model-tests COMMAND location-model-tests)
+
+    qt_add_executable(app-lifecycle-tests
+        tests/AppLifecycleTest.cpp
+        src/AppLifecycle.cpp
+        src/AppLifecycle.h
+    )
+    target_include_directories(app-lifecycle-tests PRIVATE src)
+    target_link_libraries(app-lifecycle-tests PRIVATE Qt6::Core Qt6::Test)
+    target_compile_options(app-lifecycle-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME app-lifecycle-tests COMMAND app-lifecycle-tests)
 
     qt_add_executable(app-settings-tests
         tests/AppSettingsTest.cpp

@@ -67,6 +67,23 @@ Kirigami.ScrollablePage {
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: vpnController.ready && !vpnController.loggedIn
+                     && vpnController.killSwitch === 2
+            type: Kirigami.MessageType.Warning
+            text: qsTr("The permanent kill switch is active and can block Proton authentication. Disable it before signing in.")
+
+            actions: [
+                Kirigami.Action {
+                    text: qsTr("Disable kill switch")
+                    icon.name: "security-low"
+                    enabled: !vpnController.busy
+                    onTriggered: vpnController.disableKillSwitchForLogin()
+                }
+            ]
+        }
+
         Kirigami.Icon {
             Layout.alignment: Qt.AlignHCenter
             implicitWidth: Kirigami.Units.gridUnit * 6
@@ -95,7 +112,7 @@ Kirigami.ScrollablePage {
         ColumnLayout {
             Layout.fillWidth: true
             visible: page.credentialsVisible
-            enabled: !vpnController.busy
+            enabled: !vpnController.busy && vpnController.killSwitch !== 2
             spacing: Kirigami.Units.largeSpacing
 
             Controls.TextField {
