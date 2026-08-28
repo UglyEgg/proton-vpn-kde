@@ -1,5 +1,7 @@
 /build/
 /build-*/
+/work/rpm-inspect-*/
+/work/rpmbuild-kde/
 /.cache/
 __pycache__/
 *.py[cod]
