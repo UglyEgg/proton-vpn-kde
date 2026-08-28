@@ -11,6 +11,9 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 
 - Native Qt 6/Kirigami overview window
 - Plasma system tray integration, using `KStatusNotifierItem` when available
+- Plasma Global Shortcuts actions for toggling the connection, connecting to
+  the fastest server, disconnecting, and showing or hiding the window; all are
+  unbound by default and user-configurable in System Settings
 - Versioned D-Bus contract with JSON snapshots
 - D-Bus activation and a systemd user service for installed builds
 - Safe demo backend for UI development
@@ -73,7 +76,7 @@ For full Plasma tray integration on Fedora:
 
 ```bash
 sudo dnf install kf6-kconfig-devel kf6-knotifications-devel \
-    kf6-kcoreaddons-devel kf6-kservice-devel \
+    kf6-kcoreaddons-devel kf6-kglobalaccel-devel kf6-kservice-devel \
     kf6-kstatusnotifieritem-devel openssl-devel
 ```
 

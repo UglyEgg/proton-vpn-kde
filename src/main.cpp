@@ -1,5 +1,6 @@
 #include "AppSettings.h"
 #include "NotificationIntegration.h"
+#include "ShortcutIntegration.h"
 #include "TrayIntegration.h"
 #include "UpdateChannel.h"
 #include "VpnController.h"
@@ -66,6 +67,7 @@ int main(int argc, char *argv[])
 
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
     TrayIntegration tray(&controller, &settings, window);
+    ShortcutIntegration shortcuts(&controller, window);
     NotificationIntegration notifications(&controller, &settings);
 
     return app.exec();

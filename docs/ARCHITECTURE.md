@@ -214,6 +214,13 @@ The repository switch does not reinstall this community frontend or perform a
 system upgrade. Discover or `dnf` remains responsible for showing and applying
 the resulting official Proton component updates.
 
+The frontend registers four unbound actions with `KGlobalAccel`: toggle the
+current connection, connect to the fastest server, disconnect, and show or hide
+the window. Plasma owns shortcut assignment and conflict handling through
+System Settings. Registration uses autoloading so a user's assignments survive
+frontend restarts and upgrades. The actions call the same controller operations
+as the visible interface and do not add a second networking path.
+
 ## Safety rules
 
 - The backend never auto-connects in development mode.
@@ -226,7 +233,7 @@ the resulting official Proton component updates.
 
 ## Next milestones
 
-1. Add KRunner actions and Plasma shortcuts on top of the stable D-Bus API.
+1. Add KRunner actions on top of the stable D-Bus API.
 2. Add a KCM-compatible configuration surface for the stable settings models.
 3. Verify feature parity against the official client's regression suite and
    package the next native Plasma preview.

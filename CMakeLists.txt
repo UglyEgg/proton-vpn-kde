@@ -38,6 +38,7 @@ if(ECM_FOUND)
 endif()
 find_package(KF6Config 6.0 REQUIRED)
 find_package(KF6CoreAddons 6.0 REQUIRED)
+find_package(KF6GlobalAccel 6.0 REQUIRED)
 find_package(KF6Notifications 6.0 REQUIRED)
 find_package(KF6Service 6.0 REQUIRED)
 find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
@@ -55,6 +56,8 @@ qt_add_executable(proton-vpn-kde
     src/NotificationIntegration.h
     src/SecretTransport.cpp
     src/SecretTransport.h
+    src/ShortcutIntegration.cpp
+    src/ShortcutIntegration.h
     src/SplitTunnelingModel.cpp
     src/SplitTunnelingModel.h
     src/main.cpp
@@ -101,6 +104,7 @@ target_link_libraries(proton-vpn-kde PRIVATE
     Qt6::Widgets
     KF6::ConfigCore
     KF6::CoreAddons
+    KF6::GlobalAccel
     KF6::Notifications
     KF6::Service
     OpenSSL::Crypto

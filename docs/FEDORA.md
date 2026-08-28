@@ -9,6 +9,7 @@ The native frontend currently needs:
 - Extra CMake Modules
 - `kf6-kconfig-devel`
 - `kf6-kcoreaddons-devel`
+- `kf6-kglobalaccel-devel`
 - `kf6-knotifications-devel`
 - `kf6-kservice-devel`
 - `openssl-devel`
@@ -27,6 +28,7 @@ Proton modules instead of a user virtual environment.
 - `kf6-kirigami`
 - `kf6-kconfig`
 - `kf6-kcoreaddons`
+- `kf6-kglobalaccel`
 - `kf6-knotifications`
 - `kf6-kservice`
 - `python3-dbus-fast`
@@ -38,6 +40,9 @@ split-tunneling packages pulled in by the core
 
 `KService` provides the application catalog used by the split-tunneling
 chooser. The frontend does not load Gio or parse desktop-entry files itself.
+`KGlobalAccel` registers optional Plasma-wide connection and window actions.
+No shortcut is assigned by the package; users choose keys in System Settings,
+and their assignments are preserved by Plasma.
 
 Add `kf6-kstatusnotifieritem` when the frontend was built with its development
 component; otherwise the Qt tray fallback has no KF6 StatusNotifierItem runtime

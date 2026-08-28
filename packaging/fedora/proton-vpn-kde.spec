@@ -15,6 +15,7 @@ BuildRequires:  extra-cmake-modules
 BuildRequires:  gcc-c++
 BuildRequires:  kf6-kconfig-devel
 BuildRequires:  kf6-kcoreaddons-devel
+BuildRequires:  kf6-kglobalaccel-devel
 BuildRequires:  kf6-knotifications-devel
 BuildRequires:  kf6-kservice-devel
 %if %{with kstatusnotifier}
@@ -30,6 +31,7 @@ BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
 
 Requires:       kf6-kirigami
+Requires:       kf6-kglobalaccel
 Requires:       python3-cryptography
 Requires:       python3-dbus-fast
 Requires:       python3-fido2
