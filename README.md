@@ -45,6 +45,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Provider-agnostic Secret Service initialization that cannot block D-Bus
 - Desktop-neutral asyncio reconnection after an unexpected tunnel drop; the
   previous server, protocol, and backend are reused without a GLib main loop
+- Safe, localized connection-error summaries and Proton-compatible session-limit
+  recovery guidance without exposing backend exception details
 - Plasma connection notifications through `KNotification`
 - Auto-connect targets and pinned country/server actions in the native Plasma
   system-tray menu

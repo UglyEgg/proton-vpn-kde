@@ -191,6 +191,12 @@ available and the systemd-logind session is unlocked. Authentication, session
 limit, 2FA, and certificate-validity errors are not retried; an expired
 certificate is handed to Proton's official data refresher.
 
+Connection failures cross D-Bus as a closed set of stable `errorCode` values
+derived only from Proton event class names. The frontend owns their translated
+text and gives the session-limit condition the same explicit recovery dialog as
+the official client. Unknown event classes collapse to `unexpected_error`; raw
+exception text never becomes observable state.
+
 This replaces only the GTK application's GLib scheduling and monitoring glue.
 It does not replace Proton's server construction, NetworkManager backend,
 protocol implementation, kill switch, or split-tunneling behavior. Reconnection

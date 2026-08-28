@@ -37,6 +37,7 @@ class VpnController final : public QObject
     Q_PROPERTY(bool locationSearchBusy READ locationSearchBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool npsSurveyAvailable READ npsSurveyAvailable NOTIFY npsSurveyChanged)
     Q_PROPERTY(QString state READ state NOTIFY snapshotChanged)
+    Q_PROPERTY(QString errorCode READ errorCode NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverName READ serverName NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverLocation READ serverLocation NOTIFY snapshotChanged)
     Q_PROPERTY(QString exitCountry READ exitCountry NOTIFY snapshotChanged)
@@ -78,6 +79,7 @@ public:
     [[nodiscard]] bool locationSearchBusy() const;
     [[nodiscard]] bool npsSurveyAvailable() const;
     [[nodiscard]] QString state() const;
+    [[nodiscard]] QString errorCode() const;
     [[nodiscard]] QString serverName() const;
     [[nodiscard]] QString serverLocation() const;
     [[nodiscard]] QString exitCountry() const;
@@ -238,6 +240,7 @@ private:
     QString m_currentServerGroupKind;
     QString m_currentServerGroupName;
     QString m_state = QStringLiteral("unavailable");
+    QString m_errorCode;
     QString m_serverName;
     QString m_serverLocation;
     QString m_exitCountry;

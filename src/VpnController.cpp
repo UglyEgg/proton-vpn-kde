@@ -134,6 +134,7 @@ bool VpnController::locationsBusy() const { return m_locationsBusy; }
 bool VpnController::locationSearchBusy() const { return m_locationSearchBusy; }
 bool VpnController::npsSurveyAvailable() const { return m_npsSurveyAvailable; }
 QString VpnController::state() const { return m_state; }
+QString VpnController::errorCode() const { return m_errorCode; }
 QString VpnController::serverName() const { return m_serverName; }
 QString VpnController::serverLocation() const { return m_serverLocation; }
 QString VpnController::exitCountry() const { return m_exitCountry; }
@@ -1110,6 +1111,7 @@ void VpnController::onServiceUnregistered(const QString &)
     m_busy = false;
     setLocationsBusy(false);
     m_state = QStringLiteral("unavailable");
+    m_errorCode.clear();
     m_message = tr("The Proton backend service stopped");
     m_countryModel->clear();
     m_serverGroupModel->clear();
@@ -1228,6 +1230,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_busy = snapshot.value(QStringLiteral("busy")).toBool();
     m_state = snapshot.value(QStringLiteral("state")).toString(
         QStringLiteral("unavailable"));
+    m_errorCode = snapshot.value(QStringLiteral("errorCode")).toString();
     if (m_state != QStringLiteral("connected")) {
         m_customDns->setRestartRequired(false);
     }

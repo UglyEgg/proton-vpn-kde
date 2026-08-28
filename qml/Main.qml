@@ -44,6 +44,7 @@ Kirigami.ApplicationWindow {
     onVisibleChanged: Qt.callLater(root.maybeShowNpsSurvey)
 
     property bool previousLoggedIn: vpnController.loggedIn
+    property string previousErrorCode: ""
 
     Controls.Dialog {
         id: quitDialog
@@ -62,6 +63,20 @@ Kirigami.ApplicationWindow {
 
         onAccepted: appLifecycle.confirmQuit()
         onRejected: appLifecycle.cancelQuit()
+    }
+
+    Controls.Dialog {
+        id: sessionLimitDialog
+        anchors.centerIn: parent
+        modal: true
+        title: qsTr("Connection error: session limit reached")
+        standardButtons: Controls.Dialog.Ok
+
+        Controls.Label {
+            width: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            text: qsTr("You've reached your maximum device limit. To reconnect to VPN, disconnect from another device.")
+        }
     }
 
     Controls.ButtonGroup {
@@ -238,7 +253,16 @@ Kirigami.ApplicationWindow {
             } else if (root.previousLoggedIn && !vpnController.loggedIn) {
                 root.showPage(Qt.resolvedUrl("SignInPage.qml"))
             }
+            if (vpnController.errorCode === "maximum_sessions_reached"
+                    && root.previousErrorCode
+                       !== "maximum_sessions_reached") {
+                root.show()
+                root.raise()
+                root.requestActivate()
+                sessionLimitDialog.open()
+            }
             root.previousLoggedIn = vpnController.loggedIn
+            root.previousErrorCode = vpnController.errorCode
         }
         function onNpsSurveyChanged() {
             Qt.callLater(root.maybeShowNpsSurvey)

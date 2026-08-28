@@ -416,6 +416,27 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             "error", adapter._snapshot_from_state(state_named("FutureState")).state
         )
 
+        error_codes = {
+            "TunnelSetupFailed": "tunnel_setup_failed",
+            "AuthDenied": "authentication_denied",
+            "Timeout": "timeout",
+            "DeviceDisconnected": "device_disconnected",
+            "MaximumSessionsReached": "maximum_sessions_reached",
+            "ExpiredCertificate": "certificate_expired",
+            "NotYetValidCertificate": "certificate_not_yet_valid",
+            "TwoFARequired": "two_factor_required",
+            "UnexpectedError": "unexpected_error",
+            "FutureError": "unexpected_error",
+        }
+        for event_name, expected_code in error_codes.items():
+            with self.subTest(event_name=event_name):
+                error_state = state_named("Error")
+                error_state.context = SimpleNamespace(event=state_named(event_name))
+                self.assertEqual(
+                    expected_code,
+                    adapter._snapshot_from_state(error_state).error_code,
+                )
+
     async def test_connect_fastest_uses_official_selection_and_saved_protocol(self):
         api, connector = self.make_api()
         logical_server = object()

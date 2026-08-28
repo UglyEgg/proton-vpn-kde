@@ -76,6 +76,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"forwardedPort":0', payload)
         self.assertIn('"packetCaptureActive":false', payload)
         self.assertIn('"killSwitch":0', payload)
+        self.assertIn('"errorCode":""', payload)
 
     async def test_packet_capture_lifecycle_is_reflected_in_snapshot(self):
         await self.controller.update_settings_json('{"protocol":"protun-udp"}')

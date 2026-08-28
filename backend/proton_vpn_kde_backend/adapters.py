@@ -1520,6 +1520,21 @@ class ProtonCoreAdapter:
         if state_name != "connected":
             self._packet_capture_active = False
 
+        error_code = ""
+        if state_name == "error":
+            event = getattr(getattr(state, "context", None), "event", None)
+            error_code = {
+                "TunnelSetupFailed": "tunnel_setup_failed",
+                "AuthDenied": "authentication_denied",
+                "Timeout": "timeout",
+                "DeviceDisconnected": "device_disconnected",
+                "MaximumSessionsReached": "maximum_sessions_reached",
+                "ExpiredCertificate": "certificate_expired",
+                "NotYetValidCertificate": "certificate_not_yet_valid",
+                "TwoFARequired": "two_factor_required",
+                "UnexpectedError": "unexpected_error",
+            }.get(type(event).__name__, "unexpected_error")
+
         connection = self._connector.current_connection if self._connector else None
         server_name = connection.server_name if connection else ""
         logical_server = None
@@ -1591,6 +1606,7 @@ class ProtonCoreAdapter:
             reconnect_enabled=self._reconnection_enabled,
             kill_switch=self._kill_switch,
             state=state_name,
+            error_code=error_code,
             server_name=server_name,
             server_location=server_location,
             exit_country=exit_country,

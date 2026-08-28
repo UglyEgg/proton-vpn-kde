@@ -28,6 +28,7 @@ class VpnSnapshot:
     kill_switch: int = 0
     busy: bool = False
     state: str = "starting"
+    error_code: str = ""
     server_name: str = ""
     server_location: str = ""
     exit_country: str = ""
@@ -53,6 +54,7 @@ class VpnSnapshot:
         payload["fido2Available"] = payload.pop("fido2_available")
         payload["reconnectEnabled"] = payload.pop("reconnect_enabled")
         payload["killSwitch"] = payload.pop("kill_switch")
+        payload["errorCode"] = payload.pop("error_code")
         payload["serverName"] = payload.pop("server_name")
         payload["serverLocation"] = payload.pop("server_location")
         payload["exitCountry"] = payload.pop("exit_country")
