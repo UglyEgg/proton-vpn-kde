@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.8.1 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.8.2 LANGUAGES CXX)
 
 find_package(ECM 6.0 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
@@ -470,6 +470,13 @@ if(BUILD_TESTING)
                 "XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
                 ${DBUS_RUN_SESSION_EXECUTABLE} --
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-auth-demo.sh
+        )
+        add_test(
+            NAME backend-lifetime-smoke
+            COMMAND ${CMAKE_COMMAND} -E env
+                "XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
+                ${DBUS_RUN_SESSION_EXECUTABLE} --
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-backend-lifetime.sh
         )
         add_test(
             NAME staged-install-smoke

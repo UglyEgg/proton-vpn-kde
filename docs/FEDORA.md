@@ -80,6 +80,11 @@ produce duplicate refreshers or competing connection operations.
 
 The KDE backend uses a session-bus service and an unprivileged systemd user
 unit. It does not replace the existing privileged split-tunneling daemon.
+Only the primary D-Bus name owner initializes Proton core. Native frontends
+hold verified session-bus leases; when the last lease disappears, a fully
+disconnected backend exits cleanly after a short grace period and is restarted
+by D-Bus activation the next time it is needed. Active connections and packet
+captures suppress idle shutdown.
 Normal RPM installation restores the expected SELinux labels for all installed
 paths; no custom policy or setuid component should be necessary. Install the
 notification metadata under `/usr/share/knotifications6` and leave the user

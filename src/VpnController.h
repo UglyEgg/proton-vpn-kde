@@ -64,6 +64,7 @@ class VpnController final : public QObject
 
 public:
     explicit VpnController(QObject *parent = nullptr);
+    ~VpnController() override;
 
     [[nodiscard]] bool backendAvailable() const;
     [[nodiscard]] bool ready() const;
@@ -180,6 +181,8 @@ private slots:
     void onCustomDnsChanged(const QString &settingsJson);
 
 private:
+    void registerClient();
+    void unregisterClient();
     void setBackendAvailable(bool available);
     void applySnapshot(const QString &snapshotJson);
     void callOperation(const QString &method, const QVariantList &arguments = {});
@@ -217,6 +220,7 @@ private:
     LocationFilterProxyModel *m_serverFilterModel = nullptr;
     LocationFilterProxyModel *m_applicationFilterModel = nullptr;
     bool m_backendAvailable = false;
+    bool m_clientRegistered = false;
     bool m_ready = false;
     bool m_startupCompatible = true;
     bool m_loggedIn = false;

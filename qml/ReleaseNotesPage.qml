@@ -11,13 +11,13 @@ Kirigami.ScrollablePage {
 
         Kirigami.Heading {
             level: 1
-            text: qsTr("Development build after 0.8.1")
+            text: "0.8.2"
         }
 
         Controls.Label {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: qsTr("• Browse Proton locations, Secure Core routes, Tor servers, Smart Routing locations, and individual servers.\n• Pin preferred countries and servers to the Plasma system tray and configure auto-connect.\n• View live connection features and copy an assigned port-forwarding port.\n• Edit split-tunneling IP ranges as well as applications.\n• Create protocol-supported troubleshooting captures.\n• Send protected issue reports through Proton's official support API.")
+            text: qsTr("Keep exactly one Proton backend active, preserve supervision while connected, and release the full Python core shortly after the last Plasma client exits while disconnected. Location data is now constructed only when it is opened.")
         }
 
         Kirigami.Separator {

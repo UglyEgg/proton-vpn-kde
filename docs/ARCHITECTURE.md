@@ -106,8 +106,18 @@ username, contact email, and description in an explicitly submitted support
 report; they never appear as ordinary D-Bus strings.
 
 Installed builds use D-Bus activation backed by a systemd user service. The
-service is demand-started by the first `GetSnapshot` call and remains separate
-from the privileged split-tunneling system daemon.
+service is demand-started by the first frontend call and remains separate from
+the privileged split-tunneling system daemon. Each native frontend holds a
+lease using its unique session-bus name. The backend verifies those names and
+removes leases for crashed clients. With no live frontend it exits after a
+short grace period only when Proton reports a fully disconnected, idle state;
+connected tunnels and packet captures therefore remain supervised. A clean
+exit is reactivated on demand and releases the Python core's server model and
+native networking libraries while the application is not in use.
+
+The backend requests its well-known name with `DO_NOT_QUEUE` and starts Proton
+core only after becoming the primary owner. Accidental manual or test launches
+therefore exit without creating a second refresher, connector, or SSO session.
 
 The official SSO stack reaches Secret Service through a synchronous keyring
 API. The backend warms that saved session on a worker thread before creating
@@ -271,8 +281,9 @@ fragment.
 application activates and raises the existing window, while the fixed
 `--settings` option also replaces its current page with the native settings
 page. This gives KRunner and System Settings a stable handoff without creating
-multiple tray items or multiple frontend controllers; the independent backend
-and an active tunnel continue to outlive the window as designed.
+multiple tray items or multiple frontend controllers. The independent backend
+continues to outlive the window while a tunnel is active, and otherwise returns
+to the D-Bus-activated stopped state after the last frontend exits.
 
 The `Proton VPN` System Settings module owns only desktop integration choices:
 startup, auto-connect target, unexpected-drop recovery, window/tray behavior,

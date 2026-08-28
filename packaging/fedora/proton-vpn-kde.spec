@@ -1,7 +1,7 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.8.1
+Version:        0.8.2
 Release:        1%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
@@ -101,6 +101,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-backend.service
 
 %changelog
+* Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.8.2-1
+- Enforce one backend owner and release disconnected idle backends on demand.
+- Track live Plasma clients without sacrificing active-tunnel supervision.
+- Defer country model construction until the Locations page is opened.
+
 * Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.8.1-1
 - Restart a running user backend after upgrades so the GUI and D-Bus API stay in sync.
 - Add Plasma global shortcuts and native KRunner connection actions.

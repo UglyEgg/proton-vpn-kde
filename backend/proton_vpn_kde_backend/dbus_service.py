@@ -13,6 +13,7 @@ from .controller import (
     VpnSnapshot,
 )
 from .secret_payload import SecretPayloadReader
+from .lifetime import BackendLifetime
 
 
 BUS_NAME = "proton.vpn.app.kde.backend"
@@ -20,23 +21,34 @@ OBJECT_PATH = "/proton/vpn/app/kde/backend"
 INTERFACE_NAME = "proton.vpn.app.kde.Backend1"
 INVALID_SECRET_ERROR = "proton.vpn.app.kde.Error.InvalidSecretPayload"
 INVALID_SETTINGS_ERROR = "proton.vpn.app.kde.Error.InvalidSettings"
-INVALID_SPLIT_TUNNELING_ERROR = (
-    "proton.vpn.app.kde.Error.InvalidSplitTunneling"
-)
+INVALID_SPLIT_TUNNELING_ERROR = "proton.vpn.app.kde.Error.InvalidSplitTunneling"
 INVALID_CUSTOM_DNS_ERROR = "proton.vpn.app.kde.Error.InvalidCustomDns"
 INVALID_SUPPORT_REPORT_ERROR = "proton.vpn.app.kde.Error.InvalidSupportReport"
 
 
 class VpnDbusService(ServiceInterface):
-    def __init__(self, controller: BackendController):
+    def __init__(
+        self, controller: BackendController, lifetime: BackendLifetime | None = None
+    ):
         super().__init__(INTERFACE_NAME)
         self._controller = controller
+        self._lifetime = lifetime
         self._secret_payloads = SecretPayloadReader()
         controller.subscribe(self._on_snapshot)
         controller.subscribe_server_data(self._on_server_data)
         controller.subscribe_settings(self._on_settings)
         controller.subscribe_split_tunneling(self._on_split_tunneling)
         controller.subscribe_custom_dns(self._on_custom_dns)
+
+    @method(name="RegisterClient")
+    async def register_client(self, unique_name: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
+        if self._lifetime is not None:
+            await self._lifetime.register_client(unique_name)
+
+    @method(name="UnregisterClient")
+    def unregister_client(self, unique_name: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
+        if self._lifetime is not None:
+            self._lifetime.unregister_client(unique_name)
 
     @method(name="GetSnapshot")
     def get_snapshot(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
@@ -64,7 +76,10 @@ class VpnDbusService(ServiceInterface):
 
     @method(name="GetGroupServers")
     async def get_group_servers(
-        self, country_code: "s", group_kind: "s", group_name: "s"  # type: ignore[valid-type]  # noqa: F722,F821
+        self,
+        country_code: "s",  # noqa: F821
+        group_kind: "s",  # noqa: F821
+        group_name: "s",  # type: ignore[valid-type]  # noqa: F722,F821
     ) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_group_servers_json(
             country_code, group_kind, group_name
@@ -106,9 +121,7 @@ class VpnDbusService(ServiceInterface):
     @method(name="UpdateSplitTunneling")
     async def update_split_tunneling(self, patch_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         try:
-            return await self._controller.update_split_tunneling_json(
-                patch_json
-            )
+            return await self._controller.update_split_tunneling_json(patch_json)
         except (RuntimeError, ValueError) as error:
             raise DBusError(INVALID_SPLIT_TUNNELING_ERROR, str(error)) from error
 
@@ -132,7 +145,10 @@ class VpnDbusService(ServiceInterface):
 
     @method(name="ConnectGroup")
     async def connect_group(
-        self, country_code: "s", group_kind: "s", group_name: "s"  # type: ignore[valid-type]  # noqa: F722,F821
+        self,
+        country_code: "s",  # noqa: F821
+        group_kind: "s",  # noqa: F821
+        group_name: "s",  # type: ignore[valid-type]  # noqa: F722,F821
     ):
         await self._controller.connect_group(country_code, group_kind, group_name)
 
@@ -249,9 +265,7 @@ class VpnDbusService(ServiceInterface):
     def _on_settings(self, settings: VpnSettings) -> None:
         self.settings_changed(settings.to_json())
 
-    def _on_split_tunneling(
-        self, settings: SplitTunnelingSettings
-    ) -> None:
+    def _on_split_tunneling(self, settings: SplitTunnelingSettings) -> None:
         self.split_tunneling_changed(settings.to_json())
 
     def _on_custom_dns(self, settings: CustomDnsSettings) -> None:

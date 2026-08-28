@@ -117,7 +117,13 @@ VpnController::VpnController(QObject *parent)
     // Calling the well-known name also activates the backend through D-Bus on
     // installed systems. In a development tree it simply reports that the
     // service is not installed yet.
+    registerClient();
     refresh();
+}
+
+VpnController::~VpnController()
+{
+    unregisterClient();
 }
 
 bool VpnController::backendAvailable() const { return m_backendAvailable; }
@@ -1104,12 +1110,15 @@ QString VpnController::applicationName(const QString &executable) const
 void VpnController::onServiceRegistered(const QString &)
 {
     setBackendAvailable(true);
+    m_clientRegistered = false;
+    registerClient();
     setReconnectionEnabled(m_reconnectionEnabled);
     refresh();
 }
 
 void VpnController::onServiceUnregistered(const QString &)
 {
+    m_clientRegistered = false;
     setBackendAvailable(false);
     m_ready = false;
     m_busy = false;
@@ -1138,6 +1147,40 @@ void VpnController::onServiceUnregistered(const QString &)
     m_splitTunneling->reset(tr("The Proton backend service stopped"));
     m_customDns->reset(tr("The Proton backend service stopped"));
     emit snapshotChanged();
+}
+
+void VpnController::registerClient()
+{
+    if (m_clientRegistered) {
+        return;
+    }
+    const QString uniqueName = QDBusConnection::sessionBus().baseService();
+    if (uniqueName.isEmpty()) {
+        return;
+    }
+    m_clientRegistered = true;
+    callControlOperation(QStringLiteral("RegisterClient"), {uniqueName});
+}
+
+void VpnController::unregisterClient()
+{
+    if (!m_clientRegistered) {
+        return;
+    }
+    m_clientRegistered = false;
+    const QString uniqueName = QDBusConnection::sessionBus().baseService();
+    if (uniqueName.isEmpty()) {
+        return;
+    }
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("UnregisterClient"));
+    message.setArguments({uniqueName});
+    // The event loop has already stopped when this destructor runs. A direct
+    // fire-and-forget send still queues the release before bus teardown.
+    QDBusConnection::sessionBus().send(message);
 }
 
 void VpnController::onSnapshotChanged(const QString &snapshotJson)
@@ -1279,9 +1322,6 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     emit snapshotChanged();
     if (m_loggedIn && !m_npsSurveyChecked) {
         loadPendingNpsSurvey();
-    }
-    if (m_loggedIn && m_countryModel->rowCount() == 0 && !m_locationsBusy) {
-        loadCountries();
     }
     if (m_loggedIn
         && (!m_settings->loaded() || previousState != m_state)
