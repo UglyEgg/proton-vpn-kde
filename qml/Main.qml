@@ -69,6 +69,11 @@ Kirigami.ApplicationWindow {
                 onTriggered: root.showPage(Qt.resolvedUrl("SettingsPage.qml"))
             },
             Kirigami.Action {
+                text: qsTr("Release notes")
+                icon.name: "view-list-text"
+                onTriggered: root.showPage(Qt.resolvedUrl("ReleaseNotesPage.qml"))
+            },
+            Kirigami.Action {
                 text: qsTr("Report an issue")
                 icon.name: "tools-report-bug"
                 enabled: vpnController.loggedIn
@@ -77,8 +82,7 @@ Kirigami.ApplicationWindow {
             Kirigami.Action {
                 text: qsTr("About")
                 icon.name: "help-about"
-                enabled: false
-                tooltip: qsTr("Coming in the next milestone")
+                onTriggered: root.showPage(Qt.resolvedUrl("AboutPage.qml"))
             }
         ]
     }

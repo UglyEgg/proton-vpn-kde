@@ -75,11 +75,13 @@ qt_add_qml_module(proton-vpn-kde
     QML_FILES
         qml/Main.qml
         qml/AccountPage.qml
+        qml/AboutPage.qml
         qml/CustomDnsPage.qml
         qml/CountryPage.qml
         qml/LocationsPage.qml
         qml/OverviewPage.qml
         qml/ReportIssuePage.qml
+        qml/ReleaseNotesPage.qml
         qml/ServersPage.qml
         qml/SettingsPage.qml
         qml/SignInPage.qml
@@ -106,6 +108,10 @@ target_compile_options(proton-vpn-kde PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
 )
 target_compile_definitions(proton-vpn-kde PRIVATE _GNU_SOURCE)
+target_compile_definitions(
+    proton-vpn-kde PRIVATE
+    PROTON_VPN_KDE_VERSION="${PROJECT_VERSION}"
+)
 
 if(TARGET KF6::StatusNotifierItem)
     target_link_libraries(proton-vpn-kde PRIVATE KF6::StatusNotifierItem)

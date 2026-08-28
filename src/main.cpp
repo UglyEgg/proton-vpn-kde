@@ -14,6 +14,8 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("Proton VPN"));
     QApplication::setApplicationDisplayName(QStringLiteral("Proton VPN for Plasma"));
+    QApplication::setApplicationVersion(
+        QStringLiteral(PROTON_VPN_KDE_VERSION));
     QApplication::setOrganizationDomain(QStringLiteral("proton.me"));
     QApplication::setDesktopFileName(QStringLiteral("proton-vpn-kde"));
     QApplication::setWindowIcon(QIcon::fromTheme(QStringLiteral("proton-vpn-kde"),
@@ -51,6 +53,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"), &settings);
     engine.rootContext()->setContextProperty(
         QStringLiteral("startMinimized"), settings.startMinimized());
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("appVersion"), QApplication::applicationVersion());
     engine.loadFromModule(QStringLiteral("Proton.VPN.KDE"), QStringLiteral("Main"));
     if (engine.rootObjects().isEmpty()) {
         return 1;
