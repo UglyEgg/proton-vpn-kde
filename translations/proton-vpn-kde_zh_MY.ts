@@ -68,6 +68,14 @@
             <translation>连接错误：已达到会话限制</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>出错了</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>了解详情</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>感谢您的反馈</translation>
         </message>

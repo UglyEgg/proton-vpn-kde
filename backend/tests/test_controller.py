@@ -71,6 +71,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         payload = self.controller.snapshot.to_json()
 
         self.assertIn('"schemaVersion":1', payload)
+        self.assertIn('"startupCompatible":true', payload)
         self.assertIn('"loggedIn":true', payload)
         self.assertIn('"serverName":""', payload)
         self.assertIn('"forwardedPort":0', payload)

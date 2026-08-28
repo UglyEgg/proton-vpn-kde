@@ -64,6 +64,14 @@
             <translation>Erro de conexão: limite de sessões atingido</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Algo deu errado.</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>Saiba mais</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Nós lhe agradecemos por seus comentários.</translation>
         </message>

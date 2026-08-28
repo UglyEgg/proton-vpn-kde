@@ -68,6 +68,18 @@
             <translation>Памылка падключэння: дасягнута абмежаванне па колькасці сеансаў</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Нешта пайшло не так</translation>
+        </message>
+        <message>
+            <source>Some required components were not detected on your system. The app may not work as expected.</source>
+            <translation>Некаторыя неабходныя кампаненты не былі выяўлены ў вашай сістэме. Праграма можа працаваць неналежным чынам.</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>Даведацца больш</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Дзякуй за ваш водгук</translation>
         </message>

@@ -60,6 +60,18 @@
             <translation>Erreur de connexion : limite de session atteinte</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Une erreur s'est produite</translation>
+        </message>
+        <message>
+            <source>Some required components were not detected on your system. The app may not work as expected.</source>
+            <translation>Certains composants requis n'ont pas été détectés sur votre système. L'application risque de ne pas fonctionner comme prévu.</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>En savoir plus</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Merci pour vos commentaires</translation>
         </message>

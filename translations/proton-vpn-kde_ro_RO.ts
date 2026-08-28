@@ -64,6 +64,18 @@
             <translation>Eroare conexiune: s-a atins limita de sesiuni</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Ceva nu a funcționat corect</translation>
+        </message>
+        <message>
+            <source>Some required components were not detected on your system. The app may not work as expected.</source>
+            <translation>Unele componente necesare nu au fost detectate în sistem. Aplicația s-ar putea să nu funcționeze cum ar trebui.</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>Detalii</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Vă mulțumim pentru feedback.</translation>
         </message>

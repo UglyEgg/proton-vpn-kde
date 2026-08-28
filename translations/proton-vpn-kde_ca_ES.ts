@@ -64,6 +64,18 @@
             <translation>Error de connexió: s'ha assolit el límit de la sessió</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Alguna cosa ha anat malament.</translation>
+        </message>
+        <message>
+            <source>Some required components were not detected on your system. The app may not work as expected.</source>
+            <translation>Hi ha alguns components obligatoris que no s'han trobat al vostre sistema. És possible que l'aplicació no funcioni com s'esperaria.</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>Saber-ne més</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Gràcies pels vostres comentaris</translation>
         </message>

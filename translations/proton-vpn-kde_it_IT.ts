@@ -64,6 +64,18 @@
             <translation>Errore di connessione: limite sessioni raggiunto</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Si è verificato un errore.</translation>
+        </message>
+        <message>
+            <source>Some required components were not detected on your system. The app may not work as expected.</source>
+            <translation>Alcuni componenti necessari non sono stati rilevati sul sistema. L'applicazione potrebbe non funzionare come previsto.</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>Scopri di più</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Grazie per la tua opinione</translation>
         </message>

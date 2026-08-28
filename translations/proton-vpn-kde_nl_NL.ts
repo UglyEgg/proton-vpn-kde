@@ -56,6 +56,10 @@
             <translation>Verbindingsfout: sessielimiet bereikt</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Er is iets fout gegaan</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Bedankt voor uw feedback</translation>
         </message>

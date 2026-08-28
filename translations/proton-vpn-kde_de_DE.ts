@@ -68,6 +68,18 @@
             <translation>Verbindungsfehler: keine weiteren Sitzungen möglich</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Ein Problem ist aufgetreten</translation>
+        </message>
+        <message>
+            <source>Some required components were not detected on your system. The app may not work as expected.</source>
+            <translation>Einige erforderliche Komponenten wurden auf deinem System nicht erkannt. Die App funktioniert möglicherweise nicht wie erwartet.</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>Mehr erfahren</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Vielen Dank für dein Feedback</translation>
         </message>

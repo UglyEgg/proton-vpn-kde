@@ -68,6 +68,10 @@
             <translation>Napaka pri povezavi: dosežena omejitev seje</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Nekaj je šlo narobe</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Hvala za vaše povratne informacije.</translation>
         </message>

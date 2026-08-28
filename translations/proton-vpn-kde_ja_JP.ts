@@ -68,6 +68,10 @@
             <translation>接続エラー：セッション数の制限に達しました</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>不具合が発生しました。</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>ご意見ありがとうございます</translation>
         </message>

@@ -121,6 +121,7 @@ VpnController::VpnController(QObject *parent)
 
 bool VpnController::backendAvailable() const { return m_backendAvailable; }
 bool VpnController::ready() const { return m_ready; }
+bool VpnController::startupCompatible() const { return m_startupCompatible; }
 bool VpnController::loggedIn() const { return m_loggedIn; }
 QString VpnController::authState() const { return m_authState; }
 QString VpnController::accountName() const { return m_accountName; }
@@ -1217,6 +1218,8 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     const bool wasLoggedIn = m_loggedIn;
     const QString previousState = m_state;
     m_ready = snapshot.value(QStringLiteral("ready")).toBool();
+    m_startupCompatible = snapshot.value(
+        QStringLiteral("startupCompatible")).toBool(true);
     m_loggedIn = snapshot.value(QStringLiteral("loggedIn")).toBool();
     m_authState = snapshot.value(QStringLiteral("authState")).toString(
         m_loggedIn ? QStringLiteral("signed_in") : QStringLiteral("signed_out"));

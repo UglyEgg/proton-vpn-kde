@@ -41,10 +41,26 @@ Kirigami.ApplicationWindow {
         }
     }
 
-    onVisibleChanged: Qt.callLater(root.maybeShowNpsSurvey)
+    function maybeShowCompatibilityWarning() {
+        if (vpnController.ready && !vpnController.startupCompatible
+                && !root.compatibilityWarningShown) {
+            root.compatibilityWarningShown = true
+            root.show()
+            root.raise()
+            root.requestActivate()
+            compatibilityDialog.open()
+        }
+    }
+
+    Component.onCompleted: Qt.callLater(root.maybeShowCompatibilityWarning)
+    onVisibleChanged: {
+        Qt.callLater(root.maybeShowNpsSurvey)
+        Qt.callLater(root.maybeShowCompatibilityWarning)
+    }
 
     property bool previousLoggedIn: vpnController.loggedIn
     property string previousErrorCode: ""
+    property bool compatibilityWarningShown: false
 
     Controls.Dialog {
         id: quitDialog
@@ -76,6 +92,32 @@ Kirigami.ApplicationWindow {
             width: Kirigami.Units.gridUnit * 22
             wrapMode: Text.WordWrap
             text: qsTr("You've reached your maximum device limit. To reconnect to VPN, disconnect from another device.")
+        }
+    }
+
+    Controls.Dialog {
+        id: compatibilityDialog
+        anchors.centerIn: parent
+        modal: true
+        title: qsTr("Something went wrong")
+        standardButtons: Controls.Dialog.Ok
+
+        ColumnLayout {
+            width: Kirigami.Units.gridUnit * 22
+            spacing: Kirigami.Units.largeSpacing
+
+            Controls.Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("Some required components were not detected on your system. The app may not work as expected.")
+            }
+
+            Controls.Button {
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr("Learn more")
+                onClicked: Qt.openUrlExternally(
+                    "https://protonvpn.com/support/linux-gui-setup")
+            }
         }
     }
 
@@ -248,6 +290,7 @@ Kirigami.ApplicationWindow {
     Connections {
         target: vpnController
         function onSnapshotChanged() {
+            Qt.callLater(root.maybeShowCompatibilityWarning)
             if (!root.previousLoggedIn && vpnController.loggedIn) {
                 root.showPage(Qt.resolvedUrl("OverviewPage.qml"))
             } else if (root.previousLoggedIn && !vpnController.loggedIn) {

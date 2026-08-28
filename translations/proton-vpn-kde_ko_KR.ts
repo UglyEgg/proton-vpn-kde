@@ -68,6 +68,14 @@
             <translation>연결 오류: 세션 제한 도달</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>문제가 발생했습니다</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>자세히 알아보기</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>피드백 주셔서 감사합니다</translation>
         </message>

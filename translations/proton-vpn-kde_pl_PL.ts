@@ -64,6 +64,14 @@
             <translation>Błąd połączenia: osiągnięto limit sesji</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Coś poszło nie tak</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>Dowiedz się więcej</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Dziękujemy za opinię</translation>
         </message>

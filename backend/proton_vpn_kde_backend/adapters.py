@@ -532,6 +532,7 @@ class ProtonCoreAdapter:
         self._fido_interaction: FidoInteraction | None = None
         self._packet_capture_active = False
         self._kill_switch = 0
+        self._startup_compatible = True
 
     async def initialize(
         self,
@@ -554,6 +555,17 @@ class ProtonCoreAdapter:
         self._auth_state = "signed_in" if self._logged_in else "signed_out"
         self._connector = await self._api.get_vpn_connector()
         self._connector.register(self)
+        validator = getattr(self._api, "validate_connection_availability", None)
+        if callable(validator):
+            self._startup_compatible = bool(validator())
+        else:
+            # API-core 5.5.6 as initially shipped on Fedora lacks the public
+            # validator used by GUI v4.18.0. Its connector protocol registry is
+            # the closest public compatibility check and avoids private core
+            # internals until distributions pick up the helper.
+            self._startup_compatible = bool(
+                list(self._connector.iter_available_protocols())
+            )
         self._api.refresher.set_server_list_updated_callback(
             self._on_server_list_updated
         )
@@ -1584,6 +1596,7 @@ class ProtonCoreAdapter:
             max_connections = account.max_connections
         return VpnSnapshot(
             ready=True,
+            startup_compatible=self._startup_compatible,
             logged_in=self._logged_in,
             auth_state=self._auth_state,
             account_name=account_name,

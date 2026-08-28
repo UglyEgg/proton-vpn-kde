@@ -24,6 +24,7 @@ class VpnController final : public QObject
     Q_OBJECT
     Q_PROPERTY(bool backendAvailable READ backendAvailable NOTIFY backendAvailableChanged)
     Q_PROPERTY(bool ready READ ready NOTIFY snapshotChanged)
+    Q_PROPERTY(bool startupCompatible READ startupCompatible NOTIFY snapshotChanged)
     Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY snapshotChanged)
     Q_PROPERTY(QString authState READ authState NOTIFY snapshotChanged)
     Q_PROPERTY(QString accountName READ accountName NOTIFY snapshotChanged)
@@ -66,6 +67,7 @@ public:
 
     [[nodiscard]] bool backendAvailable() const;
     [[nodiscard]] bool ready() const;
+    [[nodiscard]] bool startupCompatible() const;
     [[nodiscard]] bool loggedIn() const;
     [[nodiscard]] QString authState() const;
     [[nodiscard]] QString accountName() const;
@@ -216,6 +218,7 @@ private:
     LocationFilterProxyModel *m_applicationFilterModel = nullptr;
     bool m_backendAvailable = false;
     bool m_ready = false;
+    bool m_startupCompatible = true;
     bool m_loggedIn = false;
     QString m_authState = QStringLiteral("signed_out");
     QString m_accountName;

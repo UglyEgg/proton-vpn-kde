@@ -17,6 +17,7 @@ class VpnSnapshot:
 
     schema_version: int = 1
     ready: bool = False
+    startup_compatible: bool = True
     logged_in: bool = False
     auth_state: str = "signed_out"
     account_name: str = ""
@@ -45,6 +46,7 @@ class VpnSnapshot:
     def to_json(self) -> str:
         payload = asdict(self)
         payload["schemaVersion"] = payload.pop("schema_version")
+        payload["startupCompatible"] = payload.pop("startup_compatible")
         payload["loggedIn"] = payload.pop("logged_in")
         payload["authState"] = payload.pop("auth_state")
         payload["accountName"] = payload.pop("account_name")

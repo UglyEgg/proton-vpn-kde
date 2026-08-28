@@ -68,6 +68,18 @@
             <translation>Bağlantı hatası: Oturum sayısı sınırına ulaşıldı</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Bir sorun çıktı</translation>
+        </message>
+        <message>
+            <source>Some required components were not detected on your system. The app may not work as expected.</source>
+            <translation>Gerekli bazı bileşenler sisteminizde bulunamadı. Uygulama beklendiği gibi çalışmayabilir.</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>Ayrıntılı bilgi alın</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Geri bildiriminiz için teşekkürler</translation>
         </message>

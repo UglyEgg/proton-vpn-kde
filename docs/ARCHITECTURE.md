@@ -197,6 +197,13 @@ text and gives the session-limit condition the same explicit recovery dialog as
 the official client. Unknown event classes collapse to `unexpected_error`; raw
 exception text never becomes observable state.
 
+Startup compatibility uses the official core's
+`validate_connection_availability()` when present. Fedora's initial 5.5.6
+package predates that public helper, so the adapter falls back to the
+connector's public protocol enumeration. A negative result is exposed as one
+boolean and handled by the frontend with Proton's setup guidance; the native
+client does not duplicate the core's backend registry rules.
+
 This replaces only the GTK application's GLib scheduling and monitoring glue.
 It does not replace Proton's server construction, NetworkManager backend,
 protocol implementation, kill switch, or split-tunneling behavior. Reconnection

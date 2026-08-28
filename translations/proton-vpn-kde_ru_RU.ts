@@ -64,6 +64,10 @@
             <translation>Ошибка подключения: достигнут лимит сеансов</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Что-то пошло не так</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Благодарим за отзыв</translation>
         </message>

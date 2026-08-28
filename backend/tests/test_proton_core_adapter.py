@@ -89,6 +89,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         api = SimpleNamespace(
             get_vpn_connector=AsyncMock(return_value=connector),
+            validate_connection_availability=Mock(return_value=True),
             is_user_logged_in=Mock(return_value=logged_in),
             account_name="test-user",
             account_data=SimpleNamespace(
@@ -110,6 +111,27 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             save_settings=AsyncMock(),
         )
         return api, connector
+
+    async def test_startup_compatibility_uses_official_core_check(self):
+        api, _ = self.make_api()
+        api.validate_connection_availability.return_value = False
+        adapter = ProtonCoreAdapter(api)
+
+        snapshot = await adapter.initialize(Mock())
+
+        self.assertFalse(snapshot.startup_compatible)
+        api.validate_connection_availability.assert_called_once_with()
+
+    async def test_startup_compatibility_supports_fedora_core_without_helper(self):
+        api, connector = self.make_api()
+        del api.validate_connection_availability
+        connector.iter_available_protocols.return_value = []
+        adapter = ProtonCoreAdapter(api)
+
+        snapshot = await adapter.initialize(Mock())
+
+        self.assertFalse(snapshot.startup_compatible)
+        connector.iter_available_protocols.assert_called_once_with()
 
     async def test_support_report_uses_official_api_without_logs(self):
         api, _ = self.make_api()

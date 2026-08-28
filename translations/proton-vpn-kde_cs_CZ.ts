@@ -64,6 +64,10 @@
             <translation>Chyba připojení: překročen limit aktivních zařízení</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Něco se pokazilo</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Děkujeme za zpětnou vazbu</translation>
         </message>

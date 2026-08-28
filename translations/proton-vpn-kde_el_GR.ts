@@ -64,6 +64,18 @@
             <translation>Σφάλμα σύνδεσης: συμπληρώθηκε το όριο περιόδου σύνδεσης</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>Κάτι πήγε στραβά</translation>
+        </message>
+        <message>
+            <source>Some required components were not detected on your system. The app may not work as expected.</source>
+            <translation>Ορισμένα απαιτούμενα στοιχεία δεν εντοπίστηκαν στο σύστημά σας. Η εφαρμογή ενδέχεται να μη λειτουργεί όπως αναμένεται.</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>Μάθετε περισσότερα</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>Ευχαριστούμε για τα σχόλιά σας</translation>
         </message>

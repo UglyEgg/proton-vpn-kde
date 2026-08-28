@@ -72,6 +72,14 @@
             <translation>連線錯誤：已達工作階段上限</translation>
         </message>
         <message>
+            <source>Something went wrong</source>
+            <translation>發生錯誤</translation>
+        </message>
+        <message>
+            <source>Learn more</source>
+            <translation>進一步瞭解</translation>
+        </message>
+        <message>
             <source>Thanks for your feedback</source>
             <translation>感謝您的回饋</translation>
         </message>
