@@ -2,6 +2,7 @@
 #include "AppSettings.h"
 #include "NotificationIntegration.h"
 #include "ShortcutIntegration.h"
+#include "TranslationLoader.h"
 #include "TrayIntegration.h"
 #include "UpdateChannel.h"
 #include "VpnController.h"
@@ -27,6 +28,7 @@ int main(int argc, char *argv[])
     QApplication::setWindowIcon(QIcon::fromTheme(QStringLiteral("proton-vpn-kde"),
                                                   QIcon::fromTheme(QStringLiteral("network-vpn"))));
     QApplication::setQuitOnLastWindowClosed(false);
+    TranslationLoader::installSystemLocale(app);
 
     QCommandLineParser commandLine;
     commandLine.setApplicationDescription(

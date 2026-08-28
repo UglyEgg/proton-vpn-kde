@@ -47,6 +47,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   previous server, protocol, and backend are reused without a GLib main loop
 - Safe, localized connection-error summaries and Proton-compatible session-limit
   recovery guidance without exposing backend exception details
+- Native Qt translation loading in the app, KRunner, and System Settings, seeded
+  from exact shared strings in Proton's existing GPLv3 catalogs
 - Plasma connection notifications through `KNotification`
 - Auto-connect targets and pinned country/server actions in the native Plasma
   system-tray menu

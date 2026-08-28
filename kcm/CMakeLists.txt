@@ -8,6 +8,8 @@ kcmutils_add_qml_kcm(kcm_proton_vpn_kde
         ProtonVpnKcm.h
         ../src/AppSettings.cpp
         ../src/AppSettings.h
+        ../src/TranslationLoader.cpp
+        ../src/TranslationLoader.h
 )
 
 set(BUILD_SHARED_LIBS "${_proton_saved_build_shared_libs}")
@@ -23,6 +25,7 @@ target_link_libraries(kcm_proton_vpn_kde PRIVATE
 target_compile_definitions(kcm_proton_vpn_kde PRIVATE
     PROTON_VPN_KDE_EXECUTABLE="${CMAKE_INSTALL_FULL_BINDIR}/proton-vpn-kde"
 )
+proton_vpn_kde_enable_translations(kcm_proton_vpn_kde)
 target_compile_options(kcm_proton_vpn_kde PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
 )

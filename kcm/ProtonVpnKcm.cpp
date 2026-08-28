@@ -1,8 +1,10 @@
 #include "ProtonVpnKcm.h"
 
 #include "AppSettings.h"
+#include "TranslationLoader.h"
 
 #include <KPluginFactory>
+#include <QCoreApplication>
 #include <QProcess>
 #include <QStandardPaths>
 
@@ -10,6 +12,7 @@ ProtonVpnKcm::ProtonVpnKcm(QObject *parent, const KPluginMetaData &metadata)
     : KQuickConfigModule(parent, metadata)
     , m_settings(new AppSettings(this))
 {
+    TranslationLoader::installSystemLocale(*QCoreApplication::instance());
     setButtons(KAbstractConfigModule::NoAdditionalButton);
     setSupportsInstantApply(true);
 }

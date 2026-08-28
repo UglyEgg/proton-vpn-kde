@@ -20,6 +20,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Qml
     Quick
     QuickControls2
+    LinguistTools
     Widgets
 )
 if(EXISTS "/usr/bin/python3" AND NOT DEFINED Python3_EXECUTABLE)
@@ -46,6 +47,29 @@ find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
+file(GLOB PROTON_VPN_KDE_TS_FILES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/translations/proton-vpn-kde_*.ts"
+)
+set(PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/translations")
+set(PROTON_VPN_KDE_INSTALL_TRANSLATIONS_DIR
+    "${CMAKE_INSTALL_FULL_DATADIR}/proton-vpn-kde/translations")
+qt_add_lrelease(
+    LRELEASE_TARGET proton-vpn-kde-translations
+    TS_FILES ${PROTON_VPN_KDE_TS_FILES}
+    QM_OUTPUT_DIRECTORY "${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}"
+    QM_FILES_OUTPUT_VARIABLE PROTON_VPN_KDE_QM_FILES
+    OPTIONS -compress
+)
+
+function(proton_vpn_kde_enable_translations target)
+    target_compile_definitions(${target} PRIVATE
+        PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR="${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}"
+        PROTON_VPN_KDE_INSTALL_TRANSLATIONS_DIR="${PROTON_VPN_KDE_INSTALL_TRANSLATIONS_DIR}"
+    )
+    add_dependencies(${target} proton-vpn-kde-translations)
+endfunction()
+
 qt_add_executable(proton-vpn-kde
     src/AppLifecycle.cpp
     src/AppLifecycle.h
@@ -61,6 +85,8 @@ qt_add_executable(proton-vpn-kde
     src/SecretTransport.h
     src/ShortcutIntegration.cpp
     src/ShortcutIntegration.h
+    src/TranslationLoader.cpp
+    src/TranslationLoader.h
     src/SplitTunnelingModel.cpp
     src/SplitTunnelingModel.h
     src/main.cpp
@@ -75,6 +101,7 @@ qt_add_executable(proton-vpn-kde
     src/VpnSettingsModel.cpp
     src/VpnSettingsModel.h
 )
+proton_vpn_kde_enable_translations(proton-vpn-kde)
 
 qt_add_qml_module(proton-vpn-kde
     URI Proton.VPN.KDE
@@ -133,6 +160,8 @@ add_library(proton-vpn-kde-runner MODULE
     runner/ProtonVpnRunner.h
     runner/RunnerCommand.cpp
     runner/RunnerCommand.h
+    src/TranslationLoader.cpp
+    src/TranslationLoader.h
 )
 configure_file(
     runner/proton-vpn-kde-runner.json.in
@@ -145,8 +174,10 @@ set_target_properties(proton-vpn-kde-runner PROPERTIES
 )
 target_include_directories(proton-vpn-kde-runner PRIVATE
     runner
+    src
     ${CMAKE_CURRENT_BINARY_DIR}
 )
+proton_vpn_kde_enable_translations(proton-vpn-kde-runner)
 target_link_libraries(proton-vpn-kde-runner PRIVATE
     Qt6::Core
     Qt6::DBus
@@ -344,6 +375,19 @@ if(BUILD_TESTING)
     )
     add_test(NAME secret-transport-tests COMMAND secret-transport-tests)
 
+    qt_add_executable(translation-loader-tests
+        tests/TranslationLoaderTest.cpp
+        src/TranslationLoader.cpp
+        src/TranslationLoader.h
+    )
+    target_include_directories(translation-loader-tests PRIVATE src)
+    target_link_libraries(translation-loader-tests PRIVATE Qt6::Core Qt6::Test)
+    proton_vpn_kde_enable_translations(translation-loader-tests)
+    target_compile_options(translation-loader-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME translation-loader-tests COMMAND translation-loader-tests)
+
     qt_add_executable(secret-transport-vector
         tests/SecretTransportVector.cpp
         src/SecretTransport.cpp
@@ -422,6 +466,10 @@ install(
 install(FILES data/proton-vpn-kde.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES data/proton-vpn-kde.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 install(FILES data/proton-vpn-kde.notifyrc DESTINATION ${CMAKE_INSTALL_DATADIR}/knotifications6)
+install(
+    FILES ${PROTON_VPN_KDE_QM_FILES}
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/proton-vpn-kde/translations
+)
 install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/proton.vpn.app.kde.backend.service
     DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services

@@ -1,8 +1,10 @@
 #include "ProtonVpnRunner.h"
 
 #include "RunnerCommand.h"
+#include "TranslationLoader.h"
 
 #include <KPluginFactory>
+#include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QProcess>
@@ -64,6 +66,7 @@ ProtonVpnRunner::ProtonVpnRunner(QObject *parent,
                                  const KPluginMetaData &metadata)
     : KRunner::AbstractRunner(parent, metadata)
 {
+    TranslationLoader::installSystemLocale(*QCoreApplication::instance());
     setTriggerWords({QStringLiteral("vpn"), QStringLiteral("proton vpn")});
     addSyntax(QStringLiteral("vpn"), tr("Open or control Proton VPN"));
     addSyntax(QStringLiteral("vpn connect"),

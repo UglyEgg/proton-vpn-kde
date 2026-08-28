@@ -32,6 +32,7 @@ BuildRequires:  python3-devel
 BuildRequires:  python3-proton-vpn-api-core
 BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
+BuildRequires:  qt6-linguist
 
 Requires:       kf6-kirigami
 Requires:       kf6-kdbusaddons
@@ -94,6 +95,7 @@ desktop-file-validate \
 %{_datadir}/dbus-1/services/proton.vpn.app.kde.backend.service
 %{_datadir}/icons/hicolor/scalable/apps/proton-vpn-kde.svg
 %{_datadir}/knotifications6/proton-vpn-kde.notifyrc
+%{_datadir}/proton-vpn-kde/translations/
 %{_kf6_plugindir}/krunner/proton-vpn-kde-runner.so
 %{_qt6_plugindir}/plasma/kcms/systemsettings/kcm_proton_vpn_kde.so
 %{_userunitdir}/proton-vpn-kde-backend.service

@@ -6,6 +6,7 @@ The native frontend currently needs:
 
 - CMake, Ninja, and a C++20 compiler
 - Qt 6 Core, DBus, Gui, QML, Quick, Quick Controls, and Widgets development files
+- Qt 6 Linguist tools for compiling the native translation catalogs
 - Extra CMake Modules
 - `kf6-kconfig-devel`
 - `kf6-kcoreaddons-devel`
