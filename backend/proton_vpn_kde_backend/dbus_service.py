@@ -5,7 +5,7 @@ from __future__ import annotations
 from dbus_fast.errors import DBusError
 from dbus_fast.service import ServiceInterface, method, signal
 
-from .controller import BackendController, VpnSnapshot
+from .controller import BackendController, VpnSettings, VpnSnapshot
 from .secret_payload import SecretPayloadReader
 
 
@@ -13,6 +13,7 @@ BUS_NAME = "proton.vpn.app.kde.backend"
 OBJECT_PATH = "/proton/vpn/app/kde/backend"
 INTERFACE_NAME = "proton.vpn.app.kde.Backend1"
 INVALID_SECRET_ERROR = "proton.vpn.app.kde.Error.InvalidSecretPayload"
+INVALID_SETTINGS_ERROR = "proton.vpn.app.kde.Error.InvalidSettings"
 
 
 class VpnDbusService(ServiceInterface):
@@ -22,6 +23,7 @@ class VpnDbusService(ServiceInterface):
         self._secret_payloads = SecretPayloadReader()
         controller.subscribe(self._on_snapshot)
         controller.subscribe_server_data(self._on_server_data)
+        controller.subscribe_settings(self._on_settings)
 
     @method(name="GetSnapshot")
     def get_snapshot(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
@@ -46,6 +48,20 @@ class VpnDbusService(ServiceInterface):
     @method(name="GetServerLoads")
     async def get_server_loads(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_server_loads_json(country_code)
+
+    @method(name="GetSettings")
+    async def get_settings(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        try:
+            return await self._controller.get_settings_json()
+        except (RuntimeError, ValueError) as error:
+            raise DBusError(INVALID_SETTINGS_ERROR, str(error)) from error
+
+    @method(name="UpdateSettings")
+    async def update_settings(self, patch_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        try:
+            return await self._controller.update_settings_json(patch_json)
+        except (RuntimeError, ValueError) as error:
+            raise DBusError(INVALID_SETTINGS_ERROR, str(error)) from error
 
     @method(name="ConnectCountry")
     async def connect_country(self, country_code: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
@@ -102,11 +118,18 @@ class VpnDbusService(ServiceInterface):
     def server_data_changed(self, topology_changed: "b") -> "b":  # type: ignore[valid-type]  # noqa: F722,F821
         return topology_changed
 
+    @signal(name="SettingsChanged")
+    def settings_changed(self, settings_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        return settings_json
+
     def _on_snapshot(self, snapshot: VpnSnapshot) -> None:
         self.snapshot_changed(snapshot.to_json())
 
     def _on_server_data(self, topology_changed: bool) -> None:
         self.server_data_changed(topology_changed)
+
+    def _on_settings(self, settings: VpnSettings) -> None:
+        self.settings_changed(settings.to_json())
 
     def _read_secret(
         self,

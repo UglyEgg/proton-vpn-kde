@@ -8,10 +8,13 @@ from typing import Any
 
 from .controller import (
     CountryInfo,
+    ProtocolInfo,
     ServerDataCallback,
     ServerInfo,
     ServerLoadInfo,
+    SettingsValue,
     SnapshotCallback,
+    VpnSettings,
     VpnSnapshot,
 )
 from .fido_interaction import FidoInteraction
@@ -27,6 +30,14 @@ class DemoCoreAdapter:
         self._logged_in = logged_in
         self._auth_state = "signed_in" if logged_in else "signed_out"
         self._reconnection_enabled = True
+        self._settings = VpnSettings(
+            protocols=(
+                ProtocolInfo("wireguard", "WireGuard"),
+                ProtocolInfo("openvpn-udp", "OpenVPN (UDP)"),
+                ProtocolInfo("openvpn-tcp", "OpenVPN (TCP)"),
+            ),
+            paid_features_available=logged_in,
+        )
         self._snapshot = self._build_snapshot(message="Safe demo backend")
 
     async def initialize(
@@ -64,6 +75,50 @@ class DemoCoreAdapter:
             ServerLoadInfo(server.name, server.load)
             for server in await self.get_servers(country_code)
         ]
+
+    async def get_settings(self) -> VpnSettings:
+        return replace(
+            self._settings,
+            paid_features_available=self._logged_in,
+            protocol_editable=self._snapshot.state == "disconnected",
+            kill_switch_editable=self._snapshot.state == "disconnected",
+        )
+
+    async def update_settings(
+        self, patch: dict[str, SettingsValue]
+    ) -> VpnSettings:
+        if (
+            self._snapshot.state != "disconnected"
+            and ({"protocol", "killSwitch"} & set(patch))
+        ):
+            raise RuntimeError(
+                "Disconnect the VPN before changing protocol or kill switch"
+            )
+        if not self._logged_in and (
+            {"netShield", "vpnAccelerator", "moderateNat", "portForwarding"}
+            & set(patch)
+        ):
+            raise RuntimeError("This setting requires a paid Proton VPN plan")
+        replacements = {
+            {
+                "protocol": "protocol",
+                "killSwitch": "kill_switch",
+                "netShield": "net_shield",
+                "vpnAccelerator": "vpn_accelerator",
+                "moderateNat": "moderate_nat",
+                "portForwarding": "port_forwarding",
+                "ipv6": "ipv6",
+                "anonymousCrashReports": "anonymous_crash_reports",
+            }[key]: value
+            for key, value in patch.items()
+        }
+        protocol = replacements.get("protocol")
+        if protocol is not None and protocol not in {
+            item.id for item in self._settings.protocols
+        }:
+            raise ValueError("Select an available VPN protocol")
+        self._settings = replace(self._settings, **replacements)
+        return await self.get_settings()
 
     async def connect_country(self, country_code: str) -> None:
         await self._transition("connecting", "")
@@ -258,6 +313,92 @@ class ProtonCoreAdapter:
             if server.exit_country.upper() == country_code
         ]
 
+    async def get_settings(self) -> VpnSettings:
+        settings = await self._load_settings()
+        return self._settings_from_core(settings)
+
+    async def update_settings(
+        self, patch: dict[str, SettingsValue]
+    ) -> VpnSettings:
+        settings = await self._load_settings()
+        state_name = type(self._connector.current_state).__name__.lower()
+        if state_name != "disconnected" and (
+            {"protocol", "killSwitch"} & set(patch)
+        ):
+            raise RuntimeError(
+                "Disconnect the VPN before changing protocol or kill switch"
+            )
+
+        paid_fields = {
+            "netShield",
+            "vpnAccelerator",
+            "moderateNat",
+            "portForwarding",
+        }
+        if self._user_tier() < 1 and paid_fields & set(patch):
+            raise RuntimeError("This setting requires a paid Proton VPN plan")
+
+        protocols = {item.id for item in self._available_protocols(settings.protocol)}
+        requested_protocol = patch.get("protocol")
+        if requested_protocol is not None and requested_protocol not in protocols:
+            raise ValueError("Select an available VPN protocol")
+
+        split_tunneling_enabled = bool(settings.features.split_tunneling.enabled)
+        if (
+            split_tunneling_enabled
+            and patch.get("killSwitch", settings.killswitch) != 0
+        ):
+            raise ValueError(
+                "Disable split tunneling before enabling the kill switch"
+            )
+        if (
+            split_tunneling_enabled
+            and requested_protocol is not None
+            and not self._protocol_supports_split_tunneling(requested_protocol)
+        ):
+            raise ValueError(
+                "Disable split tunneling before selecting this protocol"
+            )
+        if (
+            bool(settings.custom_dns.enabled)
+            and patch.get("netShield", settings.features.netshield) != 0
+        ):
+            raise ValueError("Disable custom DNS before enabling NetShield")
+
+        for key, value in patch.items():
+            if key == "protocol":
+                settings.protocol = value
+            elif key == "killSwitch":
+                settings.killswitch = value
+            elif key == "netShield":
+                settings.features.netshield = value
+            elif key == "vpnAccelerator":
+                settings.features.vpn_accelerator = value
+            elif key == "moderateNat":
+                settings.features.moderate_nat = value
+            elif key == "portForwarding":
+                settings.features.port_forwarding = value
+            elif key == "ipv6":
+                settings.ipv6 = value
+            elif key == "anonymousCrashReports":
+                settings.anonymous_crash_reports = value
+
+        try:
+            await self._api.save_settings(settings)
+        except Exception as error:
+            if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
+                await self._raise_session_error(error)
+            raise RuntimeError("Proton could not save the VPN settings") from None
+        return self._settings_from_core(settings)
+
+    async def _load_settings(self):
+        try:
+            return await self._api.load_settings()
+        except Exception as error:
+            if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
+                await self._raise_session_error(error)
+            raise RuntimeError("Proton could not load the VPN settings") from None
+
     async def connect_country(self, country_code: str) -> None:
         server_list = await self._get_server_list()
         await self._connect_logical(server_list.get_fastest_in_country(country_code))
@@ -291,6 +432,63 @@ class ProtonCoreAdapter:
             await self._connector.connect(vpn_server, protocol=settings.protocol)
         except Exception as error:
             await self._raise_session_error(error)
+
+    def _settings_from_core(self, settings: Any) -> VpnSettings:
+        disconnected = (
+            type(self._connector.current_state).__name__.lower() == "disconnected"
+        )
+        return VpnSettings(
+            protocol=settings.protocol,
+            protocols=self._available_protocols(settings.protocol),
+            kill_switch=int(settings.killswitch),
+            net_shield=int(settings.features.netshield),
+            vpn_accelerator=bool(settings.features.vpn_accelerator),
+            moderate_nat=bool(settings.features.moderate_nat),
+            port_forwarding=bool(settings.features.port_forwarding),
+            ipv6=bool(settings.ipv6),
+            anonymous_crash_reports=bool(settings.anonymous_crash_reports),
+            paid_features_available=self._user_tier() >= 1,
+            protocol_editable=disconnected,
+            kill_switch_editable=disconnected,
+            split_tunneling_enabled=bool(
+                settings.features.split_tunneling.enabled
+            ),
+            custom_dns_enabled=bool(settings.custom_dns.enabled),
+        )
+
+    def _available_protocols(self, current_protocol: str) -> tuple[ProtocolInfo, ...]:
+        protocols: list[ProtocolInfo] = []
+        seen: set[str] = set()
+        groups = ["generic"]
+        try:
+            if self._api.refresher.feature_flags.get("ProTunV1"):
+                groups.append("protun")
+        except (AttributeError, TypeError):
+            pass
+        try:
+            for group in groups:
+                for candidate in self._connector.iter_available_protocols(group):
+                    protocol_id = str(candidate.protocol)
+                    if protocol_id in seen:
+                        continue
+                    seen.add(protocol_id)
+                    protocols.append(
+                        ProtocolInfo(protocol_id, str(candidate.ui_protocol))
+                    )
+        except (AttributeError, TypeError):
+            pass
+        if current_protocol not in seen:
+            protocols.append(ProtocolInfo(current_protocol, current_protocol))
+        return tuple(protocols)
+
+    def _user_tier(self) -> int:
+        if not self._logged_in:
+            return 0
+        return int(self._api.account_data.max_tier)
+
+    @staticmethod
+    def _protocol_supports_split_tunneling(protocol: str) -> bool:
+        return protocol == "wireguard" or protocol.startswith("protun-")
 
     async def disconnect(self) -> None:
         await self._connector.disconnect()

@@ -17,9 +17,11 @@ PYTHONPATH="$project_dir/backend" \
 backend_pid=$!
 
 for _ in {1..40}; do
-    if gdbus introspect --session \
-        --dest proton.vpn.app.kde.backend \
-        --object-path /proton/vpn/app/kde/backend >/dev/null 2>&1; then
+    if [[ "$(gdbus call --session \
+        --dest org.freedesktop.DBus \
+        --object-path /org/freedesktop/DBus \
+        --method org.freedesktop.DBus.NameHasOwner \
+        proton.vpn.app.kde.backend 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05

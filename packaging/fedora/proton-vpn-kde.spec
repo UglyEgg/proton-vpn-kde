@@ -1,7 +1,7 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.5.0
+Version:        0.6.0
 Release:        1%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
@@ -77,6 +77,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-backend.service
 
 %changelog
+* Thu Aug 27 2026 uglyegg <uglyegg@entropy.quest> - 0.6.0-1
+- Add native, conflict-aware Proton VPN settings.
+- Keep settings persistence and feature constraints in the official core.
+- Isolate D-Bus smoke tests from installed service activation.
+
 * Thu Aug 27 2026 uglyegg <uglyegg@entropy.quest> - 0.5.0-1
 - Package the native Qt 6 and Kirigami client with D-Bus activation.
 - Add native sign-in with provider-neutral Secret Service persistence.

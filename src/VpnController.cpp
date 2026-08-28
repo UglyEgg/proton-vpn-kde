@@ -2,6 +2,7 @@
 
 #include "LocationModels.h"
 #include "SecretTransport.h"
+#include "VpnSettingsModel.h"
 
 #include <QAbstractItemModel>
 #include <QDBusConnection>
@@ -13,6 +14,8 @@
 #include <QDBusServiceWatcher>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMetaType>
+#include <QSet>
 
 namespace
 {
@@ -31,6 +34,7 @@ VpnController::VpnController(QObject *parent)
           this))
     , m_countryModel(new CountryModel(this))
     , m_serverModel(new ServerModel(this))
+    , m_settings(new VpnSettingsModel(this))
     , m_countryFilterModel(new LocationFilterProxyModel(this))
     , m_serverFilterModel(new LocationFilterProxyModel(this))
 {
@@ -59,6 +63,13 @@ VpnController::VpnController(QObject *parent)
         QStringLiteral("ServerDataChanged"),
         this,
         SLOT(onServerDataChanged(bool)));
+    QDBusConnection::sessionBus().connect(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("SettingsChanged"),
+        this,
+        SLOT(onSettingsChanged(QString)));
 
     const auto *interface = QDBusConnection::sessionBus().interface();
     setBackendAvailable(interface && interface->isServiceRegistered(
@@ -100,6 +111,7 @@ bool VpnController::primaryActionEnabled() const
 
 QAbstractItemModel *VpnController::countryModel() const { return m_countryFilterModel; }
 QAbstractItemModel *VpnController::serverModel() const { return m_serverFilterModel; }
+VpnSettingsModel *VpnController::settings() const { return m_settings; }
 
 void VpnController::refresh()
 {
@@ -270,6 +282,86 @@ void VpnController::setReconnectionEnabled(bool enabled)
     QDBusConnection::sessionBus().asyncCall(message, 5000);
 }
 
+void VpnController::loadSettings()
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_settings->busy()) {
+        return;
+    }
+    m_settings->setBusy(true);
+    m_settings->setMessage({});
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetSettings"));
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 10000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleSettingsReply);
+}
+
+void VpnController::updateSetting(const QString &name, const QVariant &value)
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_settings->busy()) {
+        return;
+    }
+
+    static const QSet<QString> booleanSettings{
+        QStringLiteral("vpnAccelerator"),
+        QStringLiteral("moderateNat"),
+        QStringLiteral("portForwarding"),
+        QStringLiteral("ipv6"),
+        QStringLiteral("anonymousCrashReports"),
+    };
+    static const QSet<QString> modeSettings{
+        QStringLiteral("killSwitch"),
+        QStringLiteral("netShield"),
+    };
+
+    QJsonValue jsonValue;
+    if (name == QStringLiteral("protocol")) {
+        const QString protocol = value.toString();
+        if (protocol.isEmpty()) {
+            m_settings->setMessage(tr("Select a valid VPN protocol"));
+            return;
+        }
+        jsonValue = protocol;
+    } else if (booleanSettings.contains(name)) {
+        if (value.metaType().id() != QMetaType::Bool) {
+            m_settings->setMessage(tr("The setting value is invalid"));
+            return;
+        }
+        jsonValue = value.toBool();
+    } else if (modeSettings.contains(name)) {
+        bool converted = false;
+        const int mode = value.toInt(&converted);
+        if (!converted || mode < 0 || mode > 2) {
+            m_settings->setMessage(tr("The setting value is invalid"));
+            return;
+        }
+        jsonValue = mode;
+    } else {
+        m_settings->setMessage(tr("That VPN setting is not supported"));
+        return;
+    }
+
+    const QString patchJson = QString::fromUtf8(
+        QJsonDocument(QJsonObject{{name, jsonValue}}).toJson(
+            QJsonDocument::Compact));
+    m_settings->setBusy(true);
+    m_settings->setMessage({});
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("UpdateSettings"));
+    message << patchJson;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleSettingsReply);
+}
+
 void VpnController::onServiceRegistered(const QString &)
 {
     setBackendAvailable(true);
@@ -291,6 +383,7 @@ void VpnController::onServiceUnregistered(const QString &)
     m_serverRefreshPending = false;
     m_serverLoadsRefreshPending = false;
     m_currentServerCountry.clear();
+    m_settings->reset(tr("The Proton backend service stopped"));
     emit snapshotChanged();
 }
 
@@ -309,6 +402,15 @@ void VpnController::onServerDataChanged(bool topologyChanged)
         m_serverLoadsRefreshPending = true;
     }
     dispatchPendingLocationRefreshes();
+}
+
+void VpnController::onSettingsChanged(const QString &settingsJson)
+{
+    QString errorMessage;
+    if (!m_settings->applyJson(settingsJson, &errorMessage)) {
+        m_settings->setBusy(false);
+        m_settings->setMessage(errorMessage);
+    }
 }
 
 void VpnController::setBackendAvailable(bool available)
@@ -340,6 +442,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     }
 
     const bool wasLoggedIn = m_loggedIn;
+    const QString previousState = m_state;
     m_ready = snapshot.value(QStringLiteral("ready")).toBool();
     m_loggedIn = snapshot.value(QStringLiteral("loggedIn")).toBool();
     m_authState = snapshot.value(QStringLiteral("authState")).toString(
@@ -361,10 +464,16 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_serverRefreshPending = false;
         m_serverLoadsRefreshPending = false;
         m_currentServerCountry.clear();
+        m_settings->reset();
     }
     emit snapshotChanged();
     if (m_loggedIn && m_countryModel->rowCount() == 0 && !m_locationsBusy) {
         loadCountries();
+    }
+    if (m_loggedIn
+        && (!m_settings->loaded() || previousState != m_state)
+        && !m_settings->busy()) {
+        loadSettings();
     }
 }
 
@@ -597,4 +706,29 @@ void VpnController::handleServerLoadsReply(QDBusPendingCallWatcher *watcher)
         emit snapshotChanged();
     }
     dispatchPendingLocationRefreshes();
+}
+
+void VpnController::handleSettingsReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<QString> reply = *watcher;
+    watcher->deleteLater();
+    m_settings->setBusy(false);
+    if (reply.isError()) {
+        if (reply.error().name()
+            == QStringLiteral("proton.vpn.app.kde.Error.InvalidSettings")) {
+            QString message = reply.error().message().trimmed();
+            if (message.isEmpty() || message.size() > 256
+                || message.contains(QLatin1Char('\n'))) {
+                message = tr("The VPN setting could not be changed");
+            }
+            m_settings->setMessage(message);
+        } else {
+            m_settings->setMessage(tr("Unable to save VPN settings"));
+        }
+        return;
+    }
+    QString errorMessage;
+    if (!m_settings->applyJson(reply.value(), &errorMessage)) {
+        m_settings->setMessage(errorMessage);
+    }
 }

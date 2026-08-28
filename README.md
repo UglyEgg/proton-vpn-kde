@@ -22,6 +22,10 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Proton-driven server refresh notifications with compact load-only updates;
   existing Qt rows change in place instead of rebuilding the server list
 - Native server ordering by current load, updated without resetting the list
+- Native Proton settings for protocol, kill switch, NetShield, VPN Accelerator,
+  moderate NAT, port forwarding, IPv6, and anonymous crash reports
+- Conflict-aware settings controls that preserve Proton core's paid-plan,
+  split-tunneling, custom-DNS, and connected-state constraints
 - Provider-agnostic Secret Service initialization that cannot block D-Bus
 - Desktop-neutral asyncio reconnection after an unexpected tunnel drop; the
   previous server, protocol, and backend are reused without a GLib main loop

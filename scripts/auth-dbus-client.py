@@ -124,6 +124,31 @@ async def main() -> None:
     assert authenticated["accountName"] == "demo-user"
     assert authenticated["planTitle"] == "VPN Plus"
 
+    settings = json.loads(await interface.call_get_settings())
+    assert settings["schemaVersion"] == 1
+    assert settings["protocol"] == "wireguard"
+    assert settings["protocols"][0]["name"] == "WireGuard"
+
+    updated_settings = json.loads(
+        await interface.call_update_settings(
+            json.dumps(
+                {"netShield": 2, "vpnAccelerator": False},
+                separators=(",", ":"),
+            )
+        )
+    )
+    assert updated_settings["netShield"] == 2
+    assert not updated_settings["vpnAccelerator"]
+
+    try:
+        await interface.call_update_settings('{"password":"not-a-setting"}')
+    except DBusError as error:
+        assert error.type == "proton.vpn.app.kde.Error.InvalidSettings"
+        assert "unsupported field" in error.text
+        assert "Traceback" not in str(error)
+    else:
+        raise AssertionError("an unsupported setting was accepted")
+
     await interface.call_logout()
     signed_out = await snapshot(interface)
     assert signed_out["authState"] == "signed_out"

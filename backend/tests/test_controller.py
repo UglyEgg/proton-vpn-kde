@@ -3,7 +3,11 @@ from __future__ import annotations
 import unittest
 
 from proton_vpn_kde_backend.adapters import DemoCoreAdapter
-from proton_vpn_kde_backend.controller import BackendController, VpnSnapshot
+from proton_vpn_kde_backend.controller import (
+    BackendController,
+    VpnSnapshot,
+    settings_patch_from_json,
+)
 
 
 class FailingDemoAdapter(DemoCoreAdapter):
@@ -73,6 +77,30 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(self.controller.snapshot.reconnect_enabled)
         self.assertIn('"reconnectEnabled":false', self.controller.snapshot.to_json())
+
+    async def test_settings_payload_is_versioned_and_updates_atomically(self):
+        events = []
+        self.controller.subscribe_settings(events.append)
+
+        initial = await self.controller.get_settings_json()
+        updated = await self.controller.update_settings_json(
+            '{"netShield":2,"vpnAccelerator":false}'
+        )
+
+        self.assertIn('"schemaVersion":1', initial)
+        self.assertIn('"protocols"', initial)
+        self.assertIn('"netShield":2', updated)
+        self.assertIn('"vpnAccelerator":false', updated)
+        self.assertEqual(2, events[-1].net_shield)
+        self.assertFalse(events[-1].vpn_accelerator)
+
+    async def test_settings_patch_rejects_unknown_and_wrong_typed_values(self):
+        with self.assertRaisesRegex(ValueError, "unsupported field"):
+            settings_patch_from_json('{"password":"must-not-be-accepted"}')
+        with self.assertRaisesRegex(ValueError, "wrong value type"):
+            settings_patch_from_json('{"killSwitch":true}')
+        with self.assertRaisesRegex(ValueError, "valid NetShield"):
+            settings_patch_from_json('{"netShield":9}')
 
     async def test_demo_authentication_and_logout_lifecycle(self):
         controller = BackendController(DemoCoreAdapter(logged_in=False))

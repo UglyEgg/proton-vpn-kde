@@ -15,6 +15,7 @@ def state_named(name: str):
 
 class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     def make_api(self, *, logged_in: bool = True):
+        protocol = SimpleNamespace(protocol="wireguard", ui_protocol="WireGuard")
         connector = SimpleNamespace(
             current_state=state_named("Disconnected"),
             current_connection=None,
@@ -23,6 +24,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_vpn_server=Mock(return_value="vpn-server"),
             connect=AsyncMock(),
             disconnect=AsyncMock(),
+            iter_available_protocols=Mock(return_value=[protocol]),
         )
         refresher = SimpleNamespace(
             enable=AsyncMock(),
@@ -31,6 +33,21 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             set_server_loads_updated_callback=Mock(),
             get_up_to_date_server_list=AsyncMock(),
             get_up_to_date_client_config=AsyncMock(return_value="client-config"),
+            feature_flags={},
+        )
+        settings = SimpleNamespace(
+            protocol="wireguard",
+            killswitch=0,
+            custom_dns=SimpleNamespace(enabled=False),
+            ipv6=True,
+            anonymous_crash_reports=True,
+            features=SimpleNamespace(
+                netshield=1,
+                moderate_nat=False,
+                vpn_accelerator=True,
+                port_forwarding=False,
+                split_tunneling=SimpleNamespace(enabled=False),
+            ),
         )
         api = SimpleNamespace(
             get_vpn_connector=AsyncMock(return_value=connector),
@@ -48,7 +65,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             generate_2fa_fido2_assertion=AsyncMock(),
             submit_2fa_fido2=AsyncMock(),
             logout=AsyncMock(),
-            load_settings=AsyncMock(return_value=SimpleNamespace(protocol="wireguard")),
+            load_settings=AsyncMock(return_value=settings),
+            save_settings=AsyncMock(),
         )
         return api, connector
 
@@ -288,6 +306,77 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             logical_server, "client-config"
         )
         connector.connect.assert_awaited_once_with("vpn-server", protocol="wireguard")
+
+    async def test_settings_round_trip_uses_official_core_objects(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        current = await adapter.get_settings()
+        self.assertEqual("wireguard", current.protocol)
+        self.assertEqual("WireGuard", current.protocols[0].name)
+        self.assertEqual(1, current.net_shield)
+        self.assertTrue(current.protocol_editable)
+
+        updated = await adapter.update_settings(
+            {"netShield": 2, "vpnAccelerator": False, "ipv6": False}
+        )
+
+        api.save_settings.assert_awaited_once()
+        saved = api.save_settings.await_args.args[0]
+        self.assertEqual(2, saved.features.netshield)
+        self.assertFalse(saved.features.vpn_accelerator)
+        self.assertFalse(saved.ipv6)
+        self.assertEqual(2, updated.net_shield)
+        connector.connect.assert_not_awaited()
+
+    async def test_connection_sensitive_settings_require_disconnect(self):
+        api, connector = self.make_api()
+        connector.current_state = state_named("Connected")
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "Disconnect"):
+            await adapter.update_settings({"protocol": "wireguard"})
+        with self.assertRaisesRegex(RuntimeError, "Disconnect"):
+            await adapter.update_settings({"killSwitch": 1})
+
+        api.save_settings.assert_not_awaited()
+
+    async def test_settings_conflicts_are_rejected_without_side_effects(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.features.split_tunneling.enabled = True
+        settings.custom_dns.enabled = True
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(ValueError, "split tunneling"):
+            await adapter.update_settings({"killSwitch": 1})
+        with self.assertRaisesRegex(ValueError, "custom DNS"):
+            await adapter.update_settings({"netShield": 2})
+
+        api.save_settings.assert_not_awaited()
+
+    async def test_settings_core_failures_are_sanitized(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        api.load_settings.side_effect = RuntimeError("token=must-not-escape")
+        with self.assertRaisesRegex(
+            RuntimeError, "Proton could not load the VPN settings"
+        ) as load_error:
+            await adapter.get_settings()
+        self.assertNotIn("must-not-escape", str(load_error.exception))
+
+        api.load_settings.side_effect = None
+        api.save_settings.side_effect = RuntimeError("secret=must-not-escape")
+        with self.assertRaisesRegex(
+            RuntimeError, "Proton could not save the VPN settings"
+        ) as save_error:
+            await adapter.update_settings({"ipv6": False})
+        self.assertNotIn("must-not-escape", str(save_error.exception))
 
     async def test_location_queries_filter_and_serialize_normal_servers(self):
         from proton.vpn.session.servers import ServerFeatureEnum

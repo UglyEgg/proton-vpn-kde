@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass, replace
 import json
-from typing import Callable, Protocol, TypeVar
+from typing import Callable, Protocol, TypeAlias, TypeVar
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +64,99 @@ class ServerLoadInfo:
     load: int
 
 
+@dataclass(frozen=True, slots=True)
+class ProtocolInfo:
+    id: str
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class VpnSettings:
+    """Validated, non-sensitive subset of Proton's persisted settings."""
+
+    schema_version: int = 1
+    protocol: str = "wireguard"
+    protocols: tuple[ProtocolInfo, ...] = ()
+    kill_switch: int = 0
+    net_shield: int = 0
+    vpn_accelerator: bool = True
+    moderate_nat: bool = False
+    port_forwarding: bool = False
+    ipv6: bool = True
+    anonymous_crash_reports: bool = True
+    paid_features_available: bool = False
+    protocol_editable: bool = True
+    kill_switch_editable: bool = True
+    split_tunneling_enabled: bool = False
+    custom_dns_enabled: bool = False
+
+    def to_json(self) -> str:
+        payload = {
+            "schemaVersion": self.schema_version,
+            "protocol": self.protocol,
+            "protocols": [asdict(item) for item in self.protocols],
+            "killSwitch": self.kill_switch,
+            "netShield": self.net_shield,
+            "vpnAccelerator": self.vpn_accelerator,
+            "moderateNat": self.moderate_nat,
+            "portForwarding": self.port_forwarding,
+            "ipv6": self.ipv6,
+            "anonymousCrashReports": self.anonymous_crash_reports,
+            "paidFeaturesAvailable": self.paid_features_available,
+            "protocolEditable": self.protocol_editable,
+            "killSwitchEditable": self.kill_switch_editable,
+            "splitTunnelingEnabled": self.split_tunneling_enabled,
+            "customDnsEnabled": self.custom_dns_enabled,
+        }
+        return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+SettingsValue: TypeAlias = str | int | bool
+
+_SETTING_TYPES: dict[str, type[str] | type[int] | type[bool]] = {
+    "protocol": str,
+    "killSwitch": int,
+    "netShield": int,
+    "vpnAccelerator": bool,
+    "moderateNat": bool,
+    "portForwarding": bool,
+    "ipv6": bool,
+    "anonymousCrashReports": bool,
+}
+
+
+def settings_patch_from_json(patch_json: str) -> dict[str, SettingsValue]:
+    if not patch_json or len(patch_json) > 4096:
+        raise ValueError("The settings update is empty or too large")
+    try:
+        payload = json.loads(patch_json)
+    except json.JSONDecodeError as error:
+        raise ValueError("The settings update is not valid JSON") from error
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("The settings update must be a non-empty object")
+    unknown = set(payload) - set(_SETTING_TYPES)
+    if unknown:
+        raise ValueError("The settings update contains an unsupported field")
+    for key, value in payload.items():
+        expected_type = _SETTING_TYPES[key]
+        if type(value) is not expected_type:
+            raise ValueError(f"The {key} setting has the wrong value type")
+    if "protocol" in payload:
+        protocol = payload["protocol"]
+        if (
+            not isinstance(protocol, str)
+            or not protocol
+            or len(protocol) > 64
+            or not protocol.isascii()
+        ):
+            raise ValueError("Select a valid VPN protocol")
+    if "killSwitch" in payload and payload["killSwitch"] not in {0, 1, 2}:
+        raise ValueError("Select a valid kill-switch mode")
+    if "netShield" in payload and payload["netShield"] not in {0, 1, 2}:
+        raise ValueError("Select a valid NetShield mode")
+    return payload
+
+
 LocationInfo = TypeVar("LocationInfo", CountryInfo, ServerInfo, ServerLoadInfo)
 
 
@@ -83,6 +176,7 @@ def location_list_to_json(kind: str, items: list[LocationInfo]) -> str:
 
 SnapshotCallback = Callable[[VpnSnapshot], None]
 ServerDataCallback = Callable[[bool], None]
+SettingsCallback = Callable[[VpnSettings], None]
 
 
 class CoreAdapter(Protocol):
@@ -96,6 +190,10 @@ class CoreAdapter(Protocol):
     async def get_countries(self) -> list[CountryInfo]: ...
     async def get_servers(self, country_code: str) -> list[ServerInfo]: ...
     async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]: ...
+    async def get_settings(self) -> VpnSettings: ...
+    async def update_settings(
+        self, patch: dict[str, SettingsValue]
+    ) -> VpnSettings: ...
     async def connect_fastest(self) -> None: ...
     async def connect_country(self, country_code: str) -> None: ...
     async def connect_server(self, server_name: str) -> None: ...
@@ -119,6 +217,7 @@ class BackendController:
         self._snapshot = VpnSnapshot()
         self._listeners: list[SnapshotCallback] = []
         self._server_data_listeners: list[ServerDataCallback] = []
+        self._settings_listeners: list[SettingsCallback] = []
         self._operation_lock = asyncio.Lock()
 
     @property
@@ -130,6 +229,9 @@ class BackendController:
 
     def subscribe_server_data(self, callback: ServerDataCallback) -> None:
         self._server_data_listeners.append(callback)
+
+    def subscribe_settings(self, callback: SettingsCallback) -> None:
+        self._settings_listeners.append(callback)
 
     async def start(self) -> None:
         try:
@@ -171,6 +273,34 @@ class BackendController:
         return location_list_to_json(
             "loads", await self._adapter.get_server_loads(normalized_code)
         )
+
+    async def get_settings_json(self) -> str:
+        self._require_session()
+        settings = await self._adapter.get_settings()
+        self._publish_settings(settings)
+        return settings.to_json()
+
+    async def update_settings_json(self, patch_json: str) -> str:
+        self._require_session()
+        patch = settings_patch_from_json(patch_json)
+        if self._operation_lock.locked():
+            raise RuntimeError("Another VPN operation is already in progress")
+        async with self._operation_lock:
+            self._publish(replace(self._snapshot, busy=True, message=""))
+            try:
+                settings = await self._adapter.update_settings(patch)
+            except Exception:
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=False,
+                        message="The VPN settings could not be updated",
+                    )
+                )
+                raise
+            self._publish(replace(self._snapshot, busy=False))
+        self._publish_settings(settings)
+        return settings.to_json()
 
     async def connect_country(self, country_code: str) -> None:
         self._require_session()
@@ -273,6 +403,10 @@ class BackendController:
     def _on_adapter_server_data(self, topology_changed: bool) -> None:
         for listener in tuple(self._server_data_listeners):
             listener(topology_changed)
+
+    def _publish_settings(self, settings: VpnSettings) -> None:
+        for listener in tuple(self._settings_listeners):
+            listener(settings)
 
     def _publish(self, snapshot: VpnSnapshot) -> None:
         if snapshot == self._snapshot:

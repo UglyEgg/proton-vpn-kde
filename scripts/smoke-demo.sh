@@ -23,9 +23,11 @@ PYTHONPATH="$project_dir/backend" \
 backend_pid=$!
 
 for _ in {1..40}; do
-    if gdbus introspect --session \
-        --dest proton.vpn.app.kde.backend \
-        --object-path /proton/vpn/app/kde/backend >/dev/null 2>&1; then
+    if [[ "$(gdbus call --session \
+        --dest org.freedesktop.DBus \
+        --object-path /org/freedesktop/DBus \
+        --method org.freedesktop.DBus.NameHasOwner \
+        proton.vpn.app.kde.backend 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05
@@ -71,6 +73,26 @@ gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \
     --method proton.vpn.app.kde.Backend1.GetServerLoads CH
+
+settings="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.GetSettings)"
+if [[ "$settings" != *'"protocol":"wireguard"'* ]]; then
+    echo "Backend did not return the demo VPN settings" >&2
+    exit 1
+fi
+
+updated_settings="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.UpdateSettings \
+    '{"netShield":2,"vpnAccelerator":false}')"
+if [[ "$updated_settings" != *'"netShield":2'* \
+    || "$updated_settings" != *'"vpnAccelerator":false'* ]]; then
+    echo "Backend did not apply the demo VPN settings" >&2
+    exit 1
+fi
 
 gdbus call --session \
     --dest proton.vpn.app.kde.backend \

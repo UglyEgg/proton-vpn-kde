@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.5.0 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.6.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
@@ -55,6 +55,8 @@ qt_add_executable(proton-vpn-kde
     src/TrayIntegration.h
     src/VpnController.cpp
     src/VpnController.h
+    src/VpnSettingsModel.cpp
+    src/VpnSettingsModel.h
 )
 
 qt_add_qml_module(proton-vpn-kde
@@ -124,6 +126,21 @@ if(BUILD_TESTING)
     )
     add_test(NAME app-settings-tests COMMAND app-settings-tests)
 
+    qt_add_executable(vpn-settings-model-tests
+        tests/VpnSettingsModelTest.cpp
+        src/VpnSettingsModel.cpp
+        src/VpnSettingsModel.h
+    )
+    target_include_directories(vpn-settings-model-tests PRIVATE src)
+    target_link_libraries(vpn-settings-model-tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    target_compile_options(vpn-settings-model-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME vpn-settings-model-tests COMMAND vpn-settings-model-tests)
+
     qt_add_executable(secret-transport-tests
         tests/SecretTransportTest.cpp
         src/SecretTransport.cpp
@@ -176,10 +193,13 @@ if(BUILD_TESTING)
 
     find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
     if(DBUS_RUN_SESSION_EXECUTABLE)
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data)
         add_test(
             NAME auth-dbus-smoke
-            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} --
-                ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-auth-demo.sh
+            COMMAND ${CMAKE_COMMAND} -E env
+                "XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
+                ${DBUS_RUN_SESSION_EXECUTABLE} --
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-auth-demo.sh
         )
     endif()
 endif()

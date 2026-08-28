@@ -52,6 +52,8 @@ The additive version-one contract currently contains:
 - `GetCountries() -> JSON string`
 - `GetServers(countryCode) -> JSON string`
 - `GetServerLoads(countryCode) -> JSON string`
+- `GetSettings() -> JSON string`
+- `UpdateSettings(JSON patch) -> JSON string`
 - `ConnectFastest()`
 - `ConnectCountry(countryCode)`
 - `ConnectServer(serverName)`
@@ -67,6 +69,7 @@ The additive version-one contract currently contains:
 - `SetReconnectionEnabled(enabled)`
 - `SnapshotChanged(JSON string)`
 - `ServerDataChanged(topologyChanged)`
+- `SettingsChanged(JSON string)`
 
 JSON keeps the prototype easy to inspect while `schemaVersion` protects the
 boundary. Before a public release, frequently accessed fields can become typed
@@ -88,6 +91,14 @@ The official SSO stack reaches Secret Service through a synchronous keyring
 API. The backend warms that saved session on a worker thread before creating
 the VPN connector. This remains provider-agnostic while preventing a KeePassXC,
 KWallet, or other provider unlock prompt from freezing the D-Bus event loop.
+
+Settings are read from and persisted through Proton's public core settings
+objects. The D-Bus boundary accepts only a bounded, field-allowlisted JSON
+patch; values are type- and range-checked before they reach the core. Protocol
+and kill-switch changes require a disconnected tunnel, paid features respect
+the account tier, and existing custom-DNS or split-tunneling conflicts are
+reported instead of silently disabling another feature. Structured DNS and
+split-tunneling data are deliberately not exposed by this scalar contract yet.
 
 ## Authentication
 
@@ -155,7 +166,8 @@ does not add a polling schedule or make its own server-list API requests.
 
 ## Next milestones
 
-1. Complete Proton settings plus a KCM-compatible configuration surface.
+1. Add structured custom-DNS and split-tunneling editors plus a KCM-compatible
+   configuration surface.
 2. KRunner actions and Plasma shortcuts.
 3. Split-tunneling application discovery through `KService`, not `.desktop`
    parsing in the GUI.
