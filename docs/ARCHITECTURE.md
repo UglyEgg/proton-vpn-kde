@@ -56,6 +56,8 @@ The additive version-one contract currently contains:
 - `UpdateSettings(JSON patch) -> JSON string`
 - `GetSplitTunneling() -> JSON string`
 - `UpdateSplitTunneling(JSON patch) -> JSON string`
+- `GetCustomDns() -> JSON string`
+- `UpdateCustomDns(JSON patch) -> JSON string`
 - `ConnectFastest()`
 - `ConnectCountry(countryCode)`
 - `ConnectServer(serverName)`
@@ -73,6 +75,7 @@ The additive version-one contract currently contains:
 - `ServerDataChanged(topologyChanged)`
 - `SettingsChanged(JSON string)`
 - `SplitTunnelingChanged(JSON string)`
+- `CustomDnsChanged(JSON string)`
 
 JSON keeps the prototype easy to inspect while `schemaVersion` protects the
 boundary. Before a public release, frequently accessed fields can become typed
@@ -102,8 +105,15 @@ and kill-switch changes require a disconnected tunnel, paid features respect
 the account tier, and existing custom-DNS or split-tunneling conflicts are
 reported instead of silently disabling another feature. Structured DNS and
 split-tunneling data use separate contracts so scalar setting updates cannot
-replace either collection accidentally. Structured DNS is deliberately not
-exposed yet.
+replace either collection accidentally.
+
+Custom-DNS writes construct Proton core's public `CustomDNSEntry` objects and
+use the official settings save path. The bounded contract accepts only numeric
+IPv4/IPv6 addresses and their existing per-entry enabled state. Addresses are
+canonicalized consistently while existing duplicate entries remain intact.
+Enabling custom DNS requires a paid plan and is rejected while NetShield is
+active; the client never silently disables either setting. Changes made during
+an active tunnel are clearly marked for application on the next connection.
 
 Split-tunneling writes use Proton core's existing `SplitTunneling` and
 `SplitTunnelingConfig` objects and the official save/apply path. The bounded
@@ -182,8 +192,7 @@ does not add a polling schedule or make its own server-list API requests.
 
 ## Next milestones
 
-1. Add a structured custom-DNS editor and a KCM-compatible configuration
-   surface.
-2. KRunner actions and Plasma shortcuts.
+1. Add KRunner actions and Plasma shortcuts on top of the stable D-Bus API.
+2. Add a KCM-compatible configuration surface for the stable settings models.
 3. Add explicit split-tunneling IP-range editing without changing the
    application-only editor's preservation guarantee.

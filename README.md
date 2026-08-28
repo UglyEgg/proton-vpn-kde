@@ -26,6 +26,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
   moderate NAT, port forwarding, IPv6, and anonymous crash reports
 - Native split-tunneling controls and a Plasma application chooser backed by
   `KApplicationTrader`; existing Proton IP rules remain untouched
+- Native custom-DNS controls with validated IPv4/IPv6 entries, preserved
+  per-entry state, and explicit NetShield conflict handling
 - Conflict-aware settings controls that preserve Proton core's paid-plan,
   split-tunneling, custom-DNS, and connected-state constraints
 - Provider-agnostic Secret Service initialization that cannot block D-Bus

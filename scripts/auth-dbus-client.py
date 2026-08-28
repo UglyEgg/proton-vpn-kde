@@ -187,6 +187,46 @@ async def main() -> None:
     else:
         raise AssertionError("an unsafe split-tunneling path was accepted")
 
+    custom_dns = json.loads(await interface.call_get_custom_dns())
+    assert custom_dns["schemaVersion"] == 1
+    assert custom_dns["paidFeaturesAvailable"]
+    assert not custom_dns["enabled"]
+
+    updated_custom_dns = json.loads(
+        await interface.call_update_custom_dns(
+            json.dumps(
+                {
+                    "servers": [
+                        {"address": "1.1.1.1", "enabled": True},
+                        {
+                            "address": "2606:4700:4700:0:0:0:0:1111",
+                            "enabled": False,
+                        },
+                    ]
+                },
+                separators=(",", ":"),
+            )
+        )
+    )
+    assert updated_custom_dns["servers"][1]["address"] == (
+        "2606:4700:4700::1111"
+    )
+
+    try:
+        await interface.call_update_custom_dns('{"enabled":true}')
+    except DBusError as error:
+        assert error.type == "proton.vpn.app.kde.Error.InvalidCustomDns"
+        assert "Disable NetShield" in error.text
+        assert "Traceback" not in str(error)
+    else:
+        raise AssertionError("a custom-DNS conflict was silently accepted")
+
+    await interface.call_update_settings('{"netShield":0}')
+    updated_custom_dns = json.loads(
+        await interface.call_update_custom_dns('{"enabled":true}')
+    )
+    assert updated_custom_dns["enabled"]
+
     await interface.call_logout()
     signed_out = await snapshot(interface)
     assert signed_out["authState"] == "signed_out"

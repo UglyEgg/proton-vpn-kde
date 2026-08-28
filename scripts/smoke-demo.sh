@@ -115,6 +115,33 @@ if [[ "$updated_split_tunneling" != *'"enabled":true'* \
     exit 1
 fi
 
+custom_dns="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.GetCustomDns)"
+if [[ "$custom_dns" != *'"paidFeaturesAvailable":true'* \
+    || "$custom_dns" != *'"enabled":false'* ]]; then
+    echo "Backend did not return the demo custom-DNS settings" >&2
+    exit 1
+fi
+
+gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.UpdateSettings \
+    '{"netShield":0}' >/dev/null
+
+updated_custom_dns="$(gdbus call --session \
+    --dest proton.vpn.app.kde.backend \
+    --object-path /proton/vpn/app/kde/backend \
+    --method proton.vpn.app.kde.Backend1.UpdateCustomDns \
+    '{"servers":[{"address":"1.1.1.1","enabled":true}],"enabled":true}')"
+if [[ "$updated_custom_dns" != *'"enabled":true'* \
+    || "$updated_custom_dns" != *'"address":"1.1.1.1"'* ]]; then
+    echo "Backend did not apply the demo custom-DNS settings" >&2
+    exit 1
+fi
+
 gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \

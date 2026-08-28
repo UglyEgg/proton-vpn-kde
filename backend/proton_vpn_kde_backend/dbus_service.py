@@ -7,6 +7,7 @@ from dbus_fast.service import ServiceInterface, method, signal
 
 from .controller import (
     BackendController,
+    CustomDnsSettings,
     SplitTunnelingSettings,
     VpnSettings,
     VpnSnapshot,
@@ -22,6 +23,7 @@ INVALID_SETTINGS_ERROR = "proton.vpn.app.kde.Error.InvalidSettings"
 INVALID_SPLIT_TUNNELING_ERROR = (
     "proton.vpn.app.kde.Error.InvalidSplitTunneling"
 )
+INVALID_CUSTOM_DNS_ERROR = "proton.vpn.app.kde.Error.InvalidCustomDns"
 
 
 class VpnDbusService(ServiceInterface):
@@ -33,6 +35,7 @@ class VpnDbusService(ServiceInterface):
         controller.subscribe_server_data(self._on_server_data)
         controller.subscribe_settings(self._on_settings)
         controller.subscribe_split_tunneling(self._on_split_tunneling)
+        controller.subscribe_custom_dns(self._on_custom_dns)
 
     @method(name="GetSnapshot")
     def get_snapshot(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
@@ -87,6 +90,20 @@ class VpnDbusService(ServiceInterface):
             )
         except (RuntimeError, ValueError) as error:
             raise DBusError(INVALID_SPLIT_TUNNELING_ERROR, str(error)) from error
+
+    @method(name="GetCustomDns")
+    async def get_custom_dns(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        try:
+            return await self._controller.get_custom_dns_json()
+        except (RuntimeError, ValueError) as error:
+            raise DBusError(INVALID_CUSTOM_DNS_ERROR, str(error)) from error
+
+    @method(name="UpdateCustomDns")
+    async def update_custom_dns(self, patch_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        try:
+            return await self._controller.update_custom_dns_json(patch_json)
+        except (RuntimeError, ValueError) as error:
+            raise DBusError(INVALID_CUSTOM_DNS_ERROR, str(error)) from error
 
     @method(name="ConnectCountry")
     async def connect_country(self, country_code: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
@@ -151,6 +168,10 @@ class VpnDbusService(ServiceInterface):
     def split_tunneling_changed(self, settings_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return settings_json
 
+    @signal(name="CustomDnsChanged")
+    def custom_dns_changed(self, settings_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        return settings_json
+
     def _on_snapshot(self, snapshot: VpnSnapshot) -> None:
         self.snapshot_changed(snapshot.to_json())
 
@@ -164,6 +185,9 @@ class VpnDbusService(ServiceInterface):
         self, settings: SplitTunnelingSettings
     ) -> None:
         self.split_tunneling_changed(settings.to_json())
+
+    def _on_custom_dns(self, settings: CustomDnsSettings) -> None:
+        self.custom_dns_changed(settings.to_json())
 
     def _read_secret(
         self,

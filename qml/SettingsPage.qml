@@ -9,6 +9,7 @@ Kirigami.ScrollablePage {
 
     property var vpnSettings: vpnController.settings
     property var splitSettings: vpnController.splitTunneling
+    property var customDns: vpnController.customDns
     readonly property bool splitProtocolCompatible:
         vpnSettings.protocol === "wireguard"
         || vpnSettings.protocol.indexOf("protun-") === 0
@@ -23,6 +24,9 @@ Kirigami.ScrollablePage {
         if (vpnController.loggedIn && !splitSettings.loaded) {
             vpnController.loadSplitTunneling()
         }
+        if (vpnController.loggedIn && !customDns.loaded) {
+            vpnController.loadCustomDns()
+        }
     }
 
     Connections {
@@ -35,6 +39,10 @@ Kirigami.ScrollablePage {
             if (vpnController.loggedIn && !page.splitSettings.loaded
                     && !page.splitSettings.busy) {
                 vpnController.loadSplitTunneling()
+            }
+            if (vpnController.loggedIn && !page.customDns.loaded
+                    && !page.customDns.busy) {
+                vpnController.loadCustomDns()
             }
         }
     }
@@ -202,6 +210,62 @@ Kirigami.ScrollablePage {
 
         Controls.Label {
             Kirigami.FormData.isSection: true
+            text: qsTr("Custom DNS")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: customDns.message.length > 0
+            type: Kirigami.MessageType.Error
+            text: customDns.message
+        }
+
+        Controls.Switch {
+            Kirigami.FormData.label: qsTr("DNS:")
+            text: qsTr("Use custom DNS servers")
+            checked: customDns.enabled
+            enabled: customDns.loaded && customDns.paidFeaturesAvailable
+                     && !customDns.busy
+                     && (checked || vpnSettings.netShield === 0)
+            onClicked: vpnController.updateCustomDns("enabled", checked)
+        }
+
+        Controls.Button {
+            Kirigami.FormData.label: qsTr("Servers:")
+            text: customDns.serverCount > 0
+                  ? qsTr("Manage %n server(s)…", "", customDns.serverCount)
+                  : qsTr("Add DNS servers…")
+            icon.name: "network-server-database"
+            enabled: customDns.loaded && customDns.paidFeaturesAvailable
+                     && !customDns.busy
+            onClicked: applicationWindow().pageStack.push(
+                Qt.resolvedUrl("CustomDnsPage.qml"))
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: customDns.restartRequired
+            type: Kirigami.MessageType.Information
+            text: qsTr("Reconnect the VPN to apply the custom DNS changes.")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: customDns.loaded && vpnSettings.loaded
+                     && vpnSettings.netShield !== 0
+            type: Kirigami.MessageType.Warning
+            text: qsTr("Disable NetShield before enabling custom DNS. Neither setting will be changed automatically.")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: customDns.loaded && !customDns.paidFeaturesAvailable
+            type: Kirigami.MessageType.Information
+            text: qsTr("Custom DNS requires a paid Proton VPN plan.")
+        }
+
+        Controls.Label {
+            Kirigami.FormData.isSection: true
             text: qsTr("Split tunneling")
         }
 
@@ -313,13 +377,6 @@ Kirigami.ScrollablePage {
             text: qsTr("%n existing IP rule(s) in this mode are preserved. This editor changes application rules only.",
                        "", splitSettings.selectedIpRangeCount)
             color: Kirigami.Theme.disabledTextColor
-        }
-
-        Kirigami.InlineMessage {
-            Layout.fillWidth: true
-            visible: vpnSettings.customDnsEnabled
-            type: Kirigami.MessageType.Information
-            text: qsTr("Custom DNS is enabled. Conflicting NetShield changes remain blocked until its native editor is available.")
         }
 
         Controls.Label {

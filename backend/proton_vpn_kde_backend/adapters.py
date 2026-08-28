@@ -8,6 +8,9 @@ from typing import Any
 
 from .controller import (
     CountryInfo,
+    CustomDnsServer,
+    CustomDnsSettings,
+    CustomDnsValue,
     ProtocolInfo,
     ServerDataCallback,
     ServerInfo,
@@ -46,6 +49,9 @@ class DemoCoreAdapter:
         )
         self._split_tunneling = SplitTunnelingSettings(
             available=True,
+            paid_features_available=logged_in,
+        )
+        self._custom_dns = CustomDnsSettings(
             paid_features_available=logged_in,
         )
         self._snapshot = self._build_snapshot(message="Safe demo backend")
@@ -174,6 +180,39 @@ class DemoCoreAdapter:
             split_tunneling_enabled=updated.enabled,
         )
         return await self.get_split_tunneling()
+
+    async def get_custom_dns(self) -> CustomDnsSettings:
+        return replace(
+            self._custom_dns,
+            paid_features_available=self._logged_in,
+        )
+
+    async def update_custom_dns(
+        self, patch: dict[str, CustomDnsValue]
+    ) -> CustomDnsSettings:
+        if not self._logged_in:
+            raise RuntimeError("A Proton account session is required")
+        final_enabled = patch.get("enabled", self._custom_dns.enabled)
+        if final_enabled and self._settings.net_shield != 0:
+            raise ValueError("Disable NetShield before enabling custom DNS")
+        replacements: dict[str, Any] = {}
+        if "enabled" in patch:
+            replacements["enabled"] = bool(patch["enabled"])
+        if "servers" in patch:
+            replacements["servers"] = tuple(
+                CustomDnsServer(
+                    address=str(server["address"]),
+                    enabled=bool(server["enabled"]),
+                )
+                for server in patch["servers"]
+                if isinstance(server, dict)
+            )
+        self._custom_dns = replace(self._custom_dns, **replacements)
+        self._settings = replace(
+            self._settings,
+            custom_dns_enabled=self._custom_dns.enabled,
+        )
+        return await self.get_custom_dns()
 
     async def connect_country(self, country_code: str) -> None:
         await self._transition("connecting", "")
@@ -376,6 +415,10 @@ class ProtonCoreAdapter:
         settings = await self._load_settings()
         return self._split_tunneling_from_core(settings)
 
+    async def get_custom_dns(self) -> CustomDnsSettings:
+        settings = await self._load_settings()
+        return self._custom_dns_from_core(settings)
+
     async def update_settings(
         self, patch: dict[str, SettingsValue]
     ) -> VpnSettings:
@@ -487,6 +530,34 @@ class ProtonCoreAdapter:
         await self._save_settings(settings)
         return self._split_tunneling_from_core(settings)
 
+    async def update_custom_dns(
+        self, patch: dict[str, CustomDnsValue]
+    ) -> CustomDnsSettings:
+        settings = await self._load_settings()
+        if self._user_tier() < 1:
+            raise RuntimeError("Custom DNS requires a paid Proton VPN plan")
+
+        final_enabled = patch.get("enabled", settings.custom_dns.enabled)
+        if final_enabled and int(settings.features.netshield) != 0:
+            raise ValueError("Disable NetShield before enabling custom DNS")
+
+        if "servers" in patch:
+            from proton.vpn.core.settings import CustomDNSEntry
+
+            settings.custom_dns.ip_list = [
+                CustomDNSEntry.new_from_string(
+                    str(server["address"]),
+                    enabled=bool(server["enabled"]),
+                )
+                for server in patch["servers"]
+                if isinstance(server, dict)
+            ]
+        if "enabled" in patch:
+            settings.custom_dns.enabled = bool(patch["enabled"])
+
+        await self._save_settings(settings)
+        return self._custom_dns_from_core(settings)
+
     async def _load_settings(self):
         try:
             return await self._api.load_settings()
@@ -573,6 +644,19 @@ class ProtonCoreAdapter:
             include_app_paths=tuple(split_tunneling.include.app_paths),
             exclude_ip_range_count=len(split_tunneling.exclude.ip_ranges),
             include_ip_range_count=len(split_tunneling.include.ip_ranges),
+        )
+
+    def _custom_dns_from_core(self, settings: Any) -> CustomDnsSettings:
+        return CustomDnsSettings(
+            paid_features_available=self._user_tier() >= 1,
+            enabled=bool(settings.custom_dns.enabled),
+            servers=tuple(
+                CustomDnsServer(
+                    address=entry.ip.compressed,
+                    enabled=bool(entry.enabled),
+                )
+                for entry in settings.custom_dns.ip_list
+            ),
         )
 
     def _available_protocols(self, current_protocol: str) -> tuple[ProtocolInfo, ...]:

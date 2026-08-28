@@ -1,7 +1,7 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.7.0
+Version:        0.8.0
 Release:        1%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
@@ -79,6 +79,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-backend.service
 
 %changelog
+* Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.8.0-1
+- Add a native custom-DNS editor with IPv4 and IPv6 validation.
+- Preserve Proton core per-entry state and use its official save path.
+- Reject NetShield conflicts without silently changing either feature.
+
 * Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.7.0-1
 - Add a native Plasma split-tunneling application editor.
 - Discover installed applications through KService without GTK or Gio.

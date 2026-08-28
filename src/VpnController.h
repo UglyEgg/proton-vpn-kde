@@ -2,6 +2,7 @@
 
 #include "VpnSettingsModel.h"
 #include "SplitTunnelingModel.h"
+#include "CustomDnsModel.h"
 
 #include <QObject>
 #include <QString>
@@ -40,6 +41,7 @@ class VpnController final : public QObject
     Q_PROPERTY(QAbstractItemModel *applicationModel READ applicationModel CONSTANT)
     Q_PROPERTY(VpnSettingsModel *settings READ settings CONSTANT)
     Q_PROPERTY(SplitTunnelingModel *splitTunneling READ splitTunneling CONSTANT)
+    Q_PROPERTY(CustomDnsModel *customDns READ customDns CONSTANT)
 
 public:
     explicit VpnController(QObject *parent = nullptr);
@@ -65,6 +67,7 @@ public:
     [[nodiscard]] QAbstractItemModel *applicationModel() const;
     [[nodiscard]] VpnSettingsModel *settings() const;
     [[nodiscard]] SplitTunnelingModel *splitTunneling() const;
+    [[nodiscard]] CustomDnsModel *customDns() const;
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void activatePrimaryAction();
@@ -92,6 +95,11 @@ public:
     Q_INVOKABLE void setSplitTunnelingApplication(
         const QString &executable, bool selected);
     Q_INVOKABLE void clearSplitTunnelingApplications();
+    Q_INVOKABLE void loadCustomDns();
+    Q_INVOKABLE void updateCustomDns(const QString &name,
+                                     const QVariant &value);
+    Q_INVOKABLE void addCustomDnsServer(const QString &address);
+    Q_INVOKABLE void removeCustomDnsServer(const QString &address);
     Q_INVOKABLE QString applicationName(const QString &executable) const;
 
 signals:
@@ -106,6 +114,7 @@ private slots:
     void onServerDataChanged(bool topologyChanged);
     void onSettingsChanged(const QString &settingsJson);
     void onSplitTunnelingChanged(const QString &settingsJson);
+    void onCustomDnsChanged(const QString &settingsJson);
 
 private:
     void setBackendAvailable(bool available);
@@ -125,6 +134,7 @@ private:
     void handleServerLoadsReply(QDBusPendingCallWatcher *watcher);
     void handleSettingsReply(QDBusPendingCallWatcher *watcher);
     void handleSplitTunnelingReply(QDBusPendingCallWatcher *watcher);
+    void handleCustomDnsReply(QDBusPendingCallWatcher *watcher);
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
     CountryModel *m_countryModel = nullptr;
@@ -132,6 +142,7 @@ private:
     InstalledApplicationModel *m_installedApplicationModel = nullptr;
     VpnSettingsModel *m_settings = nullptr;
     SplitTunnelingModel *m_splitTunneling = nullptr;
+    CustomDnsModel *m_customDns = nullptr;
     LocationFilterProxyModel *m_countryFilterModel = nullptr;
     LocationFilterProxyModel *m_serverFilterModel = nullptr;
     LocationFilterProxyModel *m_applicationFilterModel = nullptr;

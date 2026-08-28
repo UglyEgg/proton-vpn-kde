@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable
 from dataclasses import asdict, dataclass, replace
+from ipaddress import ip_address
 import json
 from typing import Callable, Protocol, TypeAlias, TypeVar
 
@@ -143,8 +144,40 @@ class SplitTunnelingSettings:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class CustomDnsServer:
+    """One Proton core custom-DNS entry."""
+
+    address: str
+    enabled: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class CustomDnsSettings:
+    """Validated view of Proton core's custom-DNS configuration."""
+
+    schema_version: int = 1
+    paid_features_available: bool = False
+    enabled: bool = False
+    servers: tuple[CustomDnsServer, ...] = ()
+
+    def to_json(self) -> str:
+        return json.dumps(
+            {
+                "schemaVersion": self.schema_version,
+                "paidFeaturesAvailable": self.paid_features_available,
+                "enabled": self.enabled,
+                "servers": [asdict(server) for server in self.servers],
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+
 SettingsValue: TypeAlias = str | int | bool
 SplitTunnelingValue: TypeAlias = bool | str | list[str]
+CustomDnsServerValue: TypeAlias = dict[str, str | bool]
+CustomDnsValue: TypeAlias = bool | list[CustomDnsServerValue]
 
 _SETTING_TYPES: dict[str, type[str] | type[int] | type[bool]] = {
     "protocol": str,
@@ -255,6 +288,59 @@ def split_tunneling_patch_from_json(
     return payload
 
 
+_CUSTOM_DNS_TYPES: dict[str, type[bool] | type[list]] = {
+    "enabled": bool,
+    "servers": list,
+}
+
+
+def custom_dns_patch_from_json(
+    patch_json: str,
+) -> dict[str, CustomDnsValue]:
+    if not patch_json or len(patch_json) > 65536:
+        raise ValueError("The custom-DNS update is empty or too large")
+    try:
+        payload = json.loads(patch_json)
+    except json.JSONDecodeError as error:
+        raise ValueError("The custom-DNS update is not valid JSON") from error
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("The custom-DNS update must be a non-empty object")
+    unknown = set(payload) - set(_CUSTOM_DNS_TYPES)
+    if unknown:
+        raise ValueError("The custom-DNS update contains an unsupported field")
+    for key, value in payload.items():
+        if type(value) is not _CUSTOM_DNS_TYPES[key]:
+            raise ValueError(f"The {key} custom-DNS value has the wrong type")
+
+    if "servers" not in payload:
+        return payload
+
+    servers = payload["servers"]
+    if not isinstance(servers, list) or len(servers) > 256:
+        raise ValueError("Too many custom DNS servers were provided")
+    normalized_servers: list[CustomDnsServerValue] = []
+    for server in servers:
+        if type(server) is not dict or set(server) != {"address", "enabled"}:
+            raise ValueError("A custom DNS server entry is invalid")
+        address = server["address"]
+        entry_enabled = server["enabled"]
+        if type(address) is not str or type(entry_enabled) is not bool:
+            raise ValueError("A custom DNS server entry is invalid")
+        if not address or len(address) > 64 or address != address.strip():
+            raise ValueError("Enter a valid IPv4 or IPv6 DNS server address")
+        try:
+            normalized_address = ip_address(address).compressed
+        except ValueError as error:
+            raise ValueError(
+                "Enter a valid IPv4 or IPv6 DNS server address"
+            ) from error
+        normalized_servers.append(
+            {"address": normalized_address, "enabled": entry_enabled}
+        )
+    payload["servers"] = normalized_servers
+    return payload
+
+
 LocationInfo = TypeVar("LocationInfo", CountryInfo, ServerInfo, ServerLoadInfo)
 
 
@@ -276,6 +362,7 @@ SnapshotCallback = Callable[[VpnSnapshot], None]
 ServerDataCallback = Callable[[bool], None]
 SettingsCallback = Callable[[VpnSettings], None]
 SplitTunnelingCallback = Callable[[SplitTunnelingSettings], None]
+CustomDnsCallback = Callable[[CustomDnsSettings], None]
 
 
 class CoreAdapter(Protocol):
@@ -297,6 +384,10 @@ class CoreAdapter(Protocol):
     async def update_split_tunneling(
         self, patch: dict[str, SplitTunnelingValue]
     ) -> SplitTunnelingSettings: ...
+    async def get_custom_dns(self) -> CustomDnsSettings: ...
+    async def update_custom_dns(
+        self, patch: dict[str, CustomDnsValue]
+    ) -> CustomDnsSettings: ...
     async def connect_fastest(self) -> None: ...
     async def connect_country(self, country_code: str) -> None: ...
     async def connect_server(self, server_name: str) -> None: ...
@@ -322,6 +413,7 @@ class BackendController:
         self._server_data_listeners: list[ServerDataCallback] = []
         self._settings_listeners: list[SettingsCallback] = []
         self._split_tunneling_listeners: list[SplitTunnelingCallback] = []
+        self._custom_dns_listeners: list[CustomDnsCallback] = []
         self._operation_lock = asyncio.Lock()
 
     @property
@@ -341,6 +433,9 @@ class BackendController:
         self, callback: SplitTunnelingCallback
     ) -> None:
         self._split_tunneling_listeners.append(callback)
+
+    def subscribe_custom_dns(self, callback: CustomDnsCallback) -> None:
+        self._custom_dns_listeners.append(callback)
 
     async def start(self) -> None:
         try:
@@ -440,6 +535,36 @@ class BackendController:
         self._publish_split_tunneling(split_tunneling)
         self._publish_settings(settings)
         return split_tunneling.to_json()
+
+    async def get_custom_dns_json(self) -> str:
+        self._require_session()
+        settings = await self._adapter.get_custom_dns()
+        self._publish_custom_dns(settings)
+        return settings.to_json()
+
+    async def update_custom_dns_json(self, patch_json: str) -> str:
+        self._require_session()
+        patch = custom_dns_patch_from_json(patch_json)
+        if self._operation_lock.locked():
+            raise RuntimeError("Another VPN operation is already in progress")
+        async with self._operation_lock:
+            self._publish(replace(self._snapshot, busy=True, message=""))
+            try:
+                custom_dns = await self._adapter.update_custom_dns(patch)
+                settings = await self._adapter.get_settings()
+            except Exception:
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=False,
+                        message="The custom-DNS settings could not be updated",
+                    )
+                )
+                raise
+            self._publish(replace(self._snapshot, busy=False))
+        self._publish_custom_dns(custom_dns)
+        self._publish_settings(settings)
+        return custom_dns.to_json()
 
     async def connect_country(self, country_code: str) -> None:
         self._require_session()
@@ -551,6 +676,10 @@ class BackendController:
         self, settings: SplitTunnelingSettings
     ) -> None:
         for listener in tuple(self._split_tunneling_listeners):
+            listener(settings)
+
+    def _publish_custom_dns(self, settings: CustomDnsSettings) -> None:
+        for listener in tuple(self._custom_dns_listeners):
             listener(settings)
 
     def _publish(self, snapshot: VpnSnapshot) -> None:

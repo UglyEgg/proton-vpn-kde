@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.7.0 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.8.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
@@ -14,6 +14,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Core
     DBus
     Gui
+    Network
     Qml
     Quick
     QuickControls2
@@ -46,6 +47,8 @@ qt_standard_project_setup(REQUIRES 6.8)
 qt_add_executable(proton-vpn-kde
     src/AppSettings.cpp
     src/AppSettings.h
+    src/CustomDnsModel.cpp
+    src/CustomDnsModel.h
     src/InstalledApplicationModel.cpp
     src/InstalledApplicationModel.h
     src/NotificationIntegration.cpp
@@ -72,6 +75,7 @@ qt_add_qml_module(proton-vpn-kde
     QML_FILES
         qml/Main.qml
         qml/AccountPage.qml
+        qml/CustomDnsPage.qml
         qml/LocationsPage.qml
         qml/OverviewPage.qml
         qml/ServersPage.qml
@@ -84,6 +88,7 @@ target_link_libraries(proton-vpn-kde PRIVATE
     Qt6::Core
     Qt6::DBus
     Qt6::Gui
+    Qt6::Network
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
@@ -164,6 +169,22 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME split-tunneling-model-tests COMMAND split-tunneling-model-tests)
+
+    qt_add_executable(custom-dns-model-tests
+        tests/CustomDnsModelTest.cpp
+        src/CustomDnsModel.cpp
+        src/CustomDnsModel.h
+    )
+    target_include_directories(custom-dns-model-tests PRIVATE src)
+    target_link_libraries(custom-dns-model-tests PRIVATE
+        Qt6::Core
+        Qt6::Network
+        Qt6::Test
+    )
+    target_compile_options(custom-dns-model-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME custom-dns-model-tests COMMAND custom-dns-model-tests)
 
     qt_add_executable(installed-application-model-tests
         tests/InstalledApplicationModelTest.cpp

@@ -6,6 +6,7 @@ from proton_vpn_kde_backend.adapters import DemoCoreAdapter
 from proton_vpn_kde_backend.controller import (
     BackendController,
     VpnSnapshot,
+    custom_dns_patch_from_json,
     settings_patch_from_json,
     split_tunneling_patch_from_json,
 )
@@ -136,6 +137,48 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
                 '{"excludeAppPaths":["/usr/bin/firefox","/usr/bin/firefox"]}'
             )
 
+    async def test_custom_dns_payload_updates_and_syncs_scalar_settings(self):
+        events = []
+        settings_events = []
+        self.controller.subscribe_custom_dns(events.append)
+        self.controller.subscribe_settings(settings_events.append)
+
+        initial = await self.controller.get_custom_dns_json()
+        updated = await self.controller.update_custom_dns_json(
+            '{"servers":[{"address":"2606:4700:4700:0:0:0:0:1111",'
+            '"enabled":true}],"enabled":true}'
+        )
+
+        self.assertIn('"paidFeaturesAvailable":true', initial)
+        self.assertIn('"address":"2606:4700:4700::1111"', updated)
+        self.assertIn('"enabled":true', updated)
+        self.assertEqual("2606:4700:4700::1111", events[-1].servers[0].address)
+        self.assertTrue(settings_events[-1].custom_dns_enabled)
+
+    async def test_custom_dns_patch_validates_addresses_and_entries(self):
+        normalized = custom_dns_patch_from_json(
+            '{"servers":[{"address":"2001:db8:0:0::1","enabled":false}]}'
+        )
+        self.assertEqual("2001:db8::1", normalized["servers"][0]["address"])
+
+        with self.assertRaisesRegex(ValueError, "unsupported field"):
+            custom_dns_patch_from_json('{"provider":"example"}')
+        with self.assertRaisesRegex(ValueError, "wrong type"):
+            custom_dns_patch_from_json('{"enabled":1}')
+        with self.assertRaisesRegex(ValueError, "valid IPv4 or IPv6"):
+            custom_dns_patch_from_json(
+                '{"servers":[{"address":"dns.example","enabled":true}]}'
+            )
+        preserved = custom_dns_patch_from_json(
+            '{"servers":['
+            '{"address":"2001:db8::1","enabled":true},'
+            '{"address":"2001:0db8:0:0:0:0:0:1","enabled":false}]}'
+        )
+        self.assertEqual(2, len(preserved["servers"]))
+        self.assertEqual(
+            preserved["servers"][0]["address"],
+            preserved["servers"][1]["address"],
+        )
     async def test_demo_authentication_and_logout_lifecycle(self):
         controller = BackendController(DemoCoreAdapter(logged_in=False))
         await controller.start()

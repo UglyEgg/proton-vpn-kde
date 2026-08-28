@@ -1,6 +1,7 @@
 #include "VpnController.h"
 
 #include "InstalledApplicationModel.h"
+#include "CustomDnsModel.h"
 #include "LocationModels.h"
 #include "SecretTransport.h"
 #include "SplitTunnelingModel.h"
@@ -40,6 +41,7 @@ VpnController::VpnController(QObject *parent)
     , m_installedApplicationModel(new InstalledApplicationModel(this))
     , m_settings(new VpnSettingsModel(this))
     , m_splitTunneling(new SplitTunnelingModel(this))
+    , m_customDns(new CustomDnsModel(this))
     , m_countryFilterModel(new LocationFilterProxyModel(this))
     , m_serverFilterModel(new LocationFilterProxyModel(this))
     , m_applicationFilterModel(new LocationFilterProxyModel(this))
@@ -89,6 +91,13 @@ VpnController::VpnController(QObject *parent)
         QStringLiteral("SplitTunnelingChanged"),
         this,
         SLOT(onSplitTunnelingChanged(QString)));
+    QDBusConnection::sessionBus().connect(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("CustomDnsChanged"),
+        this,
+        SLOT(onCustomDnsChanged(QString)));
 
     const auto *interface = QDBusConnection::sessionBus().interface();
     setBackendAvailable(interface && interface->isServiceRegistered(
@@ -139,6 +148,7 @@ SplitTunnelingModel *VpnController::splitTunneling() const
 {
     return m_splitTunneling;
 }
+CustomDnsModel *VpnController::customDns() const { return m_customDns; }
 
 void VpnController::refresh()
 {
@@ -519,6 +529,131 @@ void VpnController::clearSplitTunnelingApplications()
     updateSplitTunneling(field, QStringList{});
 }
 
+void VpnController::loadCustomDns()
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn
+        || m_customDns->busy()) {
+        return;
+    }
+    m_customDns->setBusy(true);
+    m_customDns->setMessage(QString{});
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("GetCustomDns"));
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 10000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleCustomDnsReply);
+}
+
+void VpnController::updateCustomDns(const QString &name,
+                                    const QVariant &value)
+{
+    if (!m_backendAvailable || !m_ready || !m_loggedIn
+        || !m_customDns->loaded() || m_customDns->busy()) {
+        return;
+    }
+
+    QJsonValue jsonValue;
+    if (name == QStringLiteral("enabled")) {
+        if (value.metaType().id() != QMetaType::Bool) {
+            m_customDns->setMessage(tr("The custom-DNS value is invalid"));
+            return;
+        }
+        jsonValue = value.toBool();
+    } else if (name == QStringLiteral("servers")) {
+        const QVariantList servers = value.toList();
+        if (servers.size() > 256) {
+            m_customDns->setMessage(tr("Too many custom DNS servers were provided"));
+            return;
+        }
+        QJsonArray serverArray;
+        for (const QVariant &serverValue : servers) {
+            const QVariantMap server = serverValue.toMap();
+            const QString address = CustomDnsModel::normalizeServerAddress(
+                server.value(QStringLiteral("address")).toString());
+            if (address.isEmpty()
+                || server.value(QStringLiteral("enabled")).metaType().id()
+                    != QMetaType::Bool) {
+                m_customDns->setMessage(
+                    tr("Enter a valid IPv4 or IPv6 DNS server address"));
+                return;
+            }
+            serverArray.append(QJsonObject{
+                {QStringLiteral("address"), address},
+                {QStringLiteral("enabled"),
+                 server.value(QStringLiteral("enabled")).toBool()},
+            });
+        }
+        jsonValue = serverArray;
+    } else {
+        m_customDns->setMessage(tr("That custom-DNS setting is not supported"));
+        return;
+    }
+
+    const QString patchJson = QString::fromUtf8(
+        QJsonDocument(QJsonObject{{name, jsonValue}}).toJson(
+            QJsonDocument::Compact));
+    m_customDns->setBusy(true);
+    m_customDns->setMessage(QString{});
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("UpdateCustomDns"));
+    message << patchJson;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    watcher->setProperty("changedWhileConnected",
+                         m_state == QStringLiteral("connected")
+                             || m_state == QStringLiteral("connecting"));
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleCustomDnsReply);
+}
+
+void VpnController::addCustomDnsServer(const QString &address)
+{
+    const QString normalized = CustomDnsModel::normalizeServerAddress(address);
+    if (normalized.isEmpty()) {
+        m_customDns->setMessage(
+            tr("Enter a valid IPv4 or IPv6 DNS server address"));
+        return;
+    }
+    if (m_customDns->containsServer(normalized)) {
+        m_customDns->setMessage(tr("That custom DNS server is already listed"));
+        return;
+    }
+    QVariantList servers = m_customDns->servers();
+    servers.append(QVariantMap{
+        {QStringLiteral("address"), normalized},
+        {QStringLiteral("enabled"), true},
+    });
+    updateCustomDns(QStringLiteral("servers"), servers);
+}
+
+void VpnController::removeCustomDnsServer(const QString &address)
+{
+    const QString normalized = CustomDnsModel::normalizeServerAddress(address);
+    if (normalized.isEmpty()) {
+        return;
+    }
+    QVariantList servers;
+    for (const QVariant &serverValue : m_customDns->servers()) {
+        const QVariantMap server = serverValue.toMap();
+        if (CustomDnsModel::normalizeServerAddress(
+                server.value(QStringLiteral("address")).toString())
+            != normalized) {
+            servers.append(server);
+        }
+    }
+    if (servers.size() == m_customDns->serverCount()) {
+        return;
+    }
+    updateCustomDns(QStringLiteral("servers"), servers);
+}
+
 QString VpnController::applicationName(const QString &executable) const
 {
     return m_installedApplicationModel->nameForExecutable(executable);
@@ -547,6 +682,7 @@ void VpnController::onServiceUnregistered(const QString &)
     m_currentServerCountry.clear();
     m_settings->reset(tr("The Proton backend service stopped"));
     m_splitTunneling->reset(tr("The Proton backend service stopped"));
+    m_customDns->reset(tr("The Proton backend service stopped"));
     emit snapshotChanged();
 }
 
@@ -582,6 +718,15 @@ void VpnController::onSplitTunnelingChanged(const QString &settingsJson)
     if (!m_splitTunneling->applyJson(settingsJson, &errorMessage)) {
         m_splitTunneling->setBusy(false);
         m_splitTunneling->setMessage(errorMessage);
+    }
+}
+
+void VpnController::onCustomDnsChanged(const QString &settingsJson)
+{
+    QString errorMessage;
+    if (!m_customDns->applyJson(settingsJson, &errorMessage)) {
+        m_customDns->setBusy(false);
+        m_customDns->setMessage(errorMessage);
     }
 }
 
@@ -627,6 +772,9 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_busy = snapshot.value(QStringLiteral("busy")).toBool();
     m_state = snapshot.value(QStringLiteral("state")).toString(
         QStringLiteral("unavailable"));
+    if (m_state != QStringLiteral("connected")) {
+        m_customDns->setRestartRequired(false);
+    }
     m_serverName = snapshot.value(QStringLiteral("serverName")).toString();
     m_message = snapshot.value(QStringLiteral("message")).toString();
     if (wasLoggedIn && !m_loggedIn) {
@@ -638,6 +786,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_currentServerCountry.clear();
         m_settings->reset();
         m_splitTunneling->reset();
+        m_customDns->reset();
     }
     emit snapshotChanged();
     if (m_loggedIn && m_countryModel->rowCount() == 0 && !m_locationsBusy) {
@@ -931,5 +1080,36 @@ void VpnController::handleSplitTunnelingReply(
     QString errorMessage;
     if (!m_splitTunneling->applyJson(reply.value(), &errorMessage)) {
         m_splitTunneling->setMessage(errorMessage);
+    }
+}
+
+void VpnController::handleCustomDnsReply(QDBusPendingCallWatcher *watcher)
+{
+    const bool changedWhileConnected = watcher->property(
+        "changedWhileConnected").toBool();
+    const QDBusPendingReply<QString> reply = *watcher;
+    watcher->deleteLater();
+    m_customDns->setBusy(false);
+    if (reply.isError()) {
+        if (reply.error().name()
+            == QStringLiteral("proton.vpn.app.kde.Error.InvalidCustomDns")) {
+            QString message = reply.error().message().trimmed();
+            if (message.isEmpty() || message.size() > 256
+                || message.contains(QLatin1Char('\n'))) {
+                message = tr("The custom-DNS setting could not be changed");
+            }
+            m_customDns->setMessage(message);
+        } else {
+            m_customDns->setMessage(tr("Unable to save custom-DNS settings"));
+        }
+        return;
+    }
+    QString errorMessage;
+    if (!m_customDns->applyJson(reply.value(), &errorMessage)) {
+        m_customDns->setMessage(errorMessage);
+        return;
+    }
+    if (changedWhileConnected) {
+        m_customDns->setRestartRequired(true);
     }
 }

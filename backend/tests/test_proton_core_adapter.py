@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from ipaddress import ip_address
 import threading
 from types import SimpleNamespace
 import unittest
@@ -58,7 +59,15 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         settings = SimpleNamespace(
             protocol="wireguard",
             killswitch=0,
-            custom_dns=SimpleNamespace(enabled=False),
+            custom_dns=SimpleNamespace(
+                enabled=False,
+                ip_list=[
+                    SimpleNamespace(
+                        ip=ip_address("9.9.9.9"),
+                        enabled=False,
+                    )
+                ],
+            ),
             ipv6=True,
             anonymous_crash_reports=True,
             features=SimpleNamespace(
@@ -425,6 +434,60 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             ["10.0.0.0/8"], saved.features.split_tunneling.exclude.ip_ranges
         )
         self.assertTrue(updated.enabled)
+
+    async def test_custom_dns_round_trip_uses_official_entries(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.features.netshield = 0
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        current = await adapter.get_custom_dns()
+        self.assertFalse(current.enabled)
+        self.assertEqual("9.9.9.9", current.servers[0].address)
+        self.assertFalse(current.servers[0].enabled)
+
+        updated = await adapter.update_custom_dns(
+            {
+                "servers": [
+                    {"address": "1.1.1.1", "enabled": True},
+                    {"address": "2606:4700:4700::1111", "enabled": False},
+                ],
+                "enabled": True,
+            }
+        )
+
+        saved = api.save_settings.await_args.args[0]
+        self.assertTrue(saved.custom_dns.enabled)
+        self.assertEqual("1.1.1.1", saved.custom_dns.ip_list[0].ip.compressed)
+        self.assertTrue(saved.custom_dns.ip_list[0].enabled)
+        self.assertFalse(saved.custom_dns.ip_list[1].enabled)
+        self.assertTrue(updated.enabled)
+        self.assertEqual(2, len(updated.servers))
+
+    async def test_custom_dns_conflict_is_rejected_without_side_effects(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(ValueError, "Disable NetShield"):
+            await adapter.update_custom_dns({"enabled": True})
+
+        self.assertFalse(settings.custom_dns.enabled)
+        self.assertEqual(1, settings.features.netshield)
+        api.save_settings.assert_not_awaited()
+
+    async def test_custom_dns_requires_paid_plan(self):
+        api, _ = self.make_api()
+        api.account_data.max_tier = 0
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "paid Proton VPN plan"):
+            await adapter.update_custom_dns({"servers": []})
+
+        api.save_settings.assert_not_awaited()
 
     async def test_split_tunneling_conflicts_do_not_mutate_other_settings(self):
         api, connector = self.make_api()
