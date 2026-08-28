@@ -58,6 +58,7 @@ uses the Freedesktop Secret Service provider selected by the desktop session.
 %build
 %cmake \
     -DBUILD_TESTING=ON \
+    -DCMAKE_INSTALL_LIBEXECDIR=%{_libexecdir} \
 %if %{without kstatusnotifier}
     -DCMAKE_DISABLE_FIND_PACKAGE_KF6StatusNotifierItem=ON \
 %endif
