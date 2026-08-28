@@ -106,6 +106,24 @@ Kirigami.ScrollablePage {
             color: Kirigami.Theme.disabledTextColor
         }
 
+        Controls.TextField {
+            Kirigami.FormData.label: qsTr("Auto connect:")
+            Layout.fillWidth: true
+            text: appSettings.autoConnectTarget
+            placeholderText: qsTr("Off, FASTEST, US, or CH#101")
+            onEditingFinished: {
+                appSettings.autoConnectTarget = text
+                text = appSettings.autoConnectTarget
+            }
+        }
+
+        Controls.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            text: qsTr("Connect to the fastest server, a country, or an exact server when the app starts.")
+            color: Kirigami.Theme.disabledTextColor
+        }
+
         Controls.ComboBox {
             id: killSwitchCombo
             Kirigami.FormData.label: qsTr("Kill switch:")
@@ -416,6 +434,24 @@ Kirigami.ScrollablePage {
             text: qsTr("Start with the window hidden")
             checked: appSettings.startMinimized
             onToggled: appSettings.startMinimized = checked
+        }
+
+        Controls.TextField {
+            Kirigami.FormData.label: qsTr("Tray favorites:")
+            Layout.fillWidth: true
+            text: appSettings.pinnedServersText
+            placeholderText: qsTr("US, CH#101, NL#42")
+            onEditingFinished: {
+                appSettings.pinnedServersText = text
+                text = appSettings.pinnedServersText
+            }
+        }
+
+        Controls.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            text: qsTr("Favorite countries and servers appear as one-click connections in the Plasma system tray.")
+            color: Kirigami.Theme.disabledTextColor
         }
 
         Kirigami.InlineMessage {

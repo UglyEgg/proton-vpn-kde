@@ -44,6 +44,15 @@ Kirigami.ScrollablePage {
             required property string name
             required property string flag
             required property int serverCount
+            property bool pinned: appSettings.isServerPinned(code)
+
+            Connections {
+                target: appSettings
+                function onPinnedServersChanged() {
+                    countryDelegate.pinned = appSettings.isServerPinned(
+                        countryDelegate.code)
+                }
+            }
 
             width: ListView.view.width
             horizontalPadding: Kirigami.Units.largeSpacing
@@ -75,6 +84,13 @@ Kirigami.ScrollablePage {
                     icon.name: "network-connect"
                     enabled: vpnController.primaryActionEnabled
                     onClicked: vpnController.connectCountry(countryDelegate.code)
+                }
+
+                Controls.Button {
+                    flat: true
+                    icon.name: countryDelegate.pinned ? "favorite" : "non-starred-symbolic"
+                    text: countryDelegate.pinned ? qsTr("Unpin") : qsTr("Pin")
+                    onClicked: appSettings.togglePinnedServer(countryDelegate.code)
                 }
 
                 Kirigami.Icon {

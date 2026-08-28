@@ -71,6 +71,15 @@ Kirigami.ScrollablePage {
             required property bool tor
             required property bool p2p
             required property bool streaming
+            property bool pinned: appSettings.isServerPinned(name)
+
+            Connections {
+                target: appSettings
+                function onPinnedServersChanged() {
+                    serverDelegate.pinned = appSettings.isServerPinned(
+                        serverDelegate.name)
+                }
+            }
 
             width: ListView.view.width
             horizontalPadding: Kirigami.Units.largeSpacing
@@ -156,6 +165,13 @@ Kirigami.ScrollablePage {
                              && serverDelegate.accessible
                              && !serverDelegate.underMaintenance
                     onClicked: vpnController.connectServer(serverDelegate.name)
+                }
+
+                Controls.Button {
+                    flat: true
+                    icon.name: serverDelegate.pinned ? "favorite" : "non-starred-symbolic"
+                    text: serverDelegate.pinned ? qsTr("Unpin") : qsTr("Pin")
+                    onClicked: appSettings.togglePinnedServer(serverDelegate.name)
                 }
             }
         }

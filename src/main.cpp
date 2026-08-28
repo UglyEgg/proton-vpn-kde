@@ -22,6 +22,7 @@ int main(int argc, char *argv[])
 
     AppSettings settings;
     VpnController controller;
+    bool startupActionHandled = false;
     controller.setReconnectionEnabled(settings.reconnectEnabled());
     QObject::connect(&settings, &AppSettings::reconnectEnabledChanged,
                      &controller, [&settings, &controller] {
@@ -30,6 +31,18 @@ int main(int argc, char *argv[])
     QObject::connect(&settings, &AppSettings::closeToTrayChanged,
                      &app, [&settings] {
                          QApplication::setQuitOnLastWindowClosed(!settings.closeToTray());
+                     });
+    QObject::connect(&controller, &VpnController::snapshotChanged,
+                     &app, [&controller, &settings, &startupActionHandled] {
+                         if (startupActionHandled || !controller.ready()) {
+                             return;
+                         }
+                         startupActionHandled = true;
+                         if (controller.loggedIn()
+                             && controller.state() == QStringLiteral("disconnected")
+                             && !settings.autoConnectTarget().isEmpty()) {
+                             controller.connectTarget(settings.autoConnectTarget());
+                         }
                      });
     QApplication::setQuitOnLastWindowClosed(!settings.closeToTray());
 
@@ -44,7 +57,7 @@ int main(int argc, char *argv[])
     }
 
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
-    TrayIntegration tray(&controller, window);
+    TrayIntegration tray(&controller, &settings, window);
     NotificationIntegration notifications(&controller, &settings);
 
     return app.exec();

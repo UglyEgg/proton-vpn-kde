@@ -22,17 +22,33 @@ void AppSettingsTest::persistsKConfigPreferences()
     QVERIFY(initial.reconnectEnabled());
     QVERIFY(initial.closeToTray());
     QVERIFY(!initial.startMinimized());
+    QVERIFY(initial.autoConnectTarget().isEmpty());
+    QVERIFY(initial.pinnedServers().isEmpty());
 
     initial.setNotificationsEnabled(false);
     initial.setReconnectEnabled(false);
     initial.setCloseToTray(false);
     initial.setStartMinimized(true);
+    initial.setAutoConnectTarget(QStringLiteral(" ch#101 "));
+    initial.setPinnedServersText(QStringLiteral(" us, ch#101, US, fastest "));
+    initial.togglePinnedServer(QStringLiteral("nl#42"));
 
     AppSettings reloaded;
     QVERIFY(!reloaded.notificationsEnabled());
     QVERIFY(!reloaded.reconnectEnabled());
     QVERIFY(!reloaded.closeToTray());
     QVERIFY(reloaded.startMinimized());
+    QCOMPARE(reloaded.autoConnectTarget(), QStringLiteral("CH#101"));
+    QCOMPARE(
+        reloaded.pinnedServers(),
+        QStringList({QStringLiteral("US"), QStringLiteral("CH#101"),
+                     QStringLiteral("NL#42")}));
+    QVERIFY(reloaded.isServerPinned(QStringLiteral(" ch#101 ")));
+
+    reloaded.setAutoConnectTarget(QStringLiteral("off"));
+    QVERIFY(reloaded.autoConnectTarget().isEmpty());
+    reloaded.togglePinnedServer(QStringLiteral("CH#101"));
+    QVERIFY(!reloaded.isServerPinned(QStringLiteral("CH#101")));
 }
 
 QTEST_GUILESS_MAIN(AppSettingsTest)

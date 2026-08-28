@@ -376,6 +376,21 @@ void VpnController::connectCountry(const QString &countryCode)
     }
 }
 
+void VpnController::connectTarget(const QString &target)
+{
+    if (!primaryActionEnabled()) {
+        return;
+    }
+    const QString normalized = target.trimmed().toUpper();
+    if (normalized == QStringLiteral("FASTEST")) {
+        callOperation(QStringLiteral("ConnectFastest"));
+    } else if (normalized.contains(QLatin1Char('#'))) {
+        callOperation(QStringLiteral("ConnectServer"), {normalized});
+    } else if (!normalized.isEmpty()) {
+        callOperation(QStringLiteral("ConnectCountry"), {normalized});
+    }
+}
+
 void VpnController::connectGroup(const QString &countryCode,
                                  const QString &groupKind,
                                  const QString &groupName)

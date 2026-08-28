@@ -102,6 +102,7 @@ public:
     Q_INVOKABLE void clearGroupServerContext();
     Q_INVOKABLE void clearServerContext();
     Q_INVOKABLE void connectCountry(const QString &countryCode);
+    Q_INVOKABLE void connectTarget(const QString &target);
     Q_INVOKABLE void connectGroup(const QString &countryCode,
                                   const QString &groupKind,
                                   const QString &groupName);
