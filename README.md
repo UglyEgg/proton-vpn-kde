@@ -27,6 +27,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Fastest, country, and individual-server connection actions
 - Native country and server lists with localized country names, load, P2P,
   streaming, Tor, Smart Routing, Secure Core, and location metadata
+- Free-plan discovery parity: free locations remain connectable while paid-only
+  countries, locations, and servers stay visible with native upgrade actions
 - Native country/server filtering without rebuilding or copying location data
 - Proton-driven server refresh notifications with compact load-only updates;
   existing Qt rows change in place instead of rebuilding the server list

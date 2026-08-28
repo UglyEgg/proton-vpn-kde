@@ -85,6 +85,9 @@ QVariant CountryModel::data(const QModelIndex &index, int role) const
     case NameRole: return entry.name;
     case FlagRole: return entry.flag;
     case ServerCountRole: return entry.serverCount;
+    case AccessibleRole: return entry.accessible;
+    case UnderMaintenanceRole: return entry.underMaintenance;
+    case FreeRole: return entry.free;
     default: return {};
     }
 }
@@ -96,6 +99,9 @@ QHash<int, QByteArray> CountryModel::roleNames() const
         {NameRole, "name"},
         {FlagRole, "flag"},
         {ServerCountRole, "serverCount"},
+        {AccessibleRole, "accessible"},
+        {UnderMaintenanceRole, "underMaintenance"},
+        {FreeRole, "free"},
     };
 }
 
@@ -119,9 +125,19 @@ bool CountryModel::resetFromJson(const QString &json, QString *errorMessage)
             countryName(code),
             countryFlag(code),
             item.value(QStringLiteral("serverCount")).toInt(),
+            !item.contains(QStringLiteral("accessible"))
+                || item.value(QStringLiteral("accessible")).toBool(),
+            item.value(QStringLiteral("underMaintenance")).toBool(),
+            item.value(QStringLiteral("free")).toBool(),
         });
     }
     std::sort(entries.begin(), entries.end(), [](const Entry &left, const Entry &right) {
+        if (left.accessible != right.accessible) {
+            return left.accessible;
+        }
+        if (left.underMaintenance != right.underMaintenance) {
+            return !left.underMaintenance;
+        }
         return QString::localeAwareCompare(left.name, right.name) < 0;
     });
 
@@ -396,6 +412,14 @@ void LocationFilterProxyModel::setSearchRoles(const QList<int> &roles)
     endFilterChange(QSortFilterProxyModel::Direction::Rows);
 }
 
+void LocationFilterProxyModel::setAvailabilityRoles(int accessibleRole,
+                                                    int maintenanceRole)
+{
+    m_accessibleRole = accessibleRole;
+    m_maintenanceRole = maintenanceRole;
+    invalidate();
+}
+
 void LocationFilterProxyModel::sortByRole(int role, Qt::SortOrder order)
 {
     setSortRole(role);
@@ -415,4 +439,24 @@ bool LocationFilterProxyModel::filterAcceptsRow(
         }
     }
     return false;
+}
+
+bool LocationFilterProxyModel::lessThan(const QModelIndex &sourceLeft,
+                                        const QModelIndex &sourceRight) const
+{
+    if (m_accessibleRole >= 0) {
+        const bool leftAccessible = sourceLeft.data(m_accessibleRole).toBool();
+        const bool rightAccessible = sourceRight.data(m_accessibleRole).toBool();
+        if (leftAccessible != rightAccessible) {
+            return leftAccessible;
+        }
+    }
+    if (m_maintenanceRole >= 0) {
+        const bool leftMaintenance = sourceLeft.data(m_maintenanceRole).toBool();
+        const bool rightMaintenance = sourceRight.data(m_maintenanceRole).toBool();
+        if (leftMaintenance != rightMaintenance) {
+            return !leftMaintenance;
+        }
+    }
+    return QSortFilterProxyModel::lessThan(sourceLeft, sourceRight);
 }

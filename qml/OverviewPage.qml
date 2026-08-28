@@ -223,7 +223,9 @@ Kirigami.Page {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     visible: vpnController.state !== "connected"
-                    text: qsTr("Choose the fastest available server, or browse countries and locations.")
+                    text: vpnController.userTier === 0
+                          ? qsTr("The fastest free server is selected automatically from available free locations.")
+                          : qsTr("Choose the fastest available server, or browse countries and locations.")
                     color: Kirigami.Theme.disabledTextColor
                 }
                 Controls.Button {

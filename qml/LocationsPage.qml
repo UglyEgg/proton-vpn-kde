@@ -44,6 +44,9 @@ Kirigami.ScrollablePage {
             required property string name
             required property string flag
             required property int serverCount
+            required property bool accessible
+            required property bool underMaintenance
+            required property bool free
             property bool pinned: appSettings.isServerPinned(code)
 
             Connections {
@@ -56,6 +59,8 @@ Kirigami.ScrollablePage {
 
             width: ListView.view.width
             horizontalPadding: Kirigami.Units.largeSpacing
+            opacity: countryDelegate.accessible
+                     && !countryDelegate.underMaintenance ? 1.0 : 0.65
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
@@ -74,16 +79,32 @@ Kirigami.ScrollablePage {
                         font.bold: true
                     }
                     Controls.Label {
-                        text: qsTr("%n server(s)", "", countryDelegate.serverCount)
+                        text: countryDelegate.underMaintenance
+                              ? qsTr("Under maintenance")
+                              : !countryDelegate.accessible
+                                ? qsTr("VPN Plus location")
+                                : countryDelegate.free
+                                  ? qsTr("%n free server(s)", "", countryDelegate.serverCount)
+                                  : qsTr("%n server(s)", "", countryDelegate.serverCount)
                         color: Kirigami.Theme.disabledTextColor
                     }
                 }
 
                 Controls.Button {
-                    text: qsTr("Fastest")
-                    icon.name: "network-connect"
-                    enabled: vpnController.primaryActionEnabled
-                    onClicked: vpnController.connectCountry(countryDelegate.code)
+                    text: countryDelegate.accessible ? qsTr("Fastest")
+                                                     : qsTr("Upgrade")
+                    icon.name: countryDelegate.accessible
+                               ? "network-connect" : "internet-web-browser"
+                    enabled: !countryDelegate.underMaintenance
+                             && (countryDelegate.accessible
+                                 ? vpnController.primaryActionEnabled : true)
+                    onClicked: {
+                        if (countryDelegate.accessible) {
+                            vpnController.connectCountry(countryDelegate.code)
+                        } else {
+                            Qt.openUrlExternally("https://protonvpn.com/pricing")
+                        }
+                    }
                 }
 
                 Controls.Button {
@@ -105,7 +126,9 @@ Kirigami.ScrollablePage {
                     Qt.resolvedUrl("CountryPage.qml"), {
                     "countryCode": countryDelegate.code,
                     "countryName": countryDelegate.name,
-                    "countryFlag": countryDelegate.flag
+                    "countryFlag": countryDelegate.flag,
+                    "countryAccessible": countryDelegate.accessible,
+                    "countryUnderMaintenance": countryDelegate.underMaintenance
                 })
             }
         }

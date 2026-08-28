@@ -14,6 +14,9 @@ public:
         NameRole,
         FlagRole,
         ServerCountRole,
+        AccessibleRole,
+        UnderMaintenanceRole,
+        FreeRole,
     };
 
     explicit CountryModel(QObject *parent = nullptr);
@@ -31,6 +34,9 @@ private:
         QString name;
         QString flag;
         int serverCount = 0;
+        bool accessible = true;
+        bool underMaintenance = false;
+        bool free = false;
     };
 
     QVector<Entry> m_entries;
@@ -138,16 +144,21 @@ public:
     [[nodiscard]] QString filterText() const;
     void setFilterText(const QString &filterText);
     void setSearchRoles(const QList<int> &roles);
+    void setAvailabilityRoles(int accessibleRole, int maintenanceRole);
     void sortByRole(int role, Qt::SortOrder order = Qt::AscendingOrder);
 
 signals:
     void filterTextChanged();
 
 protected:
+    [[nodiscard]] bool lessThan(const QModelIndex &sourceLeft,
+                                const QModelIndex &sourceRight) const override;
     [[nodiscard]] bool filterAcceptsRow(
         int sourceRow, const QModelIndex &sourceParent) const override;
 
 private:
     QString m_filterText;
     QList<int> m_searchRoles;
+    int m_accessibleRole = -1;
+    int m_maintenanceRole = -1;
 };

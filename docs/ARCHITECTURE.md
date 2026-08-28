@@ -210,6 +210,10 @@ sorting proxy reorders rows only when necessary. The user-facing list stays in
 lowest-load order; search handles deliberate server or location selection
 without exposing low-value implementation-centric sort controls. The KDE layer
 does not add a polling schedule or make its own server-list API requests.
+The same core access checks annotate countries, locations, and servers for the
+active account tier. Accessible rows sort first; paid-only and maintenance rows
+remain visible but cannot accidentally reach a connect operation, matching the
+official client's free-plan discovery and upgrade behavior.
 
 Fedora update-channel selection is intentionally a frontend packaging concern,
 not a VPN backend operation. The native settings page detects Proton's exact

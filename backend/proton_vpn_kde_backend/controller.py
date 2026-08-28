@@ -68,6 +68,9 @@ class VpnSnapshot:
 class CountryInfo:
     code: str
     server_count: int
+    accessible: bool = True
+    under_maintenance: bool = False
+    free: bool = False
 
 
 @dataclass(frozen=True, slots=True)

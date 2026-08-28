@@ -11,6 +11,8 @@ Kirigami.ScrollablePage {
     required property string countryFlag
     required property string groupKind
     required property string groupName
+    required property bool groupAccessible
+    required property bool groupUnderMaintenance
 
     title: groupKind === "secure-core"
            ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
@@ -21,13 +23,24 @@ Kirigami.ScrollablePage {
 
     actions: [
         Kirigami.Action {
-            text: page.groupKind === "secure-core"
-                  ? qsTr("Connect fastest via Secure Core")
-                  : qsTr("Connect fastest in %1").arg(page.groupName)
-            icon.name: "network-connect"
-            enabled: vpnController.primaryActionEnabled
-            onTriggered: vpnController.connectGroup(
-                page.countryCode, page.groupKind, page.groupName)
+            text: !page.groupAccessible
+                  ? qsTr("Upgrade for this location")
+                  : page.groupKind === "secure-core"
+                    ? qsTr("Connect fastest via Secure Core")
+                    : qsTr("Connect fastest in %1").arg(page.groupName)
+            icon.name: page.groupAccessible
+                       ? "network-connect" : "internet-web-browser"
+            enabled: !page.groupUnderMaintenance
+                     && (page.groupAccessible
+                         ? vpnController.primaryActionEnabled : true)
+            onTriggered: {
+                if (page.groupAccessible) {
+                    vpnController.connectGroup(
+                        page.countryCode, page.groupKind, page.groupName)
+                } else {
+                    Qt.openUrlExternally("https://protonvpn.com/pricing")
+                }
+            }
         },
         Kirigami.Action {
             text: qsTr("Refresh")
@@ -83,6 +96,8 @@ Kirigami.ScrollablePage {
 
             width: ListView.view.width
             horizontalPadding: Kirigami.Units.largeSpacing
+            opacity: serverDelegate.accessible
+                     && !serverDelegate.underMaintenance ? 1.0 : 0.65
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
@@ -159,12 +174,20 @@ Kirigami.ScrollablePage {
                 }
 
                 Controls.Button {
-                    text: qsTr("Connect")
-                    icon.name: "network-connect"
-                    enabled: vpnController.primaryActionEnabled
-                             && serverDelegate.accessible
-                             && !serverDelegate.underMaintenance
-                    onClicked: vpnController.connectServer(serverDelegate.name)
+                    text: serverDelegate.accessible ? qsTr("Connect")
+                                                    : qsTr("Upgrade")
+                    icon.name: serverDelegate.accessible
+                               ? "network-connect" : "internet-web-browser"
+                    enabled: !serverDelegate.underMaintenance
+                             && (serverDelegate.accessible
+                                 ? vpnController.primaryActionEnabled : true)
+                    onClicked: {
+                        if (serverDelegate.accessible) {
+                            vpnController.connectServer(serverDelegate.name)
+                        } else {
+                            Qt.openUrlExternally("https://protonvpn.com/pricing")
+                        }
+                    }
                 }
 
                 Controls.Button {

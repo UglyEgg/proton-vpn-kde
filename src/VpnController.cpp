@@ -58,6 +58,8 @@ VpnController::VpnController(QObject *parent)
     m_serverGroupFilterModel->setSearchRoles({ServerGroupModel::NameRole});
     m_serverFilterModel->setSourceModel(m_serverModel);
     m_serverFilterModel->setSearchRoles({ServerModel::NameRole, ServerModel::LocationRole});
+    m_serverFilterModel->setAvailabilityRoles(
+        ServerModel::AccessibleRole, ServerModel::UnderMaintenanceRole);
     m_serverFilterModel->sortByRole(ServerModel::LoadRole);
     m_applicationFilterModel->setSourceModel(m_installedApplicationModel);
     m_applicationFilterModel->setSearchRoles({

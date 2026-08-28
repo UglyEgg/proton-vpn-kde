@@ -723,6 +723,67 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             {load.name for load in swiss_loads},
         )
 
+    async def test_free_tier_location_queries_keep_paid_servers_visible(self):
+        api, _ = self.make_api()
+        api.account_data.max_tier = 0
+
+        def server(name, country, load):
+            return SimpleNamespace(
+                name=name,
+                exit_country=country,
+                entry_country=country,
+                location="",
+                load=load,
+                features=[],
+                enabled=True,
+                under_maintenance=False,
+                smart_routing=False,
+            )
+
+        free_server = server("CH-FREE#1", "CH", 65)
+        paid_server = server("US#1", "US", 5)
+        countries = [
+            SimpleNamespace(
+                code="ch",
+                servers=[free_server],
+                locations=[],
+                secure_core_group=None,
+                free=True,
+                under_maintenance=False,
+            ),
+            SimpleNamespace(
+                code="us",
+                servers=[paid_server],
+                locations=[],
+                secure_core_group=None,
+                free=False,
+                under_maintenance=False,
+            ),
+        ]
+        server_list = SimpleNamespace(
+            logicals=[paid_server, free_server],
+            user_tier=0,
+            group_by_country=Mock(return_value=countries),
+            get_available_servers=Mock(
+                side_effect=lambda items, *_: (
+                    item for item in items if item is free_server
+                )
+            ),
+            get_servers_with_features=Mock(side_effect=lambda items, **_: items),
+        )
+        api.refresher.get_up_to_date_server_list.return_value = server_list
+        adapter = ProtonCoreAdapter(api)
+
+        country_info = await adapter.get_countries()
+        server_info = await adapter.get_servers("US")
+
+        self.assertTrue(country_info[0].accessible)
+        self.assertTrue(country_info[0].free)
+        self.assertFalse(country_info[1].accessible)
+        self.assertFalse(country_info[1].free)
+        self.assertEqual(["US#1"], [item.name for item in server_info])
+        self.assertFalse(server_info[0].accessible)
+
     async def test_targeted_connect_uses_official_server_lookup(self):
         api, connector = self.make_api()
         logical_server = object()

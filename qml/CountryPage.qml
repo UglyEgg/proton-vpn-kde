@@ -9,6 +9,8 @@ Kirigami.ScrollablePage {
     required property string countryCode
     required property string countryName
     required property string countryFlag
+    required property bool countryAccessible
+    required property bool countryUnderMaintenance
 
     title: countryFlag + "  " + countryName
 
@@ -16,10 +18,21 @@ Kirigami.ScrollablePage {
 
     actions: [
         Kirigami.Action {
-            text: qsTr("Connect fastest in %1").arg(page.countryName)
-            icon.name: "network-connect"
-            enabled: vpnController.primaryActionEnabled
-            onTriggered: vpnController.connectCountry(page.countryCode)
+            text: page.countryAccessible
+                  ? qsTr("Connect fastest in %1").arg(page.countryName)
+                  : qsTr("Upgrade for %1").arg(page.countryName)
+            icon.name: page.countryAccessible
+                       ? "network-connect" : "internet-web-browser"
+            enabled: !page.countryUnderMaintenance
+                     && (page.countryAccessible
+                         ? vpnController.primaryActionEnabled : true)
+            onTriggered: {
+                if (page.countryAccessible) {
+                    vpnController.connectCountry(page.countryCode)
+                } else {
+                    Qt.openUrlExternally("https://protonvpn.com/pricing")
+                }
+            }
         },
         Kirigami.Action {
             text: qsTr("Refresh")
@@ -58,6 +71,8 @@ Kirigami.ScrollablePage {
 
             width: ListView.view.width
             horizontalPadding: Kirigami.Units.largeSpacing
+            opacity: groupDelegate.accessible
+                     && !groupDelegate.underMaintenance ? 1.0 : 0.65
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
@@ -101,9 +116,11 @@ Kirigami.ScrollablePage {
                     Controls.Label {
                         text: groupDelegate.underMaintenance
                               ? qsTr("Under maintenance")
-                              : groupDelegate.smartRouting
-                                ? qsTr("%n server(s) · Smart Routing", "", groupDelegate.serverCount)
-                                : qsTr("%n server(s)", "", groupDelegate.serverCount)
+                              : !groupDelegate.accessible
+                                ? qsTr("VPN Plus location")
+                                : groupDelegate.smartRouting
+                                  ? qsTr("%n server(s) · Smart Routing", "", groupDelegate.serverCount)
+                                  : qsTr("%n server(s)", "", groupDelegate.serverCount)
                         color: groupDelegate.underMaintenance
                                ? Kirigami.Theme.negativeTextColor
                                : Kirigami.Theme.disabledTextColor
@@ -111,13 +128,22 @@ Kirigami.ScrollablePage {
                 }
 
                 Controls.Button {
-                    text: qsTr("Fastest")
-                    icon.name: "network-connect"
-                    enabled: vpnController.primaryActionEnabled
-                             && groupDelegate.accessible
-                             && !groupDelegate.underMaintenance
-                    onClicked: vpnController.connectGroup(
-                        page.countryCode, groupDelegate.kind, groupDelegate.name)
+                    text: groupDelegate.accessible ? qsTr("Fastest")
+                                                   : qsTr("Upgrade")
+                    icon.name: groupDelegate.accessible
+                               ? "network-connect" : "internet-web-browser"
+                    enabled: !groupDelegate.underMaintenance
+                             && (groupDelegate.accessible
+                                 ? vpnController.primaryActionEnabled : true)
+                    onClicked: {
+                        if (groupDelegate.accessible) {
+                            vpnController.connectGroup(
+                                page.countryCode, groupDelegate.kind,
+                                groupDelegate.name)
+                        } else {
+                            Qt.openUrlExternally("https://protonvpn.com/pricing")
+                        }
+                    }
                 }
 
                 Kirigami.Icon {
@@ -133,7 +159,9 @@ Kirigami.ScrollablePage {
                     "countryName": page.countryName,
                     "countryFlag": page.countryFlag,
                     "groupKind": groupDelegate.kind,
-                    "groupName": groupDelegate.name
+                    "groupName": groupDelegate.name,
+                    "groupAccessible": groupDelegate.accessible,
+                    "groupUnderMaintenance": groupDelegate.underMaintenance
                 })
         }
     }

@@ -86,7 +86,10 @@ class DemoCoreAdapter:
             await self._transition("connected", "US-IL#600")
 
     async def get_countries(self) -> list[CountryInfo]:
-        return [CountryInfo("CH", 3), CountryInfo("US", 5)]
+        return [
+            CountryInfo("CH", 3, free=True),
+            CountryInfo("US", 5, free=True),
+        ]
 
     async def get_server_groups(self, country_code: str) -> list[ServerGroupInfo]:
         demo_groups = {
@@ -504,10 +507,25 @@ class ProtonCoreAdapter:
 
     async def get_countries(self) -> list[CountryInfo]:
         server_list = await self._get_server_list()
-        return [
-            CountryInfo(country.code.upper(), len(country.servers))
-            for country in self._countries(server_list)
-        ]
+        countries = []
+        for country in self._countries(server_list):
+            available = list(
+                server_list.get_available_servers(
+                    country.servers, server_list.user_tier
+                )
+            )
+            countries.append(
+                CountryInfo(
+                    code=country.code.upper(),
+                    server_count=len(country.servers),
+                    accessible=bool(available),
+                    under_maintenance=bool(
+                        getattr(country, "under_maintenance", False)
+                    ),
+                    free=bool(getattr(country, "free", False)),
+                )
+            )
+        return countries
 
     async def get_server_groups(self, country_code: str) -> list[ServerGroupInfo]:
         from proton.vpn.session.servers import ServerFeatureEnum
@@ -559,18 +577,20 @@ class ProtonCoreAdapter:
 
     async def get_servers(self, country_code: str) -> list[ServerInfo]:
         server_list = await self._get_server_list()
-        servers = (
-            server
+        servers = [
+            self._server_info(server_list, server)
             for server in self._normal_servers(server_list)
             if server.exit_country.upper() == country_code
-        )
-        return [
-            self._server_info(server_list, server)
-            for server in sorted(
-                servers,
-                key=lambda item: (item.load or 0, item.name),
-            )
         ]
+        return sorted(
+            servers,
+            key=lambda item: (
+                not item.accessible,
+                item.under_maintenance,
+                item.load,
+                item.name,
+            ),
+        )
 
     async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]:
         server_list = await self._get_server_list()
@@ -848,11 +868,8 @@ class ProtonCoreAdapter:
     def _normal_servers(self, server_list):
         from proton.vpn.session.servers import ServerFeatureEnum
 
-        available = server_list.get_available_servers(
-            server_list.logicals, server_list.user_tier
-        )
         return server_list.get_servers_with_features(
-            available,
+            server_list.logicals,
             exclude_features=ServerFeatureEnum.SECURE_CORE | ServerFeatureEnum.TOR,
         )
 

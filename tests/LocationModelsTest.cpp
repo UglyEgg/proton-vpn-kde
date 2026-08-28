@@ -23,9 +23,10 @@ void LocationModelsTest::parsesCountries()
     QString error;
     const bool accepted = model.resetFromJson(QStringLiteral(R"json(
         {"schemaVersion":1,"countries":[
-            {"code":"US","serverCount":6045},
-            {"code":"CH","serverCount":809},
-            {"code":"UK","serverCount":849}
+            {"code":"US","serverCount":6045,"accessible":false},
+            {"code":"CH","serverCount":809,"accessible":true,"free":true},
+            {"code":"UK","serverCount":849,"accessible":true,
+             "underMaintenance":true}
         ]}
     )json"), &error);
 
@@ -35,6 +36,9 @@ void LocationModelsTest::parsesCountries()
     const int codeRole = roles.key("code");
     const int nameRole = roles.key("name");
     const int countRole = roles.key("serverCount");
+    const int accessibleRole = roles.key("accessible");
+    const int maintenanceRole = roles.key("underMaintenance");
+    const int freeRole = roles.key("free");
 
     bool foundSwitzerland = false;
     bool foundUnitedKingdom = false;
@@ -44,10 +48,13 @@ void LocationModelsTest::parsesCountries()
             foundSwitzerland = true;
             QVERIFY(!index.data(nameRole).toString().isEmpty());
             QCOMPARE(index.data(countRole).toInt(), 809);
+            QVERIFY(index.data(accessibleRole).toBool());
+            QVERIFY(index.data(freeRole).toBool());
         }
         if (index.data(codeRole).toString() == QStringLiteral("UK")) {
             foundUnitedKingdom = true;
             QVERIFY(index.data(nameRole).toString() != QStringLiteral("UK"));
+            QVERIFY(index.data(maintenanceRole).toBool());
         }
     }
     QVERIFY(foundSwitzerland);
@@ -179,22 +186,27 @@ void LocationModelsTest::reordersWhenServerLoadsChange()
     ServerModel sourceModel;
     QVERIFY(sourceModel.resetFromJson(QStringLiteral(R"json(
         {"schemaVersion":1,"servers":[
-            {"name":"CH#202","location":"Zurich","load":10},
-            {"name":"CH#101","location":"Zurich","load":50}
+            {"name":"CH#202","location":"Zurich","load":1,
+             "accessible":false},
+            {"name":"CH#101","location":"Zurich","load":50},
+            {"name":"CH#303","location":"Zurich","load":10}
         ]}
     )json")));
 
     LocationFilterProxyModel proxyModel;
     proxyModel.setSourceModel(&sourceModel);
+    proxyModel.setAvailabilityRoles(
+        ServerModel::AccessibleRole, ServerModel::UnderMaintenanceRole);
     proxyModel.sortByRole(ServerModel::LoadRole);
     QCOMPARE(
         proxyModel.index(0, 0).data(ServerModel::NameRole).toString(),
-        QStringLiteral("CH#202"));
+        QStringLiteral("CH#303"));
 
     QVERIFY(sourceModel.updateLoadsFromJson(QStringLiteral(R"json(
         {"schemaVersion":1,"loads":[
-            {"name":"CH#202","load":90},
-            {"name":"CH#101","load":5}
+            {"name":"CH#202","load":0},
+            {"name":"CH#101","load":5},
+            {"name":"CH#303","load":90}
         ]}
     )json")));
     QCOMPARE(
