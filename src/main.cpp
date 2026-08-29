@@ -159,6 +159,9 @@ int main(int argc, char *argv[])
         const int snapshotDelay = requestedDelay > 0 ? requestedDelay : 1200;
         QTimer::singleShot(snapshotDelay, window,
                            [window, visualSnapshotPath, &app] {
+            qInfo().noquote()
+                << "visual-snapshot: current section"
+                << window->property("currentSection").toString();
             const QImage image = window->grabWindow();
             if (image.isNull() || !image.save(visualSnapshotPath)) {
                 qWarning() << "Unable to save visual snapshot to"

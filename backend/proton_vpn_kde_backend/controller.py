@@ -928,6 +928,7 @@ class BackendController:
             )
 
     async def login(self, username: str, password: str) -> None:
+        self._require_ready()
         normalized_username = username.strip()
         if not normalized_username or len(normalized_username) > 320:
             raise UserVisibleValueError("Enter a valid Proton username")
@@ -942,6 +943,7 @@ class BackendController:
         )
 
     async def submit_two_factor(self, code: str) -> None:
+        self._require_ready()
         normalized_code = code.strip()
         if len(normalized_code) not in {6, 8} or not normalized_code.isascii():
             raise UserVisibleValueError(
@@ -952,20 +954,25 @@ class BackendController:
         )
 
     async def cancel_login(self) -> None:
+        self._require_ready()
         await self._run_operation(self._adapter.cancel_login)
 
     async def begin_fido2(self) -> None:
+        self._require_ready()
         await self._run_operation(self._adapter.begin_fido2)
 
     async def submit_fido2_pin(self, pin: str) -> None:
+        self._require_ready()
         if not pin or len(pin) > 256:
             raise UserVisibleValueError("Enter the security-key PIN")
         await self._adapter.submit_fido2_pin(pin)
 
     async def cancel_fido2(self) -> None:
+        self._require_ready()
         await self._adapter.cancel_fido2()
 
     async def logout(self) -> None:
+        self._require_ready()
         await self._run_operation(self._adapter.logout)
 
     async def disable_kill_switch_for_login(self) -> None:
@@ -996,10 +1003,13 @@ class BackendController:
         await self._adapter.close()
 
     def _require_session(self) -> None:
-        if not self._snapshot.ready:
-            raise UserVisibleRuntimeError("The Proton backend is not ready")
+        self._require_ready()
         if not self._snapshot.logged_in:
             raise UserVisibleRuntimeError("A Proton account session is required")
+
+    def _require_ready(self) -> None:
+        if not self._snapshot.ready:
+            raise UserVisibleRuntimeError("The Proton backend is not ready")
 
     @staticmethod
     def _validate_country_code(country_code: str) -> str:

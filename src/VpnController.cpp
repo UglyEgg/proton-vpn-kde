@@ -616,6 +616,9 @@ void VpnController::connectServer(const QString &serverName)
 
 void VpnController::login(const QString &username, const QString &password)
 {
+    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy) {
+        return;
+    }
     callSecretOperation(
         QStringLiteral("Login"),
         {{QStringLiteral("username"), username},
@@ -624,6 +627,9 @@ void VpnController::login(const QString &username, const QString &password)
 
 void VpnController::submitTwoFactor(const QString &code)
 {
+    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy) {
+        return;
+    }
     callSecretOperation(
         QStringLiteral("SubmitTwoFactor"),
         {{QStringLiteral("code"), code}});

@@ -25,6 +25,16 @@ class FailingInitializationAdapter(DemoCoreAdapter):
         raise RuntimeError("credential=must-not-reach-log")
 
 
+class LoginRecordingAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__(logged_in=False)
+        self.login_calls = 0
+
+    async def login(self, username: str, password: str) -> None:
+        self.login_calls += 1
+        await super().login(username, password)
+
+
 class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.controller = BackendController(DemoCoreAdapter())
@@ -57,6 +67,16 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         output = "\n".join(captured.output)
         self.assertIn("RuntimeError", output)
         self.assertNotIn("credential=", output)
+
+    async def test_login_cannot_race_backend_initialization(self):
+        adapter = LoginRecordingAdapter()
+        controller = BackendController(adapter)
+
+        with self.assertRaisesRegex(RuntimeError, "backend is not ready"):
+            await controller.login("demo-user", "password")
+
+        self.assertEqual(0, adapter.login_calls)
+        self.assertFalse(controller.snapshot.busy)
 
     async def test_connect_and_disconnect_publish_state_transitions(self):
         await self.controller.connect_fastest()

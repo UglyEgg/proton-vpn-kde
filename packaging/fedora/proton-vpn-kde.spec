@@ -1,7 +1,7 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.10.0
+Version:        0.10.1
 Release:        1%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
@@ -107,6 +107,12 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.10.1-1
+- Route signed-out startup directly to the native sign-in page.
+- Prevent authentication from racing backend and Proton connector startup.
+- Explain delayed desktop Secret Service approval during sign-in.
+- Add signed-out startup and pre-ready authentication regression coverage.
+
 * Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.10.0-1
 - Add responsive desktop and compact Kirigami navigation.
 - Group connection, settings, account, and support content in native cards.

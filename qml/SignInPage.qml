@@ -11,7 +11,8 @@ Kirigami.ScrollablePage {
                           (width - maximumFormWidth) / 2)
     rightPadding: leftPadding
 
-    readonly property bool credentialsVisible: [
+    readonly property bool preparingSignIn: !vpnController.ready
+    readonly property bool credentialsVisible: preparingSignIn || [
         "signed_out", "signing_in", "human_verification", "expired"
     ].includes(vpnController.authState)
     readonly property bool twoFactorVisible: [
@@ -21,8 +22,25 @@ Kirigami.ScrollablePage {
         "fido_waiting", "fido_touch", "fido_select"
     ].includes(vpnController.authState)
     property string previousAuthState: vpnController.authState
+    property bool secretStoreHintVisible: false
+
+    function updateSecretStoreHint() {
+        const waiting = vpnController.busy
+                        && vpnController.authState === "signing_in"
+        if (waiting) {
+            if (!secretStoreHintVisible && !secretStoreHintTimer.running) {
+                secretStoreHintTimer.start()
+            }
+        } else {
+            secretStoreHintTimer.stop()
+            secretStoreHintVisible = false
+        }
+    }
 
     function focusCurrentInput() {
+        if (page.preparingSignIn) {
+            return
+        }
         if (page.credentialsVisible) {
             usernameField.forceActiveFocus()
         } else if (page.twoFactorVisible) {
@@ -53,6 +71,7 @@ Kirigami.ScrollablePage {
     Connections {
         target: vpnController
         function onSnapshotChanged() {
+            page.updateSecretStoreHint()
             if (vpnController.loggedIn) {
                 applicationWindow().showOverview()
             } else if (page.previousAuthState !== vpnController.authState) {
@@ -62,7 +81,22 @@ Kirigami.ScrollablePage {
         }
     }
 
-    Component.onCompleted: Qt.callLater(page.focusCurrentInput)
+    Component.onCompleted: {
+        Qt.callLater(page.focusCurrentInput)
+        page.updateSecretStoreHint()
+    }
+
+    Timer {
+        id: secretStoreHintTimer
+        interval: 1800
+        repeat: false
+        onTriggered: {
+            if (vpnController.busy
+                    && vpnController.authState === "signing_in") {
+                page.secretStoreHintVisible = true
+            }
+        }
+    }
 
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
@@ -82,6 +116,16 @@ Kirigami.ScrollablePage {
                     onTriggered: vpnController.disableKillSwitchForLogin()
                 }
             ]
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: page.preparingSignIn
+                     && vpnController.state !== "error"
+            type: Kirigami.MessageType.Information
+            text: vpnController.backendAvailable
+                  ? qsTr("Preparing Proton sign-in. Your desktop secret store may ask for access before the account state is available.")
+                  : qsTr("Starting the Proton VPN service…")
         }
 
         PageHeader {
@@ -104,10 +148,18 @@ Kirigami.ScrollablePage {
             text: vpnController.message
         }
 
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: page.secretStoreHintVisible
+            type: Kirigami.MessageType.Information
+            text: qsTr("Still signing in. Your desktop secret store may be waiting for access approval; check for a prompt to continue.")
+        }
+
         SectionCard {
             Layout.fillWidth: true
             visible: page.credentialsVisible
-            enabled: !vpnController.busy && vpnController.killSwitch !== 2
+            enabled: vpnController.ready && !vpnController.busy
+                     && vpnController.killSwitch !== 2
             title: qsTr("Proton account")
             iconName: "user-identity"
 
@@ -144,6 +196,7 @@ Kirigami.ScrollablePage {
                 highlighted: true
                 enabled: usernameField.text.trim().length > 0
                          && passwordField.text.length > 0
+                         && vpnController.ready
                          && !vpnController.busy
                 onClicked: page.submitCredentials()
             }

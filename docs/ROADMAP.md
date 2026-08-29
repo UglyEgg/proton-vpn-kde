@@ -221,7 +221,11 @@ clean shutdown.
 - Resolve the UI hygiene debt recorded during the review before adding visual
   novelty.
 
-Implemented for `0.10.0` and awaiting installed Plasma acceptance. Wide windows
+Implemented for `0.10.0` and awaiting installed Plasma acceptance. Version
+`0.10.1` corrects the first acceptance regressions by routing signed-out
+startup directly to Sign in, preventing credentials from racing Proton
+connector initialization, and making delayed Secret Service approval visible.
+Wide windows
 now use a persistent, selected Kirigami navigation sidebar while compact
 windows use its overlay form. Shared page-header, section-card, detail-row, and
 navigation-row components give the connection, location, settings,

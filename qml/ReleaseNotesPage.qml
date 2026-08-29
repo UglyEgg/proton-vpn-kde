@@ -21,6 +21,21 @@ Kirigami.ScrollablePage {
 
         Kirigami.Heading {
             level: 1
+            text: "0.10.1"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Open directly to sign-in when no Proton session is available, prevent credentials from racing backend startup, and explain when the desktop secret store may be awaiting access approval.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
             text: "0.10.0"
         }
 

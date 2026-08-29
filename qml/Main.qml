@@ -38,6 +38,18 @@ Kirigami.ApplicationWindow {
         showPage(overviewPageComponent)
     }
 
+    function resolveStartupAccountRoute() {
+        if (!root.startupAccountRoutingPending || !vpnController.ready) {
+            return
+        }
+        root.startupAccountRoutingPending = false
+        if (vpnController.loggedIn) {
+            root.showOverview()
+        } else {
+            root.showSignIn()
+        }
+    }
+
     function showSettings() {
         root.currentSection = "settings"
         showPage(settingsPageComponent)
@@ -159,9 +171,12 @@ Kirigami.ApplicationWindow {
             root.showSignIn()
         } else if (initialPageName === "about") {
             root.showAbout()
+        } else if (!vpnController.ready || !vpnController.loggedIn) {
+            root.showSignIn()
         } else {
             root.showOverview()
         }
+        Qt.callLater(root.resolveStartupAccountRoute)
         Qt.callLater(root.maybeShowCompatibilityWarning)
         if (diagnosticSmokeTest) {
             diagnosticNavigation.start()
@@ -173,6 +188,7 @@ Kirigami.ApplicationWindow {
     }
 
     property bool previousLoggedIn: vpnController.loggedIn
+    property bool startupAccountRoutingPending: initialPageName === "overview"
     property string previousErrorCode: ""
     property bool compatibilityWarningShown: false
     property int diagnosticNavigationStep: 0
@@ -565,6 +581,7 @@ Kirigami.ApplicationWindow {
     Connections {
         target: vpnController
         function onSnapshotChanged() {
+            root.resolveStartupAccountRoute()
             Qt.callLater(root.maybeShowCompatibilityWarning)
             if (!root.previousLoggedIn && vpnController.loggedIn) {
                 root.showOverview()
