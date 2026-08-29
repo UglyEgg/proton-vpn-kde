@@ -13,6 +13,17 @@
         </message>
     </context>
     <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Отключиться</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Отменить подключение</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -37,16 +48,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Страны</translation>
+            <source>Locations</source>
+            <translation>Местоположения</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Улучшить тариф</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Местоположения</translation>
+            <source>Countries</source>
+            <translation>Страны</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -155,10 +166,6 @@ Update your system time and try to connect again.</source>
             <source>Report an issue</source>
             <translation>Сообщить о проблеме</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Выход</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -206,9 +213,20 @@ Update your system time and try to connect again.</source>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Примечания к выпуску</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>Сообщить о проблеме</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>Сообщить о проблеме</translation>
         </message>
     </context>
@@ -272,12 +290,9 @@ Update your system time and try to connect again.</source>
             <source>Authenticate</source>
             <translation>Аутентификация</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Выход</translation>
+            <source>Security key</source>
+            <translation>Ключ безопасности</translation>
         </message>
     </context>
     <context>

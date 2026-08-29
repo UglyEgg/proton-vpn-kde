@@ -26,6 +26,12 @@ Kirigami.ScrollablePage {
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
+        PageHeader {
+            heading: qsTr("Report an issue")
+            description: qsTr("Send a report through Proton's official VPN API.")
+            iconName: "tools-report-bug"
+        }
+
         Kirigami.InlineMessage {
             Layout.fillWidth: true
             visible: page.statusMessage.length > 0
@@ -33,6 +39,10 @@ Kirigami.ScrollablePage {
                                  : Kirigami.MessageType.Error
             text: page.statusMessage
         }
+
+        SectionCard {
+            title: qsTr("Support report")
+            iconName: "mail-message-new"
 
         Controls.Label {
             Layout.fillWidth: true
@@ -140,6 +150,7 @@ Kirigami.ScrollablePage {
                 enabled: !page.submitting
                 onClicked: Qt.openUrlExternally("https://protonvpn.com/support-form")
             }
+        }
         }
     }
 }

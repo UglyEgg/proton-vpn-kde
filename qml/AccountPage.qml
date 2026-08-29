@@ -7,56 +7,66 @@ Kirigami.ScrollablePage {
     id: page
     title: qsTr("Account")
 
-    Kirigami.FormLayout {
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Proton account")
+    ColumnLayout {
+        spacing: Kirigami.Units.largeSpacing
+
+        PageHeader {
+            heading: vpnController.accountName
+            description: qsTr("Proton account")
+            iconName: "user-identity"
         }
 
-        Controls.Label {
-            Kirigami.FormData.label: qsTr("Account:")
-            text: vpnController.accountName
-            font.bold: true
+        SectionCard {
+            title: qsTr("Subscription")
+            iconName: "emblem-favorite"
+
+            DetailRow {
+                label: qsTr("VPN plan")
+                value: vpnController.planTitle.length > 0
+                       ? vpnController.planTitle : qsTr("Free")
+            }
+
+            DetailRow {
+                label: qsTr("Connections")
+                value: qsTr("Up to %1 devices").arg(vpnController.maxConnections)
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Controls.Button {
+                    text: qsTr("Manage Proton account")
+                    icon.name: "internet-web-browser"
+                    onClicked: Qt.openUrlExternally(
+                        "https://account.protonvpn.com/account")
+                }
+            }
         }
 
-        Controls.Label {
-            Kirigami.FormData.label: qsTr("VPN plan:")
-            text: vpnController.planTitle.length > 0
-                  ? vpnController.planTitle : qsTr("Free")
-        }
+        SectionCard {
+            title: qsTr("Session")
+            description: qsTr("Manage the saved account session on this device.")
+            iconName: "document-encrypt"
 
-        Controls.Label {
-            Kirigami.FormData.label: qsTr("Connections:")
-            text: qsTr("Up to %1 devices").arg(vpnController.maxConnections)
-        }
+            Kirigami.InlineMessage {
+                Layout.fillWidth: true
+                type: Kirigami.MessageType.Warning
+                visible: vpnController.state !== "disconnected"
+                text: vpnController.settings.killSwitch > 0
+                      ? qsTr("Signing out will disconnect the active VPN tunnel and disable the kill switch.")
+                      : qsTr("Signing out will disconnect the active VPN tunnel.")
+            }
 
-        Controls.Button {
-            Kirigami.FormData.label: qsTr("Online:")
-            text: qsTr("Manage Proton account")
-            icon.name: "internet-web-browser"
-            onClicked: Qt.openUrlExternally(
-                "https://account.protonvpn.com/account")
-        }
-
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Session")
-        }
-
-        Kirigami.InlineMessage {
-            Layout.fillWidth: true
-            type: Kirigami.MessageType.Warning
-            visible: vpnController.state !== "disconnected"
-            text: vpnController.settings.killSwitch > 0
-                  ? qsTr("Signing out will disconnect the active VPN tunnel and disable the kill switch.")
-                  : qsTr("Signing out will disconnect the active VPN tunnel.")
-        }
-
-        Controls.Button {
-            text: vpnController.busy ? qsTr("Signing out…") : qsTr("Sign out")
-            icon.name: "system-log-out"
-            enabled: !vpnController.busy
-            onClicked: logoutDialog.open()
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Controls.Button {
+                    text: vpnController.busy ? qsTr("Signing out…") : qsTr("Sign out")
+                    icon.name: "system-log-out"
+                    enabled: !vpnController.busy
+                    onClicked: logoutDialog.open()
+                }
+            }
         }
     }
 

@@ -36,3 +36,10 @@ object identity; it never reads or mutates the live server list. If either the
 fresh-response or cache-decoding optimization is absent, the UI displays Core's
 installed Python package version and a non-blocking memory-usage warning. VPN
 networking and authentication behavior remain unchanged.
+
+The companion `qml-layout-variants-smoke` repeats the full navigation path at
+the minimum compact width, with a 1.5 scale factor, and in a right-to-left
+application layout. `qml-ui-hygiene` prevents fixed font sizes, literal colors,
+unbounded custom animation, and loss of the shared row's mirrored navigation
+direction. For human visual review, `scripts/capture-qml-page.sh` renders an
+individual page against the same non-networking demo backend and saves a PNG.

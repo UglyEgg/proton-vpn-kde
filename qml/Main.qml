@@ -6,9 +6,9 @@ import org.kde.kirigami as Kirigami
 Kirigami.ApplicationWindow {
     id: root
 
-    width: 520
-    height: 700
-    minimumWidth: 420
+    width: diagnosticWindowWidth > 0 ? diagnosticWindowWidth : 900
+    height: diagnosticWindowHeight > 0 ? diagnosticWindowHeight : 720
+    minimumWidth: 480
     minimumHeight: 560
     visible: !startMinimized
     title: qsTr("Proton VPN")
@@ -34,34 +34,42 @@ Kirigami.ApplicationWindow {
     }
 
     function showOverview() {
+        root.currentSection = "overview"
         showPage(overviewPageComponent)
     }
 
     function showSettings() {
+        root.currentSection = "settings"
         showPage(settingsPageComponent)
     }
 
     function showSignIn() {
+        root.currentSection = "account"
         showPage(signInPageComponent)
     }
 
     function showLocations() {
+        root.currentSection = "locations"
         showPage(locationsPageComponent)
     }
 
     function showAccount() {
+        root.currentSection = "account"
         showPage(accountPageComponent)
     }
 
     function showReleaseNotes() {
+        root.currentSection = "release-notes"
         showPage(releaseNotesPageComponent)
     }
 
     function showReportIssue() {
+        root.currentSection = "report-issue"
         showPage(reportIssuePageComponent)
     }
 
     function showAbout() {
+        root.currentSection = "about"
         showPage(aboutPageComponent)
     }
 
@@ -141,8 +149,16 @@ Kirigami.ApplicationWindow {
     }
 
     Component.onCompleted: {
-        if (initialPageName === "SettingsPage.qml") {
+        if (initialPageName === "settings") {
             root.showSettings()
+        } else if (initialPageName === "locations") {
+            root.showLocations()
+        } else if (initialPageName === "account") {
+            root.showAccount()
+        } else if (initialPageName === "sign-in") {
+            root.showSignIn()
+        } else if (initialPageName === "about") {
+            root.showAbout()
         } else {
             root.showOverview()
         }
@@ -160,6 +176,7 @@ Kirigami.ApplicationWindow {
     property string previousErrorCode: ""
     property bool compatibilityWarningShown: false
     property int diagnosticNavigationStep: 0
+    property string currentSection: "overview"
 
     Component {
         id: overviewPageComponent
@@ -567,47 +584,79 @@ Kirigami.ApplicationWindow {
     }
 
     globalDrawer: Kirigami.GlobalDrawer {
+        id: navigationDrawer
         title: qsTr("Proton VPN")
         titleIcon: "network-vpn"
         isMenu: false
+        modal: root.width < Kirigami.Units.gridUnit * 46
+        collapsible: !modal
+        interactiveResizeEnabled: !modal
+        preferredSize: Kirigami.Units.gridUnit * 14
+        minimumSize: Kirigami.Units.gridUnit * 12
+        maximumSize: Kirigami.Units.gridUnit * 18
+
+        Component.onCompleted: {
+            if (!modal) {
+                open()
+            }
+        }
+        onModalChanged: {
+            if (!modal) {
+                open()
+            }
+        }
 
         actions: [
             Kirigami.Action {
                 text: qsTr("Overview")
                 icon.name: "network-vpn"
+                checkable: true
+                checked: root.currentSection === "overview"
                 onTriggered: root.showOverview()
             },
             Kirigami.Action {
                 text: qsTr("Countries and servers")
                 icon.name: "network-server"
                 enabled: vpnController.loggedIn
+                checkable: true
+                checked: root.currentSection === "locations"
                 onTriggered: root.showLocations()
             },
             Kirigami.Action {
                 text: vpnController.loggedIn ? qsTr("Account") : qsTr("Sign in")
                 icon.name: vpnController.loggedIn ? "user-identity" : "system-log-in"
+                checkable: true
+                checked: root.currentSection === "account"
                 onTriggered: vpnController.loggedIn
                              ? root.showAccount() : root.showSignIn()
             },
             Kirigami.Action {
                 text: qsTr("Settings")
                 icon.name: "settings-configure"
+                checkable: true
+                checked: root.currentSection === "settings"
                 onTriggered: root.showSettings()
             },
             Kirigami.Action {
                 text: qsTr("Release notes")
                 icon.name: "view-list-text"
+                checkable: true
+                checked: root.currentSection === "release-notes"
                 onTriggered: root.showReleaseNotes()
             },
             Kirigami.Action {
                 text: qsTr("Report an issue")
                 icon.name: "tools-report-bug"
                 enabled: vpnController.loggedIn
+                checkable: true
+                checked: root.currentSection === "report-issue"
                 onTriggered: root.showReportIssue()
             },
             Kirigami.Action {
                 text: qsTr("About")
                 icon.name: "help-about"
+                checkable: true
+                checked: root.currentSection === "about"
                 onTriggered: root.showAbout()
             },
             Kirigami.Action {

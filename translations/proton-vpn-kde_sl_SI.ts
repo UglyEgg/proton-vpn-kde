@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="sl_SI" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>O programu</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -14,6 +21,17 @@
         <message>
             <source>Sign out</source>
             <translation>Odjava</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Prekini</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Prekliči povezavo</translation>
         </message>
     </context>
     <context>
@@ -41,16 +59,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Države</translation>
+            <source>Locations</source>
+            <translation>Lokacije</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Nadgradi</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Lokacije</translation>
+            <source>Countries</source>
+            <translation>Države</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -163,10 +181,6 @@ Posodobite sistemski čas in se poskusite znova povezati.</translation>
             <source>About</source>
             <translation>O programu</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Končaj</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -207,10 +221,21 @@ Posodobite sistemski čas in se poskusite znova povezati.</translation>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Opombe k izdaji</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
             <translation>Prijavite težavo</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Prijavi težavo</translation>
         </message>
     </context>
     <context>
@@ -273,12 +298,9 @@ Posodobite sistemski čas in se poskusite znova povezati.</translation>
             <source>Authenticate</source>
             <translation>Preverjanje pristnosti</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Končaj</translation>
+            <source>Security key</source>
+            <translation>Varnostni ključ</translation>
         </message>
     </context>
     <context>

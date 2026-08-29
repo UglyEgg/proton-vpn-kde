@@ -84,19 +84,14 @@ Kirigami.ScrollablePage {
             ]
         }
 
-        Kirigami.Icon {
-            Layout.alignment: Qt.AlignHCenter
-            implicitWidth: Kirigami.Units.gridUnit * 6
-            implicitHeight: implicitWidth
-            source: "proton-vpn-kde"
-        }
-
-        Kirigami.Heading {
-            Layout.alignment: Qt.AlignHCenter
-            level: 1
-            text: page.twoFactorVisible || !page.credentialsVisible
-                  ? qsTr("Two-factor authentication")
-                  : qsTr("Sign in to Proton VPN")
+        PageHeader {
+            heading: page.twoFactorVisible || !page.credentialsVisible
+                     ? qsTr("Two-factor authentication")
+                     : qsTr("Sign in to Proton VPN")
+            description: page.credentialsVisible
+                         ? qsTr("Use your Proton account to access VPN servers.")
+                         : qsTr("Complete the security check for this account.")
+            iconName: "proton-vpn-kde"
         }
 
         Kirigami.InlineMessage {
@@ -109,11 +104,12 @@ Kirigami.ScrollablePage {
             text: vpnController.message
         }
 
-        ColumnLayout {
+        SectionCard {
             Layout.fillWidth: true
             visible: page.credentialsVisible
             enabled: !vpnController.busy && vpnController.killSwitch !== 2
-            spacing: Kirigami.Units.largeSpacing
+            title: qsTr("Proton account")
+            iconName: "user-identity"
 
             Controls.TextField {
                 id: usernameField
@@ -185,10 +181,11 @@ Kirigami.ScrollablePage {
 
         }
 
-        ColumnLayout {
+        SectionCard {
             Layout.fillWidth: true
             visible: page.twoFactorVisible
-            spacing: Kirigami.Units.largeSpacing
+            title: qsTr("Authentication code")
+            iconName: "document-encrypt"
 
             Controls.Label {
                 Layout.fillWidth: true
@@ -235,10 +232,11 @@ Kirigami.ScrollablePage {
             }
         }
 
-        ColumnLayout {
+        SectionCard {
             Layout.fillWidth: true
             visible: page.fidoPromptVisible
-            spacing: Kirigami.Units.largeSpacing
+            title: qsTr("Security key")
+            iconName: "auth-sim-locked"
 
             Controls.BusyIndicator {
                 Layout.alignment: Qt.AlignHCenter
@@ -259,10 +257,11 @@ Kirigami.ScrollablePage {
             }
         }
 
-        ColumnLayout {
+        SectionCard {
             Layout.fillWidth: true
             visible: vpnController.authState === "fido_pin"
-            spacing: Kirigami.Units.largeSpacing
+            title: qsTr("Security-key PIN")
+            iconName: "password-show-off"
 
             Controls.TextField {
                 id: fidoPinField

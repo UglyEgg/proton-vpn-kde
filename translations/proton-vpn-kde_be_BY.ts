@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="be_BY" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>Аб праграме</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -14,6 +21,17 @@
         <message>
             <source>Sign out</source>
             <translation>Выйсці</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Адключыцца</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Скасаваць падключэнне</translation>
         </message>
     </context>
     <context>
@@ -41,16 +59,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Краіны</translation>
+            <source>Locations</source>
+            <translation>Месцазнаходжанні</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Палепшыць</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Месцазнаходжанні</translation>
+            <source>Countries</source>
+            <translation>Краіны</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -171,10 +189,6 @@ Update your system time and try to connect again.</source>
             <source>About</source>
             <translation>Аб праграме</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Выйсці</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -222,9 +236,20 @@ Update your system time and try to connect again.</source>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Нататкі да выпуску</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>Паведаміць аб праблеме</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>Паведаміць аб праблеме</translation>
         </message>
     </context>
@@ -288,12 +313,9 @@ Update your system time and try to connect again.</source>
             <source>Authenticate</source>
             <translation>Аўтэнтыфікаваць</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Выйсці</translation>
+            <source>Security key</source>
+            <translation>Ключ бяспекі</translation>
         </message>
     </context>
     <context>

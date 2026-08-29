@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="el_GR" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>Σχετικά</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -10,6 +17,17 @@
         <message>
             <source>Sign out</source>
             <translation>Αποσύνδεση</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Αποσύνδεση</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Ακύρωση Σύνδεσης</translation>
         </message>
     </context>
     <context>
@@ -37,16 +55,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Χώρες</translation>
+            <source>Locations</source>
+            <translation>Τοποθεσίες</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Αναβάθμιση</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Τοποθεσίες</translation>
+            <source>Countries</source>
+            <translation>Χώρες</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -167,10 +185,6 @@ Update your system time and try to connect again.</source>
             <source>About</source>
             <translation>Σχετικά</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Έξοδος</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -218,9 +232,20 @@ Update your system time and try to connect again.</source>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Σημειώσεις έκδοσης</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>Αναφορά προβλήματος</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>Αναφορά προβλήματος</translation>
         </message>
     </context>
@@ -284,12 +309,9 @@ Update your system time and try to connect again.</source>
             <source>Authenticate</source>
             <translation>Ταυτοποίηση</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Έξοδος</translation>
+            <source>Security key</source>
+            <translation>Κλειδί ασφαλείας</translation>
         </message>
     </context>
     <context>

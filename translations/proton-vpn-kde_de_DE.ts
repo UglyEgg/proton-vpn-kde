@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="de_DE" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>Über</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -14,6 +21,17 @@
         <message>
             <source>Sign out</source>
             <translation>Abmelden</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Verbindung trennen</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Verbindung trennen</translation>
         </message>
     </context>
     <context>
@@ -41,16 +59,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Länder</translation>
+            <source>Locations</source>
+            <translation>Standorte</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Umsteigen</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Standorte</translation>
+            <source>Countries</source>
+            <translation>Länder</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -171,10 +189,6 @@ Aktualisiere deine Systemzeit und versuche erneut, eine Verbindung herzustellen.
             <source>About</source>
             <translation>Über</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Beenden</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -215,9 +229,20 @@ Aktualisiere deine Systemzeit und versuche erneut, eine Verbindung herzustellen.
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Versionshinweise</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>Problem melden</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>Problem melden</translation>
         </message>
     </context>
@@ -277,12 +302,9 @@ Aktualisiere deine Systemzeit und versuche erneut, eine Verbindung herzustellen.
             <source>Authenticate</source>
             <translation>Authentifizieren</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Beenden</translation>
+            <source>Security key</source>
+            <translation>Sicherheitsschlüssel</translation>
         </message>
     </context>
     <context>

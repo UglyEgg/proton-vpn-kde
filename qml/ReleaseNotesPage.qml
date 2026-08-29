@@ -9,8 +9,33 @@ Kirigami.ScrollablePage {
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
+        PageHeader {
+            heading: qsTr("Release notes")
+            description: qsTr("Changes in Proton VPN for Plasma")
+            iconName: "view-list-text"
+        }
+
+        SectionCard {
+            title: qsTr("What's new")
+            iconName: "software-properties"
+
         Kirigami.Heading {
             level: 1
+            text: "0.10.0"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Adopt a responsive Plasma navigation sidebar, native Kirigami cards, compact location actions, semantic colors and typography, and layout checks for compact windows, scaled text, and right-to-left desktops.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
             text: "0.9.0"
         }
 
@@ -126,6 +151,7 @@ Kirigami.ScrollablePage {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             text: qsTr("Add conflict-aware native controls for Proton VPN connection and privacy settings.")
+        }
         }
     }
 }

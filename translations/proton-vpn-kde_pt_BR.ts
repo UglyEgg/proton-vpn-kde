@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="pt_BR" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>Sobre</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -10,6 +17,17 @@
         <message>
             <source>Sign out</source>
             <translation>Encerrar sessão</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Desconectar</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Cancelar conexão</translation>
         </message>
     </context>
     <context>
@@ -37,16 +55,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Países</translation>
+            <source>Locations</source>
+            <translation>Localizações</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Fazer upgrade</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Localizações</translation>
+            <source>Countries</source>
+            <translation>Países</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -163,10 +181,6 @@ Atualize a hora do sistema e tente se conectar novamente.</translation>
             <source>About</source>
             <translation>Sobre</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Sair</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -207,9 +221,20 @@ Atualize a hora do sistema e tente se conectar novamente.</translation>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Notas de lançamento</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>Reportar um problema</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>Reportar um problema</translation>
         </message>
     </context>
@@ -273,12 +298,9 @@ Atualize a hora do sistema e tente se conectar novamente.</translation>
             <source>Authenticate</source>
             <translation>Autenticar</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Sair</translation>
+            <source>Security key</source>
+            <translation>Chave de segurança</translation>
         </message>
     </context>
     <context>

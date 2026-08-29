@@ -14,6 +14,30 @@ Kirigami.ScrollablePage {
 
     title: countryFlag + "  " + countryName
 
+    function groupSummary(serverCount, accessible, underMaintenance,
+                          smartRouting, tor, p2p, streaming) {
+        if (underMaintenance) {
+            return qsTr("Under maintenance")
+        }
+        if (!accessible) {
+            return qsTr("VPN Plus location")
+        }
+        const details = [qsTr("%n server(s)", "", serverCount)]
+        if (smartRouting) {
+            details.push(qsTr("Smart Routing"))
+        }
+        if (tor) {
+            details.push(qsTr("Tor"))
+        }
+        if (p2p) {
+            details.push(qsTr("P2P"))
+        }
+        if (streaming) {
+            details.push(qsTr("Streaming"))
+        }
+        return details.join(" · ")
+    }
+
     Component.onCompleted: vpnController.loadServerGroups(countryCode)
 
     actions: [
@@ -47,6 +71,13 @@ Kirigami.ScrollablePage {
         model: vpnController.serverGroupModel
         spacing: Kirigami.Units.smallSpacing
 
+        header: PageHeader {
+            width: groupList.width
+            heading: page.countryFlag + "  " + page.countryName
+            description: qsTr("Choose a location or specialized server group.")
+            iconName: "mark-location"
+        }
+
         Kirigami.PlaceholderMessage {
             anchors.centerIn: parent
             visible: groupList.count === 0
@@ -56,7 +87,7 @@ Kirigami.ScrollablePage {
             icon.name: vpnController.locationsBusy ? "view-refresh" : "network-offline"
         }
 
-        delegate: Controls.ItemDelegate {
+        delegate: PlasmaListItem {
             id: groupDelegate
             required property string kind
             required property string name
@@ -70,68 +101,22 @@ Kirigami.ScrollablePage {
             required property bool streaming
 
             width: ListView.view.width
-            horizontalPadding: Kirigami.Units.largeSpacing
+            text: groupDelegate.secureCore
+                  ? qsTr("Via Secure Core") : groupDelegate.name
+            icon.name: groupDelegate.secureCore ? "security-high" : "mark-location"
+            subtitle: page.groupSummary(
+                groupDelegate.serverCount, groupDelegate.accessible,
+                groupDelegate.underMaintenance, groupDelegate.smartRouting,
+                groupDelegate.tor, groupDelegate.p2p, groupDelegate.streaming)
             opacity: groupDelegate.accessible
                      && !groupDelegate.underMaintenance ? 1.0 : 0.65
 
-            contentItem: RowLayout {
-                spacing: Kirigami.Units.largeSpacing
-
-                Kirigami.Icon {
-                    source: groupDelegate.secureCore
-                            ? "security-high"
-                            : "mark-location"
-                    implicitWidth: Kirigami.Units.iconSizes.medium
-                    implicitHeight: implicitWidth
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.smallSpacing
-
-                    RowLayout {
-                        Controls.Label {
-                            text: groupDelegate.secureCore
-                                  ? qsTr("Via Secure Core")
-                                  : groupDelegate.name
-                            font.bold: true
-                        }
-                        Controls.Label {
-                            visible: groupDelegate.tor
-                            text: qsTr("Tor")
-                            color: Kirigami.Theme.neutralTextColor
-                        }
-                        Controls.Label {
-                            visible: groupDelegate.p2p
-                            text: qsTr("P2P")
-                            color: Kirigami.Theme.positiveTextColor
-                        }
-                        Controls.Label {
-                            visible: groupDelegate.streaming
-                            text: qsTr("Streaming")
-                            color: Kirigami.Theme.linkColor
-                        }
-                    }
-
-                    Controls.Label {
-                        text: groupDelegate.underMaintenance
-                              ? qsTr("Under maintenance")
-                              : !groupDelegate.accessible
-                                ? qsTr("VPN Plus location")
-                                : groupDelegate.smartRouting
-                                  ? qsTr("%n server(s) · Smart Routing", "", groupDelegate.serverCount)
-                                  : qsTr("%n server(s)", "", groupDelegate.serverCount)
-                        color: groupDelegate.underMaintenance
-                               ? Kirigami.Theme.negativeTextColor
-                               : Kirigami.Theme.disabledTextColor
-                    }
-                }
-
-                Controls.Button {
+            trailingContent: Controls.ToolButton {
                     text: groupDelegate.accessible ? qsTr("Fastest")
                                                    : qsTr("Upgrade")
                     icon.name: groupDelegate.accessible
                                ? "network-connect" : "internet-web-browser"
+                    display: Controls.AbstractButton.IconOnly
                     enabled: !groupDelegate.underMaintenance
                              && (groupDelegate.accessible
                                  ? vpnController.primaryActionEnabled : true)
@@ -144,13 +129,9 @@ Kirigami.ScrollablePage {
                             Qt.openUrlExternally("https://protonvpn.com/pricing")
                         }
                     }
-                }
 
-                Kirigami.Icon {
-                    source: "go-next"
-                    implicitWidth: Kirigami.Units.iconSizes.small
-                    implicitHeight: implicitWidth
-                }
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: text
             }
 
             onClicked: applicationWindow().pushServers({

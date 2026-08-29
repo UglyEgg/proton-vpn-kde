@@ -24,6 +24,12 @@ Kirigami.ScrollablePage {
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
+        PageHeader {
+            heading: qsTr("Custom DNS servers")
+            description: qsTr("Use numeric DNS addresses on new VPN connections.")
+            iconName: "network-server-database"
+        }
+
         Kirigami.InlineMessage {
             Layout.fillWidth: true
             visible: customDns.message.length > 0
@@ -69,6 +75,11 @@ Kirigami.ScrollablePage {
             }
         }
 
+        SectionCard {
+            title: qsTr("DNS servers")
+            description: qsTr("Proton's networking core applies enabled addresses when it creates the next VPN connection.")
+            iconName: "network-server-database"
+
         Controls.Switch {
             text: qsTr("Use custom DNS servers")
             checked: customDns.enabled
@@ -76,19 +87,6 @@ Kirigami.ScrollablePage {
                      && !customDns.busy
                      && (checked || vpnSettings.netShield === 0)
             onClicked: vpnController.updateCustomDns("enabled", checked)
-        }
-
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Proton's networking core applies enabled addresses when it creates the next VPN connection.")
-            color: Kirigami.Theme.disabledTextColor
-        }
-
-        Controls.Label {
-            Layout.fillWidth: true
-            text: qsTr("DNS servers")
-            font.bold: true
         }
 
         RowLayout {
@@ -188,6 +186,7 @@ Kirigami.ScrollablePage {
                     }
                 }
             }
+        }
         }
     }
 }

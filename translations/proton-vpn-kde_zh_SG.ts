@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_SG" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>关于</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -14,6 +21,17 @@
         <message>
             <source>Sign out</source>
             <translation>登出</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>断开连接</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>取消连接</translation>
         </message>
     </context>
     <context>
@@ -41,16 +59,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>国家/地区</translation>
+            <source>Locations</source>
+            <translation>位置</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>升级</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>位置</translation>
+            <source>Countries</source>
+            <translation>国家/地区</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -167,10 +185,6 @@ Update your system time and try to connect again.</source>
             <source>About</source>
             <translation>关于</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>退出</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -218,9 +232,20 @@ Update your system time and try to connect again.</source>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>版本说明</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>报告问题</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>报告问题</translation>
         </message>
     </context>
@@ -284,12 +309,9 @@ Update your system time and try to connect again.</source>
             <source>Authenticate</source>
             <translation>验证身份</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>退出</translation>
+            <source>Security key</source>
+            <translation>安全密钥</translation>
         </message>
     </context>
     <context>

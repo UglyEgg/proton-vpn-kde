@@ -9,9 +9,11 @@
 #include <QCommandLineParser>
 #include <QDebug>
 #include <QIcon>
+#include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QTimer>
 
 int main(int argc, char *argv[])
 {
@@ -41,22 +43,40 @@ int main(int argc, char *argv[])
     const QCommandLineOption showOption(
         QStringLiteral("show"),
         QStringLiteral("Show the Proton VPN Control Center"));
+    const QCommandLineOption visualSnapshotOption(
+        QStringLiteral("visual-snapshot"),
+        QStringLiteral("Save one rendered page and quit (internal test option)"),
+        QStringLiteral("path"));
+    const QCommandLineOption visualPageOption(
+        QStringLiteral("visual-page"),
+        QStringLiteral("Page used with --visual-snapshot"),
+        QStringLiteral("page"), QStringLiteral("overview"));
     commandLine.addOption(settingsOption);
     commandLine.addOption(diagnosticSmokeOption);
     commandLine.addOption(showOption);
+    commandLine.addOption(visualSnapshotOption);
+    commandLine.addOption(visualPageOption);
     commandLine.process(app);
     const bool openSettings = commandLine.isSet(settingsOption);
     const bool diagnosticSmoke = commandLine.isSet(diagnosticSmokeOption);
     const bool forceShow = commandLine.isSet(showOption);
+    const QString visualSnapshotPath = commandLine.value(visualSnapshotOption);
+    const bool visualSnapshot = !visualSnapshotPath.isEmpty();
+    const bool internalTest = diagnosticSmoke || visualSnapshot;
+
+    if (internalTest
+        && qEnvironmentVariableIntValue("PROTON_KDE_DIAGNOSTIC_RTL") == 1) {
+        QApplication::setLayoutDirection(Qt::RightToLeft);
+    }
 
     ControlCenterControl controlCenter;
-    if (!diagnosticSmoke && !controlCenter.registerOnSessionBus()) {
+    if (!internalTest && !controlCenter.registerOnSessionBus()) {
         ProtonVpnKde::requestControlCenter(openSettings);
         return 0;
     }
 
     AppSettings settings;
-    if (!diagnosticSmoke) {
+    if (!internalTest) {
         ProtonVpnKde::setAgentEnabled(settings.closeToTray());
         QObject::connect(&settings, &AppSettings::closeToTrayChanged,
                          &app, [&settings] {
@@ -99,12 +119,21 @@ int main(int argc, char *argv[])
         QStringLiteral("updateChannel"), &updateChannel);
     engine.rootContext()->setContextProperty(
         QStringLiteral("startMinimized"), false);
+    QString initialPage = openSettings ? QStringLiteral("settings")
+                                       : QStringLiteral("overview");
+    if (visualSnapshot) {
+        initialPage = commandLine.value(visualPageOption).toLower();
+    }
     engine.rootContext()->setContextProperty(
-        QStringLiteral("initialPageName"),
-        openSettings ? QStringLiteral("SettingsPage.qml")
-                     : QStringLiteral("OverviewPage.qml"));
+        QStringLiteral("initialPageName"), initialPage);
     engine.rootContext()->setContextProperty(
         QStringLiteral("diagnosticSmokeTest"), diagnosticSmoke);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("diagnosticWindowWidth"),
+        qEnvironmentVariableIntValue("PROTON_KDE_DIAGNOSTIC_WIDTH"));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("diagnosticWindowHeight"),
+        qEnvironmentVariableIntValue("PROTON_KDE_DIAGNOSTIC_HEIGHT"));
     engine.rootContext()->setContextProperty(
         QStringLiteral("appVersion"), QApplication::applicationVersion());
     if (diagnosticSmoke) {
@@ -124,5 +153,22 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, window, [window] {
         QMetaObject::invokeMethod(window, "prepareForQuit");
     });
+    if (visualSnapshot) {
+        const int requestedDelay = qEnvironmentVariableIntValue(
+            "PROTON_KDE_SNAPSHOT_DELAY_MS");
+        const int snapshotDelay = requestedDelay > 0 ? requestedDelay : 1200;
+        QTimer::singleShot(snapshotDelay, window,
+                           [window, visualSnapshotPath, &app] {
+            const QImage image = window->grabWindow();
+            if (image.isNull() || !image.save(visualSnapshotPath)) {
+                qWarning() << "Unable to save visual snapshot to"
+                           << visualSnapshotPath;
+                app.exit(1);
+                return;
+            }
+            qInfo() << "Saved visual snapshot to" << visualSnapshotPath;
+            app.quit();
+        });
+    }
     return app.exec();
 }

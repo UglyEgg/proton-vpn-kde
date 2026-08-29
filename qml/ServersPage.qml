@@ -19,6 +19,32 @@ Kirigami.ScrollablePage {
            ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
            : countryFlag + "  " + groupName
 
+    function serverSummary(location, entryCountry, secureCore, smartRouting,
+                           tor, p2p, streaming, underMaintenance) {
+        if (underMaintenance) {
+            return qsTr("Under maintenance")
+        }
+        const details = []
+        if (secureCore && entryCountry.length > 0) {
+            details.push(qsTr("Via %1").arg(entryCountry))
+        } else if (location.length > 0) {
+            details.push(location)
+        }
+        if (smartRouting) {
+            details.push(qsTr("Smart Routing"))
+        }
+        if (tor) {
+            details.push(qsTr("Tor"))
+        }
+        if (p2p) {
+            details.push(qsTr("P2P"))
+        }
+        if (streaming) {
+            details.push(qsTr("Streaming"))
+        }
+        return details.join(" · ")
+    }
+
     Component.onCompleted: {
         vpnController.loadGroupServers(countryCode, groupKind, groupName)
         if (initialServerFilter.length > 0) {
@@ -61,11 +87,26 @@ Kirigami.ScrollablePage {
         model: vpnController.serverModel
         spacing: Kirigami.Units.smallSpacing
 
-        header: Kirigami.SearchField {
-            id: serverSearch
+        header: ColumnLayout {
             width: serverList.width
-            placeholderText: qsTr("Search servers or locations")
-            onTextChanged: vpnController.setServerFilter(text)
+            spacing: Kirigami.Units.largeSpacing
+
+            PageHeader {
+                heading: page.groupKind === "secure-core"
+                         ? page.countryFlag + "  " + page.countryName
+                           + " · " + qsTr("Secure Core")
+                         : page.countryFlag + "  " + page.groupName
+                description: qsTr("Choose an exact Proton server.")
+                iconName: page.groupKind === "secure-core"
+                          ? "security-high" : "network-server"
+            }
+
+            Kirigami.SearchField {
+                id: serverSearch
+                Layout.fillWidth: true
+                placeholderText: qsTr("Search servers or locations")
+                onTextChanged: vpnController.setServerFilter(text)
+            }
         }
 
         Kirigami.PlaceholderMessage {
@@ -77,7 +118,7 @@ Kirigami.ScrollablePage {
             icon.name: vpnController.locationsBusy ? "view-refresh" : "network-offline"
         }
 
-        delegate: Controls.ItemDelegate {
+        delegate: PlasmaListItem {
             id: serverDelegate
             required property string name
             required property string location
@@ -101,65 +142,18 @@ Kirigami.ScrollablePage {
             }
 
             width: ListView.view.width
-            horizontalPadding: Kirigami.Units.largeSpacing
+            text: serverDelegate.name
+            icon.name: serverDelegate.secureCore ? "security-high" : "network-server"
+            subtitle: page.serverSummary(
+                serverDelegate.location, serverDelegate.entryCountry,
+                serverDelegate.secureCore, serverDelegate.smartRouting,
+                serverDelegate.tor, serverDelegate.p2p,
+                serverDelegate.streaming, serverDelegate.underMaintenance)
+            showChevron: false
             opacity: serverDelegate.accessible
                      && !serverDelegate.underMaintenance ? 1.0 : 0.65
 
-            contentItem: RowLayout {
-                spacing: Kirigami.Units.largeSpacing
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.smallSpacing
-
-                    RowLayout {
-                        Controls.Label {
-                            text: serverDelegate.name
-                            font.bold: true
-                        }
-                        Controls.Label {
-                            visible: serverDelegate.secureCore
-                            text: qsTr("Secure Core")
-                            color: Kirigami.Theme.positiveTextColor
-                        }
-                        Controls.Label {
-                            visible: serverDelegate.tor
-                            text: qsTr("Tor")
-                            color: Kirigami.Theme.neutralTextColor
-                        }
-                        Controls.Label {
-                            visible: serverDelegate.p2p
-                            text: qsTr("P2P")
-                            color: Kirigami.Theme.positiveTextColor
-                        }
-                        Controls.Label {
-                            visible: serverDelegate.streaming
-                            text: qsTr("Streaming")
-                            color: Kirigami.Theme.linkColor
-                        }
-                    }
-
-                    Controls.Label {
-                        visible: serverDelegate.location.length > 0
-                                 || serverDelegate.entryCountry.length > 0
-                        text: serverDelegate.secureCore
-                              && serverDelegate.entryCountry.length > 0
-                              ? qsTr("Via %1").arg(serverDelegate.entryCountry)
-                              : serverDelegate.location
-                        color: Kirigami.Theme.disabledTextColor
-                    }
-                    Controls.Label {
-                        visible: serverDelegate.smartRouting
-                        text: qsTr("Smart Routing")
-                        color: Kirigami.Theme.linkColor
-                    }
-                    Controls.Label {
-                        visible: serverDelegate.underMaintenance
-                        text: qsTr("Under maintenance")
-                        color: Kirigami.Theme.negativeTextColor
-                    }
-                }
-
+            trailingContent: [
                 ColumnLayout {
                     spacing: 0
                     Controls.Label {
@@ -177,13 +171,14 @@ Kirigami.ScrollablePage {
                         to: 100
                         value: serverDelegate.underMaintenance ? 0 : serverDelegate.load
                     }
-                }
+                },
 
-                Controls.Button {
+                Controls.ToolButton {
                     text: serverDelegate.accessible ? qsTr("Connect")
                                                     : qsTr("Upgrade")
                     icon.name: serverDelegate.accessible
                                ? "network-connect" : "internet-web-browser"
+                    display: Controls.AbstractButton.IconOnly
                     enabled: !serverDelegate.underMaintenance
                              && (serverDelegate.accessible
                                  ? vpnController.primaryActionEnabled : true)
@@ -194,15 +189,21 @@ Kirigami.ScrollablePage {
                             Qt.openUrlExternally("https://protonvpn.com/pricing")
                         }
                     }
-                }
 
-                Controls.Button {
-                    flat: true
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: text
+                },
+
+                Controls.ToolButton {
                     icon.name: serverDelegate.pinned ? "favorite" : "non-starred-symbolic"
                     text: serverDelegate.pinned ? qsTr("Unpin") : qsTr("Pin")
+                    display: Controls.AbstractButton.IconOnly
                     onClicked: appSettings.togglePinnedServer(serverDelegate.name)
+
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: text
                 }
-            }
+            ]
         }
     }
 

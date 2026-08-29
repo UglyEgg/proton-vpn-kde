@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ja_JP" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>アプリについて</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -14,6 +21,17 @@
         <message>
             <source>Sign out</source>
             <translation>サインアウト</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>切断</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>接続をキャンセル</translation>
         </message>
     </context>
     <context>
@@ -41,16 +59,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>国</translation>
+            <source>Locations</source>
+            <translation>位置</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>アップグレード</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>位置</translation>
+            <source>Countries</source>
+            <translation>国</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -163,10 +181,6 @@ Update your system time and try to connect again.</source>
             <source>About</source>
             <translation>アプリについて</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>終了</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -214,9 +228,20 @@ Update your system time and try to connect again.</source>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>更新情報</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>問題を報告</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>問題を報告</translation>
         </message>
     </context>
@@ -280,12 +305,9 @@ Update your system time and try to connect again.</source>
             <source>Authenticate</source>
             <translation>認証</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>終了</translation>
+            <source>Security key</source>
+            <translation>セキュリティキー</translation>
         </message>
     </context>
     <context>

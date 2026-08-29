@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ro_RO" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>Despre</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -10,6 +17,17 @@
         <message>
             <source>Sign out</source>
             <translation>Deconectare</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Deconectare</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Anulare conexiune</translation>
         </message>
     </context>
     <context>
@@ -37,16 +55,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Țări</translation>
+            <source>Locations</source>
+            <translation>Locuri</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Modificare</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Locuri</translation>
+            <source>Countries</source>
+            <translation>Țări</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -167,10 +185,6 @@ Actualizați ora sistemului și încercați să vă reconectați.</translation>
             <source>About</source>
             <translation>Despre</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Ieșire</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -211,9 +225,20 @@ Actualizați ora sistemului și încercați să vă reconectați.</translation>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Note de lansare</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>Raportare problemă</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>Raportare problemă</translation>
         </message>
     </context>
@@ -273,12 +298,9 @@ Actualizați ora sistemului și încercați să vă reconectați.</translation>
             <source>Authenticate</source>
             <translation>Conectare</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Ieșire</translation>
+            <source>Security key</source>
+            <translation>Cheie de securitate</translation>
         </message>
     </context>
     <context>

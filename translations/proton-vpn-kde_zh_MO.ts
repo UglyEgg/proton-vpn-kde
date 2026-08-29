@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_MO" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>關於</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -17,14 +24,25 @@
         </message>
     </context>
     <context>
-        <name>CountryPage</name>
+        <name>AgentVpnClient</name>
         <message>
-            <source>Via Secure Core</source>
-            <translation>經由 Secure Core</translation>
+            <source>Disconnect</source>
+            <translation>斷線</translation>
         </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>取消連線</translation>
+        </message>
+    </context>
+    <context>
+        <name>CountryPage</name>
         <message>
             <source>Tor</source>
             <translation>洋蔥路由器</translation>
+        </message>
+        <message>
+            <source>Via Secure Core</source>
+            <translation>經由 Secure Core</translation>
         </message>
         <message>
             <source>Upgrade</source>
@@ -45,16 +63,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>國家</translation>
+            <source>Locations</source>
+            <translation>位置</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>升級</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>位置</translation>
+            <source>Countries</source>
+            <translation>國家</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -171,10 +189,6 @@ Update your system time and try to connect again.</source>
             <source>About</source>
             <translation>關於</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>退出</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -210,12 +224,12 @@ Update your system time and try to connect again.</source>
             <translation>分隔通道已啟用。請記得重新啟動受影響的應用程式。</translation>
         </message>
         <message>
-            <source>Sign in</source>
-            <translation>登入</translation>
-        </message>
-        <message>
             <source>Tor</source>
             <translation>洋蔥路由器</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>登入</translation>
         </message>
     </context>
     <context>
@@ -226,9 +240,20 @@ Update your system time and try to connect again.</source>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>版本資訊</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>回報問題</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>回報問題</translation>
         </message>
     </context>
@@ -296,12 +321,9 @@ Update your system time and try to connect again.</source>
             <source>Authenticate</source>
             <translation>驗證</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>退出</translation>
+            <source>Security key</source>
+            <translation>安全性密鑰</translation>
         </message>
     </context>
     <context>

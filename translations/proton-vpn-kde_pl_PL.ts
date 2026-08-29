@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="pl_PL" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>O aplikacji</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -10,6 +17,17 @@
         <message>
             <source>Sign out</source>
             <translation>Wyloguj</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Rozłącz</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Anuluj połączenie</translation>
         </message>
     </context>
     <context>
@@ -37,16 +55,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Kraje</translation>
+            <source>Locations</source>
+            <translation>Lokalizacje</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Ulepsz</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Lokalizacje</translation>
+            <source>Countries</source>
+            <translation>Kraje</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -163,10 +181,6 @@ Zaktualizuj czas systemowy i spróbuj połączyć się ponownie.</translation>
             <source>About</source>
             <translation>O aplikacji</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Wyjście</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -214,9 +228,20 @@ Zaktualizuj czas systemowy i spróbuj połączyć się ponownie.</translation>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Lista zmian</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>Zgłoś problem</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>Zgłoś problem</translation>
         </message>
     </context>
@@ -280,12 +305,9 @@ Zaktualizuj czas systemowy i spróbuj połączyć się ponownie.</translation>
             <source>Authenticate</source>
             <translation>Uwierzytelnij</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Wyjście</translation>
+            <source>Security key</source>
+            <translation>Klucz bezpieczeństwa</translation>
         </message>
     </context>
     <context>

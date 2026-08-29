@@ -17,6 +17,17 @@
         </message>
     </context>
     <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>연결 끊기</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>연결 취소</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -41,7 +52,7 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
+            <source>Locations</source>
             <translation>국가</translation>
         </message>
         <message>
@@ -49,7 +60,7 @@
             <translation>업그레이드</translation>
         </message>
         <message>
-            <source>Locations</source>
+            <source>Countries</source>
             <translation>국가</translation>
         </message>
         <message>
@@ -163,10 +174,6 @@ Update your system time and try to connect again.</source>
             <source>Report an issue</source>
             <translation>문제 제보하기</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>나가기</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -214,9 +221,20 @@ Update your system time and try to connect again.</source>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>릴리즈 노트</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>문제 제보하기</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>문제 제보하기</translation>
         </message>
     </context>
@@ -280,12 +298,9 @@ Update your system time and try to connect again.</source>
             <source>Authenticate</source>
             <translation>인증</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>나가기</translation>
+            <source>Security key</source>
+            <translation>보안 키</translation>
         </message>
     </context>
     <context>

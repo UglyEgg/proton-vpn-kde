@@ -96,8 +96,14 @@ Kirigami.ScrollablePage {
         }
     }
 
-    Kirigami.FormLayout {
-        wideMode: page.width >= Kirigami.Units.gridUnit * 28
+    ColumnLayout {
+        spacing: Kirigami.Units.largeSpacing
+
+        PageHeader {
+            heading: qsTr("Settings")
+            description: qsTr("Configure Proton VPN and its Plasma integration.")
+            iconName: "settings-configure"
+        }
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
@@ -129,10 +135,14 @@ Kirigami.ScrollablePage {
             }
         }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("VPN connection")
-        }
+        SectionCard {
+            title: qsTr("VPN connection")
+            description: qsTr("Choose how and when this device connects.")
+            iconName: "network-vpn"
+
+            Kirigami.FormLayout {
+                Layout.fillWidth: true
+                wideMode: page.width >= Kirigami.Units.gridUnit * 36
 
         Controls.ComboBox {
             id: protocolCombo
@@ -212,10 +222,17 @@ Kirigami.ScrollablePage {
             color: Kirigami.Theme.disabledTextColor
         }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Protection and performance")
+            }
         }
+
+        SectionCard {
+            title: qsTr("Protection and performance")
+            description: qsTr("Control filtering, acceleration, NAT, and tunnel features.")
+            iconName: "security-high"
+
+            Kirigami.FormLayout {
+                Layout.fillWidth: true
+                wideMode: page.width >= Kirigami.Units.gridUnit * 36
 
         Controls.ComboBox {
             Kirigami.FormData.label: qsTr("NetShield:")
@@ -275,10 +292,17 @@ Kirigami.ScrollablePage {
             text: qsTr("NetShield, VPN Accelerator, moderate NAT, and port forwarding require a paid Proton VPN plan.")
         }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Custom DNS")
+            }
         }
+
+        SectionCard {
+            title: qsTr("Custom DNS")
+            description: qsTr("Use numeric DNS server addresses on new VPN connections.")
+            iconName: "network-server-database"
+
+            Kirigami.FormLayout {
+                Layout.fillWidth: true
+                wideMode: page.width >= Kirigami.Units.gridUnit * 36
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
@@ -330,10 +354,17 @@ Kirigami.ScrollablePage {
             text: qsTr("Custom DNS requires a paid Proton VPN plan.")
         }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Split tunneling")
+            }
         }
+
+        SectionCard {
+            title: qsTr("Split tunneling")
+            description: qsTr("Choose which applications and addresses use the VPN tunnel.")
+            iconName: "applications-all"
+
+            Kirigami.FormLayout {
+                Layout.fillWidth: true
+                wideMode: page.width >= Kirigami.Units.gridUnit * 36
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
@@ -444,10 +475,17 @@ Kirigami.ScrollablePage {
             color: Kirigami.Theme.disabledTextColor
         }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Privacy")
+            }
         }
+
+        SectionCard {
+            title: qsTr("Privacy and troubleshooting")
+            description: qsTr("Control diagnostics and create a temporary support capture.")
+            iconName: "preferences-desktop-privacy"
+
+            Kirigami.FormLayout {
+                Layout.fillWidth: true
+                wideMode: page.width >= Kirigami.Units.gridUnit * 36
 
         Controls.Switch {
             Kirigami.FormData.label: qsTr("Diagnostics:")
@@ -455,12 +493,6 @@ Kirigami.ScrollablePage {
             checked: vpnSettings.anonymousCrashReports
             enabled: vpnSettings.loaded && !vpnSettings.busy
             onClicked: vpnController.updateSetting("anonymousCrashReports", checked)
-        }
-
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            visible: vpnSettings.packetCaptureSupported
-            text: qsTr("Troubleshooting capture")
         }
 
         Kirigami.InlineMessage {
@@ -519,10 +551,17 @@ Kirigami.ScrollablePage {
             color: Kirigami.Theme.disabledTextColor
         }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Plasma integration")
+            }
         }
+
+        SectionCard {
+            title: qsTr("Plasma integration")
+            description: qsTr("Configure the resident tray agent and desktop behavior.")
+            iconName: "preferences-desktop"
+
+            Kirigami.FormLayout {
+                Layout.fillWidth: true
+                wideMode: page.width >= Kirigami.Units.gridUnit * 36
 
         Controls.Switch {
             Kirigami.FormData.label: qsTr("Notifications:")
@@ -570,11 +609,14 @@ Kirigami.ScrollablePage {
             text: qsTr("Enable application autostart separately in Plasma System Settings. The full Control Center is not kept in memory.")
         }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            visible: updateChannel.available
-            text: qsTr("Updates")
+            }
         }
+
+        SectionCard {
+            visible: updateChannel.available
+            title: qsTr("Updates")
+            description: qsTr("Choose the Proton package channel used by Fedora.")
+            iconName: "system-software-update"
 
         RowLayout {
             Layout.fillWidth: true
@@ -617,6 +659,7 @@ Kirigami.ScrollablePage {
             type: updateChannel.error ? Kirigami.MessageType.Error
                                       : Kirigami.MessageType.Information
             text: updateChannel.message
+        }
         }
     }
 }

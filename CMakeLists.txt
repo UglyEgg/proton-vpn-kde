@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.9.0 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.10.0 LANGUAGES CXX)
 
 find_package(ECM 6.0 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
@@ -129,10 +129,14 @@ qt_add_qml_module(proton-vpn-kde
         qml/AboutPage.qml
         qml/CustomDnsPage.qml
         qml/CountryPage.qml
+        qml/DetailRow.qml
         qml/LocationsPage.qml
         qml/OverviewPage.qml
+        qml/PageHeader.qml
+        qml/PlasmaListItem.qml
         qml/ReportIssuePage.qml
         qml/ReleaseNotesPage.qml
+        qml/SectionCard.qml
         qml/ServersPage.qml
         qml/SettingsPage.qml
         qml/SignInPage.qml
@@ -541,6 +545,10 @@ if(BUILD_TESTING)
         NAME installed-translation-loader-tests
         COMMAND installed-translation-loader-tests
     )
+    add_test(
+        NAME qml-ui-hygiene
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-qml-ui-hygiene.sh
+    )
     set_tests_properties(installed-translation-loader-tests PROPERTIES
         ENVIRONMENT "XDG_DATA_DIRS=${PROTON_VPN_KDE_TEST_DATA_DIR}"
     )
@@ -658,6 +666,19 @@ if(BUILD_TESTING)
         set_tests_properties(qml-diagnostics-smoke PROPERTIES
             RUN_SERIAL TRUE
             TIMEOUT 25
+        )
+        add_test(
+            NAME qml-layout-variants-smoke
+            COMMAND ${CMAKE_COMMAND} -E env
+                ${DBUS_RUN_SESSION_EXECUTABLE}
+                    --config-file=${CMAKE_CURRENT_SOURCE_DIR}/tests/no-activation-session.conf
+                    --
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-qml-layout-variants.sh
+                    ${CMAKE_CURRENT_BINARY_DIR}
+        )
+        set_tests_properties(qml-layout-variants-smoke PROPERTIES
+            RUN_SERIAL TRUE
+            TIMEOUT 45
         )
     endif()
 endif()

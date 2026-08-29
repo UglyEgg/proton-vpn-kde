@@ -212,7 +212,7 @@ installed-package checks passed. Live Plasma acceptance confirmed tray and
 Control Center behavior, connection and disconnection, close behavior, and
 clean shutdown.
 
-## Phase 11 — Apply a KDE desktop-first visual system
+## Phase 11 — Apply a KDE desktop-first visual system (in progress)
 
 - Replace the remaining GTK-shaped page composition with native Kirigami
   navigation, spacing, typography, semantic colors, and inline status patterns.
@@ -220,6 +220,17 @@ clean shutdown.
   font sizes, reduced motion, high contrast, and right-to-left layouts.
 - Resolve the UI hygiene debt recorded during the review before adding visual
   novelty.
+
+Implemented for `0.10.0` and awaiting installed Plasma acceptance. Wide windows
+now use a persistent, selected Kirigami navigation sidebar while compact
+windows use its overlay form. Shared page-header, section-card, detail-row, and
+navigation-row components give the connection, location, settings,
+authentication, account, support, and informational pages one native visual
+language. The implementation contains no literal colors, fixed font sizes, or
+custom animations. Isolated tests render every page at desktop, compact,
+scaled-text, and right-to-left layouts, and a screenshot harness captures
+specific demo pages without contacting NetworkManager. See
+[Plasma visual system](VISUAL-SYSTEM.md).
 
 ## Phase 12 — Add an on-demand Connection Inspector
 

@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="cs_CZ" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>O aplikaci</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -10,6 +17,17 @@
         <message>
             <source>Sign out</source>
             <translation>Odhlásit se</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Odpojit</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Zrušit připojení</translation>
         </message>
     </context>
     <context>
@@ -37,16 +55,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Země</translation>
+            <source>Locations</source>
+            <translation>Umístění</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Navýšit</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Umístění</translation>
+            <source>Countries</source>
+            <translation>Země</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -159,10 +177,6 @@ Aktualizujte svůj systémový čas a zkuste se připojit znovu.</translation>
             <source>About</source>
             <translation>O aplikaci</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Ukončit</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -203,9 +217,20 @@ Aktualizujte svůj systémový čas a zkuste se připojit znovu.</translation>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Seznam změn</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>Nahlásit problém</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>Nahlásit problém</translation>
         </message>
     </context>
@@ -265,12 +290,9 @@ Aktualizujte svůj systémový čas a zkuste se připojit znovu.</translation>
             <source>Authenticate</source>
             <translation>Ověřit</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Ukončit</translation>
+            <source>Security key</source>
+            <translation>Bezpečnostní klíč</translation>
         </message>
     </context>
     <context>

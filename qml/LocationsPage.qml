@@ -5,7 +5,7 @@ import org.kde.kirigami as Kirigami
 
 Kirigami.Page {
     id: page
-    title: qsTr("Countries")
+    title: qsTr("Locations")
 
     readonly property bool searching: searchField.text.trim().length > 0
 
@@ -70,7 +70,7 @@ Kirigami.Page {
     Component {
         id: countryDelegateComponent
 
-        Controls.ItemDelegate {
+        PlasmaListItem {
             id: countryDelegate
             required property string code
             required property string name
@@ -90,43 +90,25 @@ Kirigami.Page {
             }
 
             width: ListView.view.width
-            horizontalPadding: Kirigami.Units.largeSpacing
+            text: countryDelegate.name
+            leadingText: countryDelegate.flag
+            subtitle: countryDelegate.underMaintenance
+                      ? qsTr("Under maintenance")
+                      : !countryDelegate.accessible
+                        ? qsTr("VPN Plus location")
+                        : countryDelegate.free
+                          ? qsTr("%n free server(s)", "", countryDelegate.serverCount)
+                          : qsTr("%n server(s)", "", countryDelegate.serverCount)
             opacity: countryDelegate.accessible
                      && !countryDelegate.underMaintenance ? 1.0 : 0.65
 
-            contentItem: RowLayout {
-                spacing: Kirigami.Units.largeSpacing
-
-                Controls.Label {
-                    text: countryDelegate.flag
-                    font.pixelSize: Kirigami.Units.gridUnit * 1.6
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-
-                    Controls.Label {
-                        text: countryDelegate.name
-                        font.bold: true
-                    }
-                    Controls.Label {
-                        text: countryDelegate.underMaintenance
-                              ? qsTr("Under maintenance")
-                              : !countryDelegate.accessible
-                                ? qsTr("VPN Plus location")
-                                : countryDelegate.free
-                                  ? qsTr("%n free server(s)", "", countryDelegate.serverCount)
-                                  : qsTr("%n server(s)", "", countryDelegate.serverCount)
-                        color: Kirigami.Theme.disabledTextColor
-                    }
-                }
-
-                Controls.Button {
+            trailingContent: [
+                Controls.ToolButton {
                     text: countryDelegate.accessible ? qsTr("Fastest")
                                                      : qsTr("Upgrade")
                     icon.name: countryDelegate.accessible
                                ? "network-connect" : "internet-web-browser"
+                    display: Controls.AbstractButton.IconOnly
                     enabled: !countryDelegate.underMaintenance
                              && (countryDelegate.accessible
                                  ? vpnController.primaryActionEnabled : true)
@@ -137,22 +119,22 @@ Kirigami.Page {
                             Qt.openUrlExternally("https://protonvpn.com/pricing")
                         }
                     }
-                }
 
-                Controls.Button {
-                    flat: true
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: text
+                },
+
+                Controls.ToolButton {
                     icon.name: countryDelegate.pinned
                                ? "favorite" : "non-starred-symbolic"
                     text: countryDelegate.pinned ? qsTr("Unpin") : qsTr("Pin")
+                    display: Controls.AbstractButton.IconOnly
                     onClicked: appSettings.togglePinnedServer(countryDelegate.code)
-                }
 
-                Kirigami.Icon {
-                    source: "go-next"
-                    implicitWidth: Kirigami.Units.iconSizes.small
-                    implicitHeight: implicitWidth
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: text
                 }
-            }
+            ]
 
             onClicked: page.openCountry(
                 countryDelegate.code, countryDelegate.name, countryDelegate.flag,
@@ -163,6 +145,12 @@ Kirigami.Page {
     ColumnLayout {
         anchors.fill: parent
         spacing: Kirigami.Units.smallSpacing
+
+        PageHeader {
+            heading: qsTr("Countries and servers")
+            description: qsTr("Choose a country, city, or exact Proton server.")
+            iconName: "network-server"
+        }
 
         Kirigami.SearchField {
             id: searchField
@@ -225,7 +213,7 @@ Kirigami.Page {
                                ? "view-refresh" : "edit-find"
                 }
 
-                delegate: Controls.ItemDelegate {
+                delegate: PlasmaListItem {
                     id: resultDelegate
                     required property string kind
                     required property string name
@@ -241,73 +229,46 @@ Kirigami.Page {
                     required property bool underMaintenance
 
                     width: ListView.view.width
-                    horizontalPadding: Kirigami.Units.largeSpacing
+                    text: resultDelegate.name
+                    leadingText: resultDelegate.countryFlag
+                    subtitle: resultDelegate.kind === "country"
+                              ? (!resultDelegate.accessible
+                                 ? qsTr("VPN Plus location")
+                                 : qsTr("%n server(s)", "", resultDelegate.serverCount))
+                              : resultDelegate.kind === "server"
+                                ? qsTr("%1 · %2% load")
+                                    .arg(resultDelegate.location.length > 0
+                                         ? resultDelegate.location
+                                         : resultDelegate.countryName)
+                                    .arg(resultDelegate.load)
+                                : resultDelegate.countryName
+                    showChevron: resultDelegate.accessible
+                                 && resultDelegate.kind !== "server"
                     opacity: resultDelegate.accessible
                              && !resultDelegate.underMaintenance ? 1.0 : 0.65
 
-                    contentItem: RowLayout {
-                        spacing: Kirigami.Units.largeSpacing
-
-                        Controls.Label {
-                            text: resultDelegate.countryFlag
-                            font.pixelSize: Kirigami.Units.gridUnit * 1.4
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 0
-
-                            Controls.Label {
-                                text: resultDelegate.name
-                                font.bold: true
-                            }
-                            Controls.Label {
-                                text: resultDelegate.kind === "country"
-                                      ? (!resultDelegate.accessible
-                                         ? qsTr("VPN Plus location")
-                                         : qsTr("%n server(s)", "", resultDelegate.serverCount))
-                                      : resultDelegate.kind === "server"
-                                        ? qsTr("%1 · %2% load")
-                                            .arg(resultDelegate.location.length > 0
-                                                 ? resultDelegate.location
-                                                 : resultDelegate.countryName)
-                                            .arg(resultDelegate.load)
-                                        : resultDelegate.countryName
-                                color: Kirigami.Theme.disabledTextColor
+                    trailingContent: Controls.ToolButton {
+                        visible: !resultDelegate.accessible
+                                 || resultDelegate.kind === "server"
+                        text: !resultDelegate.accessible ? qsTr("Upgrade")
+                              : qsTr("Connect")
+                        icon.name: !resultDelegate.accessible
+                                   ? "internet-web-browser" : "network-connect"
+                        display: Controls.AbstractButton.IconOnly
+                        enabled: !resultDelegate.underMaintenance
+                                 && (resultDelegate.kind !== "server"
+                                     || vpnController.primaryActionEnabled)
+                        onClicked: {
+                            if (!resultDelegate.accessible) {
+                                Qt.openUrlExternally(
+                                    "https://protonvpn.com/pricing")
+                            } else {
+                                vpnController.connectServer(resultDelegate.name)
                             }
                         }
 
-                        Controls.Button {
-                            text: !resultDelegate.accessible ? qsTr("Upgrade")
-                                  : resultDelegate.kind === "server"
-                                    ? qsTr("Connect") : qsTr("Open")
-                            icon.name: !resultDelegate.accessible
-                                       ? "internet-web-browser"
-                                       : resultDelegate.kind === "server"
-                                         ? "network-connect" : "go-next"
-                            enabled: !resultDelegate.underMaintenance
-                                     && (resultDelegate.kind !== "server"
-                                         || vpnController.primaryActionEnabled)
-                            onClicked: {
-                                if (!resultDelegate.accessible) {
-                                    Qt.openUrlExternally(
-                                        "https://protonvpn.com/pricing")
-                                } else if (resultDelegate.kind === "server") {
-                                    vpnController.connectServer(resultDelegate.name)
-                                } else {
-                                    page.activateSearchResult(
-                                        resultDelegate.kind, resultDelegate.name,
-                                        resultDelegate.countryCode,
-                                        resultDelegate.countryName,
-                                        resultDelegate.countryFlag,
-                                        resultDelegate.location,
-                                        resultDelegate.groupKind,
-                                        resultDelegate.groupName,
-                                        resultDelegate.accessible,
-                                        resultDelegate.underMaintenance)
-                                }
-                            }
-                        }
+                        Controls.ToolTip.visible: hovered || activeFocus
+                        Controls.ToolTip.text: text
                     }
 
                     onClicked: page.activateSearchResult(

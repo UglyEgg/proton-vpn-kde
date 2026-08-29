@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="nl_NL" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>Over</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Free</source>
@@ -10,6 +17,17 @@
         <message>
             <source>Sign out</source>
             <translation>Uitloggen</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Verbreken</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Verbinding afbreken</translation>
         </message>
     </context>
     <context>
@@ -33,16 +51,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Landen</translation>
+            <source>Locations</source>
+            <translation>Locaties</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Upgraden</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Locaties</translation>
+            <source>Countries</source>
+            <translation>Landen</translation>
         </message>
         <message>
             <source>Connect</source>
@@ -147,10 +165,6 @@ Pas uw systeemtijd aan en probeer opnieuw verbinding te maken.</translation>
             <source>About</source>
             <translation>Over</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Afsluiten</translation>
-        </message>
     </context>
     <context>
         <name>OverviewPage</name>
@@ -184,10 +198,21 @@ Pas uw systeemtijd aan en probeer opnieuw verbinding te maken.</translation>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Uitgave opmerkingen</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
             <translation>Een probleem melden</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Meld een probleem</translation>
         </message>
     </context>
     <context>
@@ -246,12 +271,9 @@ Pas uw systeemtijd aan en probeer opnieuw verbinding te maken.</translation>
             <source>Authenticate</source>
             <translation>Authenticeren</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Afsluiten</translation>
+            <source>Security key</source>
+            <translation>Beveiligingssleutel</translation>
         </message>
     </context>
     <context>

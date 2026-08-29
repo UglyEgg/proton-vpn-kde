@@ -38,6 +38,12 @@ Kirigami.ScrollablePage {
             width: applicationList.width
             spacing: Kirigami.Units.largeSpacing
 
+            PageHeader {
+                heading: qsTr("Split tunneling rules")
+                description: qsTr("Choose which applications and addresses use the VPN tunnel.")
+                iconName: "applications-all"
+            }
+
             Kirigami.InlineMessage {
                 Layout.fillWidth: true
                 visible: splitSettings.message.length > 0

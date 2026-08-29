@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ca_ES" sourcelanguage="en">
     <context>
+        <name>AboutPage</name>
+        <message>
+            <source>About</source>
+            <translation>Quant a</translation>
+        </message>
+    </context>
+    <context>
         <name>AccountPage</name>
         <message>
             <source>Account</source>
@@ -14,6 +21,17 @@
         <message>
             <source>Sign out</source>
             <translation>Tancar la sessió</translation>
+        </message>
+    </context>
+    <context>
+        <name>AgentVpnClient</name>
+        <message>
+            <source>Disconnect</source>
+            <translation>Desconnecteu-vos</translation>
+        </message>
+        <message>
+            <source>Cancel Connection</source>
+            <translation>Cancel·leu la connexió</translation>
         </message>
     </context>
     <context>
@@ -37,16 +55,16 @@
     <context>
         <name>LocationsPage</name>
         <message>
-            <source>Countries</source>
-            <translation>Països</translation>
+            <source>Locations</source>
+            <translation>Ubicacions</translation>
         </message>
         <message>
             <source>Upgrade</source>
             <translation>Milloreu el pla</translation>
         </message>
         <message>
-            <source>Locations</source>
-            <translation>Ubicacions</translation>
+            <source>Countries</source>
+            <translation>Països</translation>
         </message>
         <message>
             <source>Servers</source>
@@ -167,10 +185,6 @@ Actualitzeu l'hora del sistema i torneu-ho a provar.</translation>
             <source>About</source>
             <translation>Quant a</translation>
         </message>
-        <message>
-            <source>Quit</source>
-            <translation>Surt</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -211,9 +225,20 @@ Actualitzeu l'hora del sistema i torneu-ho a provar.</translation>
         </message>
     </context>
     <context>
+        <name>ReleaseNotesPage</name>
+        <message>
+            <source>Release notes</source>
+            <translation>Notes de la versió</translation>
+        </message>
+    </context>
+    <context>
         <name>ReportIssuePage</name>
         <message>
             <source>Report an Issue</source>
+            <translation>Informar d'un problema</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
             <translation>Informar d'un problema</translation>
         </message>
     </context>
@@ -277,12 +302,9 @@ Actualitzeu l'hora del sistema i torneu-ho a provar.</translation>
             <source>Authenticate</source>
             <translation>Autentica</translation>
         </message>
-    </context>
-    <context>
-        <name>TrayIntegration</name>
         <message>
-            <source>Quit</source>
-            <translation>Surt</translation>
+            <source>Security key</source>
+            <translation>Clau de seguretat</translation>
         </message>
     </context>
     <context>

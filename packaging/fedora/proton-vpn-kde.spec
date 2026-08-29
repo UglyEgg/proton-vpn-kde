@@ -1,8 +1,8 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.9.0
-Release:        2%{?dist}
+Version:        0.10.0
+Release:        1%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
 License:        GPL-3.0-or-later
@@ -107,6 +107,12 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.10.0-1
+- Add responsive desktop and compact Kirigami navigation.
+- Group connection, settings, account, and support content in native cards.
+- Standardize location rows, semantic colors, typography, and RTL behavior.
+- Add scaled-text, compact-window, RTL, hygiene, and screenshot checks.
+
 * Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.9.0-2
 - Release abandoned Secret Service startup after the frontend disappears.
 - Protect explicit tray actions with a bounded transient backend lease.
