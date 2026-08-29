@@ -153,8 +153,7 @@ Kirigami.ScrollablePage {
                 }
             }
 
-            onClicked: applicationWindow().pageStack.push(
-                Qt.resolvedUrl("ServersPage.qml"), {
+            onClicked: applicationWindow().pushServers({
                     "countryCode": page.countryCode,
                     "countryName": page.countryName,
                     "countryFlag": page.countryFlag,

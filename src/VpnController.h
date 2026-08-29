@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ClientRegistrationState.h"
 #include "VpnSettingsModel.h"
 #include "SplitTunnelingModel.h"
 #include "CustomDnsModel.h"
@@ -10,6 +11,7 @@
 
 class QDBusPendingCallWatcher;
 class QDBusServiceWatcher;
+class QTimer;
 class QAbstractItemModel;
 class QJsonObject;
 class CountryModel;
@@ -18,6 +20,7 @@ class LocationFilterProxyModel;
 class ServerGroupModel;
 class ServerModel;
 class InstalledApplicationModel;
+class GroupedNavigationTest;
 
 class VpnController final : public QObject
 {
@@ -50,6 +53,8 @@ class VpnController final : public QObject
     Q_PROPERTY(bool streaming READ streaming NOTIFY snapshotChanged)
     Q_PROPERTY(bool smartRouting READ smartRouting NOTIFY snapshotChanged)
     Q_PROPERTY(bool packetCaptureActive READ packetCaptureActive NOTIFY snapshotChanged)
+    Q_PROPERTY(bool coreMemoryOptimized READ coreMemoryOptimized NOTIFY snapshotChanged)
+    Q_PROPERTY(QString coreVersion READ coreVersion NOTIFY snapshotChanged)
     Q_PROPERTY(QString message READ message NOTIFY snapshotChanged)
     Q_PROPERTY(QString primaryActionText READ primaryActionText NOTIFY snapshotChanged)
     Q_PROPERTY(bool primaryActionEnabled READ primaryActionEnabled NOTIFY snapshotChanged)
@@ -94,6 +99,8 @@ public:
     [[nodiscard]] bool streaming() const;
     [[nodiscard]] bool smartRouting() const;
     [[nodiscard]] bool packetCaptureActive() const;
+    [[nodiscard]] bool coreMemoryOptimized() const;
+    [[nodiscard]] QString coreVersion() const;
     [[nodiscard]] QString message() const;
     [[nodiscard]] QString primaryActionText() const;
     [[nodiscard]] bool primaryActionEnabled() const;
@@ -125,7 +132,6 @@ public:
     Q_INVOKABLE void loadGroupServers(const QString &countryCode,
                                       const QString &groupKind,
                                       const QString &groupName);
-    Q_INVOKABLE void loadServers(const QString &countryCode);
     Q_INVOKABLE void clearGroupServerContext();
     Q_INVOKABLE void clearServerContext();
     Q_INVOKABLE void connectCountry(const QString &countryCode);
@@ -181,6 +187,9 @@ private slots:
     void onCustomDnsChanged(const QString &settingsJson);
 
 private:
+    friend class GroupedNavigationTest;
+    VpnController(QObject *parent, bool discoverApplications);
+
     void registerClient();
     void unregisterClient();
     void setBackendAvailable(bool available);
@@ -195,6 +204,8 @@ private:
     void setLocationsBusy(bool busy);
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
+    void handleControlOperationReply(QDBusPendingCallWatcher *watcher);
+    void handleRegisterClientReply(QDBusPendingCallWatcher *watcher);
     void handleCountriesReply(QDBusPendingCallWatcher *watcher);
     void handleLocationSearchReply(QDBusPendingCallWatcher *watcher);
     void handlePendingNpsSurveyReply(QDBusPendingCallWatcher *watcher);
@@ -205,8 +216,10 @@ private:
     void handleSplitTunnelingReply(QDBusPendingCallWatcher *watcher);
     void handleCustomDnsReply(QDBusPendingCallWatcher *watcher);
     void loadPendingNpsSurvey();
+    void scheduleClientRegistrationRetry();
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
+    QTimer *m_clientRegistrationRetryTimer = nullptr;
     CountryModel *m_countryModel = nullptr;
     LocationSearchModel *m_locationSearchModel = nullptr;
     ServerGroupModel *m_serverGroupModel = nullptr;
@@ -220,7 +233,8 @@ private:
     LocationFilterProxyModel *m_serverFilterModel = nullptr;
     LocationFilterProxyModel *m_applicationFilterModel = nullptr;
     bool m_backendAvailable = false;
-    bool m_clientRegistered = false;
+    ProtonVpnKde::ClientRegistrationState m_clientRegistration;
+    unsigned int m_clientRegistrationRetryCount = 0;
     bool m_ready = false;
     bool m_startupCompatible = true;
     bool m_loggedIn = false;
@@ -259,5 +273,7 @@ private:
     bool m_streaming = false;
     bool m_smartRouting = false;
     bool m_packetCaptureActive = false;
+    bool m_coreMemoryOptimized = false;
+    QString m_coreVersion;
     QString m_message = QStringLiteral("Waiting for the Proton backend service");
 };

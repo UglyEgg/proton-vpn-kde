@@ -30,7 +30,8 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Free-plan discovery parity: free locations remain connectable while paid-only
   countries, locations, and servers stay visible with native upgrade actions
 - Native global search across localized country names, cities, and exact
-  servers, with bounded on-demand results instead of a duplicate server cache
+  servers, backed by a compact generation-scoped scalar projection that keeps
+  current load and availability in Proton's official objects
 - Proton-driven server refresh notifications with compact load-only updates;
   existing Qt rows change in place instead of rebuilding the server list
 - Native server ordering by current load, updated without resetting the list
@@ -85,6 +86,10 @@ is activated automatically when the GUI requests its first state snapshot.
 
 The audited official-client capability contract and deliberate Plasma
 differences are tracked in [`docs/PARITY.md`](docs/PARITY.md).
+The prioritized post-review work, including completed and pending phases, is
+tracked in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+The installed systemd sandbox and its deliberate compatibility exclusions are
+documented in [`docs/HARDENING.md`](docs/HARDENING.md).
 
 ## Build the frontend
 
@@ -162,3 +167,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the safety and migration
 boundaries and [docs/FEDORA.md](docs/FEDORA.md) for packaging and coexistence
 notes. [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) documents the credential
 transport and its threat boundary.
+
+## License and project status
+
+The project is licensed under the GNU General Public License, version 3 or any
+later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the complete
+terms and [COPYING.md](COPYING.md) for the project notice.
+
+This is independent community work and is not developed or endorsed by Proton
+AG. The software license does not grant rights to Proton's names or logos.

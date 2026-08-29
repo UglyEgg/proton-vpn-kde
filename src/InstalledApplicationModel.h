@@ -17,7 +17,8 @@ public:
     };
     Q_ENUM(Role)
 
-    explicit InstalledApplicationModel(QObject *parent = nullptr);
+    explicit InstalledApplicationModel(QObject *parent = nullptr,
+                                       bool discoverApplications = true);
 
     [[nodiscard]] int rowCount(
         const QModelIndex &parent = QModelIndex()) const override;

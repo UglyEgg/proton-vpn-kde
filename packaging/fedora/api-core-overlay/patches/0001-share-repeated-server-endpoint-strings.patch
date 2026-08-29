@@ -1,0 +1,51 @@
+--- a/usr/lib64/python3.14/site-packages/proton/vpn/session/servers/logicals.py
++++ b/usr/lib64/python3.14/site-packages/proton/vpn/session/servers/logicals.py
+@@ -35,6 +35,37 @@
+ 
+ UNIX_EPOCH = "Thu, 01 Jan 1970 00:00:00 GMT"
+ 
++_SHARED_LOGICAL_STRING_FIELDS = (
++    "EntryCountry", "ExitCountry", "HostCountry", "City", "State", "Domain",
++)
++_SHARED_PHYSICAL_STRING_FIELDS = (
++    "EntryIP", "ExitIP", "Domain", "Generation", "Label",
++    "ServicesDownReason", "X25519PublicKey",
++)
++
++
++def _deduplicate_server_strings(logicals: List[dict]) -> None:
++    """Shares common immutable strings within a decoded server list.
++
++    The logicals response contains thousands of repeated country, location,
++    domain, address, key, and label strings. JSON decoding creates a distinct
++    Python string for each occurrence. Reusing one object per value reduces
++    the resident model size without changing its serialized representation.
++    """
++    shared_strings = {}
++
++    def share_string(item: dict, field: str) -> None:
++        value = item.get(field)
++        if isinstance(value, str):
++            item[field] = shared_strings.setdefault(value, value)
++
++    for logical in logicals:
++        for field in _SHARED_LOGICAL_STRING_FIELDS:
++            share_string(logical, field)
++        for physical in logical.get("Servers", ()):
++            for field in _SHARED_PHYSICAL_STRING_FIELDS:
++                share_string(physical, field)
++
+ 
+ class PersistenceKeys(Enum):
+     """JSON Keys used to persist the ServerList to disk."""
+@@ -426,7 +457,9 @@
+         """
+         try:
+             user_tier = data[PersistenceKeys.USER_TIER.value]
+-            logicals = [LogicalServer(logical_dict) for logical_dict in data["LogicalServers"]]
++            logical_dicts = data[PersistenceKeys.LOGICALS.value]
++            _deduplicate_server_strings(logical_dicts)
++            logicals = [LogicalServer(logical_dict) for logical_dict in logical_dicts]
+         except KeyError as error:
+             raise ServerListDecodeError("Error building server list from dict") from error
+ 

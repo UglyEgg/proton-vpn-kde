@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.8.2 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.8.8 LANGUAGES CXX)
 
 find_package(ECM 6.0 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
@@ -68,6 +68,8 @@ function(proton_vpn_kde_enable_translations target)
 endfunction()
 
 qt_add_executable(proton-vpn-kde
+    src/BackendCallPolicy.h
+    src/ClientRegistrationState.h
     src/AppLifecycle.cpp
     src/AppLifecycle.h
     src/AppSettings.cpp
@@ -193,6 +195,72 @@ add_subdirectory(kcm)
 
 if(BUILD_TESTING)
     find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
+    qt_add_executable(backend-call-policy-tests
+        tests/BackendCallPolicyTest.cpp
+        src/BackendCallPolicy.h
+        src/ClientRegistrationState.h
+    )
+    target_include_directories(backend-call-policy-tests PRIVATE src)
+    target_link_libraries(backend-call-policy-tests PRIVATE
+        Qt6::Core
+        Qt6::DBus
+        Qt6::Test
+    )
+    target_compile_options(backend-call-policy-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME backend-call-policy-tests COMMAND backend-call-policy-tests)
+
+    qt_add_executable(grouped-navigation-tests
+        tests/GroupedNavigationTest.cpp
+        src/BackendCallPolicy.h
+        src/ClientRegistrationState.h
+        src/CustomDnsModel.cpp
+        src/CustomDnsModel.h
+        src/InstalledApplicationModel.cpp
+        src/InstalledApplicationModel.h
+        src/LocationModels.cpp
+        src/LocationModels.h
+        src/SecretTransport.cpp
+        src/SecretTransport.h
+        src/SplitTunnelingModel.cpp
+        src/SplitTunnelingModel.h
+        src/VpnController.cpp
+        src/VpnController.h
+        src/VpnSettingsModel.cpp
+        src/VpnSettingsModel.h
+    )
+    target_include_directories(grouped-navigation-tests PRIVATE src)
+    target_link_libraries(grouped-navigation-tests PRIVATE
+        Qt6::Core
+        Qt6::DBus
+        Qt6::Gui
+        Qt6::Network
+        Qt6::Test
+        Qt6::Widgets
+        KF6::CoreAddons
+        KF6::Service
+        OpenSSL::Crypto
+    )
+    target_compile_definitions(grouped-navigation-tests PRIVATE _GNU_SOURCE)
+    target_compile_options(grouped-navigation-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(
+            NAME grouped-navigation-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} --
+                $<TARGET_FILE:grouped-navigation-tests>
+        )
+    else()
+        add_test(NAME grouped-navigation-tests COMMAND grouped-navigation-tests)
+    endif()
+    set_tests_properties(grouped-navigation-tests PROPERTIES
+        ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
+        TIMEOUT 15
+    )
+
     qt_add_executable(connection-action-tests
         tests/ConnectionActionTest.cpp
         src/ConnectionAction.h
@@ -462,6 +530,13 @@ if(BUILD_TESTING)
             -s ${CMAKE_CURRENT_SOURCE_DIR}/backend/tests -v
     )
 
+    add_test(
+        NAME api-core-overlay-tests
+        COMMAND ${Python3_EXECUTABLE} -m unittest discover
+            -s ${CMAKE_CURRENT_SOURCE_DIR}/packaging/fedora/api-core-overlay/tests
+            -v
+    )
+
     if(DBUS_RUN_SESSION_EXECUTABLE)
         file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data)
         add_test(
@@ -482,6 +557,23 @@ if(BUILD_TESTING)
             NAME staged-install-smoke
             COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-staged-install.sh
                 ${CMAKE_CURRENT_BINARY_DIR}
+                ${CMAKE_INSTALL_FULL_BINDIR}
+                ${CMAKE_INSTALL_FULL_LIBEXECDIR}
+                ${CMAKE_INSTALL_FULL_DATADIR}
+                ${CMAKE_INSTALL_FULL_LIBDIR}
+        )
+        add_test(
+            NAME qml-diagnostics-smoke
+            COMMAND ${CMAKE_COMMAND} -E env
+                ${DBUS_RUN_SESSION_EXECUTABLE}
+                    --config-file=${CMAKE_CURRENT_SOURCE_DIR}/tests/no-activation-session.conf
+                    --
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-qml-diagnostics.sh
+                    ${CMAKE_CURRENT_BINARY_DIR}
+        )
+        set_tests_properties(qml-diagnostics-smoke PROPERTIES
+            RUN_SERIAL TRUE
+            TIMEOUT 25
         )
     endif()
 endif()
@@ -496,6 +588,15 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-backend.service
     @ONLY
 )
+if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBEXECDIR}")
+    file(RELATIVE_PATH PROTON_VPN_KDE_INSTALL_LIBEXECDIR
+        "${CMAKE_INSTALL_PREFIX}"
+        "${CMAKE_INSTALL_LIBEXECDIR}"
+    )
+else()
+    set(PROTON_VPN_KDE_INSTALL_LIBEXECDIR
+        "${CMAKE_INSTALL_LIBEXECDIR}")
+endif()
 configure_file(
     backend/proton-vpn-kde-backend.in
     ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-backend

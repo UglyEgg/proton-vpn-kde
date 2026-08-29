@@ -54,7 +54,7 @@ Kirigami.ScrollablePage {
         target: vpnController
         function onSnapshotChanged() {
             if (vpnController.loggedIn) {
-                applicationWindow().showPage(Qt.resolvedUrl("OverviewPage.qml"))
+                applicationWindow().showOverview()
             } else if (page.previousAuthState !== vpnController.authState) {
                 page.previousAuthState = vpnController.authState
                 Qt.callLater(page.focusCurrentInput)

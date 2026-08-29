@@ -5,13 +5,14 @@ from __future__ import annotations
 import asyncio
 from contextlib import ExitStack
 from dataclasses import replace
+from importlib.metadata import PackageNotFoundError, version
 import os
-import unicodedata
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
 from . import __version__
+from .errors import UserVisibleRuntimeError, UserVisibleValueError
 from .controller import (
     CountryInfo,
     CustomDnsServer,
@@ -34,6 +35,7 @@ from .controller import (
 )
 from .fido_interaction import FidoInteraction
 from .reconnector import AsyncReconnector
+from .search_projection import ServerSearchProjection, fold_search_text
 from .support import collect_support_logs
 
 
@@ -41,13 +43,55 @@ def _supports_split_tunneling(protocol: str) -> bool:
     return protocol == "wireguard" or protocol.startswith("protun-")
 
 
-def _fold_search_text(value: str) -> str:
-    normalized = unicodedata.normalize("NFKD", value.casefold())
-    return "".join(
-        character
-        for character in normalized
-        if not unicodedata.combining(character)
+def _core_memory_optimization_behavior(logicals_module: Any) -> bool:
+    """Checks both string-sharing paths without touching live Core state."""
+    deduplicate = getattr(
+        logicals_module, "_deduplicate_server_strings", None
     )
+    hook_factory = getattr(
+        logicals_module, "_server_string_object_hook", None
+    )
+    if not callable(deduplicate) or not callable(hook_factory):
+        return False
+
+    first = bytes("phase8-runtime-probe.example", "utf-8").decode("utf-8")
+    second = bytes("phase8-runtime-probe.example", "utf-8").decode("utf-8")
+    if first is second:
+        return False
+    decoded = [{"Domain": first, "Servers": [{"Domain": second}]}]
+    try:
+        deduplicate(decoded)
+    except Exception:
+        return False
+    if decoded[0]["Domain"] is not decoded[0]["Servers"][0]["Domain"]:
+        return False
+
+    third = bytes("phase8-cache-probe.example", "utf-8").decode("utf-8")
+    fourth = bytes("phase8-cache-probe.example", "utf-8").decode("utf-8")
+    if third is fourth:
+        return False
+    try:
+        object_hook = hook_factory()
+        first_item = object_hook({"Domain": third})
+        second_item = object_hook({"Domain": fourth})
+    except Exception:
+        return False
+    return first_item["Domain"] is second_item["Domain"]
+
+
+def _core_memory_optimizations_active() -> bool:
+    try:
+        from proton.vpn.session.servers import logicals
+    except (ImportError, ModuleNotFoundError):
+        return False
+    return _core_memory_optimization_behavior(logicals)
+
+
+def _core_package_version() -> str:
+    try:
+        return version("proton-vpn-api-core")
+    except PackageNotFoundError:
+        return ""
 
 
 class DemoCoreAdapter:
@@ -114,9 +158,7 @@ class DemoCoreAdapter:
         demo_groups = {
             "CH": [
                 ServerGroupInfo("location", "Zurich", 2, p2p=True, streaming=True),
-                ServerGroupInfo(
-                    "secure-core", "Via Secure Core", 1, secure_core=True
-                ),
+                ServerGroupInfo("secure-core", "Via Secure Core", 1, secure_core=True),
             ],
             "US": [
                 ServerGroupInfo("location", "Chicago, IL", 1, p2p=True),
@@ -140,11 +182,12 @@ class DemoCoreAdapter:
             ]
         return [
             server
-            for server in await self.get_servers(country_code)
+            for server in self._servers_for_country(country_code)
             if server.location == group_name
         ]
 
-    async def get_servers(self, country_code: str) -> list[ServerInfo]:
+    @staticmethod
+    def _servers_for_country(country_code: str) -> list[ServerInfo]:
         demo_servers = {
             "CH": [
                 ServerInfo("CH#101", "Zurich", 24, p2p=True),
@@ -158,7 +201,7 @@ class DemoCoreAdapter:
         return demo_servers.get(country_code, [])
 
     async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]:
-        servers = list(await self.get_servers(country_code))
+        servers = list(self._servers_for_country(country_code))
         if country_code == "CH":
             servers.extend(
                 await self.get_group_servers("CH", "secure-core", "Via Secure Core")
@@ -166,19 +209,17 @@ class DemoCoreAdapter:
         return [ServerLoadInfo(server.name, server.load) for server in servers]
 
     async def search_locations(self, query: str) -> list[LocationSearchInfo]:
-        needle = _fold_search_text(query)
+        needle = fold_search_text(query)
         locations: dict[tuple[str, str], LocationSearchInfo] = {}
         servers: list[LocationSearchInfo] = []
         for country_code in ("CH", "US"):
-            country_servers = list(await self.get_servers(country_code))
+            country_servers = list(self._servers_for_country(country_code))
             if country_code == "CH":
                 country_servers.extend(
-                    await self.get_group_servers(
-                        "CH", "secure-core", "Via Secure Core"
-                    )
+                    await self.get_group_servers("CH", "secure-core", "Via Secure Core")
                 )
             for server in country_servers:
-                if server.location and needle in _fold_search_text(server.location):
+                if server.location and needle in fold_search_text(server.location):
                     locations[(country_code, server.location)] = LocationSearchInfo(
                         kind="location",
                         name=server.location,
@@ -186,7 +227,7 @@ class DemoCoreAdapter:
                         group_name=server.location,
                         accessible=server.accessible,
                     )
-                if server.accessible and needle in _fold_search_text(server.name):
+                if server.accessible and needle in fold_search_text(server.name):
                     servers.append(
                         LocationSearchInfo(
                             kind="server",
@@ -221,21 +262,20 @@ class DemoCoreAdapter:
             packet_capture_supported=self._settings.protocol.startswith("protun-"),
         )
 
-    async def update_settings(
-        self, patch: dict[str, SettingsValue]
-    ) -> VpnSettings:
-        if (
-            self._snapshot.state != "disconnected"
-            and ({"protocol", "killSwitch"} & set(patch))
+    async def update_settings(self, patch: dict[str, SettingsValue]) -> VpnSettings:
+        if self._snapshot.state != "disconnected" and (
+            {"protocol", "killSwitch"} & set(patch)
         ):
-            raise RuntimeError(
+            raise UserVisibleRuntimeError(
                 "Disconnect the VPN before changing protocol or kill switch"
             )
         if not self._logged_in and (
             {"netShield", "vpnAccelerator", "moderateNat", "portForwarding"}
             & set(patch)
         ):
-            raise RuntimeError("This setting requires a paid Proton VPN plan")
+            raise UserVisibleRuntimeError(
+                "This setting requires a paid Proton VPN plan"
+            )
         replacements = {
             {
                 "protocol": "protocol",
@@ -253,7 +293,7 @@ class DemoCoreAdapter:
         if protocol is not None and protocol not in {
             item.id for item in self._settings.protocols
         }:
-            raise ValueError("Select an available VPN protocol")
+            raise UserVisibleValueError("Select an available VPN protocol")
         self._settings = replace(self._settings, **replacements)
         return await self.get_settings()
 
@@ -267,14 +307,20 @@ class DemoCoreAdapter:
         self, patch: dict[str, SplitTunnelingValue]
     ) -> SplitTunnelingSettings:
         if not self._logged_in:
-            raise RuntimeError("A Proton account session is required")
+            raise UserVisibleRuntimeError("A Proton account session is required")
         if not self._split_tunneling.available:
-            raise RuntimeError("Split tunneling is unavailable on this system")
+            raise UserVisibleRuntimeError(
+                "Split tunneling is unavailable on this system"
+            )
         if patch.get("enabled") is True:
             if self._settings.kill_switch != 0:
-                raise ValueError("Disable the kill switch before enabling split tunneling")
+                raise UserVisibleValueError(
+                    "Disable the kill switch before enabling split tunneling"
+                )
             if not _supports_split_tunneling(self._settings.protocol):
-                raise ValueError("Select WireGuard or a compatible protocol first")
+                raise UserVisibleValueError(
+                    "Select WireGuard or a compatible protocol first"
+                )
 
         replacements = {
             {
@@ -294,7 +340,7 @@ class DemoCoreAdapter:
             and not updated.include_app_paths
             and not updated.include_ip_ranges
         ):
-            raise ValueError(
+            raise UserVisibleValueError(
                 "Select at least one included application or IP range before enabling this mode"
             )
         self._split_tunneling = updated
@@ -314,10 +360,10 @@ class DemoCoreAdapter:
         self, patch: dict[str, CustomDnsValue]
     ) -> CustomDnsSettings:
         if not self._logged_in:
-            raise RuntimeError("A Proton account session is required")
+            raise UserVisibleRuntimeError("A Proton account session is required")
         final_enabled = patch.get("enabled", self._custom_dns.enabled)
         if final_enabled and self._settings.net_shield != 0:
-            raise ValueError("Disable NetShield before enabling custom DNS")
+            raise UserVisibleValueError("Disable NetShield before enabling custom DNS")
         replacements: dict[str, Any] = {}
         if "enabled" in patch:
             replacements["enabled"] = bool(patch["enabled"])
@@ -350,7 +396,7 @@ class DemoCoreAdapter:
         servers = await self.get_group_servers(country_code, group_kind, group_name)
         available = [server for server in servers if server.accessible]
         if not available:
-            raise RuntimeError("No server available in the current tier")
+            raise UserVisibleRuntimeError("No server available in the current tier")
         await self.connect_server(min(available, key=lambda server: server.load).name)
 
     async def connect_server(self, server_name: str) -> None:
@@ -369,23 +415,31 @@ class DemoCoreAdapter:
 
     async def start_packet_capture(self, directory_path: str) -> None:
         if self._snapshot.state != "connected":
-            raise RuntimeError("Connect the VPN before starting packet capture")
+            raise UserVisibleRuntimeError(
+                "Connect the VPN before starting packet capture"
+            )
         if not self._settings.protocol.startswith("protun-"):
-            raise RuntimeError("The selected protocol does not support packet capture")
+            raise UserVisibleRuntimeError(
+                "The selected protocol does not support packet capture"
+            )
         if not Path(directory_path).is_absolute():
-            raise ValueError("Select a valid packet-capture folder")
+            raise UserVisibleValueError("Select a valid packet-capture folder")
         self._packet_capture_active = True
-        self._publish(self._build_snapshot(
-            state=self._snapshot.state,
-            server_name=self._snapshot.server_name,
-        ))
+        self._publish(
+            self._build_snapshot(
+                state=self._snapshot.state,
+                server_name=self._snapshot.server_name,
+            )
+        )
 
     async def stop_packet_capture(self) -> None:
         self._packet_capture_active = False
-        self._publish(self._build_snapshot(
-            state=self._snapshot.state,
-            server_name=self._snapshot.server_name,
-        ))
+        self._publish(
+            self._build_snapshot(
+                state=self._snapshot.state,
+                server_name=self._snapshot.server_name,
+            )
+        )
 
     async def submit_support_report(self, report: SupportReport) -> None:
         await asyncio.sleep(0.01)
@@ -401,7 +455,9 @@ class DemoCoreAdapter:
 
     async def login(self, username: str, password: str) -> None:
         if self._settings.kill_switch == 2:
-            raise RuntimeError("Disable the permanent kill switch before signing in")
+            raise UserVisibleRuntimeError(
+                "Disable the permanent kill switch before signing in"
+            )
         await asyncio.sleep(0.05)
         if password == "2fa":
             self._auth_state = "two_factor"
@@ -427,11 +483,13 @@ class DemoCoreAdapter:
         self._publish(self._build_snapshot(message="Sign-in cancelled"))
 
     async def begin_fido2(self) -> None:
-        raise RuntimeError("Security-key authentication is unavailable in demo mode")
+        raise UserVisibleRuntimeError(
+            "Security-key authentication is unavailable in demo mode"
+        )
 
     async def submit_fido2_pin(self, pin: str) -> None:
         del pin
-        raise RuntimeError("No security key is waiting for a PIN")
+        raise UserVisibleRuntimeError("No security key is waiting for a PIN")
 
     async def cancel_fido2(self) -> None:
         return None
@@ -447,9 +505,7 @@ class DemoCoreAdapter:
     async def disable_kill_switch_for_login(self) -> None:
         self._settings = replace(self._settings, kill_switch=0)
         self._publish(
-            self._build_snapshot(
-                message="Kill switch disabled; you can now sign in"
-            )
+            self._build_snapshot(message="Kill switch disabled; you can now sign in")
         )
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
@@ -496,12 +552,12 @@ class DemoCoreAdapter:
             exit_country=details[1],
             entry_country=details[2],
             forwarded_port=(
-                51820
-                if state == "connected" and self._settings.port_forwarding
-                else 0
+                51820 if state == "connected" and self._settings.port_forwarding else 0
             ),
             secure_core=details[3],
             packet_capture_active=self._packet_capture_active,
+            core_memory_optimized=True,
+            core_version="demo",
             message=message,
         )
 
@@ -533,6 +589,10 @@ class ProtonCoreAdapter:
         self._packet_capture_active = False
         self._kill_switch = 0
         self._startup_compatible = True
+        self._server_list_generation = 0
+        self._search_projection: ServerSearchProjection | None = None
+        self._core_memory_optimized = False
+        self._core_version = ""
 
     async def initialize(
         self,
@@ -541,6 +601,8 @@ class ProtonCoreAdapter:
     ) -> VpnSnapshot:
         self._callback = callback
         self._server_data_callback = server_data_callback
+        self._core_memory_optimized = _core_memory_optimizations_active()
+        self._core_version = _core_package_version()
         if self._api is None:
             from proton.vpn.core.api import ProtonVPNAPI
             from proton.vpn.core.session_holder import ClientTypeMetadata
@@ -570,6 +632,11 @@ class ProtonCoreAdapter:
         self._api.refresher.set_server_loads_updated_callback(
             self._on_server_loads_updated
         )
+        location_callback_setter = getattr(
+            self._api.refresher, "set_location_names_updated_callback", None
+        )
+        if callable(location_callback_setter):
+            location_callback_setter(self._on_location_names_updated)
 
         if not self._logged_in:
             try:
@@ -646,26 +713,7 @@ class ProtonCoreAdapter:
     ) -> list[ServerInfo]:
         server_list = await self._get_server_list()
         group = self._server_group(server_list, country_code, group_kind, group_name)
-        servers = [
-            self._server_info(server_list, server) for server in group.servers
-        ]
-        return sorted(
-            servers,
-            key=lambda item: (
-                not item.accessible,
-                item.under_maintenance,
-                item.load,
-                item.name,
-            ),
-        )
-
-    async def get_servers(self, country_code: str) -> list[ServerInfo]:
-        server_list = await self._get_server_list()
-        servers = [
-            self._server_info(server_list, server)
-            for server in self._normal_servers(server_list)
-            if server.exit_country.upper() == country_code
-        ]
+        servers = [self._server_info(server_list, server) for server in group.servers]
         return sorted(
             servers,
             key=lambda item: (
@@ -691,77 +739,17 @@ class ProtonCoreAdapter:
         )
 
         server_list = await self._get_server_list()
-        logicals = list(server_list.logicals)
-        available_names = {
-            server.name
-            for server in server_list.get_available_servers(
-                logicals, server_list.user_tier
+        if (
+            self._search_projection is None
+            or self._search_projection.generation != self._server_list_generation
+        ):
+            self._search_projection = ServerSearchProjection.build(
+                server_list,
+                self._server_list_generation,
+                ServerFeatureEnum.SECURE_CORE,
+                sort_servers_alphabetically_by_country_and_server_name,
             )
-        }
-        needle = _fold_search_text(query)
-        countries = {
-            country.code.upper(): country for country in self._countries(server_list)
-        }
-        locations: dict[tuple[str, str], LocationSearchInfo] = {}
-        matching_servers = []
-        for server in logicals:
-            if server.under_maintenance:
-                continue
-            country_code = server.exit_country.upper()
-            location = server.location or ""
-            if location and needle in _fold_search_text(location):
-                key = (country_code, location)
-                accessible = server.name in available_names
-                previous = locations.get(key)
-                locations[key] = LocationSearchInfo(
-                    kind="location",
-                    name=location,
-                    country_code=country_code,
-                    group_name=location,
-                    accessible=accessible or bool(previous and previous.accessible),
-                )
-            if (
-                server.name in available_names
-                and needle in _fold_search_text(server.name)
-            ):
-                matching_servers.append(server)
-
-        location_results = sorted(
-            locations.values(),
-            key=lambda item: (_fold_search_text(item.name), item.country_code),
-        )[:100]
-        server_results = [
-            LocationSearchInfo(
-                kind="server",
-                name=server.name,
-                country_code=server.exit_country.upper(),
-                location=server.location or "",
-                group_kind=(
-                    "secure-core"
-                    if ServerFeatureEnum.SECURE_CORE in server.features
-                    else "location"
-                ),
-                group_name=(
-                    getattr(
-                        getattr(
-                            countries.get(server.exit_country.upper()),
-                            "secure_core_group",
-                            None,
-                        ),
-                        "name",
-                        "Via Secure Core",
-                    )
-                    if ServerFeatureEnum.SECURE_CORE in server.features
-                    else server.location or ""
-                ),
-                load=server.load or 0,
-            )
-            for server in sorted(
-                matching_servers,
-                key=sort_servers_alphabetically_by_country_and_server_name,
-            )[:100]
-        ]
-        return [*location_results, *server_results]
+        return self._search_projection.search(server_list, query)
 
     async def get_settings(self) -> VpnSettings:
         settings = await self._load_settings()
@@ -775,15 +763,11 @@ class ProtonCoreAdapter:
         settings = await self._load_settings()
         return self._custom_dns_from_core(settings)
 
-    async def update_settings(
-        self, patch: dict[str, SettingsValue]
-    ) -> VpnSettings:
+    async def update_settings(self, patch: dict[str, SettingsValue]) -> VpnSettings:
         settings = await self._load_settings()
         state_name = type(self._connector.current_state).__name__.lower()
-        if state_name != "disconnected" and (
-            {"protocol", "killSwitch"} & set(patch)
-        ):
-            raise RuntimeError(
+        if state_name != "disconnected" and ({"protocol", "killSwitch"} & set(patch)):
+            raise UserVisibleRuntimeError(
                 "Disconnect the VPN before changing protocol or kill switch"
             )
 
@@ -794,19 +778,21 @@ class ProtonCoreAdapter:
             "portForwarding",
         }
         if self._user_tier() < 1 and paid_fields & set(patch):
-            raise RuntimeError("This setting requires a paid Proton VPN plan")
+            raise UserVisibleRuntimeError(
+                "This setting requires a paid Proton VPN plan"
+            )
 
         protocols = {item.id for item in self._available_protocols(settings.protocol)}
         requested_protocol = patch.get("protocol")
         if requested_protocol is not None and requested_protocol not in protocols:
-            raise ValueError("Select an available VPN protocol")
+            raise UserVisibleValueError("Select an available VPN protocol")
 
         split_tunneling_enabled = bool(settings.features.split_tunneling.enabled)
         if (
             split_tunneling_enabled
             and patch.get("killSwitch", settings.killswitch) != 0
         ):
-            raise ValueError(
+            raise UserVisibleValueError(
                 "Disable split tunneling before enabling the kill switch"
             )
         if (
@@ -814,14 +800,14 @@ class ProtonCoreAdapter:
             and requested_protocol is not None
             and not self._protocol_supports_split_tunneling(requested_protocol)
         ):
-            raise ValueError(
+            raise UserVisibleValueError(
                 "Disable split tunneling before selecting this protocol"
             )
         if (
             bool(settings.custom_dns.enabled)
             and patch.get("netShield", settings.features.netshield) != 0
         ):
-            raise ValueError("Disable custom DNS before enabling NetShield")
+            raise UserVisibleValueError("Disable custom DNS before enabling NetShield")
 
         for key, value in patch.items():
             if key == "protocol":
@@ -850,19 +836,25 @@ class ProtonCoreAdapter:
         settings = await self._load_settings()
         split_tunneling = settings.features.split_tunneling
         if not bool(self._connector.is_split_tunneling_available):
-            raise RuntimeError("Split tunneling is unavailable on this system")
+            raise UserVisibleRuntimeError(
+                "Split tunneling is unavailable on this system"
+            )
         if self._user_tier() < 1:
-            raise RuntimeError("Split tunneling requires a paid Proton VPN plan")
+            raise UserVisibleRuntimeError(
+                "Split tunneling requires a paid Proton VPN plan"
+            )
 
         final_enabled = patch.get("enabled", split_tunneling.enabled)
-        final_mode = patch.get(
-            "mode", self._mode_value(split_tunneling.mode)
-        )
+        final_mode = patch.get("mode", self._mode_value(split_tunneling.mode))
         if final_enabled:
             if int(settings.killswitch) != 0:
-                raise ValueError("Disable the kill switch before enabling split tunneling")
+                raise UserVisibleValueError(
+                    "Disable the kill switch before enabling split tunneling"
+                )
             if not self._protocol_supports_split_tunneling(settings.protocol):
-                raise ValueError("Select WireGuard or a compatible protocol first")
+                raise UserVisibleValueError(
+                    "Select WireGuard or a compatible protocol first"
+                )
             if final_mode == "include":
                 include_paths = patch.get(
                     "includeAppPaths", split_tunneling.include.app_paths
@@ -871,7 +863,7 @@ class ProtonCoreAdapter:
                     "includeIpRanges", split_tunneling.include.ip_ranges
                 )
                 if not include_paths and not include_ranges:
-                    raise ValueError(
+                    raise UserVisibleValueError(
                         "Select at least one included application or IP range before enabling this mode"
                     )
 
@@ -898,11 +890,11 @@ class ProtonCoreAdapter:
     ) -> CustomDnsSettings:
         settings = await self._load_settings()
         if self._user_tier() < 1:
-            raise RuntimeError("Custom DNS requires a paid Proton VPN plan")
+            raise UserVisibleRuntimeError("Custom DNS requires a paid Proton VPN plan")
 
         final_enabled = patch.get("enabled", settings.custom_dns.enabled)
         if final_enabled and int(settings.features.netshield) != 0:
-            raise ValueError("Disable NetShield before enabling custom DNS")
+            raise UserVisibleValueError("Disable NetShield before enabling custom DNS")
 
         if "servers" in patch:
             from proton.vpn.core.settings import CustomDNSEntry
@@ -927,7 +919,9 @@ class ProtonCoreAdapter:
         except Exception as error:
             if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
                 await self._raise_session_error(error)
-            raise RuntimeError("Proton could not load the VPN settings") from None
+            raise UserVisibleRuntimeError(
+                "Proton could not load the VPN settings"
+            ) from None
 
     async def _save_settings(self, settings: Any) -> None:
         try:
@@ -935,7 +929,9 @@ class ProtonCoreAdapter:
         except Exception as error:
             if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
                 await self._raise_session_error(error)
-            raise RuntimeError("Proton could not save the VPN settings") from None
+            raise UserVisibleRuntimeError(
+                "Proton could not save the VPN settings"
+            ) from None
 
     async def connect_country(self, country_code: str) -> None:
         server_list = await self._get_server_list()
@@ -951,7 +947,7 @@ class ProtonCoreAdapter:
         )
         logical_server = server_list.get_fastest_server(available)
         if logical_server is None:
-            raise RuntimeError("No server available in the current tier")
+            raise UserVisibleRuntimeError("No server available in the current tier")
         await self._connect_logical(logical_server)
 
     async def connect_server(self, server_name: str) -> None:
@@ -960,24 +956,34 @@ class ProtonCoreAdapter:
 
     async def start_packet_capture(self, directory_path: str) -> None:
         if type(self._connector.current_state).__name__.lower() != "connected":
-            raise RuntimeError("Connect the VPN before starting packet capture")
+            raise UserVisibleRuntimeError(
+                "Connect the VPN before starting packet capture"
+            )
         connection = self._connector.current_connection
-        if connection is None or not self._connection_supports_packet_capture(connection):
-            raise RuntimeError("The selected protocol does not support packet capture")
+        if connection is None or not self._connection_supports_packet_capture(
+            connection
+        ):
+            raise UserVisibleRuntimeError(
+                "The selected protocol does not support packet capture"
+            )
         path = Path(directory_path)
         if not path.is_absolute():
-            raise ValueError("Select a valid packet-capture folder")
+            raise UserVisibleValueError("Select a valid packet-capture folder")
         try:
             resolved = path.resolve(strict=True)
         except OSError as error:
-            raise ValueError("Select an existing packet-capture folder") from error
+            raise UserVisibleValueError(
+                "Select an existing packet-capture folder"
+            ) from error
         if not resolved.is_dir() or not os.access(resolved, os.W_OK | os.X_OK):
-            raise ValueError("Select a writable packet-capture folder")
+            raise UserVisibleValueError("Select a writable packet-capture folder")
         try:
             connection.settings.packet_capture.directory_path = str(resolved)
             await connection.start_packet_capture()
         except Exception:
-            raise RuntimeError("Proton could not start packet capture") from None
+            raise UserVisibleRuntimeError(
+                "Proton could not start packet capture"
+            ) from None
         self._packet_capture_active = True
         self._publish_snapshot()
 
@@ -989,7 +995,9 @@ class ProtonCoreAdapter:
             if connection is not None:
                 await connection.stop_packet_capture()
         except Exception:
-            raise RuntimeError("Proton could not stop packet capture") from None
+            raise UserVisibleRuntimeError(
+                "Proton could not stop packet capture"
+            ) from None
         self._packet_capture_active = False
         self._publish_snapshot()
 
@@ -1011,14 +1019,13 @@ class ProtonCoreAdapter:
                     client_version=__version__,
                     client="KDE Plasma GUI",
                     attachments=[
-                        attachments.enter_context(path.open("rb"))
-                        for path in log_paths
+                        attachments.enter_context(path.open("rb")) for path in log_paths
                     ],
                 )
                 try:
                     await self._api.submit_bug_report(report_form)
                 except Exception:
-                    raise RuntimeError(
+                    raise UserVisibleRuntimeError(
                         "Proton could not submit the issue report"
                     ) from None
 
@@ -1055,7 +1062,7 @@ class ProtonCoreAdapter:
                 )
             )
         except Exception:
-            raise RuntimeError(
+            raise UserVisibleRuntimeError(
                 "Proton could not submit the survey response"
             ) from None
 
@@ -1064,14 +1071,6 @@ class ProtonCoreAdapter:
             return await self._api.refresher.get_up_to_date_server_list()
         except Exception as error:
             await self._raise_session_error(error)
-
-    def _normal_servers(self, server_list):
-        from proton.vpn.session.servers import ServerFeatureEnum
-
-        return server_list.get_servers_with_features(
-            server_list.logicals,
-            exclude_features=ServerFeatureEnum.SECURE_CORE | ServerFeatureEnum.TOR,
-        )
 
     @staticmethod
     def _countries(server_list):
@@ -1084,7 +1083,9 @@ class ProtonCoreAdapter:
         for country in self._countries(server_list):
             if country.code.upper() == country_code:
                 return country
-        raise ValueError("The selected Proton country is no longer available")
+        raise UserVisibleValueError(
+            "The selected Proton country is no longer available"
+        )
 
     def _server_group(
         self, server_list, country_code: str, group_kind: str, group_name: str
@@ -1098,7 +1099,9 @@ class ProtonCoreAdapter:
             for location in country.locations:
                 if location.name == group_name:
                     return location
-        raise ValueError("The selected Proton server group is no longer available")
+        raise UserVisibleValueError(
+            "The selected Proton server group is no longer available"
+        )
 
     @staticmethod
     def _server_info(server_list, server) -> ServerInfo:
@@ -1148,18 +1151,14 @@ class ProtonCoreAdapter:
             paid_features_available=self._user_tier() >= 1,
             protocol_editable=disconnected,
             kill_switch_editable=disconnected,
-            split_tunneling_enabled=bool(
-                settings.features.split_tunneling.enabled
-            ),
+            split_tunneling_enabled=bool(settings.features.split_tunneling.enabled),
             custom_dns_enabled=bool(settings.custom_dns.enabled),
             packet_capture_supported=self._protocol_supports_packet_capture(
                 settings.protocol
             ),
         )
 
-    def _split_tunneling_from_core(
-        self, settings: Any
-    ) -> SplitTunnelingSettings:
+    def _split_tunneling_from_core(self, settings: Any) -> SplitTunnelingSettings:
         split_tunneling = settings.features.split_tunneling
         return SplitTunnelingSettings(
             available=bool(self._connector.is_split_tunneling_available),
@@ -1198,9 +1197,7 @@ class ProtonCoreAdapter:
                 if protocol_id in seen:
                     continue
                 seen.add(protocol_id)
-                protocols.append(
-                    ProtocolInfo(protocol_id, str(candidate.ui_protocol))
-                )
+                protocols.append(ProtocolInfo(protocol_id, str(candidate.ui_protocol)))
         except (AttributeError, TypeError):
             pass
         if current_protocol not in seen:
@@ -1219,9 +1216,8 @@ class ProtonCoreAdapter:
     def _protocol_supports_packet_capture(self, protocol: str) -> bool:
         try:
             for candidate in self._iter_available_protocols():
-                if (
-                    str(candidate.protocol) == protocol
-                    and bool(candidate.supports_packet_capture())
+                if str(candidate.protocol) == protocol and bool(
+                    candidate.supports_packet_capture()
                 ):
                     return True
         except (AttributeError, TypeError):
@@ -1256,7 +1252,9 @@ class ProtonCoreAdapter:
         settings = await self._load_settings()
         self._kill_switch = self._kill_switch_value(settings)
         if self._kill_switch == 2:
-            raise RuntimeError("Disable the permanent kill switch before signing in")
+            raise UserVisibleRuntimeError(
+                "Disable the permanent kill switch before signing in"
+            )
         self._auth_state = "signing_in"
         self._status_message = "Signing in…"
         self._publish_snapshot()
@@ -1280,7 +1278,7 @@ class ProtonCoreAdapter:
 
     async def submit_two_factor(self, code: str) -> None:
         if self._auth_state not in {"two_factor", "fido_error"}:
-            raise RuntimeError("No two-factor authentication is pending")
+            raise UserVisibleRuntimeError("No two-factor authentication is pending")
         self._status_message = "Verifying the two-factor code…"
         self._publish_snapshot()
         try:
@@ -1307,9 +1305,9 @@ class ProtonCoreAdapter:
 
     async def begin_fido2(self) -> None:
         if self._auth_state not in {"two_factor", "fido_error"}:
-            raise RuntimeError("No two-factor authentication is pending")
+            raise UserVisibleRuntimeError("No two-factor authentication is pending")
         if not bool(self._api.supports_fido2):
-            raise RuntimeError("Security-key authentication is unavailable")
+            raise UserVisibleRuntimeError("Security-key authentication is unavailable")
 
         loop = asyncio.get_running_loop()
         interaction = FidoInteraction(loop, self._set_auth_status)
@@ -1347,7 +1345,7 @@ class ProtonCoreAdapter:
 
     async def submit_fido2_pin(self, pin: str) -> None:
         if not self._fido_interaction or not self._fido_interaction.provide_pin(pin):
-            raise RuntimeError("No security key is waiting for a PIN")
+            raise UserVisibleRuntimeError("No security key is waiting for a PIN")
         self._set_auth_status("fido_waiting", "Waiting for the security key…")
 
     async def cancel_fido2(self) -> None:
@@ -1373,10 +1371,12 @@ class ProtonCoreAdapter:
                 await self._enable_session_services()
             error_name = type(error).__name__
             if error_name in {"ProtonAPINotReachable", "ProtonAPINotAvailable"}:
-                raise RuntimeError(
+                raise UserVisibleRuntimeError(
                     "Proton's API is unreachable; sign-out was not completed"
                 ) from None
-            raise RuntimeError("Proton could not complete sign-out") from None
+            raise UserVisibleRuntimeError(
+                "Proton could not complete sign-out"
+            ) from None
         await self._set_signed_out("Signed out")
 
     async def disable_kill_switch_for_login(self) -> None:
@@ -1407,6 +1407,11 @@ class ProtonCoreAdapter:
         if self._api:
             self._api.refresher.set_server_list_updated_callback(None)
             self._api.refresher.set_server_loads_updated_callback(None)
+            location_callback_setter = getattr(
+                self._api.refresher, "set_location_names_updated_callback", None
+            )
+            if callable(location_callback_setter):
+                location_callback_setter(None)
         if self._reconnector:
             await self._reconnector.disable()
         if self._connector:
@@ -1424,12 +1429,22 @@ class ProtonCoreAdapter:
             self._callback(self._snapshot_from_state(self._connector.current_state))
 
     def _on_server_list_updated(self) -> None:
+        self._invalidate_search_projection()
         if self._server_data_callback:
             self._server_data_callback(True)
 
     def _on_server_loads_updated(self) -> None:
         if self._server_data_callback:
             self._server_data_callback(False)
+
+    def _on_location_names_updated(self) -> None:
+        self._invalidate_search_projection()
+        if self._server_data_callback:
+            self._server_data_callback(True)
+
+    def _invalidate_search_projection(self) -> None:
+        self._server_list_generation += 1
+        self._search_projection = None
 
     async def _complete_login(self) -> None:
         self._logged_in = True
@@ -1458,6 +1473,7 @@ class ProtonCoreAdapter:
         self._auth_state = auth_state
         self._status_message = message
         self._session_services_enabled = False
+        self._search_projection = None
         self._publish_snapshot()
 
     async def _raise_session_error(self, error: Exception):
@@ -1471,7 +1487,9 @@ class ProtonCoreAdapter:
             "Your Proton session expired; sign in again",
             auth_state="expired",
         )
-        raise RuntimeError("Your Proton session expired; sign in again") from None
+        raise UserVisibleRuntimeError(
+            "Your Proton session expired; sign in again"
+        ) from None
 
     def _set_auth_status(self, state: str, message: str) -> None:
         self._auth_state = state
@@ -1632,6 +1650,8 @@ class ProtonCoreAdapter:
             streaming=streaming,
             smart_routing=smart_routing,
             packet_capture_active=self._packet_capture_active,
+            core_memory_optimized=self._core_memory_optimized,
+            core_version=self._core_version,
             message=(
                 self._status_message
                 if self._logged_in

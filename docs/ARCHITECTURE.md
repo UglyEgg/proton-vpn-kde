@@ -52,7 +52,6 @@ The additive version-one contract currently contains:
 - `GetCountries() -> JSON string`
 - `GetServerGroups(countryCode) -> JSON string`
 - `GetGroupServers(countryCode, groupKind, groupName) -> JSON string`
-- `GetServers(countryCode) -> JSON string`
 - `GetServerLoads(countryCode) -> JSON string`
 - `SearchLocations(query) -> JSON string`
 - `GetPendingNpsSurvey() -> JSON string`
@@ -90,6 +89,13 @@ JSON keeps the prototype easy to inspect while `schemaVersion` protects the
 boundary. Before a public release, frequently accessed fields can become typed
 D-Bus properties without breaking the version-one interface.
 
+The non-sensitive snapshot also carries the installed API Core package version
+and a boolean runtime diagnostic for the two server-string sharing paths. The
+backend exercises those paths only with synthetic dictionaries and checks
+object identity; it never reads or mutates the live server model. The frontend
+uses that metadata solely to warn when a package upgrade has replaced the
+memory overlay. It does not gate connection or account behavior.
+
 The NPS prompt consumes only Proton core's cached active notification, marks it
 seen through the official persistence API when offered, and submits or dismisses
 it through the official survey API. Optional free-form feedback uses the sealed
@@ -115,9 +121,31 @@ connected tunnels and packet captures therefore remain supervised. A clean
 exit is reactivated on demand and releases the Python core's server model and
 native networking libraries while the application is not in use.
 
+The installed unit executes the backend by its absolute packaged path and
+enables `NoNewPrivileges`, a private temporary directory, and read-only system
+directories. User data remains writable because Proton persists settings and
+caches below the home directory and packet capture supports an arbitrary folder
+chosen by the user. More restrictive home, network, device, or address-family
+sandboxes are intentionally excluded where they would interfere with Secret
+Service, NetworkManager, FIDO2, split tunneling, or capture workflows. The
+tested boundary and exclusions are recorded in [Backend service hardening](HARDENING.md).
+
 The backend requests its well-known name with `DO_NOT_QUEUE` and starts Proton
 core only after becoming the primary owner. Accidental manual or test launches
 therefore exit without creating a second refresher, connector, or SSO session.
+If Proton Core initialization fails, the backend publishes only its fixed
+startup-failure state, releases its D-Bus resources, and exits nonzero. The
+user unit's `Restart=on-failure` policy can then recover transient Secret
+Service, NetworkManager, or Core startup failures instead of retaining a
+permanently unready process.
+
+Frontend leases become active only after `RegisterClient` returns successfully.
+Registration requests carry a service-generation token, so a late reply from a
+replaced backend cannot mark the new generation as registered. Failed requests
+retry with bounded exponential delay, while a service registration causes an
+immediate fresh request. Other asynchronous control calls also observe their
+replies and classify backend-unavailable, protected-secret, and ordinary
+operation failures without blocking the UI.
 
 The official SSO stack reaches Secret Service through a synchronous keyring
 API. The backend warms that saved session on a worker thread before creating
@@ -200,6 +228,10 @@ Retries use capped exponential jitter and wait until a network route is
 available and the systemd-logind session is unlocked. Authentication, session
 limit, 2FA, and certificate-validity errors are not retried; an expired
 certificate is handed to Proton's official data refresher.
+If Proton temporarily exposes an error state before restoring its previous
+connection metadata, the reconnector keeps the same bounded retry cycle instead
+of becoming inert. It still reconnects only after Core supplies the prior
+server, protocol, and backend tuple.
 
 Connection failures cross D-Bus as a closed set of stable `errorCode` values
 derived only from Proton event class names. The frontend owns their translated
@@ -209,6 +241,12 @@ time also receive the official recovery guidance, and an error-state primary
 action always cancels the failed connection so Proton's protective network
 block can be released. Unknown event classes collapse to `unexpected_error`;
 raw exception text never becomes observable state.
+
+Every exported D-Bus method also passes through one shared exception boundary.
+Only bounded, single-line messages explicitly marked as user-visible by this
+backend may cross it. Unexpected exceptions collapse to stable typed errors;
+the backend log records their class but not their text. Reconnection status uses
+the same rule and never incorporates third-party exception strings.
 
 Startup compatibility uses the official core's
 `validate_connection_availability()` when present. Fedora's initial 5.5.6
@@ -244,10 +282,15 @@ sorting proxy reorders rows only when necessary. The user-facing list stays in
 lowest-load order; search handles deliberate server or location selection
 without exposing low-value implementation-centric sort controls. The KDE layer
 does not add a polling schedule or make its own server-list API requests.
-Global search keeps localized country matching in Qt and asks the existing core
-list for at most 100 matching locations and 100 accessible exact servers per
-query. It therefore matches the official client's search sections without
-retaining a second, multi-thousand-row frontend model.
+Global search keeps localized country matching in Qt and uses one compact,
+immutable scalar projection per Proton topology generation for locations and
+exact servers. The projection precomputes normalized display names, grouping,
+natural server order, and secure-core classification, but never retains or
+wraps Proton server objects and never reorders the official list. Matching
+records resolve their current Core objects, so load, maintenance state, and plan
+availability remain live. Load-only refreshes do not rebuild the projection;
+full topology and localized-location-name callbacks discard it for a lazy
+rebuild. Each query returns at most 100 locations and 100 accessible servers.
 The same core access checks annotate countries, locations, and servers for the
 active account tier. Accessible rows sort first; paid-only and maintenance rows
 remain visible but cannot accidentally reach a connect operation, matching the

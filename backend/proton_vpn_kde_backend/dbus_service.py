@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from functools import wraps
+import inspect
+import logging
+from typing import Any, TypeVar
+
 from dbus_fast.errors import DBusError
 from dbus_fast.service import ServiceInterface, method, signal
 
@@ -12,9 +18,12 @@ from .controller import (
     VpnSettings,
     VpnSnapshot,
 )
+from .errors import UserVisibleError
 from .secret_payload import SecretPayloadReader
 from .lifetime import BackendLifetime
 
+
+logger = logging.getLogger(__name__)
 
 BUS_NAME = "proton.vpn.app.kde.backend"
 OBJECT_PATH = "/proton/vpn/app/kde/backend"
@@ -24,6 +33,74 @@ INVALID_SETTINGS_ERROR = "proton.vpn.app.kde.Error.InvalidSettings"
 INVALID_SPLIT_TUNNELING_ERROR = "proton.vpn.app.kde.Error.InvalidSplitTunneling"
 INVALID_CUSTOM_DNS_ERROR = "proton.vpn.app.kde.Error.InvalidCustomDns"
 INVALID_SUPPORT_REPORT_ERROR = "proton.vpn.app.kde.Error.InvalidSupportReport"
+OPERATION_FAILED_ERROR = "proton.vpn.app.kde.Error.OperationFailed"
+OPERATION_FAILED_MESSAGE = "The VPN operation could not be completed"
+
+
+Result = TypeVar("Result")
+
+
+def _bounded_user_message(error: UserVisibleError, fallback: str) -> str:
+    message = str(error).strip()
+    if not message or len(message) > 256 or not message.isprintable():
+        return fallback
+    return message
+
+
+def dbus_error_boundary(
+    error_name: str = OPERATION_FAILED_ERROR,
+    fallback_message: str = OPERATION_FAILED_MESSAGE,
+):
+    """Map an exported method failure to a stable, non-sensitive D-Bus error."""
+
+    def decorate(operation: Callable[..., Result]):
+        if inspect.iscoroutinefunction(operation):
+
+            @wraps(operation)
+            async def call_async(*args: Any, **kwargs: Any):
+                try:
+                    return await operation(*args, **kwargs)
+                except DBusError:
+                    raise
+                except UserVisibleError as error:
+                    raise DBusError(
+                        error_name,
+                        _bounded_user_message(error, fallback_message),
+                    ) from None
+                except Exception as error:
+                    logger.error(
+                        "D-Bus method %s failed (%s)",
+                        operation.__name__,
+                        type(error).__name__,
+                    )
+                    raise DBusError(error_name, fallback_message) from None
+
+            call_async.__dbus_error_boundary__ = True
+            return call_async
+
+        @wraps(operation)
+        def call_sync(*args: Any, **kwargs: Any):
+            try:
+                return operation(*args, **kwargs)
+            except DBusError:
+                raise
+            except UserVisibleError as error:
+                raise DBusError(
+                    error_name,
+                    _bounded_user_message(error, fallback_message),
+                ) from None
+            except Exception as error:
+                logger.error(
+                    "D-Bus method %s failed (%s)",
+                    operation.__name__,
+                    type(error).__name__,
+                )
+                raise DBusError(error_name, fallback_message) from None
+
+        call_sync.__dbus_error_boundary__ = True
+        return call_sync
+
+    return decorate
 
 
 class VpnDbusService(ServiceInterface):
@@ -41,40 +118,44 @@ class VpnDbusService(ServiceInterface):
         controller.subscribe_custom_dns(self._on_custom_dns)
 
     @method(name="RegisterClient")
+    @dbus_error_boundary()
     async def register_client(self, unique_name: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
         if self._lifetime is not None:
             await self._lifetime.register_client(unique_name)
 
     @method(name="UnregisterClient")
+    @dbus_error_boundary()
     def unregister_client(self, unique_name: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
         if self._lifetime is not None:
             self._lifetime.unregister_client(unique_name)
 
     @method(name="GetSnapshot")
+    @dbus_error_boundary()
     def get_snapshot(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return self._controller.snapshot.to_json()
 
     @method(name="GetAuthPublicKey")
+    @dbus_error_boundary()
     def get_auth_public_key(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return self._secret_payloads.public_key
 
     @method(name="ConnectFastest")
+    @dbus_error_boundary()
     async def connect_fastest(self):
         await self._controller.connect_fastest()
 
     @method(name="GetCountries")
+    @dbus_error_boundary()
     async def get_countries(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_countries_json()
 
-    @method(name="GetServers")
-    async def get_servers(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
-        return await self._controller.get_servers_json(country_code)
-
     @method(name="GetServerGroups")
+    @dbus_error_boundary()
     async def get_server_groups(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_server_groups_json(country_code)
 
     @method(name="GetGroupServers")
+    @dbus_error_boundary()
     async def get_group_servers(
         self,
         country_code: "s",  # noqa: F821
@@ -86,64 +167,75 @@ class VpnDbusService(ServiceInterface):
         )
 
     @method(name="GetServerLoads")
+    @dbus_error_boundary()
     async def get_server_loads(self, country_code: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_server_loads_json(country_code)
 
     @method(name="SearchLocations")
+    @dbus_error_boundary()
     async def search_locations(self, query: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.search_locations_json(query)
 
     @method(name="GetPendingNpsSurvey")
+    @dbus_error_boundary()
     async def get_pending_nps_survey(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
         return await self._controller.get_pending_nps_survey_json()
 
     @method(name="GetSettings")
+    @dbus_error_boundary(
+        INVALID_SETTINGS_ERROR,
+        "The VPN settings could not be loaded",
+    )
     async def get_settings(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
-        try:
-            return await self._controller.get_settings_json()
-        except (RuntimeError, ValueError) as error:
-            raise DBusError(INVALID_SETTINGS_ERROR, str(error)) from error
+        return await self._controller.get_settings_json()
 
     @method(name="UpdateSettings")
+    @dbus_error_boundary(
+        INVALID_SETTINGS_ERROR,
+        "The VPN setting could not be changed",
+    )
     async def update_settings(self, patch_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
-        try:
-            return await self._controller.update_settings_json(patch_json)
-        except (RuntimeError, ValueError) as error:
-            raise DBusError(INVALID_SETTINGS_ERROR, str(error)) from error
+        return await self._controller.update_settings_json(patch_json)
 
     @method(name="GetSplitTunneling")
+    @dbus_error_boundary(
+        INVALID_SPLIT_TUNNELING_ERROR,
+        "The split-tunneling settings could not be loaded",
+    )
     async def get_split_tunneling(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
-        try:
-            return await self._controller.get_split_tunneling_json()
-        except (RuntimeError, ValueError) as error:
-            raise DBusError(INVALID_SPLIT_TUNNELING_ERROR, str(error)) from error
+        return await self._controller.get_split_tunneling_json()
 
     @method(name="UpdateSplitTunneling")
+    @dbus_error_boundary(
+        INVALID_SPLIT_TUNNELING_ERROR,
+        "The split-tunneling setting could not be changed",
+    )
     async def update_split_tunneling(self, patch_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
-        try:
-            return await self._controller.update_split_tunneling_json(patch_json)
-        except (RuntimeError, ValueError) as error:
-            raise DBusError(INVALID_SPLIT_TUNNELING_ERROR, str(error)) from error
+        return await self._controller.update_split_tunneling_json(patch_json)
 
     @method(name="GetCustomDns")
+    @dbus_error_boundary(
+        INVALID_CUSTOM_DNS_ERROR,
+        "The custom-DNS settings could not be loaded",
+    )
     async def get_custom_dns(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
-        try:
-            return await self._controller.get_custom_dns_json()
-        except (RuntimeError, ValueError) as error:
-            raise DBusError(INVALID_CUSTOM_DNS_ERROR, str(error)) from error
+        return await self._controller.get_custom_dns_json()
 
     @method(name="UpdateCustomDns")
+    @dbus_error_boundary(
+        INVALID_CUSTOM_DNS_ERROR,
+        "The custom-DNS setting could not be changed",
+    )
     async def update_custom_dns(self, patch_json: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
-        try:
-            return await self._controller.update_custom_dns_json(patch_json)
-        except (RuntimeError, ValueError) as error:
-            raise DBusError(INVALID_CUSTOM_DNS_ERROR, str(error)) from error
+        return await self._controller.update_custom_dns_json(patch_json)
 
     @method(name="ConnectCountry")
+    @dbus_error_boundary()
     async def connect_country(self, country_code: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
         await self._controller.connect_country(country_code)
 
     @method(name="ConnectGroup")
+    @dbus_error_boundary()
     async def connect_group(
         self,
         country_code: "s",  # noqa: F821
@@ -153,38 +245,44 @@ class VpnDbusService(ServiceInterface):
         await self._controller.connect_group(country_code, group_kind, group_name)
 
     @method(name="ConnectServer")
+    @dbus_error_boundary()
     async def connect_server(self, server_name: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
         await self._controller.connect_server(server_name)
 
     @method(name="Disconnect")
+    @dbus_error_boundary()
     async def disconnect(self):
         await self._controller.disconnect()
 
     @method(name="StartPacketCapture")
+    @dbus_error_boundary()
     async def start_packet_capture(self, directory_path: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
         await self._controller.start_packet_capture(directory_path)
 
     @method(name="StopPacketCapture")
+    @dbus_error_boundary()
     async def stop_packet_capture(self):
         await self._controller.stop_packet_capture()
 
     @method(name="SubmitSupportReport")
+    @dbus_error_boundary(
+        INVALID_SUPPORT_REPORT_ERROR,
+        "The issue report could not be submitted",
+    )
     async def submit_support_report(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
         payload = self._read_secret(
             secret_fd,
             {"username", "email", "description", "includeLogs"},
         )
-        try:
-            await self._controller.submit_support_report(
-                payload["username"],
-                payload["email"],
-                payload["description"],
-                payload["includeLogs"],
-            )
-        except (RuntimeError, ValueError) as error:
-            raise DBusError(INVALID_SUPPORT_REPORT_ERROR, str(error)) from error
+        await self._controller.submit_support_report(
+            payload["username"],
+            payload["email"],
+            payload["description"],
+            payload["includeLogs"],
+        )
 
     @method(name="SubmitNpsSurvey")
+    @dbus_error_boundary()
     async def submit_nps_survey(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
         payload = self._read_secret(
             secret_fd,
@@ -195,44 +293,53 @@ class VpnDbusService(ServiceInterface):
         )
 
     @method(name="Login")
+    @dbus_error_boundary()
     async def login(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
         payload = self._read_secret(secret_fd, {"username", "password"})
         await self._controller.login(payload["username"], payload["password"])
 
     @method(name="SubmitTwoFactor")
+    @dbus_error_boundary()
     async def submit_two_factor(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
         payload = self._read_secret(secret_fd, {"code"})
         await self._controller.submit_two_factor(payload["code"])
 
     @method(name="CancelLogin")
+    @dbus_error_boundary()
     async def cancel_login(self):
         await self._controller.cancel_login()
 
     @method(name="BeginFido2")
+    @dbus_error_boundary()
     async def begin_fido2(self):
         await self._controller.begin_fido2()
 
     @method(name="SubmitFido2Pin")
+    @dbus_error_boundary()
     async def submit_fido2_pin(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
         payload = self._read_secret(secret_fd, {"pin"})
         await self._controller.submit_fido2_pin(payload["pin"])
 
     @method(name="CancelFido2")
+    @dbus_error_boundary()
     async def cancel_fido2(self):
         await self._controller.cancel_fido2()
 
     @method(name="Logout")
+    @dbus_error_boundary()
     async def logout(self):
         await self._controller.logout()
 
     @method(name="DisableKillSwitchForLogin")
+    @dbus_error_boundary(
+        INVALID_SETTINGS_ERROR,
+        "The kill switch could not be disabled",
+    )
     async def disable_kill_switch_for_login(self):
-        try:
-            await self._controller.disable_kill_switch_for_login()
-        except (RuntimeError, ValueError) as error:
-            raise DBusError(INVALID_SETTINGS_ERROR, str(error)) from error
+        await self._controller.disable_kill_switch_for_login()
 
     @method(name="SetReconnectionEnabled")
+    @dbus_error_boundary()
     async def set_reconnection_enabled(self, enabled: "b"):  # type: ignore[valid-type]  # noqa: F722,F821
         await self._controller.set_reconnection_enabled(enabled)
 

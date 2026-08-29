@@ -11,6 +11,51 @@ Kirigami.ScrollablePage {
 
         Kirigami.Heading {
             level: 1
+            text: "0.8.8"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Remove native page-navigation and shutdown diagnostics, add an automated every-page runtime check, and warn when the installed Proton Core no longer contains the verified server-list memory optimizations. VPN behavior remains owned by Proton Core.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
+            text: "0.8.7"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Harden the on-demand backend with private temporary storage, read-only system directories, and prevention of privilege gain while preserving Proton networking and user-selected capture folders.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
+            text: "0.8.6"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Make full-cache country, city, and server search effectively instantaneous with a compact projection that keeps live VPN state in Proton's official core.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
             text: "0.8.2"
         }
 

@@ -1,5 +1,6 @@
 #include "VpnController.h"
 
+#include "BackendCallPolicy.h"
 #include "ConnectionAction.h"
 #include "InstalledApplicationModel.h"
 #include "CustomDnsModel.h"
@@ -24,6 +25,7 @@
 #include <QMetaType>
 #include <QRegularExpression>
 #include <QSet>
+#include <QTimer>
 #include <algorithm>
 
 namespace
@@ -34,6 +36,11 @@ constexpr auto kBackendInterface = "proton.vpn.app.kde.Backend1";
 }
 
 VpnController::VpnController(QObject *parent)
+    : VpnController(parent, true)
+{
+}
+
+VpnController::VpnController(QObject *parent, bool discoverApplications)
     : QObject(parent)
     , m_serviceWatcher(new QDBusServiceWatcher(
           QString::fromLatin1(kBackendService),
@@ -41,11 +48,13 @@ VpnController::VpnController(QObject *parent)
           QDBusServiceWatcher::WatchForRegistration
               | QDBusServiceWatcher::WatchForUnregistration,
           this))
+    , m_clientRegistrationRetryTimer(new QTimer(this))
     , m_countryModel(new CountryModel(this))
     , m_locationSearchModel(new LocationSearchModel(this))
     , m_serverGroupModel(new ServerGroupModel(this))
     , m_serverModel(new ServerModel(this))
-    , m_installedApplicationModel(new InstalledApplicationModel(this))
+    , m_installedApplicationModel(
+          new InstalledApplicationModel(this, discoverApplications))
     , m_settings(new VpnSettingsModel(this))
     , m_splitTunneling(new SplitTunnelingModel(this))
     , m_customDns(new CustomDnsModel(this))
@@ -54,6 +63,9 @@ VpnController::VpnController(QObject *parent)
     , m_serverFilterModel(new LocationFilterProxyModel(this))
     , m_applicationFilterModel(new LocationFilterProxyModel(this))
 {
+    m_clientRegistrationRetryTimer->setSingleShot(true);
+    connect(m_clientRegistrationRetryTimer, &QTimer::timeout,
+            this, &VpnController::registerClient);
     m_countryFilterModel->setSourceModel(m_countryModel);
     m_countryFilterModel->setSearchRoles({CountryModel::CodeRole, CountryModel::NameRole});
     m_serverGroupFilterModel->setSourceModel(m_serverGroupModel);
@@ -154,6 +166,8 @@ bool VpnController::p2p() const { return m_p2p; }
 bool VpnController::streaming() const { return m_streaming; }
 bool VpnController::smartRouting() const { return m_smartRouting; }
 bool VpnController::packetCaptureActive() const { return m_packetCaptureActive; }
+bool VpnController::coreMemoryOptimized() const { return m_coreMemoryOptimized; }
+QString VpnController::coreVersion() const { return m_coreVersion; }
 QString VpnController::message() const { return m_message; }
 
 QString VpnController::primaryActionText() const
@@ -457,41 +471,6 @@ void VpnController::dismissNpsSurvey()
         false);
 }
 
-void VpnController::loadServers(const QString &countryCode)
-{
-    const QString normalizedCode = countryCode.trimmed().toUpper();
-    if (normalizedCode.size() != 2) {
-        return;
-    }
-    const bool countryChanged = m_currentServerCountry != normalizedCode;
-    m_currentServerCountry = normalizedCode;
-    m_currentServerGroupKind.clear();
-    m_currentServerGroupName.clear();
-    if (countryChanged) {
-        m_serverModel->clear();
-    }
-    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
-        return;
-    }
-    if (m_locationsBusy) {
-        m_serverRefreshPending = true;
-        return;
-    }
-    m_serverRefreshPending = false;
-    setLocationsBusy(true);
-    QDBusMessage message = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kBackendService),
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetServers"));
-    message << normalizedCode;
-    auto *watcher = new QDBusPendingCallWatcher(
-        QDBusConnection::sessionBus().asyncCall(message, 30000), this);
-    watcher->setProperty("countryCode", normalizedCode);
-    connect(watcher, &QDBusPendingCallWatcher::finished,
-            this, &VpnController::handleServersReply);
-}
-
 void VpnController::loadServerGroups(const QString &countryCode)
 {
     const QString normalizedCode = countryCode.trimmed().toUpper();
@@ -708,13 +687,7 @@ void VpnController::setReconnectionEnabled(bool enabled)
     if (!m_backendAvailable) {
         return;
     }
-    QDBusMessage message = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kBackendService),
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("SetReconnectionEnabled"));
-    message << enabled;
-    QDBusConnection::sessionBus().asyncCall(message, 5000);
+    callControlOperation(QStringLiteral("SetReconnectionEnabled"), {enabled});
 }
 
 void VpnController::loadSettings()
@@ -1110,7 +1083,8 @@ QString VpnController::applicationName(const QString &executable) const
 void VpnController::onServiceRegistered(const QString &)
 {
     setBackendAvailable(true);
-    m_clientRegistered = false;
+    m_clientRegistration.serviceChanged();
+    m_clientRegistrationRetryTimer->stop();
     registerClient();
     setReconnectionEnabled(m_reconnectionEnabled);
     refresh();
@@ -1118,7 +1092,7 @@ void VpnController::onServiceRegistered(const QString &)
 
 void VpnController::onServiceUnregistered(const QString &)
 {
-    m_clientRegistered = false;
+    m_clientRegistration.serviceChanged();
     setBackendAvailable(false);
     m_ready = false;
     m_busy = false;
@@ -1147,27 +1121,42 @@ void VpnController::onServiceUnregistered(const QString &)
     m_splitTunneling->reset(tr("The Proton backend service stopped"));
     m_customDns->reset(tr("The Proton backend service stopped"));
     emit snapshotChanged();
+    scheduleClientRegistrationRetry();
 }
 
 void VpnController::registerClient()
 {
-    if (m_clientRegistered) {
+    const auto generation = m_clientRegistration.begin();
+    if (!generation.has_value()) {
         return;
     }
     const QString uniqueName = QDBusConnection::sessionBus().baseService();
     if (uniqueName.isEmpty()) {
+        static_cast<void>(m_clientRegistration.complete(*generation, false));
+        scheduleClientRegistrationRetry();
         return;
     }
-    m_clientRegistered = true;
-    callControlOperation(QStringLiteral("RegisterClient"), {uniqueName});
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("RegisterClient"));
+    message.setArguments({uniqueName});
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 5000), this);
+    watcher->setProperty("registrationGeneration",
+                         QVariant::fromValue<qulonglong>(*generation));
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleRegisterClientReply);
 }
 
 void VpnController::unregisterClient()
 {
-    if (!m_clientRegistered) {
+    if (!m_clientRegistration.registered()) {
+        m_clientRegistration.serviceChanged();
         return;
     }
-    m_clientRegistered = false;
+    m_clientRegistration.serviceChanged();
     const QString uniqueName = QDBusConnection::sessionBus().baseService();
     if (uniqueName.isEmpty()) {
         return;
@@ -1296,6 +1285,9 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_smartRouting = snapshot.value(QStringLiteral("smartRouting")).toBool();
     m_packetCaptureActive = snapshot.value(
         QStringLiteral("packetCaptureActive")).toBool();
+    m_coreMemoryOptimized = snapshot.value(
+        QStringLiteral("coreMemoryOptimized")).toBool();
+    m_coreVersion = snapshot.value(QStringLiteral("coreVersion")).toString();
     m_message = snapshot.value(QStringLiteral("message")).toString();
     if (wasLoggedIn && !m_loggedIn) {
         m_countryModel->clear();
@@ -1411,7 +1403,10 @@ void VpnController::callControlOperation(const QString &method,
         QString::fromLatin1(kBackendInterface),
         method);
     message.setArguments(arguments);
-    QDBusConnection::sessionBus().asyncCall(message, 5000);
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 120000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &VpnController::handleControlOperationReply);
 }
 
 void VpnController::requestServerLoads()
@@ -1448,15 +1443,13 @@ void VpnController::dispatchPendingLocationRefreshes()
         loadCountries();
     } else if (m_serverGroupRefreshPending && !m_currentServerCountry.isEmpty()) {
         loadServerGroups(m_currentServerCountry);
-    } else if (m_serverRefreshPending && !m_currentServerCountry.isEmpty()) {
-        if (!m_currentServerGroupKind.isEmpty()
-            && !m_currentServerGroupName.isEmpty()) {
-            loadGroupServers(m_currentServerCountry,
-                             m_currentServerGroupKind,
-                             m_currentServerGroupName);
-        } else {
-            loadServers(m_currentServerCountry);
-        }
+    } else if (m_serverRefreshPending
+               && !m_currentServerCountry.isEmpty()
+               && !m_currentServerGroupKind.isEmpty()
+               && !m_currentServerGroupName.isEmpty()) {
+        loadGroupServers(m_currentServerCountry,
+                         m_currentServerGroupKind,
+                         m_currentServerGroupName);
     } else if (m_serverLoadsRefreshPending) {
         requestServerLoads();
     }
@@ -1491,8 +1484,13 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
     watcher->deleteLater();
     if (reply.isError()) {
         m_busy = false;
-        if (reply.error().name()
-            == QStringLiteral("proton.vpn.app.kde.Error.InvalidSecretPayload")) {
+        const auto failure = ProtonVpnKde::classifyBackendCallFailure(
+            reply.error().type(), reply.error().name());
+        if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
+            setBackendAvailable(false);
+            m_message = tr("The Proton backend service stopped");
+        } else if (failure
+                   == ProtonVpnKde::BackendCallFailure::InvalidSecretPayload) {
             m_message = tr("Protected authentication data was rejected; try again");
         } else {
             m_message = tr("The VPN operation could not be completed");
@@ -1501,6 +1499,59 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
         return;
     }
     refresh();
+}
+
+void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<> reply = *watcher;
+    watcher->deleteLater();
+    if (reply.isError()) {
+        const auto failure = ProtonVpnKde::classifyBackendCallFailure(
+            reply.error().type(), reply.error().name());
+        if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
+            setBackendAvailable(false);
+            m_message = tr("The Proton backend service stopped");
+        } else if (failure
+                   == ProtonVpnKde::BackendCallFailure::InvalidSecretPayload) {
+            m_message = tr("Protected authentication data was rejected; try again");
+        } else {
+            m_message = tr("The VPN operation could not be completed");
+        }
+        emit snapshotChanged();
+        return;
+    }
+    refresh();
+}
+
+void VpnController::handleRegisterClientReply(QDBusPendingCallWatcher *watcher)
+{
+    const QDBusPendingReply<> reply = *watcher;
+    const auto generation = watcher->property("registrationGeneration").toULongLong();
+    watcher->deleteLater();
+    const auto completion = m_clientRegistration.complete(generation, !reply.isError());
+    if (completion == ProtonVpnKde::ClientRegistrationState::Completion::Stale) {
+        return;
+    }
+    if (completion == ProtonVpnKde::ClientRegistrationState::Completion::Failed) {
+        scheduleClientRegistrationRetry();
+        return;
+    }
+    m_clientRegistrationRetryTimer->stop();
+    m_clientRegistrationRetryCount = 0;
+}
+
+void VpnController::scheduleClientRegistrationRetry()
+{
+    if (m_clientRegistration.registered()
+        || m_clientRegistration.inFlight()
+        || m_clientRegistrationRetryTimer->isActive()) {
+        return;
+    }
+    constexpr unsigned int maximumShift = 5;
+    const auto shift = std::min(m_clientRegistrationRetryCount, maximumShift);
+    const int delayMilliseconds = 1000 * (1 << shift);
+    ++m_clientRegistrationRetryCount;
+    m_clientRegistrationRetryTimer->start(delayMilliseconds);
 }
 
 void VpnController::handleCountriesReply(QDBusPendingCallWatcher *watcher)

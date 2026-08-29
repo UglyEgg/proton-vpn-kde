@@ -18,13 +18,14 @@ Proton's official core.
 | Fastest connection | Connect to fastest available server | Official core server selection, exposed in the window, tray, shortcuts, and KRunner | Superset |
 | Country/location/server selection | Browse and connect at each topology level | Native localized country, location, Secure Core, and exact-server models | Complete |
 | Free-plan discovery | Free servers connect; paid rows remain upgrade-visible | Same accessibility model and ordering with native upgrade actions | Complete |
-| Search | Search countries, cities, and exact servers | Bounded on-demand global search without a duplicate full-server cache | Complete |
+| Search | Search countries, cities, and exact servers | Bounded global search through a compact scalar projection; live state stays in official Core objects | Complete |
 | Server metadata | Load, maintenance, P2P, streaming, Tor, Smart Routing, Secure Core | Native model roles and connection-detail presentation | Complete |
 | Live refresh | Full topology and load-only updates | Separate core callbacks; load changes update rows in place | Complete |
 | Connect cancellation | Connecting and failed states can be cancelled | Connecting cancellation bypasses the normal operation lock; failed state never reconnects accidentally | Complete |
 | Connection recovery | Retry nonfatal drops and react to network/session changes | Asyncio reconnector preserves server, protocol, and backend and observes network route and logind unlock | Complete |
 | Connection errors | Specific summaries plus recovery dialogs for important fatal states | Stable non-sensitive error codes, official recovery text, and error-state cancellation | Complete |
 | Startup compatibility | Warn when no compatible VPN backend is registered | Official validator when available; public protocol-registry fallback for Fedora's initial core 5.5.6 | Complete |
+| Memory-overlay awareness | No equivalent warning | Behavior-check both representation-only server-string sharing paths and identify an unoptimized installed Core without blocking VPN use | Superset |
 | Quit/logout safety | Confirm active disconnect, preserve permanent kill switch on quit, disable it on logout | Native lifecycle state machine with the same outcomes | Complete |
 | Protocols | Generic protocols and feature-flagged Proton protocols | Lists core-provided protocols and honors the ProTun feature flag | Complete |
 | Connection settings | Protocol, VPN Accelerator, moderate NAT, and IPv6 | Native conflict-aware controls saved through the official core | Complete |

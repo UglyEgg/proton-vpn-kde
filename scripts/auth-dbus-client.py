@@ -98,7 +98,7 @@ async def main() -> None:
             assert error.type == "proton.vpn.app.kde.Error.InvalidSecretPayload"
             assert error.text == "Protected authentication data was rejected; try again"
             assert "Traceback" not in str(error)
-            assert "File \"" not in str(error)
+            assert 'File "' not in str(error)
         else:
             raise AssertionError("tampered authentication data was accepted")
     finally:
@@ -129,6 +129,17 @@ async def main() -> None:
     assert authenticated["accountName"] == "demo-user"
     assert authenticated["planTitle"] == "VPN Plus"
 
+    try:
+        await interface.call_connect_country("NOT-A-COUNTRY")
+    except DBusError as error:
+        assert error.type == "proton.vpn.app.kde.Error.OperationFailed"
+        assert error.text == "Invalid country code"
+        assert "Traceback" not in str(error)
+        assert 'File "' not in str(error)
+        assert "/workspace/" not in str(error)
+    else:
+        raise AssertionError("an invalid country code was accepted")
+
     settings = json.loads(await interface.call_get_settings())
     assert settings["schemaVersion"] == 1
     assert settings["protocol"] == "wireguard"
@@ -154,9 +165,7 @@ async def main() -> None:
     else:
         raise AssertionError("an unsupported setting was accepted")
 
-    split_tunneling = json.loads(
-        await interface.call_get_split_tunneling()
-    )
+    split_tunneling = json.loads(await interface.call_get_split_tunneling())
     assert split_tunneling["schemaVersion"] == 1
     assert split_tunneling["available"]
     assert split_tunneling["paidFeaturesAvailable"]
@@ -174,19 +183,13 @@ async def main() -> None:
         )
     )
     assert updated_split_tunneling["enabled"]
-    assert updated_split_tunneling["excludeAppPaths"] == [
-        "/usr/bin/demo-browser"
-    ]
+    assert updated_split_tunneling["excludeAppPaths"] == ["/usr/bin/demo-browser"]
     assert updated_split_tunneling["excludeIpRangeCount"] == 0
 
     try:
-        await interface.call_update_split_tunneling(
-            '{"excludeAppPaths":["/usr/bin"]}'
-        )
+        await interface.call_update_split_tunneling('{"excludeAppPaths":["/usr/bin"]}')
     except DBusError as error:
-        assert error.type == (
-            "proton.vpn.app.kde.Error.InvalidSplitTunneling"
-        )
+        assert error.type == ("proton.vpn.app.kde.Error.InvalidSplitTunneling")
         assert "specific application" in error.text
         assert "Traceback" not in str(error)
     else:
@@ -213,9 +216,7 @@ async def main() -> None:
             )
         )
     )
-    assert updated_custom_dns["servers"][1]["address"] == (
-        "2606:4700:4700::1111"
-    )
+    assert updated_custom_dns["servers"][1]["address"] == ("2606:4700:4700::1111")
 
     try:
         await interface.call_update_custom_dns('{"enabled":true}')

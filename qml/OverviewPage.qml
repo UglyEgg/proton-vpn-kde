@@ -103,6 +103,15 @@ Kirigami.Page {
             text: qsTr("Split tunneling enabled. Remember to restart affected apps.")
         }
 
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: vpnController.ready
+                     && vpnController.coreVersion.length > 0
+                     && !vpnController.coreMemoryOptimized
+            type: Kirigami.MessageType.Warning
+            text: qsTr("The verified server-list memory optimizations are not active for Proton Core %1. VPN functionality is unaffected, but memory use may be higher until the overlay is refreshed or Proton includes the fixes.").arg(vpnController.coreVersion)
+        }
+
         Item { Layout.fillHeight: true }
 
         Kirigami.Icon {
@@ -142,8 +151,7 @@ Kirigami.Page {
             text: qsTr("Sign in")
             icon.name: "system-log-in"
             highlighted: true
-            onClicked: applicationWindow().showPage(
-                Qt.resolvedUrl("SignInPage.qml"))
+            onClicked: applicationWindow().showSignIn()
         }
 
         Controls.Button {
@@ -272,11 +280,7 @@ Kirigami.Page {
                     text: qsTr("Browse servers")
                     icon.name: "network-server"
                     enabled: vpnController.loggedIn
-                    onClicked: {
-                        applicationWindow().pageStack.clear()
-                        applicationWindow().pageStack.push(
-                            Qt.resolvedUrl("LocationsPage.qml"))
-                    }
+                    onClicked: applicationWindow().showLocations()
                 }
             }
         }

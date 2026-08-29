@@ -17,11 +17,23 @@ Kirigami.ScrollablePage {
     readonly property bool splitConfigurationEditable:
         !splitSettings.enabled
         || (splitProtocolCompatible && vpnSettings.killSwitch === 0)
+    property var packetCaptureFolderDialog: null
 
-    Dialogs.FolderDialog {
-        id: packetCaptureFolderDialog
-        title: qsTr("Select packet capture folder")
-        onAccepted: appSettings.setPacketCaptureDirectoryUrl(selectedFolder)
+    Component {
+        id: packetCaptureFolderDialogComponent
+
+        Dialogs.FolderDialog {
+            title: qsTr("Select packet capture folder")
+            onAccepted: appSettings.setPacketCaptureDirectoryUrl(selectedFolder)
+        }
+    }
+
+    function openPacketCaptureFolderDialog() {
+        if (packetCaptureFolderDialog === null) {
+            packetCaptureFolderDialog =
+                packetCaptureFolderDialogComponent.createObject(page)
+        }
+        packetCaptureFolderDialog.open()
     }
 
     Controls.Dialog {
@@ -47,6 +59,9 @@ Kirigami.ScrollablePage {
     Component.onDestruction: {
         if (vpnController.packetCaptureActive) {
             vpnController.stopPacketCapture()
+        }
+        if (packetCaptureFolderDialog !== null) {
+            packetCaptureFolderDialog.destroy()
         }
     }
 
@@ -290,8 +305,7 @@ Kirigami.ScrollablePage {
             icon.name: "network-server-database"
             enabled: customDns.loaded && customDns.paidFeaturesAvailable
                      && !customDns.busy
-            onClicked: applicationWindow().pageStack.push(
-                Qt.resolvedUrl("CustomDnsPage.qml"))
+            onClicked: applicationWindow().pushCustomDns()
         }
 
         Kirigami.InlineMessage {
@@ -382,8 +396,7 @@ Kirigami.ScrollablePage {
                      && splitSettings.paidFeaturesAvailable
                      && !splitSettings.busy
                      && page.splitConfigurationEditable
-            onClicked: applicationWindow().pageStack.push(
-                Qt.resolvedUrl("SplitTunnelingPage.qml"))
+            onClicked: applicationWindow().pushSplitTunneling()
         }
 
         Kirigami.InlineMessage {
@@ -472,7 +485,7 @@ Kirigami.ScrollablePage {
                 text: qsTr("Browse…")
                 icon.name: "folder-open"
                 enabled: !vpnController.packetCaptureActive
-                onClicked: packetCaptureFolderDialog.open()
+                onClicked: page.openPacketCaptureFolderDialog()
             }
 
             Controls.Button {

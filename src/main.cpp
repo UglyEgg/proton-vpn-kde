@@ -12,6 +12,7 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QIcon>
+#include <QDebug>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
@@ -38,9 +39,14 @@ int main(int argc, char *argv[])
     const QCommandLineOption settingsOption(
         QStringLiteral("settings"),
         QStringLiteral("Open the Proton VPN settings page"));
+    const QCommandLineOption diagnosticSmokeOption(
+        QStringLiteral("diagnostics-smoke"),
+        QStringLiteral("Exercise native pages and quit (internal test option)"));
     commandLine.addOption(settingsOption);
+    commandLine.addOption(diagnosticSmokeOption);
     commandLine.process(app);
     const bool openSettings = commandLine.isSet(settingsOption);
+    const bool diagnosticSmoke = commandLine.isSet(diagnosticSmokeOption);
 
     AppSettings settings;
     AppLifecycle lifecycle;
@@ -92,13 +98,25 @@ int main(int argc, char *argv[])
         openSettings ? QStringLiteral("SettingsPage.qml")
                      : QStringLiteral("OverviewPage.qml"));
     engine.rootContext()->setContextProperty(
+        QStringLiteral("diagnosticSmokeTest"), diagnosticSmoke);
+    engine.rootContext()->setContextProperty(
         QStringLiteral("appVersion"), QApplication::applicationVersion());
+    if (diagnosticSmoke) {
+        qInfo() << "diagnostics-smoke: loading native interface";
+    }
     engine.loadFromModule(QStringLiteral("Proton.VPN.KDE"), QStringLiteral("Main"));
     if (engine.rootObjects().isEmpty()) {
+        qWarning() << "The native interface did not create an application window";
         return 1;
+    }
+    if (diagnosticSmoke) {
+        qInfo() << "diagnostics-smoke: native interface loaded";
     }
 
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, window, [window] {
+        QMetaObject::invokeMethod(window, "prepareForQuit");
+    });
     KDBusService applicationService(KDBusService::Unique);
     QObject::connect(
         &applicationService, &KDBusService::activateRequested, window,

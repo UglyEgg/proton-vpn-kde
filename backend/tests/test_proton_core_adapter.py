@@ -8,12 +8,60 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from proton_vpn_kde_backend.adapters import ProtonCoreAdapter
+from proton_vpn_kde_backend.adapters import (
+    ProtonCoreAdapter,
+    _core_memory_optimization_behavior,
+)
 from proton_vpn_kde_backend.controller import NpsSurveyResponse, SupportReport
 
 
 def state_named(name: str):
     return type(name, (), {})()
+
+
+class CoreMemoryOptimizationProbeTests(unittest.TestCase):
+    @staticmethod
+    def optimized_module():
+        def object_hook_factory():
+            shared = {}
+
+            def share(item):
+                value = item.get("Domain")
+                if isinstance(value, str):
+                    item["Domain"] = shared.setdefault(value, value)
+                return item
+
+            return share
+
+        def deduplicate(logicals):
+            share = object_hook_factory()
+            for logical in logicals:
+                share(logical)
+                for physical in logical.get("Servers", ()):
+                    share(physical)
+
+        return SimpleNamespace(
+            _deduplicate_server_strings=deduplicate,
+            _server_string_object_hook=object_hook_factory,
+        )
+
+    def test_accepts_both_verified_string_sharing_behaviors(self):
+        self.assertTrue(
+            _core_memory_optimization_behavior(self.optimized_module())
+        )
+
+    def test_rejects_an_unoptimized_or_partial_core(self):
+        self.assertFalse(
+            _core_memory_optimization_behavior(SimpleNamespace())
+        )
+        self.assertFalse(
+            _core_memory_optimization_behavior(
+                SimpleNamespace(
+                    _deduplicate_server_strings=lambda logicals: None,
+                    _server_string_object_hook=lambda: lambda item: item,
+                )
+            )
+        )
 
 
 class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
@@ -39,6 +87,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             disable=AsyncMock(),
             set_server_list_updated_callback=Mock(),
             set_server_loads_updated_callback=Mock(),
+            set_location_names_updated_callback=Mock(),
             get_up_to_date_server_list=AsyncMock(),
             get_up_to_date_client_config=AsyncMock(return_value="client-config"),
             feature_flags={},
@@ -208,6 +257,20 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("disconnected", snapshot.state)
         api.refresher.set_server_list_updated_callback.assert_called_once()
         api.refresher.set_server_loads_updated_callback.assert_called_once()
+        api.refresher.set_location_names_updated_callback.assert_called_once()
+
+    async def test_initialize_supports_core_without_location_name_callback(self):
+        api, connector = self.make_api()
+        del api.refresher.set_location_names_updated_callback
+        adapter = ProtonCoreAdapter(api)
+
+        snapshot = await adapter.initialize(Mock())
+        self.assertTrue(snapshot.ready)
+        api.refresher.set_server_list_updated_callback.assert_called_once()
+        api.refresher.set_server_loads_updated_callback.assert_called_once()
+
+        await adapter.close()
+        connector.unregister.assert_any_call(adapter)
 
     async def test_server_refresh_callbacks_preserve_update_scope(self):
         api, _ = self.make_api()
@@ -219,10 +282,34 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         loads_callback = api.refresher.set_server_loads_updated_callback.call_args.args[
             0
         ]
+        location_names_callback = (
+            api.refresher.set_location_names_updated_callback.call_args.args[0]
+        )
         list_callback()
         loads_callback()
+        location_names_callback()
 
-        self.assertEqual([True, False], events)
+        self.assertEqual([True, False, True], events)
+
+    async def test_only_topology_callbacks_discard_the_search_projection(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        marker = object()
+        adapter._search_projection = marker
+
+        adapter._on_server_loads_updated()
+        self.assertIs(marker, adapter._search_projection)
+        self.assertEqual(0, adapter._server_list_generation)
+
+        adapter._on_server_list_updated()
+        self.assertIsNone(adapter._search_projection)
+        self.assertEqual(1, adapter._server_list_generation)
+
+        adapter._search_projection = marker
+        adapter._on_location_names_updated()
+        self.assertIsNone(adapter._search_projection)
+        self.assertEqual(2, adapter._server_list_generation)
 
     async def test_secret_service_wait_does_not_block_asyncio_thread(self):
         api, connector = self.make_api()
@@ -783,7 +870,9 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             user_tier=2,
             group_by_country=Mock(return_value=countries),
             get_available_servers=Mock(side_effect=lambda items, *_: iter(items)),
-            get_servers_with_features=Mock(side_effect=lambda items, **_: items),
+            get_by_name=Mock(
+                side_effect={server.name: server for server in servers}.__getitem__
+            ),
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
@@ -793,7 +882,9 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         secure_core_servers = await adapter.get_group_servers(
             "CH", "secure-core", "Via Secure Core"
         )
-        swiss_servers = await adapter.get_servers("CH")
+        location_servers = await adapter.get_group_servers(
+            "CH", "location", "Zurich"
+        )
         swiss_loads = await adapter.get_server_loads("CH")
         location_search = await adapter.search_locations("zur")
         server_search = await adapter.search_locations("ch#")
@@ -805,7 +896,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("CH-DE#1", secure_core_servers[0].name)
         self.assertEqual("DE", secure_core_servers[0].entry_country)
         self.assertTrue(secure_core_servers[0].smart_routing)
-        normal_info = next(item for item in swiss_servers if item.name == "CH#10")
+        normal_info = next(item for item in location_servers if item.name == "CH#10")
         self.assertTrue(normal_info.p2p)
         self.assertFalse(normal_info.streaming)
         self.assertEqual(
@@ -834,6 +925,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         free_server = server("CH-FREE#1", "CH", 65)
         paid_server = server("US#1", "US", 5)
+        paid_group = SimpleNamespace(name="New York", servers=[paid_server])
         countries = [
             SimpleNamespace(
                 code="ch",
@@ -846,7 +938,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(
                 code="us",
                 servers=[paid_server],
-                locations=[],
+                locations=[paid_group],
                 secure_core_group=None,
                 free=False,
                 under_maintenance=False,
@@ -861,13 +953,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                     item for item in items if item is free_server
                 )
             ),
-            get_servers_with_features=Mock(side_effect=lambda items, **_: items),
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
 
         country_info = await adapter.get_countries()
-        server_info = await adapter.get_servers("US")
+        server_info = await adapter.get_group_servers("US", "location", "New York")
 
         self.assertTrue(country_info[0].accessible)
         self.assertTrue(country_info[0].free)
@@ -921,6 +1012,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.disable.assert_awaited_once_with()
         api.refresher.set_server_list_updated_callback.assert_called_with(None)
         api.refresher.set_server_loads_updated_callback.assert_called_with(None)
+        api.refresher.set_location_names_updated_callback.assert_called_with(None)
 
 
 if __name__ == "__main__":

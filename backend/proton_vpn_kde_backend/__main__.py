@@ -30,7 +30,7 @@ def _owns_bus_name(reply: RequestNameReply) -> bool:
     }
 
 
-async def run(demo: bool, demo_logged_out: bool = False) -> None:
+async def run(demo: bool, demo_logged_out: bool = False) -> int:
     bus = await MessageBus(
         bus_type=BusType.SESSION,
         negotiate_unix_fd=True,
@@ -38,7 +38,7 @@ async def run(demo: bool, demo_logged_out: bool = False) -> None:
     reply = await bus.request_name(BUS_NAME, NameFlag.DO_NOT_QUEUE)
     if not _owns_bus_name(reply):
         bus.disconnect()
-        return
+        return 0
 
     adapter = (
         DemoCoreAdapter(logged_in=not demo_logged_out) if demo else ProtonCoreAdapter()
@@ -64,14 +64,21 @@ async def run(demo: bool, demo_logged_out: bool = False) -> None:
     for sig in (unix_signal.SIGINT, unix_signal.SIGTERM):
         loop.add_signal_handler(sig, stopped.set)
 
-    await controller.start()
-    lifetime_task = asyncio.create_task(lifetime.run())
+    lifetime_task: asyncio.Task | None = None
 
     try:
+        if not await controller.start():
+            # A non-zero process exit lets systemd's Restart=on-failure policy
+            # recover from transient Secret Service, Proton Core, or
+            # NetworkManager initialization failures.
+            return 1
+        lifetime_task = asyncio.create_task(lifetime.run())
         await stopped.wait()
+        return 0
     finally:
-        lifetime_task.cancel()
-        await asyncio.gather(lifetime_task, return_exceptions=True)
+        if lifetime_task is not None:
+            lifetime_task.cancel()
+            await asyncio.gather(lifetime_task, return_exceptions=True)
         await controller.close()
         bus.unexport(OBJECT_PATH, service)
         await bus.release_name(BUS_NAME)
@@ -93,11 +100,13 @@ def main() -> None:
         help="show the safe demo authentication UI without using a Proton account",
     )
     args = parser.parse_args()
-    asyncio.run(
+    exit_code = asyncio.run(
         run(
             demo=args.demo or args.demo_logged_out, demo_logged_out=args.demo_logged_out
         )
     )
+    if exit_code:
+        raise SystemExit(exit_code)
 
 
 if __name__ == "__main__":

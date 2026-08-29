@@ -11,6 +11,8 @@ import logging
 import re
 from typing import Callable, Protocol, TypeAlias, TypeVar
 
+from .errors import UserVisibleRuntimeError, UserVisibleValueError
+
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,8 @@ class VpnSnapshot:
     streaming: bool = False
     smart_routing: bool = False
     packet_capture_active: bool = False
+    core_memory_optimized: bool = False
+    core_version: str = ""
     message: str = ""
 
     def to_json(self) -> str:
@@ -69,6 +73,8 @@ class VpnSnapshot:
         payload["secureCore"] = payload.pop("secure_core")
         payload["smartRouting"] = payload.pop("smart_routing")
         payload["packetCaptureActive"] = payload.pop("packet_capture_active")
+        payload["coreMemoryOptimized"] = payload.pop("core_memory_optimized")
+        payload["coreVersion"] = payload.pop("core_version")
         return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
 
@@ -277,19 +283,19 @@ def validate_support_report(
         or len(normalized_username) > 255
         or "\0" in normalized_username
     ):
-        raise ValueError("Enter your Proton username")
+        raise UserVisibleValueError("Enter your Proton username")
     if (
         len(normalized_email) > 254
         or "\0" in normalized_email
         or _EMAIL_PATTERN.fullmatch(normalized_email) is None
     ):
-        raise ValueError("Enter a valid email address")
+        raise UserVisibleValueError("Enter a valid email address")
     if "\0" in normalized_description or len(normalized_description) < 50:
-        raise ValueError("Describe the issue using at least 50 characters")
+        raise UserVisibleValueError("Describe the issue using at least 50 characters")
     if len(normalized_description) > 8000:
-        raise ValueError("The issue description is too long")
+        raise UserVisibleValueError("The issue description is too long")
     if include_logs not in {"true", "false"}:
-        raise ValueError("The support-report log choice is invalid")
+        raise UserVisibleValueError("The support-report log choice is invalid")
     return SupportReport(
         username=normalized_username,
         email=normalized_email,
@@ -302,17 +308,17 @@ def validate_nps_survey_response(
     score: str, comments: str, response_type: str
 ) -> NpsSurveyResponse:
     if response_type not in {"submit", "dismiss"}:
-        raise ValueError("The survey response type is invalid")
+        raise UserVisibleValueError("The survey response type is invalid")
     if response_type == "dismiss":
         return NpsSurveyResponse(dismissed=True)
     try:
         numeric_score = int(score)
     except ValueError as error:
-        raise ValueError("Select a survey score") from error
+        raise UserVisibleValueError("Select a survey score") from error
     if numeric_score < 0 or numeric_score > 10:
-        raise ValueError("Select a survey score from 0 through 10")
+        raise UserVisibleValueError("Select a survey score from 0 through 10")
     if len(comments) > 250 or "\0" in comments:
-        raise ValueError("The survey feedback is too long")
+        raise UserVisibleValueError("The survey feedback is too long")
     return NpsSurveyResponse(score=numeric_score, comments=comments)
 
 
@@ -335,20 +341,20 @@ _SETTING_TYPES: dict[str, type[str] | type[int] | type[bool]] = {
 
 def settings_patch_from_json(patch_json: str) -> dict[str, SettingsValue]:
     if not patch_json or len(patch_json) > 4096:
-        raise ValueError("The settings update is empty or too large")
+        raise UserVisibleValueError("The settings update is empty or too large")
     try:
         payload = json.loads(patch_json)
     except json.JSONDecodeError as error:
-        raise ValueError("The settings update is not valid JSON") from error
+        raise UserVisibleValueError("The settings update is not valid JSON") from error
     if not isinstance(payload, dict) or not payload:
-        raise ValueError("The settings update must be a non-empty object")
+        raise UserVisibleValueError("The settings update must be a non-empty object")
     unknown = set(payload) - set(_SETTING_TYPES)
     if unknown:
-        raise ValueError("The settings update contains an unsupported field")
+        raise UserVisibleValueError("The settings update contains an unsupported field")
     for key, value in payload.items():
         expected_type = _SETTING_TYPES[key]
         if type(value) is not expected_type:
-            raise ValueError(f"The {key} setting has the wrong value type")
+            raise UserVisibleValueError(f"The {key} setting has the wrong value type")
     if "protocol" in payload:
         protocol = payload["protocol"]
         if (
@@ -357,11 +363,11 @@ def settings_patch_from_json(patch_json: str) -> dict[str, SettingsValue]:
             or len(protocol) > 64
             or not protocol.isascii()
         ):
-            raise ValueError("Select a valid VPN protocol")
+            raise UserVisibleValueError("Select a valid VPN protocol")
     if "killSwitch" in payload and payload["killSwitch"] not in {0, 1, 2}:
-        raise ValueError("Select a valid kill-switch mode")
+        raise UserVisibleValueError("Select a valid kill-switch mode")
     if "netShield" in payload and payload["netShield"] not in {0, 1, 2}:
-        raise ValueError("Select a valid NetShield mode")
+        raise UserVisibleValueError("Select a valid NetShield mode")
     return payload
 
 
@@ -387,27 +393,37 @@ def split_tunneling_patch_from_json(
     patch_json: str,
 ) -> dict[str, SplitTunnelingValue]:
     if not patch_json or len(patch_json) > 65536:
-        raise ValueError("The split-tunneling update is empty or too large")
+        raise UserVisibleValueError("The split-tunneling update is empty or too large")
     try:
         payload = json.loads(patch_json)
     except json.JSONDecodeError as error:
-        raise ValueError("The split-tunneling update is not valid JSON") from error
+        raise UserVisibleValueError(
+            "The split-tunneling update is not valid JSON"
+        ) from error
     if not isinstance(payload, dict) or not payload:
-        raise ValueError("The split-tunneling update must be a non-empty object")
+        raise UserVisibleValueError(
+            "The split-tunneling update must be a non-empty object"
+        )
     unknown = set(payload) - set(_SPLIT_TUNNELING_TYPES)
     if unknown:
-        raise ValueError("The split-tunneling update contains an unsupported field")
+        raise UserVisibleValueError(
+            "The split-tunneling update contains an unsupported field"
+        )
     for key, value in payload.items():
         if type(value) is not _SPLIT_TUNNELING_TYPES[key]:
-            raise ValueError(f"The {key} split-tunneling value has the wrong type")
+            raise UserVisibleValueError(
+                f"The {key} split-tunneling value has the wrong type"
+            )
     if "mode" in payload and payload["mode"] not in {"exclude", "include"}:
-        raise ValueError("Select a valid split-tunneling mode")
+        raise UserVisibleValueError("Select a valid split-tunneling mode")
     for key in ("excludeAppPaths", "includeAppPaths"):
         if key not in payload:
             continue
         app_paths = payload[key]
         if not isinstance(app_paths, list) or len(app_paths) > 256:
-            raise ValueError("Too many split-tunneling applications were selected")
+            raise UserVisibleValueError(
+                "Too many split-tunneling applications were selected"
+            )
         seen: set[str] = set()
         for path in app_paths:
             if (
@@ -419,22 +435,30 @@ def split_tunneling_patch_from_json(
                 or "\r" in path
                 or path != path.strip()
             ):
-                raise ValueError("A split-tunneling application path is invalid")
+                raise UserVisibleValueError(
+                    "A split-tunneling application path is invalid"
+                )
             command = path.split(maxsplit=1)[0].rstrip("/") or "/"
             if command in _FORBIDDEN_SPLIT_TUNNELING_COMMANDS:
-                raise ValueError("Select a specific application executable")
+                raise UserVisibleValueError("Select a specific application executable")
             lowered = command.casefold()
             if "proton-vpn-kde" in lowered or "protonvpn-app" in lowered:
-                raise ValueError("The Proton VPN client cannot bypass its own tunnel")
+                raise UserVisibleValueError(
+                    "The Proton VPN client cannot bypass its own tunnel"
+                )
             if path in seen:
-                raise ValueError("A split-tunneling application was selected twice")
+                raise UserVisibleValueError(
+                    "A split-tunneling application was selected twice"
+                )
             seen.add(path)
     for key in ("excludeIpRanges", "includeIpRanges"):
         if key not in payload:
             continue
         ranges = payload[key]
         if not isinstance(ranges, list) or len(ranges) > 256:
-            raise ValueError("Too many split-tunneling IP ranges were selected")
+            raise UserVisibleValueError(
+                "Too many split-tunneling IP ranges were selected"
+            )
         normalized_ranges: list[str] = []
         seen_ranges: set[str] = set()
         for value in ranges:
@@ -444,15 +468,17 @@ def split_tunneling_patch_from_json(
                 or len(value) > 64
                 or value != value.strip()
             ):
-                raise ValueError("A split-tunneling IP range is invalid")
+                raise UserVisibleValueError("A split-tunneling IP range is invalid")
             try:
                 normalized = ip_network(value, strict=False).with_prefixlen
             except ValueError as error:
-                raise ValueError(
+                raise UserVisibleValueError(
                     "Enter a valid IPv4 or IPv6 address or CIDR range"
                 ) from error
             if normalized in seen_ranges:
-                raise ValueError("A split-tunneling IP range was selected twice")
+                raise UserVisibleValueError(
+                    "A split-tunneling IP range was selected twice"
+                )
             seen_ranges.add(normalized)
             normalized_ranges.append(normalized)
         payload[key] = normalized_ranges
@@ -469,40 +495,46 @@ def custom_dns_patch_from_json(
     patch_json: str,
 ) -> dict[str, CustomDnsValue]:
     if not patch_json or len(patch_json) > 65536:
-        raise ValueError("The custom-DNS update is empty or too large")
+        raise UserVisibleValueError("The custom-DNS update is empty or too large")
     try:
         payload = json.loads(patch_json)
     except json.JSONDecodeError as error:
-        raise ValueError("The custom-DNS update is not valid JSON") from error
+        raise UserVisibleValueError(
+            "The custom-DNS update is not valid JSON"
+        ) from error
     if not isinstance(payload, dict) or not payload:
-        raise ValueError("The custom-DNS update must be a non-empty object")
+        raise UserVisibleValueError("The custom-DNS update must be a non-empty object")
     unknown = set(payload) - set(_CUSTOM_DNS_TYPES)
     if unknown:
-        raise ValueError("The custom-DNS update contains an unsupported field")
+        raise UserVisibleValueError(
+            "The custom-DNS update contains an unsupported field"
+        )
     for key, value in payload.items():
         if type(value) is not _CUSTOM_DNS_TYPES[key]:
-            raise ValueError(f"The {key} custom-DNS value has the wrong type")
+            raise UserVisibleValueError(
+                f"The {key} custom-DNS value has the wrong type"
+            )
 
     if "servers" not in payload:
         return payload
 
     servers = payload["servers"]
     if not isinstance(servers, list) or len(servers) > 256:
-        raise ValueError("Too many custom DNS servers were provided")
+        raise UserVisibleValueError("Too many custom DNS servers were provided")
     normalized_servers: list[CustomDnsServerValue] = []
     for server in servers:
         if type(server) is not dict or set(server) != {"address", "enabled"}:
-            raise ValueError("A custom DNS server entry is invalid")
+            raise UserVisibleValueError("A custom DNS server entry is invalid")
         address = server["address"]
         entry_enabled = server["enabled"]
         if type(address) is not str or type(entry_enabled) is not bool:
-            raise ValueError("A custom DNS server entry is invalid")
+            raise UserVisibleValueError("A custom DNS server entry is invalid")
         if not address or len(address) > 64 or address != address.strip():
-            raise ValueError("Enter a valid IPv4 or IPv6 DNS server address")
+            raise UserVisibleValueError("Enter a valid IPv4 or IPv6 DNS server address")
         try:
             normalized_address = ip_address(address).compressed
         except ValueError as error:
-            raise ValueError(
+            raise UserVisibleValueError(
                 "Enter a valid IPv4 or IPv6 DNS server address"
             ) from error
         normalized_servers.append(
@@ -562,19 +594,14 @@ class CoreAdapter(Protocol):
         server_data_callback: ServerDataCallback | None = None,
     ) -> VpnSnapshot: ...
     async def get_countries(self) -> list[CountryInfo]: ...
-    async def get_server_groups(
-        self, country_code: str
-    ) -> list[ServerGroupInfo]: ...
+    async def get_server_groups(self, country_code: str) -> list[ServerGroupInfo]: ...
     async def get_group_servers(
         self, country_code: str, group_kind: str, group_name: str
     ) -> list[ServerInfo]: ...
-    async def get_servers(self, country_code: str) -> list[ServerInfo]: ...
     async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]: ...
     async def search_locations(self, query: str) -> list[LocationSearchInfo]: ...
     async def get_settings(self) -> VpnSettings: ...
-    async def update_settings(
-        self, patch: dict[str, SettingsValue]
-    ) -> VpnSettings: ...
+    async def update_settings(self, patch: dict[str, SettingsValue]) -> VpnSettings: ...
     async def get_split_tunneling(self) -> SplitTunnelingSettings: ...
     async def update_split_tunneling(
         self, patch: dict[str, SplitTunnelingValue]
@@ -633,24 +660,20 @@ class BackendController:
     def subscribe_settings(self, callback: SettingsCallback) -> None:
         self._settings_listeners.append(callback)
 
-    def subscribe_split_tunneling(
-        self, callback: SplitTunnelingCallback
-    ) -> None:
+    def subscribe_split_tunneling(self, callback: SplitTunnelingCallback) -> None:
         self._split_tunneling_listeners.append(callback)
 
     def subscribe_custom_dns(self, callback: CustomDnsCallback) -> None:
         self._custom_dns_listeners.append(callback)
 
-    async def start(self) -> None:
+    async def start(self) -> bool:
         try:
             snapshot = await self._adapter.initialize(
                 self._on_adapter_snapshot,
                 self._on_adapter_server_data,
             )
-        except Exception as error:  # Keep D-Bus available to report startup errors.
-            logger.error(
-                "Backend initialization failed (%s)", type(error).__name__
-            )
+        except Exception as error:
+            logger.error("Backend initialization failed (%s)", type(error).__name__)
             self._publish(
                 replace(
                     self._snapshot,
@@ -659,24 +682,18 @@ class BackendController:
                     message="Backend initialization failed",
                 )
             )
-        else:
-            self._publish(snapshot)
+            return False
+        self._publish(snapshot)
+        return True
 
     async def connect_fastest(self) -> None:
         if not self._snapshot.logged_in:
-            raise RuntimeError("A Proton account session is required")
+            raise UserVisibleRuntimeError("A Proton account session is required")
         await self._run_operation(self._adapter.connect_fastest)
 
     async def get_countries_json(self) -> str:
         self._require_session()
         return location_list_to_json("countries", await self._adapter.get_countries())
-
-    async def get_servers_json(self, country_code: str) -> str:
-        self._require_session()
-        normalized_code = self._validate_country_code(country_code)
-        return location_list_to_json(
-            "servers", await self._adapter.get_servers(normalized_code)
-        )
 
     async def get_server_groups_json(self, country_code: str) -> str:
         self._require_session()
@@ -715,7 +732,7 @@ class BackendController:
             or len(normalized_query) > 128
             or "\0" in normalized_query
         ):
-            raise ValueError("Enter a valid location search")
+            raise UserVisibleValueError("Enter a valid location search")
         return location_list_to_json(
             "results", await self._adapter.search_locations(normalized_query)
         )
@@ -739,16 +756,16 @@ class BackendController:
         self, score: str, comments: str, response_type: str
     ) -> None:
         self._require_session()
-        response = validate_nps_survey_response(
-            score, comments, response_type
-        )
+        response = validate_nps_survey_response(score, comments, response_type)
         await self._adapter.submit_nps_survey(response)
 
     async def update_settings_json(self, patch_json: str) -> str:
         self._require_session()
         patch = settings_patch_from_json(patch_json)
         if self._operation_lock.locked():
-            raise RuntimeError("Another VPN operation is already in progress")
+            raise UserVisibleRuntimeError(
+                "Another VPN operation is already in progress"
+            )
         async with self._operation_lock:
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
@@ -776,7 +793,9 @@ class BackendController:
         self._require_session()
         patch = split_tunneling_patch_from_json(patch_json)
         if self._operation_lock.locked():
-            raise RuntimeError("Another VPN operation is already in progress")
+            raise UserVisibleRuntimeError(
+                "Another VPN operation is already in progress"
+            )
         async with self._operation_lock:
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
@@ -806,7 +825,9 @@ class BackendController:
         self._require_session()
         patch = custom_dns_patch_from_json(patch_json)
         if self._operation_lock.locked():
-            raise RuntimeError("Another VPN operation is already in progress")
+            raise UserVisibleRuntimeError(
+                "Another VPN operation is already in progress"
+            )
         async with self._operation_lock:
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
@@ -851,7 +872,7 @@ class BackendController:
         self._require_session()
         normalized_name = server_name.strip()
         if not normalized_name or len(normalized_name) > 128:
-            raise ValueError("Invalid Proton server name")
+            raise UserVisibleValueError("Invalid Proton server name")
         await self._run_operation(lambda: self._adapter.connect_server(normalized_name))
 
     async def start_packet_capture(self, directory_path: str) -> None:
@@ -863,7 +884,7 @@ class BackendController:
             or "\n" in directory_path
             or "\r" in directory_path
         ):
-            raise ValueError("Select a valid packet-capture folder")
+            raise UserVisibleValueError("Select a valid packet-capture folder")
         await self._run_operation(
             lambda: self._adapter.start_packet_capture(directory_path)
         )
@@ -880,11 +901,11 @@ class BackendController:
         include_logs: str,
     ) -> None:
         self._require_session()
-        report = validate_support_report(
-            username, email, description, include_logs
-        )
+        report = validate_support_report(username, email, description, include_logs)
         if self._operation_lock.locked():
-            raise RuntimeError("Another VPN operation is already in progress")
+            raise UserVisibleRuntimeError(
+                "Another VPN operation is already in progress"
+            )
         async with self._operation_lock:
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
@@ -909,11 +930,11 @@ class BackendController:
     async def login(self, username: str, password: str) -> None:
         normalized_username = username.strip()
         if not normalized_username or len(normalized_username) > 320:
-            raise ValueError("Enter a valid Proton username")
+            raise UserVisibleValueError("Enter a valid Proton username")
         if not password or len(password) > 4096:
-            raise ValueError("Enter a valid Proton password")
+            raise UserVisibleValueError("Enter a valid Proton password")
         if self._snapshot.kill_switch == 2:
-            raise RuntimeError(
+            raise UserVisibleRuntimeError(
                 "Disable the permanent kill switch before signing in"
             )
         await self._run_operation(
@@ -923,7 +944,9 @@ class BackendController:
     async def submit_two_factor(self, code: str) -> None:
         normalized_code = code.strip()
         if len(normalized_code) not in {6, 8} or not normalized_code.isascii():
-            raise ValueError("Enter a 6-digit code or an 8-character recovery code")
+            raise UserVisibleValueError(
+                "Enter a 6-digit code or an 8-character recovery code"
+            )
         await self._run_operation(
             lambda: self._adapter.submit_two_factor(normalized_code)
         )
@@ -936,7 +959,7 @@ class BackendController:
 
     async def submit_fido2_pin(self, pin: str) -> None:
         if not pin or len(pin) > 256:
-            raise ValueError("Enter the security-key PIN")
+            raise UserVisibleValueError("Enter the security-key PIN")
         await self._adapter.submit_fido2_pin(pin)
 
     async def cancel_fido2(self) -> None:
@@ -947,16 +970,18 @@ class BackendController:
 
     async def disable_kill_switch_for_login(self) -> None:
         if not self._snapshot.ready:
-            raise RuntimeError("The Proton backend is not ready")
+            raise UserVisibleRuntimeError("The Proton backend is not ready")
         if self._snapshot.logged_in:
-            raise RuntimeError("The Proton account is already signed in")
+            raise UserVisibleRuntimeError("The Proton account is already signed in")
         await self._run_operation(self._adapter.disable_kill_switch_for_login)
 
     async def disconnect(self) -> None:
         self._require_session()
         if self._operation_lock.locked():
             if self._snapshot.state != "connecting":
-                raise RuntimeError("Another VPN operation is already in progress")
+                raise UserVisibleRuntimeError(
+                    "Another VPN operation is already in progress"
+                )
             # Proton's connector accepts a Down event while an Up event is in
             # progress. Let that control operation bypass the serialization
             # lock so a slow or stalled connection can always be cancelled.
@@ -972,9 +997,9 @@ class BackendController:
 
     def _require_session(self) -> None:
         if not self._snapshot.ready:
-            raise RuntimeError("The Proton backend is not ready")
+            raise UserVisibleRuntimeError("The Proton backend is not ready")
         if not self._snapshot.logged_in:
-            raise RuntimeError("A Proton account session is required")
+            raise UserVisibleRuntimeError("A Proton account session is required")
 
     @staticmethod
     def _validate_country_code(country_code: str) -> str:
@@ -984,7 +1009,7 @@ class BackendController:
             or not normalized_code.isascii()
             or not normalized_code.isalpha()
         ):
-            raise ValueError("Invalid country code")
+            raise UserVisibleValueError("Invalid country code")
         return normalized_code
 
     @staticmethod
@@ -992,7 +1017,7 @@ class BackendController:
         normalized_kind = group_kind.strip()
         normalized_name = group_name.strip()
         if normalized_kind not in {"location", "secure-core"}:
-            raise ValueError("Invalid Proton server group")
+            raise UserVisibleValueError("Invalid Proton server group")
         if (
             not normalized_name
             or len(normalized_name) > 256
@@ -1000,12 +1025,14 @@ class BackendController:
             or "\n" in normalized_name
             or "\r" in normalized_name
         ):
-            raise ValueError("Invalid Proton server group name")
+            raise UserVisibleValueError("Invalid Proton server group name")
         return normalized_kind, normalized_name
 
     async def _run_operation(self, operation: Callable[[], Awaitable[None]]) -> None:
         if self._operation_lock.locked():
-            raise RuntimeError("Another VPN operation is already in progress")
+            raise UserVisibleRuntimeError(
+                "Another VPN operation is already in progress"
+            )
 
         async with self._operation_lock:
             self._publish(replace(self._snapshot, busy=True, message=""))
@@ -1034,9 +1061,7 @@ class BackendController:
         for listener in tuple(self._settings_listeners):
             listener(settings)
 
-    def _publish_split_tunneling(
-        self, settings: SplitTunnelingSettings
-    ) -> None:
+    def _publish_split_tunneling(self, settings: SplitTunnelingSettings) -> None:
         for listener in tuple(self._split_tunneling_listeners):
             listener(settings)
 

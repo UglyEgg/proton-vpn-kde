@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+import logging
 import os
 import random
 import shutil
@@ -13,6 +14,9 @@ from typing import Any
 StatusCallback = Callable[[str], None]
 ConditionProbe = Callable[[], Awaitable[bool]]
 DelayFactory = Callable[[int], float]
+
+
+logger = logging.getLogger(__name__)
 
 
 async def network_route_available() -> bool:
@@ -192,7 +196,9 @@ class AsyncReconnector:
 
         connection = self._connector.current_connection
         if not connection:
-            self._status_callback("The previous VPN connection is unavailable")
+            self._retry_counter += 1
+            self._status_callback("Waiting for the previous VPN connection…")
+            self._schedule_retry()
             return
 
         try:
@@ -206,7 +212,8 @@ class AsyncReconnector:
                 vpn_server, connection.protocol, connection.backend
             )
         except Exception as error:
-            self._status_callback(f"Reconnection failed: {error}")
+            logger.error("VPN reconnection failed (%s)", type(error).__name__)
+            self._status_callback("Reconnection failed")
             self._schedule_retry()
 
     def _reset(self) -> None:

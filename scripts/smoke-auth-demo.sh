@@ -12,8 +12,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-PYTHONPATH="$project_dir/backend" \
-    /usr/bin/python3 -m proton_vpn_kde_backend --demo-logged-out &
+if [[ -n "${PROTON_KDE_BACKEND_EXECUTABLE:-}" ]]; then
+    "$PROTON_KDE_BACKEND_EXECUTABLE" --demo-logged-out &
+else
+    PYTHONPATH="$project_dir/backend" \
+        /usr/bin/python3 -m proton_vpn_kde_backend --demo-logged-out &
+fi
 backend_pid=$!
 
 for _ in {1..40}; do

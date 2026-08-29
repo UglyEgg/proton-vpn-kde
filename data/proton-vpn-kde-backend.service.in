@@ -5,9 +5,12 @@ Documentation=https://github.com/ProtonVPN/proton-vpn-gtk-app
 [Service]
 Type=dbus
 BusName=proton.vpn.app.kde.backend
-ExecStart=proton-vpn-kde-backend
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/proton-vpn-kde-backend
 Restart=on-failure
 RestartSec=2s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
 
 [Install]
 WantedBy=default.target

@@ -85,6 +85,10 @@ hold verified session-bus leases; when the last lease disappears, a fully
 disconnected backend exits cleanly after a short grace period and is restarted
 by D-Bus activation the next time it is needed. Active connections and packet
 captures suppress idle shutdown.
+The packaged user unit uses the absolute `/usr/bin/proton-vpn-kde-backend`
+launcher with `NoNewPrivileges`, `PrivateTmp`, and `ProtectSystem=full`.
+See [Backend service hardening](HARDENING.md) for the tested compatibility
+boundary and the stronger restrictions deliberately not enabled.
 Normal RPM installation restores the expected SELinux labels for all installed
 paths; no custom policy or setuid component should be necessary. Install the
 notification metadata under `/usr/share/knotifications6` and leave the user

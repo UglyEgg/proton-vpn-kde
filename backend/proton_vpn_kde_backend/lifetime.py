@@ -11,6 +11,7 @@ from dbus_fast import Message
 from dbus_fast.constants import MessageType
 
 from .controller import BackendController, VpnSnapshot
+from .errors import UserVisibleValueError
 
 
 NameOwnerProbe = Callable[[str], Awaitable[bool]]
@@ -72,7 +73,7 @@ class BackendLifetime:
     async def register_client(self, unique_name: str) -> None:
         self._validate_unique_name(unique_name)
         if not await self._owner_probe(unique_name):
-            raise ValueError("The frontend D-Bus name has no owner")
+            raise UserVisibleValueError("The frontend D-Bus name has no owner")
         self._clients.add(unique_name)
         self._idle_since = None
         self._changed.set()
@@ -132,4 +133,6 @@ class BackendLifetime:
     @staticmethod
     def _validate_unique_name(unique_name: str) -> None:
         if len(unique_name) > 255 or _UNIQUE_BUS_NAME.fullmatch(unique_name) is None:
-            raise ValueError("A valid unique frontend D-Bus name is required")
+            raise UserVisibleValueError(
+                "A valid unique frontend D-Bus name is required"
+            )

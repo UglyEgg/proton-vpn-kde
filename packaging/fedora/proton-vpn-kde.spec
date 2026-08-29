@@ -1,7 +1,7 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.8.2
+Version:        0.8.8
 Release:        1%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
@@ -86,6 +86,7 @@ desktop-file-validate \
 %systemd_user_posttrans_with_restart proton-vpn-kde-backend.service
 
 %files
+%defattr(-,root,root,-)
 %license LICENSE COPYING.md
 %doc README.md docs
 %{_bindir}/proton-vpn-kde
@@ -102,6 +103,40 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-backend.service
 
 %changelog
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.8.8-1
+- Eliminate application-authored QML diagnostics across native page navigation.
+- Add an installed-Core behavior probe and visible warning when the memory overlay is absent.
+- Add a version-bounded navigation and clean-shutdown diagnostics smoke test.
+
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.8.7-1
+- Use absolute backend paths for systemd and D-Bus activation.
+- Prevent privilege gain and isolate temporary support attachments.
+- Mount system directories read-only without restricting Proton user state.
+
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.8.6-2
+- Normalize installed payload ownership to root in package metadata.
+
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.8.6-1
+- Add a generation-scoped scalar projection for interactive global search.
+- Keep load, maintenance, and plan availability live in official Core objects.
+- Reduce measured full-cache search latency without changing result behavior.
+
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.8.5-1
+- Remove the obsolete flat-country server endpoint and frontend fallback.
+- Keep country browsing exclusively on the grouped location and Secure Core path.
+- Add isolated D-Bus coverage for country-to-group-to-server navigation.
+- Keep absolute Fedora libexec paths relocatable in staged package validation.
+
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.8.4-1
+- Recover automatically from transient backend initialization failures.
+- Retry reply-confirmed client registration across backend restarts.
+- Observe control-operation replies and preserve bounded reconnection retries.
+
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.8.3-1
+- Sanitize every exported D-Bus method through one stable error boundary.
+- Preserve bounded backend-authored validation guidance without exposing raw errors.
+- Prevent reconnection exception text from reaching observable client state.
+
 * Fri Aug 28 2026 uglyegg <uglyegg@entropy.quest> - 0.8.2-1
 - Enforce one backend owner and release disconnected idle backends on demand.
 - Track live Plasma clients without sacrificing active-tunnel supervision.

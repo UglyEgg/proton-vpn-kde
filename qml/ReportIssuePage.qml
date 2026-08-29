@@ -72,11 +72,16 @@ Kirigami.ScrollablePage {
 
                     Controls.TextArea {
                         id: descriptionField
-                        maximumLength: 8000
                         enabled: !page.submitting
                         wrapMode: TextEdit.Wrap
                         placeholderText: qsTr("Describe what happened, what you expected, and how to reproduce it.")
                         Accessible.name: qsTr("Issue description")
+                        onTextChanged: {
+                            if (length > 8000) {
+                                text = text.slice(0, 8000)
+                                cursorPosition = length
+                            }
+                        }
                     }
                 }
 

@@ -28,6 +28,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         event_name: str = "UnexpectedError",
         network_probe=None,
         session_probe=None,
+        delay_factory=None,
     ):
         connection = SimpleNamespace(
             server_id="server-id",
@@ -55,7 +56,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             messages.append,
             network_probe=network_probe or AsyncMock(return_value=True),
             session_probe=session_probe or FakeSessionProbe(),
-            delay_factory=lambda _attempt: 0,
+            delay_factory=delay_factory or (lambda _attempt: 0),
         )
         return reconnector, connector, refresher, messages
 
@@ -115,6 +116,43 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(network_probe.await_count, 2)
         connector.connect.assert_awaited_once()
         self.assertIn("Waiting for network connectivity…", messages)
+        await reconnector.disable()
+
+    async def test_waits_for_previous_connection_then_retries(self):
+        reconnector, connector, _, messages = self.make_reconnector(
+            delay_factory=lambda _attempt: 0.01
+        )
+        previous_connection = connector.current_connection
+        connector.current_connection = None
+
+        reconnector.enable()
+        await asyncio.sleep(0.015)
+
+        connector.connect.assert_not_awaited()
+        self.assertIn("Waiting for the previous VPN connection…", messages)
+
+        connector.current_connection = previous_connection
+        await asyncio.sleep(0.02)
+
+        connector.connect.assert_awaited_once()
+        await reconnector.disable()
+
+    async def test_reconnection_exception_text_is_not_published_or_logged(self):
+        reconnector, connector, _, messages = self.make_reconnector()
+        sentinel = "credential=must-not-reach-snapshot /workspace/private.py"
+        connector.connect.side_effect = [RuntimeError(sentinel), None]
+
+        with self.assertLogs(
+            "proton_vpn_kde_backend.reconnector", level="ERROR"
+        ) as captured:
+            reconnector.enable()
+            await self.let_tasks_run()
+
+        self.assertIn("Reconnection failed", messages)
+        self.assertFalse(any(sentinel in message for message in messages))
+        log_output = "\n".join(captured.output)
+        self.assertIn("RuntimeError", log_output)
+        self.assertNotIn(sentinel, log_output)
         await reconnector.disable()
 
 

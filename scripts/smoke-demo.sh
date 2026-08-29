@@ -42,9 +42,13 @@ for _ in {1..40}; do
     sleep 0.05
 done
 
-gdbus introspect --session \
+backend_introspection="$(gdbus introspect --session \
     --dest proton.vpn.app.kde.backend \
-    --object-path /proton/vpn/app/kde/backend >/dev/null
+    --object-path /proton/vpn/app/kde/backend)"
+if [[ "$backend_introspection" == *"GetServers("* ]]; then
+    echo "Backend still exports the obsolete flat server endpoint" >&2
+    exit 1
+fi
 
 xvfb-run -a "$build_dir/proton-vpn-kde" &
 frontend_pid=$!
@@ -77,11 +81,6 @@ gdbus call --session \
     --dest proton.vpn.app.kde.backend \
     --object-path /proton/vpn/app/kde/backend \
     --method proton.vpn.app.kde.Backend1.GetCountries
-
-gdbus call --session \
-    --dest proton.vpn.app.kde.backend \
-    --object-path /proton/vpn/app/kde/backend \
-    --method proton.vpn.app.kde.Backend1.GetServers CH
 
 location_search="$(gdbus call --session \
     --dest proton.vpn.app.kde.backend \

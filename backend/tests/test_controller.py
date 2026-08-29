@@ -30,7 +30,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.controller = BackendController(DemoCoreAdapter())
         self.snapshots: list[VpnSnapshot] = []
         self.controller.subscribe(self.snapshots.append)
-        await self.controller.start()
+        self.assertTrue(await self.controller.start())
 
     async def test_start_publishes_ready_disconnected_snapshot(self):
         snapshot = self.controller.snapshot
@@ -46,8 +46,10 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs(
             "proton_vpn_kde_backend.controller", level="ERROR"
         ) as captured:
-            await controller.start()
+            started = await controller.start()
 
+        self.assertFalse(started)
+        self.assertFalse(controller.snapshot.ready)
         self.assertEqual("error", controller.snapshot.state)
         self.assertEqual(
             "Backend initialization failed", controller.snapshot.message
@@ -97,6 +99,8 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"serverName":""', payload)
         self.assertIn('"forwardedPort":0', payload)
         self.assertIn('"packetCaptureActive":false', payload)
+        self.assertIn('"coreMemoryOptimized":true', payload)
+        self.assertIn('"coreVersion":"demo"', payload)
         self.assertIn('"killSwitch":0', payload)
         self.assertIn('"errorCode":""', payload)
 
@@ -158,7 +162,6 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         group_servers = await self.controller.get_group_servers_json(
             " ch ", "secure-core", "Via Secure Core"
         )
-        servers = await self.controller.get_servers_json(" ch ")
         loads = await self.controller.get_server_loads_json(" ch ")
         location_search = await self.controller.search_locations_json(" zur ")
         server_search = await self.controller.search_locations_json(" CH# ")
@@ -169,7 +172,6 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"kind":"secure-core"', groups)
         self.assertIn('"secureCore":true', groups)
         self.assertIn('"entryCountry":"DE"', group_servers)
-        self.assertIn('"name":"CH#101"', servers)
         self.assertIn('"loads"', loads)
         self.assertIn('"load":24', loads)
         self.assertIn('"kind":"location"', location_search)
@@ -178,7 +180,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"name":"CH#101"', server_search)
 
         with self.assertRaisesRegex(ValueError, "Invalid country code"):
-            await self.controller.get_servers_json("Switzerland")
+            await self.controller.get_server_groups_json("Switzerland")
         with self.assertRaisesRegex(ValueError, "Invalid Proton server group"):
             await self.controller.get_group_servers_json("CH", "onion", "Zurich")
         with self.assertRaisesRegex(ValueError, "valid location search"):

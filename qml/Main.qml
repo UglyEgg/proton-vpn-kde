@@ -26,13 +26,93 @@ Kirigami.ApplicationWindow {
         }
     }
 
-    function showPage(pageUrl) {
+    function pushOwnedPage(pageComponent, properties) {
+        const page = pageComponent.createObject(
+            pageStack, properties === undefined ? {} : properties)
+        if (page === null) {
+            console.error("Unable to create a navigation page")
+            return null
+        }
+        pageStack.push(page)
+        return page
+    }
+
+    function showPage(pageComponent, properties) {
         pageStack.clear()
-        pageStack.push(pageUrl)
+        return pushOwnedPage(pageComponent, properties)
+    }
+
+    function showOverview() {
+        showPage(overviewPageComponent)
     }
 
     function showSettings() {
-        showPage(Qt.resolvedUrl("SettingsPage.qml"))
+        showPage(settingsPageComponent)
+    }
+
+    function showSignIn() {
+        showPage(signInPageComponent)
+    }
+
+    function showLocations() {
+        showPage(locationsPageComponent)
+    }
+
+    function showAccount() {
+        showPage(accountPageComponent)
+    }
+
+    function showReleaseNotes() {
+        showPage(releaseNotesPageComponent)
+    }
+
+    function showReportIssue() {
+        showPage(reportIssuePageComponent)
+    }
+
+    function showAbout() {
+        showPage(aboutPageComponent)
+    }
+
+    function pushCountry(properties) {
+        return pushOwnedPage(countryPageComponent, properties)
+    }
+
+    function pushServers(properties) {
+        return pushOwnedPage(serversPageComponent, properties)
+    }
+
+    function pushCustomDns() {
+        return pushOwnedPage(customDnsPageComponent)
+    }
+
+    function pushSplitTunneling() {
+        return pushOwnedPage(splitTunnelingPageComponent)
+    }
+
+    function prepareForQuit() {
+        if (quitDialog.visible) {
+            quitDialog.close()
+        }
+        if (sessionLimitDialog.visible) {
+            sessionLimitDialog.close()
+        }
+        if (authenticationErrorDialog.visible) {
+            authenticationErrorDialog.close()
+        }
+        if (twoFactorRequiredDialog.visible) {
+            twoFactorRequiredDialog.close()
+        }
+        if (clockErrorDialog.visible) {
+            clockErrorDialog.close()
+        }
+        if (compatibilityDialog.visible) {
+            compatibilityDialog.close()
+        }
+        if (npsDialog.visible) {
+            npsDialog.close()
+        }
+        pageStack.clear()
     }
 
     function maybeShowNpsSurvey() {
@@ -72,7 +152,17 @@ Kirigami.ApplicationWindow {
         }
     }
 
-    Component.onCompleted: Qt.callLater(root.maybeShowCompatibilityWarning)
+    Component.onCompleted: {
+        if (initialPageName === "SettingsPage.qml") {
+            root.showSettings()
+        } else {
+            root.showOverview()
+        }
+        Qt.callLater(root.maybeShowCompatibilityWarning)
+        if (diagnosticSmokeTest) {
+            diagnosticNavigation.start()
+        }
+    }
     onVisibleChanged: {
         Qt.callLater(root.maybeShowNpsSurvey)
         Qt.callLater(root.maybeShowCompatibilityWarning)
@@ -81,6 +171,153 @@ Kirigami.ApplicationWindow {
     property bool previousLoggedIn: vpnController.loggedIn
     property string previousErrorCode: ""
     property bool compatibilityWarningShown: false
+    property int diagnosticNavigationStep: 0
+
+    Component {
+        id: overviewPageComponent
+        OverviewPage { }
+    }
+
+    Component {
+        id: locationsPageComponent
+        LocationsPage { }
+    }
+
+    Component {
+        id: countryPageComponent
+        CountryPage { }
+    }
+
+    Component {
+        id: serversPageComponent
+        ServersPage { }
+    }
+
+    Component {
+        id: accountPageComponent
+        AccountPage { }
+    }
+
+    Component {
+        id: signInPageComponent
+        SignInPage { }
+    }
+
+    Component {
+        id: settingsPageComponent
+        SettingsPage { }
+    }
+
+    Component {
+        id: customDnsPageComponent
+        CustomDnsPage { }
+    }
+
+    Component {
+        id: splitTunnelingPageComponent
+        SplitTunnelingPage { }
+    }
+
+    Component {
+        id: releaseNotesPageComponent
+        ReleaseNotesPage { }
+    }
+
+    Component {
+        id: reportIssuePageComponent
+        ReportIssuePage { }
+    }
+
+    Component {
+        id: aboutPageComponent
+        AboutPage { }
+    }
+
+    Timer {
+        id: diagnosticNavigation
+        interval: 120
+        repeat: true
+        onTriggered: {
+            switch (root.diagnosticNavigationStep) {
+            case 0:
+                console.info("diagnostics-smoke: Overview")
+                root.showOverview()
+                break
+            case 1:
+                console.info("diagnostics-smoke: Locations")
+                root.showLocations()
+                break
+            case 2:
+                console.info("diagnostics-smoke: Country")
+                root.pushCountry({
+                    "countryCode": "CH",
+                    "countryName": "Switzerland",
+                    "countryFlag": "🇨🇭",
+                    "countryAccessible": true,
+                    "countryUnderMaintenance": false
+                })
+                break
+            case 3:
+                console.info("diagnostics-smoke: Servers")
+                root.pushServers({
+                    "countryCode": "CH",
+                    "countryName": "Switzerland",
+                    "countryFlag": "🇨🇭",
+                    "groupKind": "location",
+                    "groupName": "Zurich",
+                    "groupAccessible": true,
+                    "groupUnderMaintenance": false
+                })
+                break
+            case 4:
+                console.info("diagnostics-smoke: Account")
+                root.showAccount()
+                break
+            case 5:
+                console.info("diagnostics-smoke: Settings")
+                root.showSettings()
+                break
+            case 6:
+                console.info("diagnostics-smoke: Custom DNS")
+                root.pushCustomDns()
+                break
+            case 7:
+                console.info("diagnostics-smoke: Settings reload")
+                root.showSettings()
+                break
+            case 8:
+                console.info("diagnostics-smoke: Split tunneling")
+                root.pushSplitTunneling()
+                break
+            case 9:
+                console.info("diagnostics-smoke: Release notes")
+                root.showReleaseNotes()
+                break
+            case 10:
+                console.info("diagnostics-smoke: Report issue")
+                root.showReportIssue()
+                break
+            case 11:
+                console.info("diagnostics-smoke: About")
+                root.showAbout()
+                break
+            case 12:
+                console.info("diagnostics-smoke: Sign in")
+                root.showSignIn()
+                break
+            case 13:
+                console.info("diagnostics-smoke: Overview reload")
+                root.showOverview()
+                break
+            default:
+                stop()
+                console.info("diagnostics-smoke: complete")
+                appLifecycle.requestQuit(vpnController.state, false)
+                return
+            }
+            ++root.diagnosticNavigationStep
+        }
+    }
 
     Controls.Dialog {
         id: quitDialog
@@ -354,9 +591,9 @@ Kirigami.ApplicationWindow {
         function onSnapshotChanged() {
             Qt.callLater(root.maybeShowCompatibilityWarning)
             if (!root.previousLoggedIn && vpnController.loggedIn) {
-                root.showPage(Qt.resolvedUrl("OverviewPage.qml"))
+                root.showOverview()
             } else if (root.previousLoggedIn && !vpnController.loggedIn) {
-                root.showPage(Qt.resolvedUrl("SignInPage.qml"))
+                root.showSignIn()
             }
             if (vpnController.errorCode.length > 0
                     && vpnController.errorCode !== root.previousErrorCode) {
@@ -370,51 +607,49 @@ Kirigami.ApplicationWindow {
         }
     }
 
-    pageStack.initialPage: Qt.resolvedUrl(initialPageName)
-
     globalDrawer: Kirigami.GlobalDrawer {
         title: qsTr("Proton VPN")
         titleIcon: "network-vpn"
-        isMenu: true
+        isMenu: false
 
         actions: [
             Kirigami.Action {
                 text: qsTr("Overview")
                 icon.name: "network-vpn"
-                onTriggered: root.showPage(Qt.resolvedUrl("OverviewPage.qml"))
+                onTriggered: root.showOverview()
             },
             Kirigami.Action {
                 text: qsTr("Countries and servers")
                 icon.name: "network-server"
                 enabled: vpnController.loggedIn
-                onTriggered: root.showPage(Qt.resolvedUrl("LocationsPage.qml"))
+                onTriggered: root.showLocations()
             },
             Kirigami.Action {
                 text: vpnController.loggedIn ? qsTr("Account") : qsTr("Sign in")
                 icon.name: vpnController.loggedIn ? "user-identity" : "system-log-in"
-                onTriggered: root.showPage(Qt.resolvedUrl(
-                    vpnController.loggedIn ? "AccountPage.qml" : "SignInPage.qml"))
+                onTriggered: vpnController.loggedIn
+                             ? root.showAccount() : root.showSignIn()
             },
             Kirigami.Action {
                 text: qsTr("Settings")
                 icon.name: "settings-configure"
-                onTriggered: root.showPage(Qt.resolvedUrl("SettingsPage.qml"))
+                onTriggered: root.showSettings()
             },
             Kirigami.Action {
                 text: qsTr("Release notes")
                 icon.name: "view-list-text"
-                onTriggered: root.showPage(Qt.resolvedUrl("ReleaseNotesPage.qml"))
+                onTriggered: root.showReleaseNotes()
             },
             Kirigami.Action {
                 text: qsTr("Report an issue")
                 icon.name: "tools-report-bug"
                 enabled: vpnController.loggedIn
-                onTriggered: root.showPage(Qt.resolvedUrl("ReportIssuePage.qml"))
+                onTriggered: root.showReportIssue()
             },
             Kirigami.Action {
                 text: qsTr("About")
                 icon.name: "help-about"
-                onTriggered: root.showPage(Qt.resolvedUrl("AboutPage.qml"))
+                onTriggered: root.showAbout()
             },
             Kirigami.Action {
                 text: qsTr("Quit")

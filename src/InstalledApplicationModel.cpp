@@ -47,10 +47,13 @@ int desktopIdPenalty(const KService::Ptr &service,
 }
 }
 
-InstalledApplicationModel::InstalledApplicationModel(QObject *parent)
+InstalledApplicationModel::InstalledApplicationModel(
+    QObject *parent, bool discoverApplications)
     : QAbstractListModel(parent)
 {
-    reload();
+    if (discoverApplications) {
+        reload();
+    }
 }
 
 int InstalledApplicationModel::rowCount(const QModelIndex &parent) const

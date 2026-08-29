@@ -10,8 +10,7 @@ Kirigami.Page {
     readonly property bool searching: searchField.text.trim().length > 0
 
     function openCountry(code, name, flag, accessible, underMaintenance) {
-        applicationWindow().pageStack.push(
-            Qt.resolvedUrl("CountryPage.qml"), {
+        applicationWindow().pushCountry({
                 "countryCode": code,
                 "countryName": name,
                 "countryFlag": flag,
@@ -29,8 +28,7 @@ Kirigami.Page {
             page.openCountry(countryCode, countryName, countryFlag,
                              accessible, underMaintenance)
         } else if (kind === "location" || kind === "server") {
-            applicationWindow().pageStack.push(
-                Qt.resolvedUrl("ServersPage.qml"), {
+            applicationWindow().pushServers({
                     "countryCode": countryCode,
                     "countryName": countryName,
                     "countryFlag": countryFlag,
@@ -58,7 +56,7 @@ Kirigami.Page {
     ]
 
     Shortcut {
-        sequence: StandardKey.Find
+        sequences: [StandardKey.Find]
         onActivated: searchField.forceActiveFocus()
     }
 

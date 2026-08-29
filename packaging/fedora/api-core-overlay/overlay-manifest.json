@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "vendor": {
+    "nevra": "python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64",
+    "sourceRpm": "python3-proton-vpn-api-core-5.6.10-1.fc44.src.rpm",
+    "rpmFilename": "python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64.rpm",
+    "rpmSha256": "6857951c37da0b56c353076d05d4de82c7f1e91786ff1effda12dfd80e2f3357",
+    "headerSha256": "479b7981e7d38f7efa5531c78084ce0c4aed4dceec7b418e1df583712f2ea450",
+    "payloadSha256": "b11ec29aa66461b47e7c119fbceee636e4f8bc704f589be2d7c352d074a4ae88",
+    "rsaHeader": "RSA/SHA512, Wed Aug 26 03:57:18 2026, Key ID d84176f6844830d4"
+  },
+  "overlay": {
+    "packageName": "python3-proton-vpn-api-core",
+    "nevra": "python3-proton-vpn-api-core-5.6.10-6.codex1.fc44.x86_64",
+    "pythonCacheTag": "cpython-314",
+    "representationOnly": false,
+    "upstreamRepository": "https://github.com/ProtonVPN/python-proton-vpn-api-core.git",
+    "upstreamBaseTag": "v5.5.15",
+    "patches": [
+      {
+        "file": "0001-share-repeated-server-endpoint-strings.patch",
+        "sha256": "8fe15335ae88b296145428f7644071d30e923bc0dd4cec8faadc9c8a3649867e",
+        "upstreamCommit": "b007cc956541e5d7c2aa25dbf0ab04b628b90d27",
+        "upstreamPatchSha256": "7e45e6c23199a04b6fcc0ad8a8ba44f50207a1a01a8fdef0d8c4525378b1bfc8"
+      },
+      {
+        "file": "0002-share-server-strings-during-cache-decoding.patch",
+        "sha256": "d32c55255ab993f4e6467c2d55c454da7d966da86d478f107f3d839dfd6e45ba",
+        "upstreamCommit": "88887e4223aed45b18d2dd7554565278c4dda9c0",
+        "upstreamPatchSha256": "2c20a412ebf627fafbddcffa47f6d34416d3d7f1f09a0575f56fb01fc6a0e2fe"
+      },
+      {
+        "file": "0003-avoid-deprecated-fido2-capability-query.patch",
+        "sha256": "1489f5af318c96167b0a2850fedd6993600b14710089408c0c1d091df0df0365",
+        "upstreamCommit": "f39782e411d629694eab174b4b04adc86765d7d8",
+        "upstreamPatchSha256": "c9b9b47b7f50a2cb38f36986c2baa413b7a50b3813d85ef67a4518d2a646d07a"
+      }
+    ],
+    "derivedBytecode": [
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/core/cache_handler.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/cache_handler.cpython-314.pyc",
+        "optimization": 0
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/core/cache_handler.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/cache_handler.cpython-314.opt-1.pyc",
+        "optimization": 1,
+        "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/cache_handler.cpython-314.pyc"
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/core/api.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/api.cpython-314.pyc",
+        "optimization": 0
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/core/api.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/api.cpython-314.opt-1.pyc",
+        "optimization": 1,
+        "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/api.cpython-314.pyc"
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/logicals.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/logicals.cpython-314.pyc",
+        "optimization": 0
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/logicals.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/logicals.cpython-314.opt-1.pyc",
+        "optimization": 1,
+        "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/logicals.cpython-314.pyc"
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/server_list_fetcher.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/server_list_fetcher.cpython-314.pyc",
+        "optimization": 0
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/server_list_fetcher.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/server_list_fetcher.cpython-314.opt-1.pyc",
+        "optimization": 1,
+        "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/server_list_fetcher.cpython-314.pyc"
+      }
+    ],
+    "modifiedFiles": [
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/api.py",
+        "vendorSha256": "29dc8db030df17e1fcc7f07ce27578bd372d8aa430c8a05654bb1e95f6a094c6",
+        "overlaySha256": "00c3648fcdf7cf5650bb9d5c7656882e35d93e519bfd143f0f6ee0d198e77a6c"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/api.cpython-314.pyc",
+        "vendorSha256": "1da8e3fa89266003918cffb1bac05adf1c58a385c2a3b52566d7eb2a0e163564",
+        "overlaySha256": "cea01fa42470a1519b14146245d524c7509b7e80f8fc1c87f0d1a071b940c0d6"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/api.cpython-314.opt-1.pyc",
+        "vendorSha256": "1da8e3fa89266003918cffb1bac05adf1c58a385c2a3b52566d7eb2a0e163564",
+        "overlaySha256": "cea01fa42470a1519b14146245d524c7509b7e80f8fc1c87f0d1a071b940c0d6"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/cache_handler.py",
+        "vendorSha256": "e41d760b55d04ab7eae1ddacb41f5b7a4a3e852c8a19e080ed3d85f842889b69",
+        "overlaySha256": "994ca21f5f60cc349683ff7507e396b2a24a94049d77ae7681c03ea1d8cdee79"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/cache_handler.cpython-314.pyc",
+        "vendorSha256": "9399ff765f2a7c2b341a0ed5df2df1991d0ea945eb504174dd27384823ac33e8",
+        "overlaySha256": "7338f9d074337e1e671f84c93d172c78e512a3cca59f21e18b3ba35e4433c678"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/core/__pycache__/cache_handler.cpython-314.opt-1.pyc",
+        "vendorSha256": "9399ff765f2a7c2b341a0ed5df2df1991d0ea945eb504174dd27384823ac33e8",
+        "overlaySha256": "7338f9d074337e1e671f84c93d172c78e512a3cca59f21e18b3ba35e4433c678"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/logicals.py",
+        "vendorSha256": "a97a1444b594a9fee49abc15ad8c2ac50392d76e00ef300bd3c4b8641a83fa71",
+        "overlaySha256": "ca7c7d1e45fdc126a658ba9efe401b9851268ae0e57b7a1f0f9a12a9cf3edcf8"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/logicals.cpython-314.pyc",
+        "vendorSha256": "67d64f46b1c559d304e21fbac8ada5ecd39bbd16af5f3490d63702e0f2f275ab",
+        "overlaySha256": "570fe86b04f6f5103be546a55296a3c4b527e2713e2c38d01aebddfe6d1be4f8"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/logicals.cpython-314.opt-1.pyc",
+        "vendorSha256": "67d64f46b1c559d304e21fbac8ada5ecd39bbd16af5f3490d63702e0f2f275ab",
+        "overlaySha256": "570fe86b04f6f5103be546a55296a3c4b527e2713e2c38d01aebddfe6d1be4f8"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/server_list_fetcher.py",
+        "vendorSha256": "d9cad21c1c910fc55374fdcc042263e7dc933f103ae6f25def68be16a3e04535",
+        "overlaySha256": "caf9f9c352bdecb5d70ff552ebd90c22520cbb92d274d5036f02b7f1381be0a5"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/server_list_fetcher.cpython-314.pyc",
+        "vendorSha256": "3271e1b2352d22860efcc6a1a1d272ee0f02a1eae71ad2bc7d3d40cdf5b434f3",
+        "overlaySha256": "9f287437ed89c605c725c0750e0d7aadf69ff45e20eeba6adba7fcacd5820a26"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/server_list_fetcher.cpython-314.opt-1.pyc",
+        "vendorSha256": "3271e1b2352d22860efcc6a1a1d272ee0f02a1eae71ad2bc7d3d40cdf5b434f3",
+        "overlaySha256": "9f287437ed89c605c725c0750e0d7aadf69ff45e20eeba6adba7fcacd5820a26"
+      }
+    ]
+  }
+}
