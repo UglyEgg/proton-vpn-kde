@@ -1,18 +1,18 @@
 #include "NotificationIntegration.h"
 
 #include "AppSettings.h"
-#include "VpnController.h"
+#include "VpnConnectionController.h"
 
 #include <KNotification>
 #include <QGuiApplication>
 
 NotificationIntegration::NotificationIntegration(
-    VpnController *controller, AppSettings *settings, QObject *parent)
+    VpnConnectionController *controller, AppSettings *settings, QObject *parent)
     : QObject(parent)
     , m_controller(controller)
     , m_settings(settings)
 {
-    connect(m_controller, &VpnController::snapshotChanged,
+    connect(m_controller, &VpnConnectionController::snapshotChanged,
             this, &NotificationIntegration::updateState);
     updateState();
 }

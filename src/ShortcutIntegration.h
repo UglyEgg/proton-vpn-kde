@@ -1,24 +1,25 @@
 #pragma once
 
 #include <QObject>
+#include <functional>
 #include <QString>
 
 class QAction;
-class QWindow;
-class VpnController;
+class VpnConnectionController;
 
 class ShortcutIntegration final : public QObject
 {
     Q_OBJECT
 
 public:
-    ShortcutIntegration(VpnController *controller, QWindow *window,
+    ShortcutIntegration(VpnConnectionController *controller,
+                        std::function<void()> showControlCenter,
                         QObject *parent = nullptr);
 
 private:
     QAction *registerAction(const QString &id, const QString &text);
-    void toggleWindow();
+    void showControlCenter();
 
-    VpnController *m_controller = nullptr;
-    QWindow *m_window = nullptr;
+    VpnConnectionController *m_controller = nullptr;
+    std::function<void()> m_showControlCenter;
 };

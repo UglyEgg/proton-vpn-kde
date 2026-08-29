@@ -182,3 +182,45 @@ allowlist: an upstream release that incorporates equivalent behavior passes,
 while an overlay replaced by an unoptimized package fails even if its release
 label is unexpected. The installed Core version is included in the warning so
 the user knows which overlay needs review.
+
+## Phase 10 — Split resident Plasma integration from the Control Center (in progress)
+
+- Add a lean, windowless `proton-vpn-kde-agent` for the system tray, global
+  shortcuts, notifications, favorites, auto-connect, and launching the Control
+  Center.
+- Observe the existing bounded backend snapshot without registering a native
+  client lease, so a disconnected Python backend can still shut down while the
+  Plasma agent remains available.
+- Keep `proton-vpn-kde` as an on-demand Kirigami Control Center that exits when
+  its window closes without disconnecting an active tunnel.
+- Activate the agent through the user D-Bus and systemd session facilities and
+  retain a development-tree fallback that does not depend on an installed
+  service file.
+- Prove single-instance behavior, command parity, backend idle shutdown, and a
+  materially smaller resident memory footprint.
+
+## Phase 11 — Apply a KDE desktop-first visual system
+
+- Replace the remaining GTK-shaped page composition with native Kirigami
+  navigation, spacing, typography, semantic colors, and inline status patterns.
+- Prefer standard Plasma icons and controls, respecting system color schemes,
+  font sizes, reduced motion, high contrast, and right-to-left layouts.
+- Resolve the UI hygiene debt recorded during the review before adding visual
+  novelty.
+
+## Phase 12 — Add an on-demand Connection Inspector
+
+- Move richer live connection details and bounded analytics into a Control
+  Center page that consumes existing non-sensitive backend state.
+- Keep collection off while the page is closed and avoid traffic inspection,
+  history retention, or new networking ownership.
+- Present useful tunnel, server, feature, and diagnostic information without
+  keeping the full Control Center resident.
+
+## Phase 13 — Add an optional Plasma widget
+
+- Provide a pure-QML Plasma 6 widget for status and common connection actions.
+- Reuse the resident agent and existing backend D-Bus contract instead of
+  embedding Python or Proton Core in plasmashell.
+- Treat the widget as optional; the agent and Control Center remain complete
+  without it.

@@ -10,14 +10,18 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 ## Current milestone
 
 - Native Qt 6/Kirigami overview window
-- Plasma system tray integration, using `KStatusNotifierItem` when available
+- A lean, windowless Plasma agent for the system tray, global shortcuts,
+  notifications, favorites, and auto-connect, using `KStatusNotifierItem` when
+  available
+- An on-demand Kirigami Control Center that exits when closed without
+  disconnecting an active tunnel or keeping the full interface resident
 - Plasma Global Shortcuts actions for toggling the connection, connecting to
-  the fastest server, disconnecting, and showing or hiding the window; all are
+  the fastest server, disconnecting, and showing the Control Center; all are
   unbound by default and user-configurable in System Settings
 - Native KRunner actions: type `vpn` to open the client, connect fastest,
   disconnect, or connect by country code or exact server name
-- Single-instance Plasma activation with a `--settings` deep link for desktop
-  integration surfaces
+- Independent single-instance activation for the Plasma agent and Control
+  Center, with a `--settings` deep link for desktop integration surfaces
 - A native System Settings module for auto-connect, recovery, tray behavior,
   notifications, favorites, packet-capture storage, and shortcut handoff
 - Versioned D-Bus contract with JSON snapshots
@@ -68,21 +72,22 @@ split tunneling, and persisted connection state remain owned by Proton's core.
 - Fedora stable/Beta repository selection through an exact-package, no-shell
   Polkit action while Discover retains control of package updates
 - Persistent Plasma settings through KConfig for reconnection, notifications,
-  close-to-tray, and start-minimized behavior
+  resident tray controls, and tray-only startup behavior
 - Native sign-in, TOTP/recovery-code authentication, security-key/FIDO2
   interaction, account metadata, session expiry, and logout
 - Official account/help links and service-driven anonymous NPS surveys using
   Proton's cached notification and response APIs
-- Pre-login permanent-kill-switch recovery, kill-switch-safe sign-out, and a
-  confirmed disconnect-before-quit flow matching the official client
+- Pre-login permanent-kill-switch recovery and kill-switch-safe sign-out; closing
+  the Control Center never changes the active tunnel
 - Ephemeral X25519/AES-GCM encryption plus sealed one-use memory-file transport
   for passwords, codes, and security-key PINs; plaintext never appears in D-Bus
   messages, observable descriptors, or state snapshots
 
 The real backend is intentionally not auto-started from the development tree.
 This prevents an unfinished frontend from changing a working VPN session.
-Packaged builds install D-Bus and systemd user-service metadata so the backend
-is activated automatically when the GUI requests its first state snapshot.
+Packaged builds install separate D-Bus and systemd user-service metadata for
+the lean Plasma agent and the backend. Merely running the agent does not start
+or lease the Python backend; connection actions activate it on demand.
 
 The audited official-client capability contract and deliberate Plasma
 differences are tracked in [`docs/PARITY.md`](docs/PARITY.md).
@@ -99,15 +104,16 @@ cmake --build build
 cmake --install build
 ```
 
-The top-level install includes the Qt/Kirigami frontend, Python backend,
-desktop entry, icon, D-Bus activation metadata, and systemd user unit. Fedora
+The top-level install includes the Qt/Kirigami Control Center, Plasma agent,
+Python backend, desktop entry, icon, D-Bus activation metadata, and systemd
+user units. Fedora
 packagers can still build `backend/pyproject.toml` as a separate noarch package.
 
 For full Plasma tray integration on Fedora:
 
 ```bash
 sudo dnf install kf6-kconfig-devel kf6-knotifications-devel \
-    kf6-kcoreaddons-devel kf6-kdbusaddons-devel \
+    kf6-kcoreaddons-devel \
     kf6-kglobalaccel-devel kf6-kcmutils-devel kf6-krunner-devel \
     kf6-kservice-devel \
     kf6-kstatusnotifieritem-devel openssl-devel

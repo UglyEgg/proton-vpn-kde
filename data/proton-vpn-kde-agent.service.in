@@ -1,0 +1,12 @@
+[Unit]
+Description=Plasma integration agent for Proton VPN
+
+[Service]
+Type=dbus
+BusName=proton.vpn.app.kde.Agent
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/proton-vpn-kde-agent
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full

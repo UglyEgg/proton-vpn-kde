@@ -1,14 +1,12 @@
 #include "TrayIntegration.h"
 
-#include "AppLifecycle.h"
 #include "AppSettings.h"
-#include "VpnController.h"
+#include "VpnConnectionController.h"
 
 #include <QAction>
 #include <QApplication>
 #include <QIcon>
 #include <QMenu>
-#include <QWindow>
 #include <utility>
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM
@@ -17,31 +15,28 @@
 #include <QSystemTrayIcon>
 #endif
 
-TrayIntegration::TrayIntegration(VpnController *controller, AppSettings *settings,
-                                 AppLifecycle *lifecycle, QWindow *window,
+TrayIntegration::TrayIntegration(VpnConnectionController *controller,
+                                 AppSettings *settings,
+                                 std::function<void()> showControlCenter,
                                  QObject *parent)
     : QObject(parent)
     , m_controller(controller)
     , m_settings(settings)
-    , m_lifecycle(lifecycle)
-    , m_window(window)
+    , m_showControlCenter(std::move(showControlCenter))
     , m_menu(new QMenu)
 {
     m_showAction = m_menu->addAction(tr("Show Proton VPN"));
     m_connectionAction = m_menu->addAction(tr("Connect fastest"));
     m_pinnedSeparator = m_menu->addSeparator();
-    QAction *quitAction = m_menu->addAction(tr("Quit"));
+    QAction *quitAction = m_menu->addAction(tr("Quit background controls"));
 
-    connect(m_showAction, &QAction::triggered, this, &TrayIntegration::toggleWindow);
+    connect(m_showAction, &QAction::triggered,
+            this, &TrayIntegration::showControlCenter);
     connect(m_connectionAction, &QAction::triggered,
-            m_controller, &VpnController::activatePrimaryAction);
-    connect(quitAction, &QAction::triggered, this, [this] {
-        m_lifecycle->requestQuit(
-            m_controller->state(),
-            m_controller->backendAvailable() && m_controller->ready()
-                && m_controller->loggedIn());
-    });
-    connect(m_controller, &VpnController::snapshotChanged,
+            m_controller, &VpnConnectionController::activatePrimaryAction);
+    connect(quitAction, &QAction::triggered,
+            qApp, &QCoreApplication::quit);
+    connect(m_controller, &VpnConnectionController::snapshotChanged,
             this, &TrayIntegration::updateState);
     connect(m_settings, &AppSettings::pinnedServersChanged,
             this, &TrayIntegration::rebuildPinnedActions);
@@ -55,7 +50,7 @@ TrayIntegration::TrayIntegration(VpnController *controller, AppSettings *setting
     m_tray->setIconByName(QStringLiteral("network-vpn"));
     m_tray->setTitle(tr("Proton VPN"));
     connect(m_tray, &KStatusNotifierItem::activateRequested,
-            this, [this](bool, const QPoint &) { toggleWindow(); });
+            this, [this](bool, const QPoint &) { this->showControlCenter(); });
 #else
     m_tray = new QSystemTrayIcon(QIcon::fromTheme(QStringLiteral("network-vpn")), this);
     m_tray->setContextMenu(m_menu);
@@ -63,7 +58,7 @@ TrayIntegration::TrayIntegration(VpnController *controller, AppSettings *setting
     connect(m_tray, &QSystemTrayIcon::activated, this,
             [this](QSystemTrayIcon::ActivationReason reason) {
                 if (reason == QSystemTrayIcon::Trigger) {
-                    toggleWindow();
+                    this->showControlCenter();
                 }
             });
 #endif
@@ -89,17 +84,10 @@ void TrayIntegration::rebuildPinnedActions()
         m_pinnedActions.append(action);
     }
 }
-void TrayIntegration::toggleWindow()
+void TrayIntegration::showControlCenter()
 {
-    if (!m_window) {
-        return;
-    }
-    if (m_window->isVisible()) {
-        m_window->hide();
-    } else {
-        m_window->show();
-        m_window->raise();
-        m_window->requestActivate();
+    if (m_showControlCenter) {
+        m_showControlCenter();
     }
 }
 

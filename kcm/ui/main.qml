@@ -51,14 +51,14 @@ Kirigami.ScrollablePage {
 
         Controls.Switch {
             Kirigami.FormData.label: qsTr("Startup:")
-            text: qsTr("Start minimized to the system tray")
+            text: qsTr("Open only the Plasma tray controls at startup")
             checked: page.settings.startMinimized
             onToggled: page.settings.startMinimized = checked
         }
 
         Controls.Switch {
             Kirigami.FormData.label: qsTr("Window:")
-            text: qsTr("Keep running when the window is closed")
+            text: qsTr("Keep Plasma tray controls available after closing")
             checked: page.settings.closeToTray
             onToggled: page.settings.closeToTray = checked
         }

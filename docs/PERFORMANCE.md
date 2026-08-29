@@ -1,4 +1,26 @@
-# Search performance
+# Performance
+
+## Resident Plasma agent
+
+Version `0.9.0` moves the system tray, global shortcuts, notifications,
+favorites, and auto-connect into `proton-vpn-kde-agent`. The agent does not
+load QML, server or application models, the protected authentication transport,
+or Proton's Python core. It also observes the backend without registering a
+client lease.
+
+On the Fedora 44 Plasma development session, the disconnected agent settled at
+57,960 KiB RSS. The same binary on an isolated offscreen Qt session settled at
+29,440 KiB RSS. In both cases no Control Center or Python backend remained
+running, and NetworkManager stayed disconnected. The live figure includes the
+real Plasma platform theme, status notifier, global-shortcut, and notification
+integrations.
+
+The lifecycle regression starts the agent beside a demo backend with a
+two-second idle grace period. The backend exits while the agent remains alive,
+proving that the resident process does not retain the substantially larger
+Python server model while disconnected.
+
+## Search performance
 
 Phase 5 profiles the native global search against Proton's existing local
 server cache. The benchmark does not contact Proton, connect a VPN, or read

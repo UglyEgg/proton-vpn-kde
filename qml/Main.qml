@@ -14,16 +14,7 @@ Kirigami.ApplicationWindow {
     title: qsTr("Proton VPN")
 
     onClosing: close => {
-        if (appSettings.closeToTray) {
-            close.accepted = false
-            root.hide()
-        } else {
-            close.accepted = false
-            appLifecycle.requestQuit(
-                vpnController.state,
-                vpnController.backendAvailable && vpnController.ready
-                    && vpnController.loggedIn)
-        }
+        close.accepted = true
     }
 
     function pushOwnedPage(pageComponent, properties) {
@@ -91,9 +82,6 @@ Kirigami.ApplicationWindow {
     }
 
     function prepareForQuit() {
-        if (quitDialog.visible) {
-            quitDialog.close()
-        }
         if (sessionLimitDialog.visible) {
             sessionLimitDialog.close()
         }
@@ -312,30 +300,11 @@ Kirigami.ApplicationWindow {
             default:
                 stop()
                 console.info("diagnostics-smoke: complete")
-                appLifecycle.requestQuit(vpnController.state, false)
+                Qt.quit()
                 return
             }
             ++root.diagnosticNavigationStep
         }
-    }
-
-    Controls.Dialog {
-        id: quitDialog
-        anchors.centerIn: parent
-        modal: true
-        title: qsTr("Disconnect and quit Proton VPN?")
-        standardButtons: Controls.Dialog.Yes | Controls.Dialog.Cancel
-
-        Controls.Label {
-            width: Kirigami.Units.gridUnit * 22
-            wrapMode: Text.WordWrap
-            text: vpnController.settings.killSwitch === 2
-                  ? qsTr("The VPN tunnel will be disconnected. The permanent kill switch will remain active after the app exits.")
-                  : qsTr("The active VPN tunnel will be disconnected before the app exits.")
-        }
-
-        onAccepted: appLifecycle.confirmQuit()
-        onRejected: appLifecycle.cancelQuit()
     }
 
     Controls.Dialog {
@@ -577,16 +546,6 @@ Kirigami.ApplicationWindow {
     }
 
     Connections {
-        target: appLifecycle
-        function onQuitConfirmationRequested() {
-            root.show()
-            root.raise()
-            root.requestActivate()
-            quitDialog.open()
-        }
-    }
-
-    Connections {
         target: vpnController
         function onSnapshotChanged() {
             Qt.callLater(root.maybeShowCompatibilityWarning)
@@ -652,12 +611,9 @@ Kirigami.ApplicationWindow {
                 onTriggered: root.showAbout()
             },
             Kirigami.Action {
-                text: qsTr("Quit")
+                text: qsTr("Close Control Center")
                 icon.name: "application-exit"
-                onTriggered: appLifecycle.requestQuit(
-                    vpnController.state,
-                    vpnController.backendAvailable && vpnController.ready
-                        && vpnController.loggedIn)
+                onTriggered: Qt.quit()
             }
         ]
     }

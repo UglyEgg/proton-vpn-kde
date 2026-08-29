@@ -140,7 +140,8 @@ void ProtonVpnRunner::run(const KRunner::RunnerContext &context,
 
     switch (action) {
     case RunnerAction::Open:
-        QProcess::startDetached(QStringLiteral("proton-vpn-kde"), {});
+        QProcess::startDetached(QStringLiteral("proton-vpn-kde"),
+                                {QStringLiteral("--show")});
         break;
     case RunnerAction::ConnectFastest:
         callBackend(QStringLiteral("ConnectFastest"));

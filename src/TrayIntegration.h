@@ -2,13 +2,12 @@
 
 #include <QList>
 #include <QObject>
+#include <functional>
 
 class QAction;
 class QMenu;
-class QWindow;
 class AppSettings;
-class AppLifecycle;
-class VpnController;
+class VpnConnectionController;
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM
 class KStatusNotifierItem;
@@ -21,19 +20,18 @@ class TrayIntegration final : public QObject
     Q_OBJECT
 
 public:
-    TrayIntegration(VpnController *controller, AppSettings *settings,
-                    AppLifecycle *lifecycle, QWindow *window,
+    TrayIntegration(VpnConnectionController *controller, AppSettings *settings,
+                    std::function<void()> showControlCenter,
                     QObject *parent = nullptr);
 
 private:
-    void toggleWindow();
+    void showControlCenter();
     void updateState();
     void rebuildPinnedActions();
 
-    VpnController *m_controller = nullptr;
+    VpnConnectionController *m_controller = nullptr;
     AppSettings *m_settings = nullptr;
-    AppLifecycle *m_lifecycle = nullptr;
-    QWindow *m_window = nullptr;
+    std::function<void()> m_showControlCenter;
     QMenu *m_menu = nullptr;
     QAction *m_showAction = nullptr;
     QAction *m_connectionAction = nullptr;

@@ -1,23 +1,24 @@
 #include "ShortcutIntegration.h"
 
-#include "VpnController.h"
+#include "VpnConnectionController.h"
 
 #include <KGlobalAccel>
 #include <QAction>
 #include <QKeySequence>
 #include <QList>
-#include <QWindow>
+#include <utility>
 
-ShortcutIntegration::ShortcutIntegration(VpnController *controller,
-                                         QWindow *window, QObject *parent)
+ShortcutIntegration::ShortcutIntegration(
+    VpnConnectionController *controller,
+    std::function<void()> showControlCenter, QObject *parent)
     : QObject(parent)
     , m_controller(controller)
-    , m_window(window)
+    , m_showControlCenter(std::move(showControlCenter))
 {
     QAction *toggleConnection = registerAction(
         QStringLiteral("toggle-connection"), tr("Toggle VPN connection"));
     connect(toggleConnection, &QAction::triggered,
-            m_controller, &VpnController::activatePrimaryAction);
+            m_controller, &VpnConnectionController::activatePrimaryAction);
 
     QAction *connectFastest = registerAction(
         QStringLiteral("connect-fastest"), tr("Connect to fastest VPN server"));
@@ -37,9 +38,9 @@ ShortcutIntegration::ShortcutIntegration(VpnController *controller,
     });
 
     QAction *toggleWindowAction = registerAction(
-        QStringLiteral("toggle-window"), tr("Show or hide Proton VPN"));
+        QStringLiteral("toggle-window"), tr("Show Proton VPN"));
     connect(toggleWindowAction, &QAction::triggered,
-            this, &ShortcutIntegration::toggleWindow);
+            this, &ShortcutIntegration::showControlCenter);
 }
 
 QAction *ShortcutIntegration::registerAction(const QString &id,
@@ -53,16 +54,9 @@ QAction *ShortcutIntegration::registerAction(const QString &id,
     return action;
 }
 
-void ShortcutIntegration::toggleWindow()
+void ShortcutIntegration::showControlCenter()
 {
-    if (!m_window) {
-        return;
-    }
-    if (m_window->isVisible()) {
-        m_window->hide();
-    } else {
-        m_window->show();
-        m_window->raise();
-        m_window->requestActivate();
+    if (m_showControlCenter) {
+        m_showControlCenter();
     }
 }

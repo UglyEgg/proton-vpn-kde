@@ -41,7 +41,7 @@ VpnController::VpnController(QObject *parent)
 }
 
 VpnController::VpnController(QObject *parent, bool discoverApplications)
-    : QObject(parent)
+    : VpnConnectionController(parent)
     , m_serviceWatcher(new QDBusServiceWatcher(
           QString::fromLatin1(kBackendService),
           QDBusConnection::sessionBus(),

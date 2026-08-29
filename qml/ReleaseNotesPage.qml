@@ -11,6 +11,21 @@ Kirigami.ScrollablePage {
 
         Kirigami.Heading {
             level: 1
+            text: "0.9.0"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Keep tray controls, shortcuts, notifications, favorites, and auto-connect in a lean Plasma agent while the full Control Center opens only when needed and exits when closed. Closing the window does not disconnect the VPN.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
             text: "0.8.8"
         }
 

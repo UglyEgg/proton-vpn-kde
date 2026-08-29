@@ -9,9 +9,9 @@ Create a release archive from the repository root:
 ```bash
 git archive \
     --format=tar.gz \
-    --prefix=proton-vpn-kde-0.8.8/ \
-    --output="${HOME}/rpmbuild/SOURCES/proton-vpn-kde-0.8.8.tar.gz" \
-    v0.8.8
+    --prefix=proton-vpn-kde-0.9.0/ \
+    --output="${HOME}/rpmbuild/SOURCES/proton-vpn-kde-0.9.0.tar.gz" \
+    v0.9.0
 ```
 
 Then build with the direct Plasma status-notifier integration:

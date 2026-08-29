@@ -533,14 +533,14 @@ Kirigami.ScrollablePage {
 
         Controls.Switch {
             Kirigami.FormData.label: qsTr("Window:")
-            text: qsTr("Keep running in the system tray when closed")
+            text: qsTr("Keep Plasma tray controls available after closing")
             checked: appSettings.closeToTray
             onToggled: appSettings.closeToTray = checked
         }
 
         Controls.Switch {
             Kirigami.FormData.label: qsTr("Startup:")
-            text: qsTr("Start with the window hidden")
+            text: qsTr("Open only the Plasma tray controls at startup")
             checked: appSettings.startMinimized
             onToggled: appSettings.startMinimized = checked
         }
@@ -567,7 +567,7 @@ Kirigami.ScrollablePage {
             Layout.fillWidth: true
             visible: appSettings.startMinimized
             type: Kirigami.MessageType.Information
-            text: qsTr("This controls window visibility only. Enable application autostart separately in Plasma System Settings.")
+            text: qsTr("Enable application autostart separately in Plasma System Settings. The full Control Center is not kept in memory.")
         }
 
         Controls.Label {

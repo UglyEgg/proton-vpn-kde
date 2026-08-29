@@ -4,20 +4,21 @@
 #include <QString>
 
 class AppSettings;
-class VpnController;
+class VpnConnectionController;
 
 class NotificationIntegration final : public QObject
 {
     Q_OBJECT
 
 public:
-    NotificationIntegration(VpnController *controller, AppSettings *settings,
+    NotificationIntegration(VpnConnectionController *controller,
+                            AppSettings *settings,
                             QObject *parent = nullptr);
 
 private:
     void updateState();
 
-    VpnController *m_controller = nullptr;
+    VpnConnectionController *m_controller = nullptr;
     AppSettings *m_settings = nullptr;
     QString m_previousState;
     int m_previousForwardedPort = 0;

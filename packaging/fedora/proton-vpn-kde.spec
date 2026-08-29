@@ -1,7 +1,7 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.8.8
+Version:        0.9.0
 Release:        1%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
@@ -15,7 +15,6 @@ BuildRequires:  extra-cmake-modules
 BuildRequires:  gcc-c++
 BuildRequires:  kf6-kconfig-devel
 BuildRequires:  kf6-kcoreaddons-devel
-BuildRequires:  kf6-kdbusaddons-devel
 BuildRequires:  kf6-kglobalaccel-devel
 BuildRequires:  kf6-kcmutils-devel
 BuildRequires:  kf6-knotifications-devel
@@ -35,7 +34,6 @@ BuildRequires:  qt6-qtdeclarative-devel
 BuildRequires:  qt6-linguist
 
 Requires:       kf6-kirigami
-Requires:       kf6-kdbusaddons
 Requires:       kf6-kglobalaccel
 Requires:       kf6-kcmutils
 Requires:       kf6-krunner
@@ -73,36 +71,47 @@ uses the Freedesktop Secret Service provider selected by the desktop session.
 install -d %{buildroot}%{_userunitdir}
 mv %{buildroot}%{_libdir}/systemd/user/proton-vpn-kde-backend.service \
     %{buildroot}%{_userunitdir}/
+mv %{buildroot}%{_libdir}/systemd/user/proton-vpn-kde-agent.service \
+    %{buildroot}%{_userunitdir}/
 desktop-file-validate \
     %{buildroot}%{_datadir}/applications/proton-vpn-kde.desktop
 
 %post
-%systemd_user_post proton-vpn-kde-backend.service
+%systemd_user_post proton-vpn-kde-backend.service proton-vpn-kde-agent.service
 
 %preun
-%systemd_user_preun proton-vpn-kde-backend.service
+%systemd_user_preun proton-vpn-kde-backend.service proton-vpn-kde-agent.service
 
 %posttrans
-%systemd_user_posttrans_with_restart proton-vpn-kde-backend.service
+%systemd_user_posttrans_with_restart proton-vpn-kde-backend.service proton-vpn-kde-agent.service
 
 %files
 %defattr(-,root,root,-)
 %license LICENSE COPYING.md
 %doc README.md docs
 %{_bindir}/proton-vpn-kde
+%{_bindir}/proton-vpn-kde-agent
 %{_bindir}/proton-vpn-kde-backend
 %{_libexecdir}/proton-vpn-kde/
 %{_datadir}/applications/proton-vpn-kde.desktop
 %{_datadir}/applications/kcm_proton_vpn_kde.desktop
 %{_datadir}/dbus-1/services/proton.vpn.app.kde.backend.service
+%{_datadir}/dbus-1/services/proton.vpn.app.kde.Agent.service
+%{_datadir}/dbus-1/services/proton.vpn.app.kde.ControlCenter.service
 %{_datadir}/icons/hicolor/scalable/apps/proton-vpn-kde.svg
 %{_datadir}/knotifications6/proton-vpn-kde.notifyrc
 %{_datadir}/proton-vpn-kde/translations/
 %{_kf6_plugindir}/krunner/proton-vpn-kde-runner.so
 %{_qt6_plugindir}/plasma/kcms/systemsettings/kcm_proton_vpn_kde.so
 %{_userunitdir}/proton-vpn-kde-backend.service
+%{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.9.0-1
+- Split Plasma tray, shortcuts, and notifications into a lean resident agent.
+- Let the full Control Center exit on close without disconnecting the VPN.
+- Keep the agent lease-free so the disconnected Python backend can shut down.
+
 * Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.8.8-1
 - Eliminate application-authored QML diagnostics across native page navigation.
 - Add an installed-Core behavior probe and visible warning when the memory overlay is absent.

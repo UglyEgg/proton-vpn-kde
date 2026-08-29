@@ -26,7 +26,7 @@ Proton's official core.
 | Connection errors | Specific summaries plus recovery dialogs for important fatal states | Stable non-sensitive error codes, official recovery text, and error-state cancellation | Complete |
 | Startup compatibility | Warn when no compatible VPN backend is registered | Official validator when available; public protocol-registry fallback for Fedora's initial core 5.5.6 | Complete |
 | Memory-overlay awareness | No equivalent warning | Behavior-check both representation-only server-string sharing paths and identify an unoptimized installed Core without blocking VPN use | Superset |
-| Quit/logout safety | Confirm active disconnect, preserve permanent kill switch on quit, disable it on logout | Native lifecycle state machine with the same outcomes | Complete |
+| Quit/logout safety | Confirm active disconnect, preserve permanent kill switch on quit, disable it on logout | Closing the on-demand Control Center preserves the active tunnel; disconnect is explicit and logout remains kill-switch safe | Native equivalent |
 | Protocols | Generic protocols and feature-flagged Proton protocols | Lists core-provided protocols and honors the ProTun feature flag | Complete |
 | Connection settings | Protocol, VPN Accelerator, moderate NAT, and IPv6 | Native conflict-aware controls saved through the official core | Complete |
 | Protection settings | Kill switch, NetShield, and port forwarding | Native controls with plan and connected-state constraints | Complete |
@@ -34,7 +34,7 @@ Proton's official core.
 | Custom DNS | Enable and edit IPv4/IPv6 servers with NetShield conflict handling | Native validated editor; both settings remain unchanged until the user explicitly resolves the conflict | Complete |
 | Split tunneling | Include/exclude modes, applications, and IP ranges | Native KService application chooser plus validated IPv4/IPv6 CIDR rules | Complete |
 | Auto-connect | Off, fastest, country, or exact server at application start | Same target syntax persisted through KConfig | Complete |
-| Tray preferences | Start minimized and pinned targets | Native status notifier, start-minimized behavior, pinned targets, and close-to-tray preference | Superset |
+| Tray preferences | Start minimized and pinned targets | Lean native status-notifier agent, tray-only startup, pinned targets, and an on-demand Control Center | Superset |
 | Troubleshooting capture | Choose folder and start/stop capture for supported protocols | Native folder chooser, consent warning, and official protocol capture implementation | Complete |
 | Issue reporting | Submit support form with optional logs | Official support API, fixed-scope journal attachments, and sealed sensitive form transport | Complete |
 | Release information | About and release-notes views | Native About and Release Notes pages | Complete |
@@ -53,8 +53,8 @@ Proton's official core.
   core configuration is the same as the official client's accepted path.
 - Repository-channel changes use an exact-package, no-shell privileged action.
   The application never performs a general system upgrade.
-- Global shortcuts, KRunner actions, a System Settings module, close-to-tray,
-  and native Plasma notifications extend rather than replace official behavior.
+- A resident Plasma agent, global shortcuts, KRunner actions, a System Settings
+  module, and native notifications extend rather than replace official behavior.
 
 ## Known content and upstream constraints
 

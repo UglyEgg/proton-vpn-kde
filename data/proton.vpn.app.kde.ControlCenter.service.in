@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=proton.vpn.app.kde.ControlCenter
+Exec=@CMAKE_INSTALL_FULL_BINDIR@/proton-vpn-kde --show

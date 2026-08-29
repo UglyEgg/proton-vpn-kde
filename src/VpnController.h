@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ClientRegistrationState.h"
+#include "VpnConnectionController.h"
 #include "VpnSettingsModel.h"
 #include "SplitTunnelingModel.h"
 #include "CustomDnsModel.h"
@@ -22,7 +23,7 @@ class ServerModel;
 class InstalledApplicationModel;
 class GroupedNavigationTest;
 
-class VpnController final : public QObject
+class VpnController final : public VpnConnectionController
 {
     Q_OBJECT
     Q_PROPERTY(bool backendAvailable READ backendAvailable NOTIFY backendAvailableChanged)
@@ -171,8 +172,6 @@ public:
     Q_INVOKABLE QString applicationName(const QString &executable) const;
 
 signals:
-    void backendAvailableChanged();
-    void snapshotChanged();
     void locationsChanged();
     void npsSurveyChanged();
     void supportReportFinished(bool success, const QString &message);

@@ -16,10 +16,15 @@
 
 ```text
 ┌─────────────────────────────────────┐
+│ proton-vpn-kde-agent                │
+│ C++ / Qt 6 / KF6 · resident         │
+│ tray · shortcuts · notifications    │
+└─────────────────┬───────────────────┘
+                  │ observes; no lease
+┌─────────────────┴───────────────────┐
 │ proton-vpn-kde                      │
-│ C++ / Qt 6 / Kirigami / KF6        │
-│                                     │
-│ UI · tray · notifications · config │
+│ C++ / Qt 6 / Kirigami · on demand  │
+│ Control Center · settings · auth    │
 └─────────────────┬───────────────────┘
                   │ session D-Bus
                   │ proton.vpn.app.kde.Backend1
@@ -111,15 +116,19 @@ overwrites its mutable input buffer. The same protected transport carries the
 username, contact email, and description in an explicitly submitted support
 report; they never appear as ordinary D-Bus strings.
 
-Installed builds use D-Bus activation backed by a systemd user service. The
-service is demand-started by the first frontend call and remains separate from
-the privileged split-tunneling system daemon. Each native frontend holds a
-lease using its unique session-bus name. The backend verifies those names and
-removes leases for crashed clients. With no live frontend it exits after a
-short grace period only when Proton reports a fully disconnected, idle state;
-connected tunnels and packet captures therefore remain supervised. A clean
-exit is reactivated on demand and releases the Python core's server model and
-native networking libraries while the application is not in use.
+Installed builds use D-Bus activation backed by systemd user services. The
+backend is demand-started by the first control call and remains separate from
+the privileged split-tunneling system daemon. While open, the full Control
+Center holds a lease using its unique session-bus name. The backend verifies
+that name and removes the lease after a crash. With no live Control Center it
+exits after a short grace period only when Proton reports a fully disconnected,
+idle state; connected tunnels and packet captures therefore remain supervised.
+A clean exit is reactivated on demand and releases the Python core's server
+model and native networking libraries while the application is not in use. The
+Plasma agent deliberately does not register a lease: it observes a running
+backend's bounded snapshot and can activate the backend for an explicit
+connection action, but a disconnected backend still returns to the stopped
+state while the tray remains available.
 
 The installed unit executes the backend by its absolute packaged path and
 enables `NoNewPrivileges`, a private temporary directory, and read-only system
@@ -263,7 +272,7 @@ state as a dropped tunnel.
 
 ## Plasma integration
 
-The frontend keeps desktop concerns out of the backend. `KNotification` owns
+The resident agent keeps desktop concerns out of the backend. `KNotification` owns
 connection popups, KConfig stores user preferences in
 `proton-vpn-kderc`, and a `QSortFilterProxyModel` provides zero-copy filtering
 for country, server, and application lists. `KApplicationTrader` supplies the
@@ -305,11 +314,11 @@ The repository switch does not reinstall this community frontend or perform a
 system upgrade. Discover or `dnf` remains responsible for showing and applying
 the resulting official Proton component updates.
 
-The frontend registers four unbound actions with `KGlobalAccel`: toggle the
+The agent registers four unbound actions with `KGlobalAccel`: toggle the
 current connection, connect to the fastest server, disconnect, and show or hide
-the window. Plasma owns shortcut assignment and conflict handling through
-System Settings. Registration uses autoloading so a user's assignments survive
-frontend restarts and upgrades. The actions call the same controller operations
+the Control Center. Plasma owns shortcut assignment and conflict handling
+through System Settings. Registration uses autoloading so a user's assignments
+survive agent restarts and upgrades. The actions call the same controller operations
 as the visible interface and do not add a second networking path.
 
 The native KRunner plug-in recognizes only the explicit `vpn` and `proton vpn`
@@ -320,13 +329,13 @@ same versioned session D-Bus service, allowing normal D-Bus activation without
 starting a second frontend. No query is interpreted as a command line or shell
 fragment.
 
-`KDBusService` gives the frontend one Plasma session instance. Reopening the
-application activates and raises the existing window, while the fixed
+The agent and Control Center each own one session instance. Reopening the
+application activates and raises the existing Control Center, while the fixed
 `--settings` option also replaces its current page with the native settings
-page. This gives KRunner and System Settings a stable handoff without creating
-multiple tray items or multiple frontend controllers. The independent backend
-continues to outlive the window while a tunnel is active, and otherwise returns
-to the D-Bus-activated stopped state after the last frontend exits.
+page. Closing that window exits the complete QML process without disconnecting
+the tunnel. The independent agent keeps one tray item and launches the Control
+Center on demand; the backend continues to supervise an active tunnel and
+otherwise returns to the D-Bus-activated stopped state.
 
 The `Proton VPN` System Settings module owns only desktop integration choices:
 startup, auto-connect target, unexpected-drop recovery, window/tray behavior,
@@ -346,8 +355,8 @@ second controller.
 - The GUI disables connection actions while an operation is active.
 - A signed-out process can only disable the kill switch through a dedicated
   method; it cannot mutate the general Proton settings surface.
-- Quit waits for a confirmed active tunnel to reach the disconnected state;
-  ordinary window closing still follows the user's close-to-tray preference.
+- Closing or quitting the Control Center does not change an active tunnel;
+  disconnect remains an explicit VPN action.
 - Demo mode is the default path used by tests and visual development.
 - The official GTK client may remain installed during development, but is no
   longer required to create the Proton session.

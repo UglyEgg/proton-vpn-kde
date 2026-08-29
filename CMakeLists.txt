@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.8.8 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.9.0 LANGUAGES CXX)
 
 find_package(ECM 6.0 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
@@ -37,7 +37,6 @@ find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 find_package(KF6StatusNotifierItem QUIET)
 find_package(KF6Config 6.0 REQUIRED)
 find_package(KF6CoreAddons 6.0 REQUIRED)
-find_package(KF6DBusAddons 6.0 REQUIRED)
 find_package(KF6GlobalAccel 6.0 REQUIRED)
 find_package(KF6KCMUtils 6.0 REQUIRED)
 find_package(KF6Notifications 6.0 REQUIRED)
@@ -68,10 +67,10 @@ function(proton_vpn_kde_enable_translations target)
 endfunction()
 
 qt_add_executable(proton-vpn-kde
+    src/AgentControl.cpp
+    src/AgentControl.h
     src/BackendCallPolicy.h
     src/ClientRegistrationState.h
-    src/AppLifecycle.cpp
-    src/AppLifecycle.h
     src/AppSettings.cpp
     src/AppSettings.h
     src/CustomDnsModel.cpp
@@ -79,12 +78,8 @@ qt_add_executable(proton-vpn-kde
     src/ConnectionAction.h
     src/InstalledApplicationModel.cpp
     src/InstalledApplicationModel.h
-    src/NotificationIntegration.cpp
-    src/NotificationIntegration.h
     src/SecretTransport.cpp
     src/SecretTransport.h
-    src/ShortcutIntegration.cpp
-    src/ShortcutIntegration.h
     src/TranslationLoader.cpp
     src/TranslationLoader.h
     src/SplitTunnelingModel.cpp
@@ -92,16 +87,37 @@ qt_add_executable(proton-vpn-kde
     src/main.cpp
     src/LocationModels.cpp
     src/LocationModels.h
-    src/TrayIntegration.cpp
-    src/TrayIntegration.h
     src/UpdateChannel.cpp
     src/UpdateChannel.h
     src/VpnController.cpp
     src/VpnController.h
+    src/VpnConnectionController.h
     src/VpnSettingsModel.cpp
     src/VpnSettingsModel.h
 )
 proton_vpn_kde_enable_translations(proton-vpn-kde)
+
+qt_add_executable(proton-vpn-kde-agent
+    src/AgentControl.cpp
+    src/AgentControl.h
+    src/AgentVpnClient.cpp
+    src/AgentVpnClient.h
+    src/AppSettings.cpp
+    src/AppSettings.h
+    src/BackendCallPolicy.h
+    src/ConnectionAction.h
+    src/NotificationIntegration.cpp
+    src/NotificationIntegration.h
+    src/ShortcutIntegration.cpp
+    src/ShortcutIntegration.h
+    src/TranslationLoader.cpp
+    src/TranslationLoader.h
+    src/TrayIntegration.cpp
+    src/TrayIntegration.h
+    src/VpnConnectionController.h
+    src/agent_main.cpp
+)
+proton_vpn_kde_enable_translations(proton-vpn-kde-agent)
 
 qt_add_qml_module(proton-vpn-kde
     URI Proton.VPN.KDE
@@ -134,9 +150,6 @@ target_link_libraries(proton-vpn-kde PRIVATE
     Qt6::Widgets
     KF6::ConfigCore
     KF6::CoreAddons
-    KF6::DBusAddons
-    KF6::GlobalAccel
-    KF6::Notifications
     KF6::Service
     OpenSSL::Crypto
 )
@@ -150,9 +163,27 @@ target_compile_definitions(
     PROTON_VPN_KDE_VERSION="${PROJECT_VERSION}"
 )
 
+target_link_libraries(proton-vpn-kde-agent PRIVATE
+    Qt6::Core
+    Qt6::DBus
+    Qt6::Gui
+    Qt6::Widgets
+    KF6::ConfigCore
+    KF6::CoreAddons
+    KF6::GlobalAccel
+    KF6::Notifications
+)
+target_compile_options(proton-vpn-kde-agent PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+)
+target_compile_definitions(
+    proton-vpn-kde-agent PRIVATE
+    PROTON_VPN_KDE_VERSION="${PROJECT_VERSION}"
+)
+
 if(TARGET KF6::StatusNotifierItem)
-    target_link_libraries(proton-vpn-kde PRIVATE KF6::StatusNotifierItem)
-    target_compile_definitions(proton-vpn-kde PRIVATE HAVE_KSTATUSNOTIFIERITEM=1)
+    target_link_libraries(proton-vpn-kde-agent PRIVATE KF6::StatusNotifierItem)
+    target_compile_definitions(proton-vpn-kde-agent PRIVATE HAVE_KSTATUSNOTIFIERITEM=1)
 endif()
 
 add_library(proton-vpn-kde-runner MODULE
@@ -211,6 +242,33 @@ if(BUILD_TESTING)
     )
     add_test(NAME backend-call-policy-tests COMMAND backend-call-policy-tests)
 
+    qt_add_executable(agent-vpn-client-tests
+        tests/AgentVpnClientTest.cpp
+        src/AgentVpnClient.cpp
+        src/AgentVpnClient.h
+        src/BackendCallPolicy.h
+        src/ConnectionAction.h
+        src/VpnConnectionController.h
+    )
+    target_include_directories(agent-vpn-client-tests PRIVATE src)
+    target_link_libraries(agent-vpn-client-tests PRIVATE
+        Qt6::Core
+        Qt6::DBus
+        Qt6::Test
+    )
+    target_compile_options(agent-vpn-client-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(
+            NAME agent-vpn-client-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} --
+                $<TARGET_FILE:agent-vpn-client-tests>
+        )
+    else()
+        add_test(NAME agent-vpn-client-tests COMMAND agent-vpn-client-tests)
+    endif()
+
     qt_add_executable(grouped-navigation-tests
         tests/GroupedNavigationTest.cpp
         src/BackendCallPolicy.h
@@ -227,6 +285,7 @@ if(BUILD_TESTING)
         src/SplitTunnelingModel.h
         src/VpnController.cpp
         src/VpnController.h
+        src/VpnConnectionController.h
         src/VpnSettingsModel.cpp
         src/VpnSettingsModel.h
     )
@@ -283,18 +342,6 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME location-model-tests COMMAND location-model-tests)
-
-    qt_add_executable(app-lifecycle-tests
-        tests/AppLifecycleTest.cpp
-        src/AppLifecycle.cpp
-        src/AppLifecycle.h
-    )
-    target_include_directories(app-lifecycle-tests PRIVATE src)
-    target_link_libraries(app-lifecycle-tests PRIVATE Qt6::Core Qt6::Test)
-    target_compile_options(app-lifecycle-tests PRIVATE
-        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
-    )
-    add_test(NAME app-lifecycle-tests COMMAND app-lifecycle-tests)
 
     qt_add_executable(app-settings-tests
         tests/AppSettingsTest.cpp
@@ -539,6 +586,17 @@ if(BUILD_TESTING)
 
     if(DBUS_RUN_SESSION_EXECUTABLE)
         file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data)
+        file(MAKE_DIRECTORY
+            ${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data/dbus-1/services)
+        file(GENERATE
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data/dbus-1/services/proton.vpn.app.kde.ControlCenter.service
+            CONTENT "[D-BUS Service]\nName=proton.vpn.app.kde.ControlCenter\nExec=$<TARGET_FILE:proton-vpn-kde> --show\n"
+        )
+        configure_file(
+            tests/agent-session.conf.in
+            ${CMAKE_CURRENT_BINARY_DIR}/agent-session.conf
+            @ONLY
+        )
         add_test(
             NAME auth-dbus-smoke
             COMMAND ${CMAKE_COMMAND} -E env
@@ -552,6 +610,32 @@ if(BUILD_TESTING)
                 "XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
                 ${DBUS_RUN_SESSION_EXECUTABLE} --
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-backend-lifetime.sh
+        )
+        add_test(
+            NAME agent-lifetime-smoke
+            COMMAND ${CMAKE_COMMAND} -E env
+                "XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
+                ${DBUS_RUN_SESSION_EXECUTABLE} --
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-agent-lifetime.sh
+                    ${CMAKE_CURRENT_BINARY_DIR}
+        )
+        set_tests_properties(agent-lifetime-smoke PROPERTIES TIMEOUT 15)
+        add_test(
+            NAME control-center-activation-smoke
+            COMMAND ${CMAKE_COMMAND} -E env
+                "XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
+                "QT_QPA_PLATFORM=offscreen"
+                "QT_QPA_PLATFORMTHEME=generic"
+                "QT_ACCESSIBILITY=0"
+                ${DBUS_RUN_SESSION_EXECUTABLE}
+                    --config-file=${CMAKE_CURRENT_BINARY_DIR}/agent-session.conf
+                    --
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-control-center-activation.sh
+                    ${CMAKE_CURRENT_BINARY_DIR}
+        )
+        set_tests_properties(control-center-activation-smoke PROPERTIES
+            RUN_SERIAL TRUE
+            TIMEOUT 20
         )
         add_test(
             NAME staged-install-smoke
@@ -588,6 +672,21 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-backend.service
     @ONLY
 )
+configure_file(
+    data/proton.vpn.app.kde.Agent.service.in
+    ${CMAKE_CURRENT_BINARY_DIR}/proton.vpn.app.kde.Agent.service
+    @ONLY
+)
+configure_file(
+    data/proton.vpn.app.kde.ControlCenter.service.in
+    ${CMAKE_CURRENT_BINARY_DIR}/proton.vpn.app.kde.ControlCenter.service
+    @ONLY
+)
+configure_file(
+    data/proton-vpn-kde-agent.service.in
+    ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-agent.service
+    @ONLY
+)
 if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBEXECDIR}")
     file(RELATIVE_PATH PROTON_VPN_KDE_INSTALL_LIBEXECDIR
         "${CMAKE_INSTALL_PREFIX}"
@@ -603,7 +702,8 @@ configure_file(
     @ONLY
 )
 
-install(TARGETS proton-vpn-kde RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS proton-vpn-kde proton-vpn-kde-agent
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(
     TARGETS proton-vpn-kde-runner
     LIBRARY DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/krunner
@@ -631,5 +731,17 @@ install(
 )
 install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-backend.service
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/systemd/user
+)
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/proton.vpn.app.kde.Agent.service
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
+)
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/proton.vpn.app.kde.ControlCenter.service
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
+)
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-agent.service
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/systemd/user
 )
