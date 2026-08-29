@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.10.1 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.10.2 LANGUAGES CXX)
 
 find_package(ECM 6.0 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
@@ -677,6 +677,19 @@ if(BUILD_TESTING)
                     ${CMAKE_CURRENT_BINARY_DIR}
         )
         set_tests_properties(signed-out-startup-route-smoke PROPERTIES
+            RUN_SERIAL TRUE
+            TIMEOUT 15
+        )
+        add_test(
+            NAME settings-route-preservation-smoke
+            COMMAND ${CMAKE_COMMAND} -E env
+                ${DBUS_RUN_SESSION_EXECUTABLE}
+                    --config-file=${CMAKE_CURRENT_SOURCE_DIR}/tests/no-activation-session.conf
+                    --
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/smoke-settings-route.sh
+                    ${CMAKE_CURRENT_BINARY_DIR}
+        )
+        set_tests_properties(settings-route-preservation-smoke PROPERTIES
             RUN_SERIAL TRUE
             TIMEOUT 15
         )

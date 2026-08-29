@@ -225,6 +225,8 @@ Implemented for `0.10.0` and awaiting installed Plasma acceptance. Version
 `0.10.1` corrects the first acceptance regressions by routing signed-out
 startup directly to Sign in, preventing credentials from racing Proton
 connector initialization, and making delayed Secret Service approval visible.
+Version `0.10.2` keeps Settings active across successful Core settings writes
+and limits automatic Overview routing to completion of the sign-in flow.
 Wide windows
 now use a persistent, selected Kirigami navigation sidebar while compact
 windows use its overlay form. Shared page-header, section-card, detail-row, and

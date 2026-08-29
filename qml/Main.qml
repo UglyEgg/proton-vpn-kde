@@ -583,9 +583,7 @@ Kirigami.ApplicationWindow {
         function onSnapshotChanged() {
             root.resolveStartupAccountRoute()
             Qt.callLater(root.maybeShowCompatibilityWarning)
-            if (!root.previousLoggedIn && vpnController.loggedIn) {
-                root.showOverview()
-            } else if (root.previousLoggedIn && !vpnController.loggedIn) {
+            if (root.previousLoggedIn && !vpnController.loggedIn) {
                 root.showSignIn()
             }
             if (vpnController.errorCode.length > 0

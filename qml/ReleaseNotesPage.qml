@@ -21,6 +21,21 @@ Kirigami.ScrollablePage {
 
         Kirigami.Heading {
             level: 1
+            text: "0.10.2"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Keep Settings open after applying VPN configuration changes instead of unexpectedly returning to Overview.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
             text: "0.10.1"
         }
 
