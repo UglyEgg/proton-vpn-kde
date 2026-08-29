@@ -44,7 +44,9 @@ class BackendLifetime:
     Native frontends register their unique D-Bus names as leases. A vanished
     frontend is detected even when it cannot unregister cleanly. With no live
     frontend, the service exits only from the fully disconnected, idle state;
-    active tunnels and packet captures therefore remain supervised.
+    active tunnels and packet captures therefore remain supervised. The same
+    grace period also abandons an initialization whose activating frontend has
+    disappeared while a desktop Secret Service prompt is still open.
     """
 
     def __init__(
@@ -119,10 +121,12 @@ class BackendLifetime:
                 self._idle_since = None
 
     def _may_exit(self, snapshot: VpnSnapshot) -> bool:
+        if self._clients:
+            return False
+        if not snapshot.ready:
+            return snapshot.state == "starting"
         return (
-            not self._clients
-            and snapshot.ready
-            and snapshot.state == "disconnected"
+            snapshot.state == "disconnected"
             and not snapshot.busy
             and not snapshot.packet_capture_active
         )

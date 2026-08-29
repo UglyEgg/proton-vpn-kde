@@ -3,6 +3,7 @@
 #include "VpnConnectionController.h"
 
 #include <QString>
+#include <QtTypes>
 #include <QVariant>
 
 class QDBusPendingCallWatcher;
@@ -48,6 +49,8 @@ private:
     void requestSnapshot(bool allowActivation = false);
     void applySnapshot(const QString &snapshotJson);
     void applyReconnectionPreference();
+    void acquireTransientLease();
+    void releaseTransientLease();
     void queueConnection(const QString &target, bool interactive,
                          bool onlyWhenDisconnected);
     void dispatchPendingConnection();
@@ -63,6 +66,9 @@ private:
     bool m_busy = false;
     bool m_reconnectionEnabled = true;
     bool m_reconnectionApplied = false;
+    bool m_transientLeasePending = false;
+    bool m_transientLeaseActive = false;
+    quint64 m_serviceGeneration = 0;
     int m_killSwitch = 0;
     int m_forwardedPort = 0;
     QString m_state = QStringLiteral("disconnected");

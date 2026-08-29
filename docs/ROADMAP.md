@@ -198,6 +198,8 @@ the user knows which overlay needs review.
   service file.
 - Prove single-instance behavior, command parity, backend idle shutdown, and a
   materially smaller resident memory footprint.
+- Release an unanswered Secret Service startup after its activating frontend
+  disappears, while protecting explicit tray actions with a transient lease.
 
 ## Phase 11 — Apply a KDE desktop-first visual system
 

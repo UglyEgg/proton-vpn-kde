@@ -84,7 +84,11 @@ Only the primary D-Bus name owner initializes Proton core. Native frontends
 hold verified session-bus leases; when the last lease disappears, a fully
 disconnected backend exits cleanly after a short grace period and is restarted
 by D-Bus activation the next time it is needed. Active connections and packet
-captures suppress idle shutdown.
+captures suppress idle shutdown. The resident agent remains lease-free while
+observing and holds a lease only while an explicit tray action is starting.
+Initialization is covered by the same grace period, so closing the Control
+Center during an unanswered Secret Service prompt cannot strand the Python
+backend indefinitely.
 The packaged user unit uses the absolute `/usr/bin/proton-vpn-kde-backend`
 launcher with `NoNewPrivileges`, `PrivateTmp`, and `ProtectSystem=full`.
 See [Backend service hardening](HARDENING.md) for the tested compatibility

@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from . import __version__
+from .async_utils import run_in_daemon_thread
 from .errors import UserVisibleRuntimeError, UserVisibleValueError
 from .controller import (
     CountryInfo,
@@ -613,7 +614,7 @@ class ProtonCoreAdapter:
         # Warm the cached session away from the D-Bus asyncio thread so a
         # provider unlock prompt (KeePassXC, KWallet, etc.) cannot freeze the
         # entire backend while waiting for user approval.
-        self._logged_in = await asyncio.to_thread(self._api.is_user_logged_in)
+        self._logged_in = await run_in_daemon_thread(self._api.is_user_logged_in)
         self._auth_state = "signed_in" if self._logged_in else "signed_out"
         self._connector = await self._api.get_vpn_connector()
         self._connector.register(self)

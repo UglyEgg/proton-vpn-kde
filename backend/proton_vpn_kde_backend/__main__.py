@@ -65,21 +65,40 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
         loop.add_signal_handler(sig, stopped.set)
 
     lifetime_task: asyncio.Task | None = None
+    initialization_task: asyncio.Task | None = None
+    initialized = False
 
     try:
-        if not await controller.start():
+        lifetime_task = asyncio.create_task(lifetime.run())
+        initialization_task = asyncio.create_task(controller.start())
+        stopped_task = asyncio.create_task(stopped.wait())
+        done, _ = await asyncio.wait(
+            {initialization_task, stopped_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if stopped_task in done and initialization_task not in done:
+            initialization_task.cancel()
+            await asyncio.gather(initialization_task, return_exceptions=True)
+            return 0
+        stopped_task.cancel()
+        await asyncio.gather(stopped_task, return_exceptions=True)
+        initialized = bool(initialization_task.result())
+        if not initialized:
             # A non-zero process exit lets systemd's Restart=on-failure policy
             # recover from transient Secret Service, Proton Core, or
             # NetworkManager initialization failures.
             return 1
-        lifetime_task = asyncio.create_task(lifetime.run())
         await stopped.wait()
         return 0
     finally:
+        if initialization_task is not None and not initialization_task.done():
+            initialization_task.cancel()
+            await asyncio.gather(initialization_task, return_exceptions=True)
         if lifetime_task is not None:
             lifetime_task.cancel()
             await asyncio.gather(lifetime_task, return_exceptions=True)
-        await controller.close()
+        if initialized:
+            await controller.close()
         bus.unexport(OBJECT_PATH, service)
         await bus.release_name(BUS_NAME)
         bus.disconnect()

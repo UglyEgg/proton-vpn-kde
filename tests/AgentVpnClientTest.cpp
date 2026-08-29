@@ -16,6 +16,7 @@ class AgentBackend final : public QObject
 
 public:
     int registrationCalls = 0;
+    int unregistrationCalls = 0;
     int reconnectCalls = 0;
     int fastestCalls = 0;
     int countryCalls = 0;
@@ -26,6 +27,7 @@ public:
 
 public slots:
     void RegisterClient(const QString &) { ++registrationCalls; }
+    void UnregisterClient(const QString &) { ++unregistrationCalls; }
     void SetReconnectionEnabled(bool) { ++reconnectCalls; }
 
     QString GetSnapshot() const
@@ -68,7 +70,7 @@ class AgentVpnClientTest final : public QObject
 private slots:
     void initTestCase();
     void cleanupTestCase();
-    void observesAndControlsWithoutTakingABackendLease();
+    void observesLeaseFreeAndUsesTransientActionLeases();
 
 private:
     AgentBackend m_backend;
@@ -101,7 +103,7 @@ void AgentVpnClientTest::cleanupTestCase()
         QStringLiteral("agent-client-test-backend"));
 }
 
-void AgentVpnClientTest::observesAndControlsWithoutTakingABackendLease()
+void AgentVpnClientTest::observesLeaseFreeAndUsesTransientActionLeases()
 {
     AgentVpnClient client;
     QTRY_VERIFY_WITH_TIMEOUT(client.backendAvailable(), 2000);
@@ -113,18 +115,21 @@ void AgentVpnClientTest::observesAndControlsWithoutTakingABackendLease()
     client.connectTarget(QStringLiteral(" ch "));
     QTRY_COMPARE_WITH_TIMEOUT(m_backend.countryCalls, 1, 2000);
     QCOMPARE(m_backend.lastTarget, QStringLiteral("CH"));
-    QCOMPARE(m_backend.registrationCalls, 0);
+    QCOMPARE(m_backend.registrationCalls, 1);
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.unregistrationCalls, 1, 2000);
 
     client.connectTarget(QStringLiteral("ch#101"));
     QTRY_COMPARE_WITH_TIMEOUT(m_backend.serverCalls, 1, 2000);
     QCOMPARE(m_backend.lastTarget, QStringLiteral("CH#101"));
+    QCOMPARE(m_backend.registrationCalls, 2);
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.unregistrationCalls, 2, 2000);
 
     m_backend.state = QStringLiteral("connected");
     emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
     QTRY_COMPARE_WITH_TIMEOUT(client.state(), QStringLiteral("connected"), 2000);
     client.activatePrimaryAction();
     QTRY_COMPARE_WITH_TIMEOUT(m_backend.disconnectCalls, 1, 2000);
-    QCOMPARE(m_backend.registrationCalls, 0);
+    QCOMPARE(m_backend.registrationCalls, 2);
 
     m_backendBus->unregisterService(QString::fromLatin1(kBackendService));
     QTRY_VERIFY_WITH_TIMEOUT(!client.backendAvailable(), 2000);

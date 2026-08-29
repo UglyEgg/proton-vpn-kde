@@ -5,20 +5,24 @@
 Version `0.9.0` moves the system tray, global shortcuts, notifications,
 favorites, and auto-connect into `proton-vpn-kde-agent`. The agent does not
 load QML, server or application models, the protected authentication transport,
-or Proton's Python core. It also observes the backend without registering a
-client lease.
+or Proton's Python core. It observes without a resident client lease and uses
+one only transiently while an explicit connection action is starting.
 
 On the Fedora 44 Plasma development session, the disconnected agent settled at
-57,960 KiB RSS. The same binary on an isolated offscreen Qt session settled at
-29,440 KiB RSS. In both cases no Control Center or Python backend remained
-running, and NetworkManager stayed disconnected. The live figure includes the
-real Plasma platform theme, status notifier, global-shortcut, and notification
-integrations.
+58,412 KiB RSS and 11,124 KiB proportional set size; systemd attributed about
+8.1 MiB to its private cgroup footprint. The same binary on an isolated
+offscreen Qt session settled at 29,440 KiB RSS. In both cases no Control Center
+or Python backend remained running, and NetworkManager stayed disconnected.
+The live figure includes the real Plasma platform theme, status notifier,
+global-shortcut, and notification integrations.
 
-The lifecycle regression starts the agent beside a demo backend with a
-two-second idle grace period. The backend exits while the agent remains alive,
-proving that the resident process does not retain the substantially larger
-Python server model while disconnected.
+The lifecycle regressions start the agent beside a demo backend with a
+two-second idle grace period. The backend exits while the observing agent
+remains alive, while a temporary explicit-action lease is acquired and released
+around commands. Separate startup tests prove that a live frontend protects a
+provider prompt and a vanished frontend releases it. The resident process
+therefore does not retain the substantially larger Python server model while
+disconnected.
 
 ## Search performance
 

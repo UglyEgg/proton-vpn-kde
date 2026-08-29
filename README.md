@@ -87,7 +87,8 @@ The real backend is intentionally not auto-started from the development tree.
 This prevents an unfinished frontend from changing a working VPN session.
 Packaged builds install separate D-Bus and systemd user-service metadata for
 the lean Plasma agent and the backend. Merely running the agent does not start
-or lease the Python backend; connection actions activate it on demand.
+or lease the Python backend. An explicit tray connection action activates it
+on demand and holds only a temporary startup lease until that action finishes.
 
 The audited official-client capability contract and deliberate Plasma
 differences are tracked in [`docs/PARITY.md`](docs/PARITY.md).

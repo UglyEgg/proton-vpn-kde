@@ -26,13 +26,15 @@ class FakeController:
 
 
 class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
-    def make_lifetime(self, *, state="disconnected", owners=None, timeout=0.02):
+    def make_lifetime(
+        self, *, state="disconnected", ready=True, owners=None, timeout=0.02
+    ):
         owners = owners if owners is not None else set()
 
         async def owner_probe(name):
             return name in owners
 
-        controller = FakeController(VpnSnapshot(ready=True, state=state))
+        controller = FakeController(VpnSnapshot(ready=ready, state=state))
         stopped = asyncio.Event()
         lifetime = BackendLifetime(
             controller,  # type: ignore[arg-type]
@@ -49,6 +51,42 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(lifetime.run(), timeout=0.2)
 
         self.assertTrue(stopped.is_set())
+
+    async def test_abandoned_startup_exits_after_idle_timeout(self):
+        lifetime, _, stopped, _ = self.make_lifetime(
+            state="starting", ready=False
+        )
+
+        await asyncio.wait_for(lifetime.run(), timeout=0.2)
+
+        self.assertTrue(stopped.is_set())
+
+    async def test_live_frontend_protects_startup_prompt(self):
+        lifetime, _, stopped, owners = self.make_lifetime(
+            state="starting", ready=False
+        )
+        owners.add(":1.42")
+        await lifetime.register_client(":1.42")
+        task = asyncio.create_task(lifetime.run())
+
+        await asyncio.sleep(0.04)
+
+        self.assertFalse(stopped.is_set())
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    async def test_vanished_frontend_releases_startup_prompt(self):
+        lifetime, _, stopped, owners = self.make_lifetime(
+            state="starting", ready=False
+        )
+        owners.add(":1.42")
+        await lifetime.register_client(":1.42")
+        owners.clear()
+
+        await asyncio.wait_for(lifetime.run(), timeout=0.2)
+
+        self.assertTrue(stopped.is_set())
+        self.assertEqual(frozenset(), lifetime.clients)
 
     async def test_live_frontend_prevents_idle_exit(self):
         lifetime, _, stopped, owners = self.make_lifetime()

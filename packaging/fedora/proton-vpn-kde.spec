@@ -2,7 +2,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.9.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Native KDE Plasma frontend for Proton VPN
 
 License:        GPL-3.0-or-later
@@ -107,6 +107,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.9.0-2
+- Release abandoned Secret Service startup after the frontend disappears.
+- Protect explicit tray actions with a bounded transient backend lease.
+
 * Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.9.0-1
 - Split Plasma tray, shortcuts, and notifications into a lean resident agent.
 - Let the full Control Center exit on close without disconnecting the VPN.

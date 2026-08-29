@@ -134,19 +134,28 @@ void AgentVpnClient::disconnect()
 
 void AgentVpnClient::onServiceRegistered(const QString &)
 {
+    ++m_serviceGeneration;
+    m_transientLeasePending = false;
+    m_transientLeaseActive = false;
     setBackendAvailable(true);
     m_reconnectionApplied = false;
+    if (!m_pendingTarget.isEmpty()) {
+        acquireTransientLease();
+    }
     applyReconnectionPreference();
     requestSnapshot();
 }
 
 void AgentVpnClient::onServiceUnregistered(const QString &)
 {
+    ++m_serviceGeneration;
     setBackendAvailable(false);
     m_ready = false;
     m_loggedIn = false;
     m_busy = false;
     m_reconnectionApplied = false;
+    m_transientLeasePending = false;
+    m_transientLeaseActive = false;
     m_killSwitch = 0;
     m_forwardedPort = 0;
     m_state = QStringLiteral("disconnected");
@@ -193,12 +202,16 @@ void AgentVpnClient::applySnapshot(const QString &snapshotJson)
         snapshotJson.toUtf8(), &error);
     if (error.error != QJsonParseError::NoError || !document.isObject()) {
         m_message = tr("The backend returned an invalid state snapshot");
+        m_pendingTarget.clear();
+        releaseTransientLease();
         emit snapshotChanged();
         return;
     }
     const QJsonObject snapshot = document.object();
     if (snapshot.value(QStringLiteral("schemaVersion")).toInt() != 1) {
         m_message = tr("The backend uses an unsupported interface version");
+        m_pendingTarget.clear();
+        releaseTransientLease();
         emit snapshotChanged();
         return;
     }
@@ -245,6 +258,70 @@ void AgentVpnClient::applyReconnectionPreference()
     });
 }
 
+void AgentVpnClient::acquireTransientLease()
+{
+    if (!m_backendAvailable || m_transientLeasePending
+        || m_transientLeaseActive) {
+        return;
+    }
+    const QString uniqueName = QDBusConnection::sessionBus().baseService();
+    if (uniqueName.isEmpty()) {
+        return;
+    }
+    m_transientLeasePending = true;
+    const quint64 generation = m_serviceGeneration;
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("RegisterClient"));
+    message.setArguments({uniqueName});
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 5000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, generation](QDBusPendingCallWatcher *finished) {
+        const QDBusPendingReply<> reply = *finished;
+        finished->deleteLater();
+        if (generation != m_serviceGeneration) {
+            return;
+        }
+        m_transientLeasePending = false;
+        if (reply.isError()) {
+            const bool interactive = m_pendingInteractive;
+            m_pendingTarget.clear();
+            m_pendingInteractive = false;
+            m_pendingOnlyWhenDisconnected = false;
+            m_message = fixedCallFailureMessage(reply.error());
+            emit snapshotChanged();
+            if (interactive) {
+                emit controlCenterRequested();
+            }
+            return;
+        }
+        m_transientLeaseActive = true;
+        dispatchPendingConnection();
+    });
+}
+
+void AgentVpnClient::releaseTransientLease()
+{
+    if (!m_transientLeaseActive) {
+        return;
+    }
+    m_transientLeaseActive = false;
+    const QString uniqueName = QDBusConnection::sessionBus().baseService();
+    if (uniqueName.isEmpty() || !m_backendAvailable) {
+        return;
+    }
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kBackendService),
+        QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("UnregisterClient"));
+    message.setArguments({uniqueName});
+    QDBusConnection::sessionBus().send(message);
+}
+
 void AgentVpnClient::queueConnection(const QString &target, bool interactive,
                                      bool onlyWhenDisconnected)
 {
@@ -262,18 +339,23 @@ void AgentVpnClient::queueConnection(const QString &target, bool interactive,
         requestSnapshot(true);
         return;
     }
+    acquireTransientLease();
     dispatchPendingConnection();
 }
 
 void AgentVpnClient::dispatchPendingConnection()
 {
     if (m_pendingTarget.isEmpty() || !m_backendAvailable || !m_ready
+        || !m_transientLeaseActive
         || !m_reconnectionApplied || m_busy) {
         return;
     }
     if (!m_loggedIn) {
         const bool interactive = m_pendingInteractive;
         m_pendingTarget.clear();
+        m_pendingInteractive = false;
+        m_pendingOnlyWhenDisconnected = false;
+        releaseTransientLease();
         if (interactive) {
             emit controlCenterRequested();
         }
@@ -282,6 +364,9 @@ void AgentVpnClient::dispatchPendingConnection()
     if (m_pendingOnlyWhenDisconnected
         && m_state != QStringLiteral("disconnected")) {
         m_pendingTarget.clear();
+        m_pendingInteractive = false;
+        m_pendingOnlyWhenDisconnected = false;
+        releaseTransientLease();
         return;
     }
 
@@ -324,6 +409,9 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         m_message = fixedCallFailureMessage(reply.error());
         const bool interactive = m_pendingInteractive;
         m_pendingTarget.clear();
+        m_pendingInteractive = false;
+        m_pendingOnlyWhenDisconnected = false;
+        releaseTransientLease();
         emit snapshotChanged();
         if (interactive) {
             emit controlCenterRequested();
@@ -331,6 +419,9 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         return;
     }
     setBackendAvailable(true);
+    if (m_serviceGeneration != 0 && !m_pendingTarget.isEmpty()) {
+        acquireTransientLease();
+    }
     applySnapshot(reply.value());
 }
 
@@ -342,7 +433,9 @@ void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
         m_busy = false;
         m_message = fixedCallFailureMessage(reply.error());
         emit snapshotChanged();
+        releaseTransientLease();
         return;
     }
+    releaseTransientLease();
     requestSnapshot();
 }

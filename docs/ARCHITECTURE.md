@@ -20,7 +20,7 @@
 │ C++ / Qt 6 / KF6 · resident         │
 │ tray · shortcuts · notifications    │
 └─────────────────┬───────────────────┘
-                  │ observes; no lease
+                  │ observes; action lease only
 ┌─────────────────┴───────────────────┐
 │ proton-vpn-kde                      │
 │ C++ / Qt 6 / Kirigami · on demand  │
@@ -125,10 +125,11 @@ exits after a short grace period only when Proton reports a fully disconnected,
 idle state; connected tunnels and packet captures therefore remain supervised.
 A clean exit is reactivated on demand and releases the Python core's server
 model and native networking libraries while the application is not in use. The
-Plasma agent deliberately does not register a lease: it observes a running
-backend's bounded snapshot and can activate the backend for an explicit
-connection action, but a disconnected backend still returns to the stopped
-state while the tray remains available.
+Plasma agent deliberately does not hold a lease while observing. For an
+explicit tray connection action it takes a temporary lease while the backend
+initializes and releases it when the action completes. This protects a real
+Secret Service prompt without letting an idle disconnected backend remain
+resident while the tray is merely available.
 
 The installed unit executes the backend by its absolute packaged path and
 enables `NoNewPrivileges`, a private temporary directory, and read-only system
@@ -160,6 +161,11 @@ The official SSO stack reaches Secret Service through a synchronous keyring
 API. The backend warms that saved session on a worker thread before creating
 the VPN connector. This remains provider-agnostic while preventing a KeePassXC,
 KWallet, or other provider unlock prompt from freezing the D-Bus event loop.
+The worker is process-disposable, and the normal backend lifetime supervisor
+runs during initialization. If the activating Control Center disappears before
+the prompt is answered, the abandoned backend exits after the same short grace
+period; a live Control Center or explicit agent action keeps initialization
+protected.
 
 Settings are read from and persisted through Proton's public core settings
 objects. The D-Bus boundary accepts only a bounded, field-allowlisted JSON
