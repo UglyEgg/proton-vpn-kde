@@ -183,7 +183,7 @@ while an overlay replaced by an unoptimized package fails even if its release
 label is unexpected. The installed Core version is included in the warning so
 the user knows which overlay needs review.
 
-## Phase 10 — Split resident Plasma integration from the Control Center (in progress)
+## Phase 10 — Split resident Plasma integration from the Control Center (complete)
 
 - Add a lean, windowless `proton-vpn-kde-agent` for the system tray, global
   shortcuts, notifications, favorites, auto-connect, and launching the Control
@@ -200,6 +200,17 @@ the user knows which overlay needs review.
   materially smaller resident memory footprint.
 - Release an unanswered Secret Service startup after its activating frontend
   disappears, while protecting explicit tray actions with a transient lease.
+
+Completed in `0.9.0`. The resident process is now a windowless native Plasma
+agent while the Kirigami Control Center starts only on demand. The agent keeps
+tray actions, shortcuts, notifications, favorites, and auto-connect available
+without holding a native client lease or keeping the Python backend alive while
+disconnected. A bounded transient lease protects explicit startup actions and
+is released when an activating frontend disappears, including an abandoned
+Secret Service prompt. Source, staged-package, isolated D-Bus, lifetime, and
+installed-package checks passed. Live Plasma acceptance confirmed tray and
+Control Center behavior, connection and disconnection, close behavior, and
+clean shutdown.
 
 ## Phase 11 — Apply a KDE desktop-first visual system
 
