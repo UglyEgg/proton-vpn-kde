@@ -11,6 +11,8 @@ All notable user-visible changes are recorded here. The project follows
   and validate its consumed public API against Proton's pinned Core 5.5.6 RPM.
 - Split the native controller implementation into lifecycle, action, location,
   and settings units without changing its QML or D-Bus behavior.
+- Separate immutable backend state and payload validation from asynchronous
+  orchestration while retaining the existing Python import surface.
 
 ## [0.11.2] - 2026-08-30
 
