@@ -21,6 +21,8 @@ No changes yet.
   prose without a fixed source-column width.
 - Build, inspect, transaction-test, and retain Fedora source and binary RPMs in
   a dedicated CI workflow with an independently visible README status badge.
+- Enforce static Python type analysis and a measured 75% backend branch-
+  coverage floor in source CI and RPM `%check`.
 - Consolidate the public documentation, make the security assessment
   unambiguous about current versus historical findings, and record the exact
   downstream keyring dependency used for KeePassXC acceptance.

@@ -15,3 +15,20 @@ proton-vpn-kde-backend = "proton_vpn_kde_backend.__main__:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["proton_vpn_kde_backend*"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+ignore_missing_imports = true
+show_error_codes = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.coverage.run]
+branch = true
+source = ["proton_vpn_kde_backend"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+skip_covered = true

@@ -38,6 +38,7 @@ cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
 cmake --build build
 ctest --test-dir build --output-on-failure
 scripts/check-static-analysis.sh
+scripts/check-python-analysis.sh
 ```
 
 Use the deterministic demo backend for interface development. Tests and demos
@@ -50,7 +51,8 @@ lifecycle controls require both success and failure-path coverage.
 
 - C++ uses C++20, four-space indentation, Qt ownership conventions, and the
   compiler warning policy defined in CMake.
-- Python supports 3.11 or newer and must pass the repository Ruff policy.
+- Python supports 3.11 or newer and must pass Ruff, Mypy, and the measured
+  branch-coverage floor recorded in `backend/pyproject.toml`.
 - Shell scripts use Bash with `set -euo pipefail` and must pass ShellCheck.
 - QML uses Kirigami and semantic Plasma colors, icons, spacing, and typography.
 - Documentation should explain decisions and reproducible evidence rather than

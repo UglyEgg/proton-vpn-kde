@@ -24,7 +24,8 @@ jobs:
           dnf install -y \
             ShellCheck cmake dbus-daemon desktop-file-utils libxml2 \
             extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
-            python3-cryptography python3-dbus-fast ruff \
+            python3-coverage python3-cryptography python3-dbus-fast \
+            python3-mypy ruff \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
             kf6-kglobalaccel-devel kf6-kcmutils-devel \
             kf6-knotifications-devel kf6-krunner-devel \
@@ -36,6 +37,9 @@ jobs:
 
       - name: Run static checks
         run: scripts/check-static-analysis.sh
+
+      - name: Run Python type and coverage analysis
+        run: scripts/check-python-analysis.sh
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DBUILD_TESTING=ON

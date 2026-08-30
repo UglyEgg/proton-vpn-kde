@@ -120,11 +120,11 @@ class ServerSearchProjection:
     def search(self, server_list: Any, query: str) -> list[LocationSearchInfo]:
         needle = fold_search_text(query)
         location_results: list[LocationSearchInfo] = []
-        for record in self._locations:
-            if needle not in record.folded_name:
+        for location_record in self._locations:
+            if needle not in location_record.folded_name:
                 continue
             active_servers = []
-            for name in record.server_names:
+            for name in location_record.server_names:
                 server = server_list.get_by_name(name)
                 if not server.under_maintenance:
                     active_servers.append(server)
@@ -144,9 +144,9 @@ class ServerSearchProjection:
             location_results.append(
                 LocationSearchInfo(
                     kind="location",
-                    name=record.name,
-                    country_code=record.country_code,
-                    group_name=record.name,
+                    name=location_record.name,
+                    country_code=location_record.country_code,
+                    group_name=location_record.name,
                     accessible=accessible,
                 )
             )
@@ -154,10 +154,10 @@ class ServerSearchProjection:
                 break
 
         server_results: list[LocationSearchInfo] = []
-        for record in self._servers:
-            if needle not in record.folded_name:
+        for server_record in self._servers:
+            if needle not in server_record.folded_name:
                 continue
-            server = server_list.get_by_name(record.name)
+            server = server_list.get_by_name(server_record.name)
             available = next(
                 iter(
                     server_list.get_available_servers((server,), server_list.user_tier)
@@ -169,12 +169,16 @@ class ServerSearchProjection:
             server_results.append(
                 LocationSearchInfo(
                     kind="server",
-                    name=record.name,
-                    country_code=record.country_code,
-                    location=record.location,
-                    group_kind=("secure-core" if record.secure_core else "location"),
+                    name=server_record.name,
+                    country_code=server_record.country_code,
+                    location=server_record.location,
+                    group_kind=(
+                        "secure-core" if server_record.secure_core else "location"
+                    ),
                     group_name=(
-                        "Via Secure Core" if record.secure_core else record.location
+                        "Via Secure Core"
+                        if server_record.secure_core
+                        else server_record.location
                     ),
                     load=available.load or 0,
                 )

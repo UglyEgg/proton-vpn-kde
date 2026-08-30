@@ -74,7 +74,8 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 | Evidence | 0.11.2 release candidate |
 | --- | --- |
-| Automated verification | 35/35 CTest tests, including 128 backend tests, QML diagnostics, D-Bus activation, staged installation, KRunner, and System Settings |
+| Automated verification | 35/35 CTest tests, including 128 backend tests, plus Mypy analysis and a measured 75% backend branch-coverage floor |
+| Integration verification | QML diagnostics, D-Bus activation, staged installation, KRunner, and System Settings |
 | Package verification | Fedora source and binary RPM build, artifact policy checks, and an isolated transaction test |
 | Security assessment | All seven findings closed; no finding from the assessment remains open |
 | Disconnected demo footprint | 82.5 MiB combined PSS across backend, agent, and Control Center; the resident agent measured 4.5 MiB PSS |
@@ -101,7 +102,7 @@ PYTHONPATH=backend python3 -m proton_vpn_kde_backend --demo
 ./build/proton-vpn-kde
 ```
 
-Run `ctest --test-dir build --output-on-failure` and `scripts/check-static-analysis.sh` for the complete source verification. Fedora dependencies and RPM instructions are in the [packaging guide](packaging/fedora/README.md).
+Run `ctest --test-dir build --output-on-failure`, `scripts/check-static-analysis.sh`, and `scripts/check-python-analysis.sh` for the complete source verification. Fedora dependencies and RPM instructions are in the [packaging guide](packaging/fedora/README.md).
 
 Before contributing, read [Contributing](CONTRIBUTING.md). Security issues must follow the private process in [Security policy](SECURITY.md); account, billing, service, and unmodified official-package problems belong with [Proton Support](https://proton.me/support/contact).
 

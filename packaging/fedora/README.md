@@ -54,7 +54,8 @@ GNOME dependencies. Fedora package builds must set the libexec directory
 explicitly through the spec; otherwise CMake may choose a layout that does not
 match the installed D-Bus and systemd launchers.
 
-The spec enables the full CTest suite in `%check` and disables direct Proton
+The spec enforces Python type analysis, the measured backend branch-coverage
+floor, and the full CTest suite in `%check`; it also disables direct Proton
 support-report and crash-report submission. A package is not releasable when
 `%check` is skipped or fails.
 

@@ -57,7 +57,9 @@ def _core_memory_optimization_behavior(logicals_module: Any) -> bool:
     second = bytes("phase8-runtime-probe.example", "utf-8").decode("utf-8")
     if first is second:
         return False
-    decoded = [{"Domain": first, "Servers": [{"Domain": second}]}]
+    decoded: list[dict[str, Any]] = [
+        {"Domain": first, "Servers": [{"Domain": second}]}
+    ]
     try:
         deduplicate(decoded)
     except Exception:
@@ -344,7 +346,10 @@ class DemoCoreAdapter:
             item.id for item in self._settings.protocols
         }:
             raise UserVisibleValueError("Select an available VPN protocol")
-        self._settings = replace(self._settings, **replacements)
+        # settings_patch_from_json owns the field/type allowlist. The dynamic
+        # field mapping cannot be represented by dataclasses.replace's static
+        # per-field overload.
+        self._settings = replace(self._settings, **replacements)  # type: ignore[arg-type]
         return await self.get_settings()
 
     async def get_split_tunneling(self) -> SplitTunnelingSettings:
@@ -383,7 +388,10 @@ class DemoCoreAdapter:
             }[key]: tuple(value) if isinstance(value, list) else value
             for key, value in patch.items()
         }
-        updated = replace(self._split_tunneling, **replacements)
+        # split_tunneling_patch_from_json owns the field/type allowlist.
+        updated = replace(
+            self._split_tunneling, **replacements  # type: ignore[arg-type]
+        )
         if (
             updated.enabled
             and updated.mode == "include"
@@ -418,12 +426,15 @@ class DemoCoreAdapter:
         if "enabled" in patch:
             replacements["enabled"] = bool(patch["enabled"])
         if "servers" in patch:
+            server_values = patch["servers"]
+            if not isinstance(server_values, list):
+                raise UserVisibleValueError("The custom-DNS servers are invalid")
             replacements["servers"] = tuple(
                 CustomDnsServer(
                     address=str(server["address"]),
                     enabled=bool(server["enabled"]),
                 )
-                for server in patch["servers"]
+                for server in server_values
                 if isinstance(server, dict)
             )
         self._custom_dns = replace(self._custom_dns, **replacements)
@@ -948,8 +959,12 @@ class ProtonCoreAdapter:
 
         protocols = {item.id for item in self._available_protocols(settings.protocol)}
         requested_protocol = patch.get("protocol")
-        if requested_protocol is not None and requested_protocol not in protocols:
-            raise UserVisibleValueError("Select an available VPN protocol")
+        if requested_protocol is not None:
+            if (
+                not isinstance(requested_protocol, str)
+                or requested_protocol not in protocols
+            ):
+                raise UserVisibleValueError("Select an available VPN protocol")
 
         split_tunneling_enabled = bool(settings.features.split_tunneling.enabled)
         if (
@@ -1036,13 +1051,25 @@ class ProtonCoreAdapter:
 
             split_tunneling.mode = SplitTunnelingMode(patch["mode"])
         if "excludeAppPaths" in patch:
-            split_tunneling.exclude.app_paths = list(patch["excludeAppPaths"])
+            value = patch["excludeAppPaths"]
+            if not isinstance(value, list):
+                raise UserVisibleValueError("The excluded applications are invalid")
+            split_tunneling.exclude.app_paths = list(value)
         if "includeAppPaths" in patch:
-            split_tunneling.include.app_paths = list(patch["includeAppPaths"])
+            value = patch["includeAppPaths"]
+            if not isinstance(value, list):
+                raise UserVisibleValueError("The included applications are invalid")
+            split_tunneling.include.app_paths = list(value)
         if "excludeIpRanges" in patch:
-            split_tunneling.exclude.ip_ranges = list(patch["excludeIpRanges"])
+            value = patch["excludeIpRanges"]
+            if not isinstance(value, list):
+                raise UserVisibleValueError("The excluded IP ranges are invalid")
+            split_tunneling.exclude.ip_ranges = list(value)
         if "includeIpRanges" in patch:
-            split_tunneling.include.ip_ranges = list(patch["includeIpRanges"])
+            value = patch["includeIpRanges"]
+            if not isinstance(value, list):
+                raise UserVisibleValueError("The included IP ranges are invalid")
+            split_tunneling.include.ip_ranges = list(value)
         if "enabled" in patch:
             split_tunneling.enabled = bool(patch["enabled"])
 
@@ -1063,12 +1090,15 @@ class ProtonCoreAdapter:
         if "servers" in patch:
             from proton.vpn.core.settings import CustomDNSEntry
 
+            server_values = patch["servers"]
+            if not isinstance(server_values, list):
+                raise UserVisibleValueError("The custom-DNS servers are invalid")
             settings.custom_dns.ip_list = [
                 CustomDNSEntry.new_from_string(
                     str(server["address"]),
                     enabled=bool(server["enabled"]),
                 )
-                for server in patch["servers"]
+                for server in server_values
                 if isinstance(server, dict)
             ]
         if "enabled" in patch:
@@ -1170,7 +1200,8 @@ class ProtonCoreAdapter:
         capture_settings = getattr(connection.settings, "packet_capture", None)
         core_max_bytes = getattr(capture_settings, "max_bytes", None)
         if (
-            isinstance(core_max_bytes, bool)
+            capture_settings is None
+            or isinstance(core_max_bytes, bool)
             or not isinstance(core_max_bytes, int)
             or core_max_bytes <= 0
             or core_max_bytes > MAX_ACCEPTED_CORE_CAPTURE_BYTES

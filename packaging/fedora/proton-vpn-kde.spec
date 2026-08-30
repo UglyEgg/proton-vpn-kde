@@ -2,7 +2,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        12%{?dist}
+Release:        13%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -25,9 +25,11 @@ BuildRequires:  kf6-kstatusnotifieritem-devel
 %endif
 BuildRequires:  ninja-build
 BuildRequires:  openssl-devel
+BuildRequires:  python3-coverage
 BuildRequires:  python3-cryptography
 BuildRequires:  python3-dbus-fast
 BuildRequires:  python3-devel
+BuildRequires:  python3-mypy
 BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
 BuildRequires:  qt6-linguist
@@ -70,6 +72,7 @@ own desktop integration dependencies.
 %cmake_build
 
 %check
+scripts/check-python-analysis.sh
 %ctest
 
 %install
@@ -111,6 +114,9 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-13
+- Enforce Python type analysis and measured branch coverage in CI and RPM checks.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-12
 - Require the separately packaged provider-neutral Proton keyring capability.
 - Build the audited keyring overlay and its source RPM in release CI.
