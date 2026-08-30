@@ -8,6 +8,7 @@
 #include <functional>
 
 class QAction;
+class BackgroundQuitCoordinator;
 class QMenu;
 class AppSettings;
 class VpnConnectionController;
@@ -32,6 +33,7 @@ private:
     void updateIcon();
     void updateState();
     void rebuildPinnedActions();
+    void showDisconnectTimeout();
 
     VpnConnectionController *m_controller = nullptr;
     AppSettings *m_settings = nullptr;
@@ -40,6 +42,9 @@ private:
     QAction *m_showAction = nullptr;
     QAction *m_connectionAction = nullptr;
     QAction *m_pinnedSeparator = nullptr;
+    QAction *m_disconnectAndQuitAction = nullptr;
+    QAction *m_quitAction = nullptr;
+    BackgroundQuitCoordinator *m_quitCoordinator = nullptr;
     QList<QAction *> m_pinnedActions;
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM

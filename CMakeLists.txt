@@ -138,6 +138,8 @@ qt_add_executable(proton-vpn-kde-agent
     src/AppIcon.h
     src/AppSettings.cpp
     src/AppSettings.h
+    src/BackgroundQuitCoordinator.cpp
+    src/BackgroundQuitCoordinator.h
     src/BackendCallPolicy.h
     src/BackendIdentity.cpp
     src/BackendIdentity.h
@@ -349,6 +351,25 @@ if(BUILD_TESTING)
     else()
         add_test(NAME agent-vpn-client-tests COMMAND agent-vpn-client-tests)
     endif()
+
+    qt_add_executable(background-quit-coordinator-tests
+        tests/BackgroundQuitCoordinatorTest.cpp
+        src/BackgroundQuitCoordinator.cpp
+        src/BackgroundQuitCoordinator.h
+        src/VpnConnectionController.h
+    )
+    target_include_directories(background-quit-coordinator-tests PRIVATE src)
+    target_link_libraries(background-quit-coordinator-tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    target_compile_options(background-quit-coordinator-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(
+        NAME background-quit-coordinator-tests
+        COMMAND background-quit-coordinator-tests
+    )
 
     qt_add_executable(grouped-navigation-tests
         tests/GroupedNavigationTest.cpp

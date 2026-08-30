@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        22%{?dist}
+Release:        23%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -120,6 +120,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-23
+- Make keep-connected tray shutdown explicit.
+- Add a confirmed disconnect-and-quit path that fails safely on timeout.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-22
 - Keep server-browser cleanup scoped to its owning page context.
 - Retry transiently empty country-group snapshots without manual refresh.

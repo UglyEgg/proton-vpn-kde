@@ -181,7 +181,10 @@ distribution deliberately enables it.
 The resident agent owns the status notifier, notifications, global shortcuts,
 pinned targets, and auto-connect behavior. The complete Kirigami Control Center
 starts on demand and exits when its window closes. Both are single-instance
-processes.
+processes. Tray shutdown distinguishes leaving the Core-managed tunnel active
+from disconnecting it: the latter waits for a fully disconnected, idle Core
+snapshot before the agent exits and keeps supervision alive if confirmation
+times out.
 
 KRunner recognizes only explicit VPN prefixes and validated connection targets.
 It addresses the Control Center activation service, never the backend. A modal

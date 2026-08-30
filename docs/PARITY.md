@@ -26,7 +26,7 @@ Proton's official core.
 | Connection errors | Specific summaries plus recovery dialogs for important fatal states | Stable non-sensitive error codes, official recovery text, and error-state cancellation | Complete |
 | Startup compatibility | Warn when no compatible VPN backend is registered | Official validator when available; public protocol-registry fallback for Fedora's initial core 5.5.6 | Complete |
 | Memory-overlay awareness | No equivalent warning | Behavior-check both representation-only server-string sharing paths and identify an unoptimized installed Core without blocking VPN use | Superset |
-| Quit/logout safety | Confirm active disconnect, preserve permanent kill switch on quit, disable it on logout | Closing the on-demand Control Center preserves the active tunnel; disconnect is explicit and logout remains kill-switch safe | Native equivalent |
+| Quit/logout safety | Confirm active disconnect, preserve permanent kill switch on quit, disable it on logout | Closing the Control Center preserves the tunnel; tray shutdown offers explicit keep-connected and confirmed disconnect-and-quit paths; logout remains kill-switch safe | Native equivalent |
 | Protocols | Generic protocols and feature-flagged Proton protocols | Lists core-provided protocols and honors the ProTun feature flag | Complete |
 | Connection settings | Protocol, VPN Accelerator, moderate NAT, and IPv6 | Native conflict-aware controls saved through official Core. Disabling tunneled IPv6 does not disable Core's separate connection-scoped IPv6 leak protection | Complete |
 | Protection settings | Kill switch, NetShield, and port forwarding | Native controls with plan and connected-state constraints | Complete |

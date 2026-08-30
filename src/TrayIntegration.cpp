@@ -5,12 +5,14 @@
 
 #include "AppIcon.h"
 #include "AppSettings.h"
+#include "BackgroundQuitCoordinator.h"
 #include "VpnConnectionController.h"
 
 #include <QAction>
 #include <QApplication>
 #include <QIcon>
 #include <QMenu>
+#include <QMessageBox>
 #include <utility>
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM
@@ -28,18 +30,30 @@ TrayIntegration::TrayIntegration(VpnConnectionController *controller,
     , m_settings(settings)
     , m_showControlCenter(std::move(showControlCenter))
     , m_menu(new QMenu)
+    , m_quitCoordinator(new BackgroundQuitCoordinator(controller, 15000, this))
 {
     m_showAction = m_menu->addAction(tr("Show Plasma VPN"));
     m_connectionAction = m_menu->addAction(tr("Connect fastest"));
     m_pinnedSeparator = m_menu->addSeparator();
-    QAction *quitAction = m_menu->addAction(tr("Quit background controls"));
+    m_disconnectAndQuitAction = m_menu->addAction(
+        tr("Disconnect VPN and quit background controls"));
+    m_quitAction = m_menu->addAction(tr("Quit background controls"));
 
     connect(m_showAction, &QAction::triggered,
             this, &TrayIntegration::showControlCenter);
     connect(m_connectionAction, &QAction::triggered,
             m_controller, &VpnConnectionController::activatePrimaryAction);
-    connect(quitAction, &QAction::triggered,
+    connect(m_disconnectAndQuitAction, &QAction::triggered,
+            m_quitCoordinator,
+            &BackgroundQuitCoordinator::disconnectAndQuit);
+    connect(m_quitAction, &QAction::triggered,
             qApp, &QCoreApplication::quit);
+    connect(m_quitCoordinator, &BackgroundQuitCoordinator::readyToQuit,
+            qApp, &QCoreApplication::quit);
+    connect(m_quitCoordinator, &BackgroundQuitCoordinator::disconnectTimedOut,
+            this, &TrayIntegration::showDisconnectTimeout);
+    connect(m_quitCoordinator, &BackgroundQuitCoordinator::pendingChanged,
+            this, &TrayIntegration::updateState);
     connect(m_controller, &VpnConnectionController::snapshotChanged,
             this, &TrayIntegration::updateState);
     connect(m_settings, &AppSettings::pinnedServersChanged,
@@ -125,19 +139,51 @@ void TrayIntegration::showControlCenter()
     }
 }
 
+void TrayIntegration::showDisconnectTimeout()
+{
+    QMessageBox::warning(
+        nullptr,
+        tr("VPN disconnect not confirmed"),
+        tr("Plasma VPN could not confirm that Proton Core disconnected the "
+           "tunnel. Background controls will remain open so the connection "
+           "state is not abandoned."));
+}
+
 void TrayIntegration::updateState()
 {
     const QString state = m_controller->state();
     const QString server = m_controller->serverName();
     const bool connected = state == QStringLiteral("connected");
+    const bool activeConnection = state == QStringLiteral("connected")
+        || state == QStringLiteral("connecting")
+        || state == QStringLiteral("disconnecting")
+        || state == QStringLiteral("error");
+    const bool quitPending = m_quitCoordinator->pending();
     const QString tooltip = connected && !server.isEmpty()
         ? tr("Plasma VPN — connected to %1").arg(server)
         : tr("Plasma VPN — %1").arg(state);
 
     m_connectionAction->setText(m_controller->primaryActionText());
-    m_connectionAction->setEnabled(m_controller->primaryActionEnabled());
+    m_connectionAction->setEnabled(
+        !quitPending && m_controller->primaryActionEnabled());
+    m_disconnectAndQuitAction->setVisible(activeConnection);
+    m_disconnectAndQuitAction->setText(
+        quitPending ? tr("Disconnecting VPN and quitting…")
+                    : tr("Disconnect VPN and quit background controls"));
+    m_disconnectAndQuitAction->setEnabled(
+        !quitPending && m_controller->backendAvailable()
+        && m_controller->ready() && m_controller->loggedIn()
+        && (!m_controller->busy()
+            || state == QStringLiteral("connecting")
+            || state == QStringLiteral("disconnecting")));
+    m_quitAction->setText(
+        activeConnection
+            ? tr("Quit background controls without disconnecting")
+            : tr("Quit background controls"));
+    m_quitAction->setEnabled(!quitPending);
     for (QAction *action : std::as_const(m_pinnedActions)) {
-        action->setEnabled(m_controller->primaryActionEnabled());
+        action->setEnabled(
+            !quitPending && m_controller->primaryActionEnabled());
     }
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM
