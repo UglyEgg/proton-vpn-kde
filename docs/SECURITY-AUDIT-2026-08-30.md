@@ -286,10 +286,12 @@ SELinux; this tradeoff is documented in [Hardening](HARDENING.md).
   copy. Root, debuggers, and direct process-memory readers remain out of scope.
 - Official Proton Core, NetworkManager, Secret Service providers, and remote
   Proton services are trusted dependencies outside this assessment.
-- The verified provider-neutral Secret Service behavior currently depends on a
-  separately patched Proton keyring package. Its source, provenance, and
-  distribution must be resolved before advertising stock-package KeePassXC
-  compatibility.
+- The verified provider-neutral Secret Service behavior depends on a separately
+  patched Proton keyring package. Its exact upstream source, patch hashes,
+  focused tests, Fedora spec, and source/binary CI build now live in this
+  repository. It remains an unofficial downstream dependency until Proton
+  accepts an equivalent change; stock Proton 0.2.3 must not be described as
+  KeePassXC-compatible.
 - `systemd-analyze security --offline=yes --user` rates both desktop services
   9.0, “UNSAFE,” largely because a functional desktop VPN adapter retains host
   networking, home-state, device, and D-Bus access. This heuristic is not a

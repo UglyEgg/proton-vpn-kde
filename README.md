@@ -87,7 +87,7 @@ These are scoped engineering measurements, not certification. The project has co
 The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and Proton VPN API Core 5.5.6 or newer. Other distributions may work but have not completed the packaged acceptance battery.
 
 > [!NOTE]
-> Verified KeePassXC support currently uses the separately patched Proton keyring adapter recorded in [Compatibility](docs/COMPATIBILITY.md). The KDE RPM does not silently replace that package. Public binary distribution of the compatible adapter or acceptance of the focused upstream patch remains a first-release gate.
+> Verified KeePassXC support uses the separately packaged, provider-neutral Proton keyring rebuild recorded in [Compatibility](docs/COMPATIBILITY.md). The source, patches, tests, manifest, and Fedora spec are included under [`packaging/fedora/keyring-overlay`](packaging/fedora/keyring-overlay/); release CI builds its binary and source RPMs beside the client. The client RPM requires that explicit capability instead of silently replacing an installed Python file.
 
 ## Evaluate or contribute
 

@@ -9,6 +9,11 @@ No changes yet.
 
 ## [0.11.2] - 2026-08-30
 
+- Add a reproducible Fedora rebuild of Proton's keyring adapter with the
+  provider-neutral Secret Service alias and stable-client fixes used for
+  KeePassXC acceptance.
+- Require the adapter's explicit virtual capability from the client RPM and
+  build both source and binary packages in release CI.
 - Clarify that the Plasma frontend has no direct GTK dependency while Proton's
   Fedora API Core package retains its upstream `NetworkManager-openvpn-gnome`
   dependency.

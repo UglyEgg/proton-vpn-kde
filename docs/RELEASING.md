@@ -42,6 +42,15 @@ tracked file, review and commit that change before rebuilding.
 
 ## 3. Build the Fedora source and binary packages
 
+Build the provider-neutral keyring dependency first. The script fetches and
+digest-verifies Proton's pinned upstream source, verifies the patch manifest,
+runs the focused test suite in `%check`, and emits both source and binary RPMs:
+
+```bash
+packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
+    '' "$PWD/build-keyring-overlay"
+```
+
 Create a dedicated top directory and release archive, then build with Fedora's
 package flags and `%check` enabled:
 
@@ -61,13 +70,14 @@ rpmbuild \
 Replace `VERSION` with the verified release version. The resulting build is not
 releasable if `%check` is skipped or reports a failure.
 
-The `RPM Package` GitHub Actions workflow repeats this build from every pushed
+The `RPM Package` GitHub Actions workflow repeats both builds from every pushed
 commit and pull request. It inspects the main package's identity, dependency
 boundary, required payload, ownership, permissions, community reporting feature
-gates, digest, and transaction validity, then retains both binary and source
-RPMs as CI artifacts for 14 days. This unsigned CI artifact is review evidence,
-not a published release and not a substitute for the clean-environment live
-acceptance below.
+gates, digest, and transaction validity; it also verifies the keyring package's
+identity, provider-neutral capability, dependency boundary, and payload. Both
+sets of binary and source RPMs are retained as CI artifacts for 14 days. These
+unsigned CI artifacts are review evidence, not published releases and not a
+substitute for the clean-environment live acceptance below.
 
 ## 4. Inspect and sign artifacts
 
@@ -84,7 +94,8 @@ acceptance below.
 - Sign release tags and RPMs with a maintainer-controlled key. Never describe
   an unsigned local package as a signed release, and never imply that a
   community artifact is an official Proton release.
-- Publish the source RPM alongside binary RPMs to preserve corresponding source.
+- Publish both source RPMs alongside their binary RPMs to preserve corresponding
+  source and the boundary between community code and the Proton keyring rebuild.
 
 ## 5. Tag and publish
 

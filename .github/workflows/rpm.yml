@@ -19,14 +19,17 @@ jobs:
     container: fedora:44
     env:
       RPM_TOPDIR: ${{ github.workspace }}/rpm-build
+      KEYRING_RPM_TOPDIR: ${{ github.workspace }}/keyring-rpm-build
 
     steps:
       - name: Install RPM build dependencies
         run: |
           dnf install -y \
-            cmake cpio dbus-daemon desktop-file-utils \
+            cmake cpio curl dbus-daemon desktop-file-utils \
             extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
-            python3-cryptography python3-dbus-fast python3-devel rpm-build \
+            pyproject-rpm-macros python3-cryptography python3-dbus-fast \
+            python3-devel python3-keyring python3-proton-core python3-pytest \
+            python3-secretstorage python3-setuptools rpm-build \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
             kf6-kglobalaccel-devel kf6-kcmutils-devel \
             kf6-knotifications-devel kf6-krunner-devel \
@@ -35,6 +38,11 @@ jobs:
 
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Build provider-neutral keyring overlay
+        run: |
+          packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
+            '' "$KEYRING_RPM_TOPDIR"
 
       - name: Create source archive
         run: |
@@ -66,9 +74,23 @@ jobs:
           )
           [[ ${#binary_rpms[@]} -eq 1 ]]
           [[ ${#source_rpms[@]} -eq 1 ]]
+          mapfile -t keyring_rpms < <(
+            find "$KEYRING_RPM_TOPDIR/RPMS" -type f \
+              -name 'python3-proton-keyring-linux-*.noarch.rpm' -print
+          )
+          mapfile -t keyring_source_rpms < <(
+            find "$KEYRING_RPM_TOPDIR/SRPMS" -type f \
+              -name 'python3-proton-keyring-linux-*.src.rpm' -print
+          )
+          [[ ${#keyring_rpms[@]} -eq 1 ]]
+          [[ ${#keyring_source_rpms[@]} -eq 1 ]]
           scripts/check-rpm-artifact.sh "${binary_rpms[0]}"
+          packaging/fedora/keyring-overlay/check_overlay_rpm.sh \
+            "${keyring_rpms[0]}"
           rpm -qpi "${source_rpms[0]}"
-          rpm -Uvh --test --nodeps --ignoresize "${binary_rpms[0]}"
+          rpm -qpi "${keyring_source_rpms[0]}"
+          rpm -Uvh --test --nodeps --ignoresize \
+            "${keyring_rpms[0]}" "${binary_rpms[0]}"
 
       - name: Upload RPM artifacts
         uses: actions/upload-artifact@v4
@@ -77,6 +99,8 @@ jobs:
           path: |
             ${{ env.RPM_TOPDIR }}/RPMS/**/*.rpm
             ${{ env.RPM_TOPDIR }}/SRPMS/*.rpm
+            ${{ env.KEYRING_RPM_TOPDIR }}/RPMS/**/*.rpm
+            ${{ env.KEYRING_RPM_TOPDIR }}/SRPMS/*.rpm
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

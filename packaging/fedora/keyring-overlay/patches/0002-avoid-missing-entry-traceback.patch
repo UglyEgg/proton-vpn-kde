@@ -1,0 +1,74 @@
+From 4b2adc79d64e5f9ffeecc14d943d65e92254b5b0 Mon Sep 17 00:00:00 2001
+From: uglyegg <uglyegg@entropy.quest>
+Date: Sat, 29 Aug 2026 11:45:46 -0500
+Subject: [PATCH] Avoid traceback for missing keyring entries
+
+---
+ proton/keyring_linux/core/keyring_linux.py |  2 +-
+ tests/test_linuxkeyring.py                 | 25 ++++++++++++++++------
+ 2 files changed, 20 insertions(+), 7 deletions(-)
+
+diff --git a/proton/keyring_linux/core/keyring_linux.py b/proton/keyring_linux/core/keyring_linux.py
+index b162010..5706a77 100644
+--- a/proton/keyring_linux/core/keyring_linux.py
++++ b/proton/keyring_linux/core/keyring_linux.py
+@@ -75,7 +75,7 @@ class KeyringBackendLinux(Keyring):  # pylint: disable=too-few-public-methods
+         try:
+             self.__keyring_backend.delete_password(self.KEYRING_SERVICE, key)
+         except keyring.errors.PasswordDeleteError as excp:
+-            logging.exception("Unable to delete entry from keyring")
++            logger.debug("Keyring entry is already absent")
+             raise KeyError(key) from excp
+         except keyring.errors.KeyringError as excp:
+             logging.exception("Keyring error while deleting")
+diff --git a/tests/test_linuxkeyring.py b/tests/test_linuxkeyring.py
+index 55af38d..52b00e3 100644
+--- a/tests/test_linuxkeyring.py
++++ b/tests/test_linuxkeyring.py
+@@ -21,6 +21,7 @@ You should have received a copy of the GNU General Public License
+ along with ProtonVPN.  If not, see <https://www.gnu.org/licenses/>.
+ """
+ from proton.keyring_linux.core import KeyringBackendLinux
++import logging
+ import pytest
+ from unittest import mock
+ import json
+@@ -81,18 +82,30 @@ def test_get_item_raises_exception_corrupted_data(mock_backend, keyring_service)
+         k._get_item("test")
+
+
+-def test_del_item_raises_exception_missing_key(mock_backend, keyring_service):
++def test_del_item_raises_exception_missing_key_without_error_log(
++        mock_backend, keyring_service, caplog
++):
+     mock_backend.delete_password.side_effect = errors.PasswordDeleteError()
+     k = KeyringBackendLinux(keyring_backend=mock_backend)
+-    with pytest.raises(KeyError):
+-        k._del_item("test")
++    with caplog.at_level(logging.DEBUG):
++        with pytest.raises(KeyError):
++            k._del_item("test")
++
++    assert "Keyring entry is already absent" in caplog.messages
++    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+-def test_del_item_raises_exception_keyring_error(mock_backend, keyring_service):
++def test_del_item_raises_exception_keyring_error(
++        mock_backend, keyring_service, caplog
++):
+     mock_backend.delete_password.side_effect = errors.KeyringError()
+     k = KeyringBackendLinux(keyring_backend=mock_backend)
+-    with pytest.raises(KeyringError):
+-        k._del_item("test")
++    with caplog.at_level(logging.ERROR):
++        with pytest.raises(KeyringError):
++            k._del_item("test")
++
++    assert "Keyring error while deleting" in caplog.messages
++    assert any(record.exc_info is not None for record in caplog.records)
+
+
+ def test_set_item_raises_exception_keyring_unable_to_add(mock_backend, keyring_service):
+--
+2.55.0

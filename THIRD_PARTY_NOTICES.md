@@ -30,6 +30,18 @@ records the exact accepted upstream package version and patch digests. The
 overlay is optional and does not replace or redistribute the complete upstream
 source repository.
 
+## Proton keyring overlay patches
+
+Files under `packaging/fedora/keyring-overlay/patches/` modify the separately
+packaged, GPL-3.0-only Proton Linux keyring adapter. The repository records the
+exact upstream tag and commit, archive and patch digests, Fedora spec, focused
+tests, and downstream package identity. Release builds fetch the complete
+upstream source and publish a corresponding source RPM beside the binary RPM.
+
+The modified adapter remains Proton-derived software under its upstream
+license. The downstream package and changes are unofficial and are not
+represented as authored, reviewed, supported, or endorsed by Proton AG.
+
 ## Names and marks
 
 Proton, Proton VPN, and associated marks are owned by Proton AG. They are used

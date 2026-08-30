@@ -2,7 +2,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        11%{?dist}
+Release:        12%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -40,6 +40,7 @@ Requires:       python3-cryptography
 Requires:       python3-dbus-fast
 Requires:       python3-fido2
 Requires:       python3-proton-vpn-api-core >= 5.5.6
+Requires:       proton-keyring-secret-service-provider-agnostic >= 1
 Requires:       qt6-qtdeclarative
 
 %description
@@ -110,6 +111,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-12
+- Require the separately packaged provider-neutral Proton keyring capability.
+- Build the audited keyring overlay and its source RPM in release CI.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-11
 - Remove the prescriptive upstream-engagement guide from the public documentation.
 - Let GitHub render README prose without a fixed source-column width.

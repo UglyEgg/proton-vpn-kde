@@ -14,10 +14,9 @@ independent upstream contribution, not a hidden part of this client.
 - Complete this documentation consolidation and review the complete public
   diff for provenance, licensing, local paths, development debris, and stale
   claims.
-- Resolve distribution of the provider-neutral Proton keyring adapter used by
-  the verified KeePassXC stack: preferably upstream the focused patch, or
-  publish a separately reviewable source and binary package with explicit
-  provenance. Do not imply that the KDE RPM itself supplies the fix.
+- Build the provider-neutral Proton keyring source and binary RPMs from their
+  pinned manifest, verify the declared capability, and publish them beside the
+  client until an equivalent upstream package is accepted and verified.
 - Build the source RPM and binary RPM from the exact clean release commit with
   `%check` enabled.
 - Repeat the packaged Fedora 44 acceptance checklist, including installation,

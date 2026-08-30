@@ -53,8 +53,9 @@ Its Linux keyring adapter uses the Freedesktop Secret Service API, so KeePassXC,
 KWallet, GNOME Keyring, or another implementation can own
 `org.freedesktop.secrets` when the adapter handles that provider's collection
 layout correctly. The verified KeePassXC stack uses the compatible downstream
-adapter recorded in [Compatibility](COMPATIBILITY.md); the KDE RPM does not
-replace the keyring package. The KDE application stores only non-secret UI
+adapter recorded in [Compatibility](COMPATIBILITY.md); release builds provide
+it as a separate, provenance-tracked RPM rather than overwriting the keyring
+package in place. The KDE application stores only non-secret UI
 preferences in KConfig.
 
 State snapshots expose connection state and the minimum useful account display

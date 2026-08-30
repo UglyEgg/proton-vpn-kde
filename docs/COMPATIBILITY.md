@@ -19,14 +19,20 @@ The source build requires:
 The real backend requires Proton's Fedora packages. The minimum declared VPN
 API Core version is 5.5.6.
 
-KeePassXC acceptance currently also depends on the downstream
-`python3-proton-keyring-linux` build identified below. It contains the narrow
-provider-neutral fallback for a missing or stale `default` Secret Service
-collection alias and reuses one bounded Secret Service connection. Those
-changes are not supplied by the KDE RPM and were not present in the assessed
-upstream 0.2.3 tag. Until an equivalent change is accepted upstream or packaged
-alongside the public client, unqualified KeePassXC support must not be claimed
-for an otherwise stock Proton package stack.
+KeePassXC acceptance also depends on the downstream
+`python3-proton-keyring-linux` capability identified below. It contains the
+narrow provider-neutral fallback for a missing or stale `default` Secret
+Service collection alias and reuses one bounded Secret Service connection.
+Those changes were not present in the assessed upstream 0.2.3 tag.
+
+The repository now carries the exact patches, upstream archive identity,
+focused tests, and Fedora rebuild under
+[`packaging/fedora/keyring-overlay`](../packaging/fedora/keyring-overlay/).
+Release CI produces that package's source and binary RPMs beside the client,
+and the client RPM requires its explicit
+`proton-keyring-secret-service-provider-agnostic` capability. This dependency
+can be retired after an equivalent upstream build is verified; it is not a
+claim that stock Proton 0.2.3 supports KeePassXC correctly.
 
 ## Last verified installed stack
 
@@ -39,7 +45,7 @@ KRunner actions, and VPN connection and disconnection.
 | --- | --- |
 | Fedora | 44 |
 | Proton VPN API Core | 5.6.10 |
-| Proton keyring adapter | 0.2.3-4.codex1 downstream build |
+| Proton keyring adapter | 0.2.3-4.codex1 downstream build; source-equivalent repository rebuild is 0.2.3-4.plasmavpn1 |
 | Proton VPN daemon | 0.13.8 |
 | Plasma client | 0.11.2 (`0.11.2-8.fc44`) |
 

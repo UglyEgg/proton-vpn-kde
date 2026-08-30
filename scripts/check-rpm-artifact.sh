@@ -50,6 +50,12 @@ if ! grep -Fxq 'python3-proton-vpn-api-core >= 5.5.6' <<<"$requires"; then
     echo "RPM does not retain the official Proton VPN API Core dependency" >&2
     exit 1
 fi
+if ! grep -Fxq \
+        'proton-keyring-secret-service-provider-agnostic >= 1' \
+        <<<"$requires"; then
+    echo "RPM does not require the provider-neutral Secret Service capability" >&2
+    exit 1
+fi
 
 for forbidden_dependency in \
         gtk3 \

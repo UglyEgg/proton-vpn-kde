@@ -17,10 +17,12 @@ native dependencies are Qt 6, KDE Frameworks 6, Kirigami, OpenSSL 3, and the
 system Python interpreter. Runtime integration additionally uses
 `python3-dbus-fast`, `python3-cryptography`, `python3-fido2`, and Proton VPN API
 Core 5.5.6 or newer. Session storage reaches Freedesktop Secret Service through
-Proton's separately packaged keyring adapter. The verified KeePassXC stack uses
-the downstream adapter recorded in
-[Compatibility](../../docs/COMPATIBILITY.md); this RPM does not silently
-replace that dependency.
+Proton's separately packaged keyring adapter. Until the provider-neutral fixes
+are upstream, this repository builds a reviewable downstream adapter from
+Proton's pinned source and requires its explicit RPM capability. The verified
+KeePassXC stack and retirement policy are recorded in
+[Compatibility](../../docs/COMPATIBILITY.md); the client RPM never overwrites
+an installed Python file outside package ownership.
 
 ## Build
 
@@ -57,12 +59,18 @@ support-report and crash-report submission. A package is not releasable when
 `%check` is skipped or fails.
 
 The dedicated `RPM Package` CI workflow performs the same source and binary RPM
-build for every pushed commit and pull request, validates the resulting package
-with `scripts/check-rpm-artifact.sh`, and retains the unsigned artifacts for
-review. Proton VPN API Core is intentionally a runtime rather than build
-dependency: the isolated test suite does not import or modify the installed
-Core, while the finished client cannot be installed without a compatible
-official package.
+build for every pushed commit and pull request. It first builds and tests the
+provider-neutral keyring RPM from the pinned Proton source, then builds the
+client, validates both packages, and retains both source and binary artifacts
+for review. Proton VPN API Core is intentionally a runtime rather than build
+dependency of the client: the isolated client test suite does not import or
+modify the installed Core, while the finished package cannot be installed
+without compatible official Core and keyring packages.
+
+The keyring rebuild has its own manifest, patch hashes, `%check`, and
+instructions in [keyring-overlay](keyring-overlay/README.md). It is a separate
+RPM because the patched files remain Proton-owned code and should remain
+independently reviewable and replaceable by an upstream release.
 
 ## Installed integration
 

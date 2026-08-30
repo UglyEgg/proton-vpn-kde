@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "https://github.com/ProtonVPN/python-proton-keyring-linux.git",
+    "tag": "v0.2.3",
+    "commit": "77b7653b783adac70dffefff5cc99fa7650fcc20",
+    "archiveUrl": "https://github.com/ProtonVPN/python-proton-keyring-linux/archive/refs/tags/v0.2.3.tar.gz",
+    "archiveFilename": "python-proton-keyring-linux-0.2.3.tar.gz",
+    "archiveSha256": "6ac94f08057973f16dc14f09a457a578ac1001b75793314bd5245f32fd40048c"
+  },
+  "overlay": {
+    "packageName": "python3-proton-keyring-linux",
+    "version": "0.2.3",
+    "release": "4.plasmavpn1",
+    "capability": "proton-keyring-secret-service-provider-agnostic = 1",
+    "patches": [
+      {
+        "file": "0001-provider-agnostic-secret-service.patch",
+        "sha256": "5a860eec02e9141d98f944c189261186c51004d44b7f44884ed233be32d1ad3a"
+      },
+      {
+        "file": "0002-avoid-missing-entry-traceback.patch",
+        "sha256": "b5b2b1c6b0dcfe613ae47f18ae090b94d0cc27be2d8bf91beb6d0937d085c8f2",
+        "upstreamCommit": "4b2adc79d64e5f9ffeecc14d943d65e92254b5b0"
+      }
+    ]
+  }
+}
