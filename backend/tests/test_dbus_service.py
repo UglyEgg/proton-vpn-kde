@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, Mock
 
 from dbus_fast.errors import DBusError
 
+from fd_helpers import create_test_fd
 from proton_vpn_kde_backend.dbus_service import (
     INVALID_SUPPORT_REPORT_ERROR,
     INVALID_SETTINGS_ERROR,
@@ -129,7 +130,7 @@ class VpnDbusServiceTests(unittest.IsolatedAsyncioTestCase):
         service, controller = make_service()
         controller.submit_support_report = AsyncMock()
 
-        descriptor = os.memfd_create("disabled-support-report", os.MFD_CLOEXEC)
+        descriptor = create_test_fd("disabled-support-report")
         with self.assertRaises(DBusError) as raised:
             await type(service).submit_support_report.__wrapped__(service, descriptor)
 

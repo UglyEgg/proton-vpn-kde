@@ -9,6 +9,7 @@ cd "$project_dir"
 
 python3 scripts/check-spdx-headers.py
 python3 scripts/generate-dbus-contracts.py --check
+python3 scripts/check-compatibility-metadata.py
 ruff check backend packaging/fedora/api-core-overlay scripts
 shellcheck \
     scripts/*.sh \
@@ -21,6 +22,7 @@ xmllint --noout data/plasma-vpn.svg \
 python3 -m json.tool kcm/kcm_proton_vpn_kde.json >/dev/null
 python3 -m json.tool \
     packaging/fedora/keyring-overlay/overlay-manifest.json >/dev/null
+python3 -m json.tool packaging/fedora/core-compatibility.json >/dev/null
 if rg --pcre2 -n \
         'uses:\s+[^./\s][^@\s]+@(?![0-9a-f]{40}(?:\s|#|$))' \
         .github/workflows; then

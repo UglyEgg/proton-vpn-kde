@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Hash-pinned Linux x86_64 wheels for the Python 3.11 compatibility job.
+
+cryptography==45.0.1 \
+    --hash=sha256:590f79fa01ce7cdc7e1fc30513180f484162c35e32ad42d0b9b83df627ef87de \
+    --hash=sha256:fdb6b89478486bb29c5d59ebbf0616f987677a4581d101b86d9895637b4fa22c \
+    --hash=sha256:b27663d7e0e6476441775e09f6df733f50559fbef86cbfc2008ca7100e1ceb01
+dbus-fast==2.20.0 \
+    --hash=sha256:2ff856cbb1508bcf6735ed1e3c04de1def6c400720765141d2470e39c8fd6f13
+cffi==1.17.1 \
+    --hash=sha256:610faea79c43e44c71e1ec53a554553fa22321b65fae24889706c0a84d4ad86d
+pycparser==2.22 \
+    --hash=sha256:c3702b6d3dd8c7abc1afa565d7e63d53a1d0bd86cdc24edd75470f4de499cfcc

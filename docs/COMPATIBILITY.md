@@ -13,11 +13,18 @@ The source build requires:
 - KDE Frameworks 6;
 - Python 3.11 or newer;
 - OpenSSL 3;
-- `cryptography` 45 or newer;
+- `cryptography` 45.0.1 or newer;
 - `dbus-fast` 2.20 or newer.
 
 The real backend requires Proton's Fedora packages. The minimum declared VPN
 API Core version is 5.5.6.
+
+CI runs all 130 isolated backend tests under Python 3.11 with the exact minimum
+`cryptography` 45.0.1 and `dbus-fast` 2.20.0 wheels. A separate source-level
+contract check downloads and extracts Proton's SHA-256-pinned Fedora 44 API
+Core 5.5.6 RPM, then verifies every public class, method, property, and exported
+type consumed by the adapter. It does not instantiate Core, read credentials,
+or touch networking; live acceptance remains a separate release step.
 
 KeePassXC acceptance also depends on the downstream
 `python3-proton-keyring-linux` capability identified below. It contains the
@@ -47,7 +54,7 @@ KRunner actions, and VPN connection and disconnection.
 | Proton VPN API Core | 5.6.10 |
 | Proton keyring adapter | 0.2.3-4.codex1 downstream build; source-equivalent repository rebuild is 0.2.3-4.plasmavpn1 |
 | Proton VPN daemon | 0.13.8 |
-| Plasma client | 0.11.2 (`0.11.2-8.fc44`) |
+| Plasma client | 0.11.2 (`0.11.2-18.fc44` release candidate) |
 
 Downstream package release suffixes are not part of the runtime compatibility
 contract.

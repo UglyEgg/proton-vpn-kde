@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        17%{?dist}
+Release:        18%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -29,7 +29,7 @@ BuildRequires:  kf6-kstatusnotifieritem-devel
 BuildRequires:  ninja-build
 BuildRequires:  openssl-devel
 BuildRequires:  python3-coverage
-BuildRequires:  python3-cryptography
+BuildRequires:  python3-cryptography >= 45.0.1
 BuildRequires:  python3-dbus-fast
 BuildRequires:  python3-devel
 BuildRequires:  python3-mypy
@@ -41,7 +41,7 @@ Requires:       kf6-kirigami
 Requires:       kf6-kglobalaccel
 Requires:       kf6-kcmutils
 Requires:       kf6-krunner
-Requires:       python3-cryptography
+Requires:       python3-cryptography >= 45.0.1
 Requires:       python3-dbus-fast
 Requires:       python3-fido2
 Requires:       python3-proton-vpn-api-core >= 5.5.6
@@ -120,6 +120,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-18
+- Test Python 3.11 with hash-pinned minimum backend dependencies.
+- Verify the consumed public API against Proton's pinned Core 5.5.6 RPM.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-17
 - Respect the package builder's temporary directory during Python analysis.
 

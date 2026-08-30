@@ -9,7 +9,9 @@ import threading
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
+
+from core_fakes import core_module_fakes
 
 from proton_vpn_kde_backend.adapters import (
     ProtonCoreAdapter,
@@ -63,6 +65,7 @@ class CoreMemoryOptimizationProbeTests(unittest.TestCase):
         )
 
 
+@patch.dict("sys.modules", core_module_fakes())
 class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     def make_api(self, *, logged_in: bool = True):
         protocol = SimpleNamespace(

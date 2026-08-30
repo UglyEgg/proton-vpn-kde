@@ -59,6 +59,10 @@ floor, and the full CTest suite in `%check`; it also disables direct Proton
 support-report and crash-report submission. A package is not releasable when
 `%check` is skipped or fails.
 
+Source CI additionally runs the complete backend suite under Python 3.11 with
+hash-pinned minimum direct dependencies and checks the adapter's consumed
+public API against Proton's exact SHA-256-pinned Fedora 44 Core 5.5.6 RPM.
+
 The dedicated `RPM Package` CI workflow performs the same source and binary RPM
 build for every pushed commit and pull request. It first builds and tests the
 provider-neutral keyring RPM from the pinned Proton source, then builds the

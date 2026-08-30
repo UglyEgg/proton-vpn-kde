@@ -10,7 +10,7 @@ name = "proton-vpn-kde-backend"
 version = "0.11.2"
 description = "Headless Proton VPN core service for the KDE Plasma frontend"
 requires-python = ">=3.11"
-dependencies = ["cryptography>=45", "dbus-fast>=2.20"]
+dependencies = ["cryptography>=45.0.1", "dbus-fast>=2.20"]
 
 [project.scripts]
 proton-vpn-kde-backend = "proton_vpn_kde_backend.__main__:main"

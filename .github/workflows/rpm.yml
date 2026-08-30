@@ -61,6 +61,8 @@ jobs:
           cp packaging/fedora/proton-vpn-kde.spec "$RPM_TOPDIR/SPECS/"
 
       - name: Build source and binary RPMs
+        env:
+          TMPDIR: ${{ env.RPM_TOPDIR }}/TMP
         run: |
           rpmbuild \
             --define "_topdir $RPM_TOPDIR" \

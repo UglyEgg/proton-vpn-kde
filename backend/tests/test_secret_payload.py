@@ -8,6 +8,7 @@ import json
 import os
 import unittest
 
+from fd_helpers import create_test_fd
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -43,7 +44,7 @@ class SecretPayloadTests(unittest.TestCase):
             + nonce
             + AESGCM(key).encrypt(nonce, plaintext, AAD)
         )
-        descriptor = os.memfd_create("proton-vpn-kde-test", os.MFD_CLOEXEC)
+        descriptor = create_test_fd("proton-vpn-kde-test")
         os.write(descriptor, encrypted)
         os.lseek(descriptor, 0, os.SEEK_SET)
         return descriptor
@@ -86,7 +87,7 @@ class SecretPayloadTests(unittest.TestCase):
             reader.read(":1.10", "SubmitTwoFactor", descriptor, {"code"}),
         )
 
-        replay = os.memfd_create("proton-vpn-kde-replay", os.MFD_CLOEXEC)
+        replay = create_test_fd("proton-vpn-kde-replay")
         os.write(replay, encrypted)
         reader.issue_public_key(":1.10", "SubmitTwoFactor")
         with self.assertRaisesRegex(ValueError, "could not be decrypted"):
@@ -100,7 +101,7 @@ class SecretPayloadTests(unittest.TestCase):
         encrypted = bytearray(os.pread(descriptor, 16 * 1024, 0))
         os.close(descriptor)
         encrypted[-1] ^= 1
-        tampered = os.memfd_create("proton-vpn-kde-tampered", os.MFD_CLOEXEC)
+        tampered = create_test_fd("proton-vpn-kde-tampered")
         os.write(tampered, encrypted)
 
         with self.assertRaises(ValueError) as context:

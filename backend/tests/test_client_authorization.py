@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 from dbus_fast import Message
 from dbus_fast.constants import MessageType
 
+from fd_helpers import create_test_fd
 from proton_vpn_kde_backend.client_authorization import (
     BACKEND_INTERFACE,
     BACKEND_OBJECT_PATH,
@@ -58,7 +59,7 @@ class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         authorizer = ClientAuthorizer(
             None, (), identity_probe=AsyncMock(), owner_probe=AsyncMock()
         )
-        descriptor = os.memfd_create("authorization-rejection", os.MFD_CLOEXEC)
+        descriptor = create_test_fd("authorization-rejection")
 
         result = authorizer.message_handler(
             method_message(
@@ -78,7 +79,7 @@ class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         authorizer = ClientAuthorizer(
             None, (), identity_probe=AsyncMock(), owner_probe=AsyncMock()
         )
-        descriptor = os.memfd_create("unexpected-read-fd", os.MFD_CLOEXEC)
+        descriptor = create_test_fd("unexpected-read-fd")
 
         result = authorizer.message_handler(
             method_message("GetSnapshot", unix_fds=[descriptor])
@@ -93,8 +94,8 @@ class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         authorizer = ClientAuthorizer(
             None, (), identity_probe=AsyncMock(), owner_probe=AsyncMock()
         )
-        first = os.memfd_create("secret-first", os.MFD_CLOEXEC)
-        second = os.memfd_create("secret-second", os.MFD_CLOEXEC)
+        first = create_test_fd("secret-first")
+        second = create_test_fd("secret-second")
 
         result = authorizer.message_handler(
             method_message(
