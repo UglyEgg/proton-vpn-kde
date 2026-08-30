@@ -37,7 +37,7 @@ jobs:
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-linguist
 
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build provider-neutral keyring overlay
         run: |
@@ -93,7 +93,7 @@ jobs:
             "${keyring_rpms[0]}" "${binary_rpms[0]}"
 
       - name: Upload RPM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: proton-vpn-kde-fedora-44
           path: |
