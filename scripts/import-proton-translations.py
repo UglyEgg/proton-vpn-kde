@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Import exact shared strings from Proton's gettext catalogs into Qt TS files."""
 
 from __future__ import annotations

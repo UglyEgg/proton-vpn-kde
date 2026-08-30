@@ -1,4 +1,7 @@
 #!/usr/bin/bash
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 set -euo pipefail
 
 if [[ $# -ne 1 || ! -f "$1" ]]; then

@@ -1,4 +1,7 @@
 #!/usr/bin/bash
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 set -euo pipefail
 
 build_dir="${1:?Pass the CMake build directory}"

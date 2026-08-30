@@ -1,9 +1,13 @@
 #!/usr/bin/bash
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_dir"
 
+python3 scripts/check-spdx-headers.py
 ruff check backend packaging/fedora/api-core-overlay scripts
 shellcheck \
     scripts/*.sh \

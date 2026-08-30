@@ -26,6 +26,8 @@ No changes yet.
 - Add blocking Clang-Tidy and address/leak/undefined-behavior sanitizer CI,
   removing the avoidable Qt container conversions and implicit size narrowing
   it found.
+- Add enforced SPDX copyright and license identifiers to every project-authored
+  source and build file without relabeling Proton-derived materials.
 - Consolidate the public documentation, make the security assessment
   unambiguous about current versus historical findings, and record the exact
   downstream keyring dependency used for KeePassXC acceptance.

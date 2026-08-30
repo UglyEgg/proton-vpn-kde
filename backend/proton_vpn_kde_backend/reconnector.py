@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Desktop-neutral asyncio VPN reconnection service."""
 
 from __future__ import annotations

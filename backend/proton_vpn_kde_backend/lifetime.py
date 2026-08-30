@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Backend lifetime management for D-Bus-activated desktop clients."""
 
 from __future__ import annotations

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Thread-safe interaction bridge for Proton's FIDO2 implementation."""
 
 from __future__ import annotations

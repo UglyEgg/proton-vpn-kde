@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 Name:           python3-proton-keyring-linux
 Version:        0.2.3
 Release:        4.plasmavpn1%{?dist}

@@ -1,5 +1,9 @@
 # Third-party notices
 
+SPDX headers identify project-authored source and build files. They are not
+applied to Proton-derived patch payloads, imported translation catalogs,
+screenshots, or artwork; the provenance of those materials is recorded below.
+
 ## Proton VPN Linux Core
 
 This project interoperates with separately installed, official Proton VPN Linux

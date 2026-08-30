@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Sender-bound authorization for the exported session D-Bus interface."""
 
 from __future__ import annotations

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 %global __os_install_post %{nil}
 %global debug_package %{nil}
 %global __requires_exclude ^python3\.14dist\(.*\)$

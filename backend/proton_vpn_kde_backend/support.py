@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Consent-gated, byte-bounded diagnostic attachments for support reports."""
 
 from __future__ import annotations

@@ -1,8 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        14%{?dist}
+Release:        15%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -114,6 +117,9 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-15
+- Add enforced SPDX provenance to project-authored source and build files.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-14
 - Add blocking Clang-Tidy and address/leak/undefined-behavior sanitizer CI.
 - Remove avoidable Qt container conversions and make size narrowing explicit.

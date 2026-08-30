@@ -90,3 +90,7 @@ submitting code derived from work performed here.
 By submitting a contribution, you agree to license it under
 `GPL-3.0-or-later` and represent that you have the right to do so. Copyright is
 not assigned to this project maintainer.
+
+New project-authored source and build files must carry the repository's SPDX
+copyright and license identifiers. Do not apply the community copyright line
+to Proton-derived patches, imported translations, or third-party material.

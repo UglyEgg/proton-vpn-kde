@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Small asyncio helpers for provider calls with external user interaction."""
 
 from __future__ import annotations

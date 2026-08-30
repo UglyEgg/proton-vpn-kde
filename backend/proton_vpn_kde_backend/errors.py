@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Backend errors whose messages are safe to expose to desktop clients."""
 
 from __future__ import annotations

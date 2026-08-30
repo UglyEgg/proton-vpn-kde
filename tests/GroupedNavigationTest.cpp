@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "LocationModels.h"
 #include "VpnController.h"
 #include "VpnSettingsModel.h"

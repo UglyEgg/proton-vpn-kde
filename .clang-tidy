@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 ---
 # Qt parent ownership is not modeled by NewDeleteLeaks; asynchronous D-Bus
 # watchers are parented and also deleteLater() on completion.
