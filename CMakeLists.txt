@@ -118,7 +118,10 @@ qt_add_executable(proton-vpn-kde
     src/UpdateChannel.cpp
     src/UpdateChannel.h
     src/VpnController.cpp
+    src/VpnControllerActions.cpp
     src/VpnController.h
+    src/VpnControllerLocations.cpp
+    src/VpnControllerSettings.cpp
     src/VpnConnectionController.h
     src/VpnSettingsModel.cpp
     src/VpnSettingsModel.h
@@ -364,7 +367,10 @@ if(BUILD_TESTING)
         src/SplitTunnelingModel.cpp
         src/SplitTunnelingModel.h
         src/VpnController.cpp
+        src/VpnControllerActions.cpp
         src/VpnController.h
+        src/VpnControllerLocations.cpp
+        src/VpnControllerSettings.cpp
         src/VpnConnectionController.h
         src/VpnSettingsModel.cpp
         src/VpnSettingsModel.h

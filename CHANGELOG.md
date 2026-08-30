@@ -9,6 +9,8 @@ All notable user-visible changes are recorded here. The project follows
   builders do not silently fall back to the host temporary filesystem.
 - Test the full backend on Python 3.11 with hash-pinned minimum dependencies
   and validate its consumed public API against Proton's pinned Core 5.5.6 RPM.
+- Split the native controller implementation into lifecycle, action, location,
+  and settings units without changing its QML or D-Bus behavior.
 
 ## [0.11.2] - 2026-08-30
 
