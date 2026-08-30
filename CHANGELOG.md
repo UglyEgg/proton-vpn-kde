@@ -5,7 +5,8 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
-No changes yet.
+- Respect `TMPDIR` in the Python analysis gate so constrained or isolated RPM
+  builders do not silently fall back to the host temporary filesystem.
 
 ## [0.11.2] - 2026-08-30
 

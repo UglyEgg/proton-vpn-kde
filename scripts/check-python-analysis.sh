@@ -5,7 +5,7 @@
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-analysis_dir="$(mktemp -d /tmp/plasma-vpn-python-analysis.XXXXXX)"
+analysis_dir="$(mktemp -d "${TMPDIR:-/tmp}/plasma-vpn-python-analysis.XXXXXX")"
 trap 'rm -rf "$analysis_dir"' EXIT
 
 export PYTHONPATH="$project_dir/backend${PYTHONPATH:+:$PYTHONPATH}"
@@ -20,4 +20,3 @@ python3 -m coverage run \
     -m unittest discover -s "$project_dir/backend/tests"
 python3 -m coverage report \
     --rcfile="$project_dir/backend/pyproject.toml"
-
