@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        24%{?dist}
+Release:        25%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -120,6 +120,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-25
+- Reconcile public documentation with the latest installed acceptance evidence.
+- Fold all pre-release 0.11.2 changes into the versioned changelog.
+- Make Clang-Tidy independent of the build-directory name.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-24
 - Recover the Control Center after an unexpected backend service exit.
 - Explain package-upgrade client authentication failures without retry churn.

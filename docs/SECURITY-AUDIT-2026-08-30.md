@@ -8,12 +8,13 @@ two low severity. All seven were corrected and their original failure modes no
 longer reproduce in focused tests.
 
 The current source passes 36 of 36 native, QML, activation, packaging, and
-integration tests plus 130 backend tests. A locally built Fedora package,
-`0.11.2-8.fc44`, also passed scoped installed acceptance for package ownership,
-service activation, KeePassXC Secret Service access through the declared
-downstream keyring build, unauthorized-call
-rejection, confirmation-gated KRunner requests, and live VPN connection and
-disconnection.
+integration tests plus 130 backend tests. The most recent locally built Fedora
+package, `0.11.2-24.fc44`, passed its complete `%check` and artifact-policy
+battery, installed cleanly, authenticated through KeePassXC, and recovered its
+Control Center lease and signed-in state after a deliberately stopped backend
+service was automatically reactivated. Earlier `0.11.2-8.fc44` acceptance also
+covered unauthorized-call rejection, confirmation-gated KRunner requests, and
+live VPN connection and disconnection.
 
 The final public artifact must still be rebuilt from the exact clean release
 commit, complete the full packaged acceptance checklist, and be signed. The
@@ -200,18 +201,24 @@ and KRunner cannot call the backend directly.
 
 ### Packaged Fedora acceptance
 
-The locally built `proton-vpn-kde-0.11.2-8.fc44.x86_64` package passed:
+The locally built `proton-vpn-kde-0.11.2-24.fc44.x86_64` package passed:
 
-- RPM payload, dependency, root ownership, systemd, D-Bus activation, and
-  native-binary hardening inspection;
+- all 130 backend tests and all 36 CTest tests during RPM `%check`;
+- RPM payload, dependency, root ownership, mode, systemd, D-Bus activation,
+  community-reporting gate, digest, and transaction inspection;
 - backend activation with KeePassXC owning `org.freedesktop.secrets` and
   `python3-proton-keyring-linux-0.2.3-4.codex1` installed;
-- ready, signed-in, disconnected startup without the GTK client;
-- rejection of an arbitrary direct `UpdateSettings` call as unauthorized;
-- loading the replacement KRunner plugin and requiring Control Center
-  confirmation for its requests; and
-- live KRunner connection and disconnection with NetworkManager returning to a
-  disconnected state.
+- ready, signed-in, disconnected startup without the official desktop client;
+  and
+- automatic backend reactivation, Control Center and agent reauthorization,
+  lease restoration beyond the disconnected idle timeout, and return to a
+  ready, signed-in, disconnected state after a deliberate service stop.
+
+The earlier `0.11.2-8.fc44` security-remediation package additionally passed an
+unauthorized `UpdateSettings` rejection and confirmation-gated KRunner
+connection and disconnection, with NetworkManager returning to a disconnected
+state. Those earlier observations remain historical evidence; they are not
+represented as a fresh `-24` connection test.
 
 This was scoped acceptance of the security remediation, not a substitute for
 the complete exact-release checklist in [Releasing](RELEASING.md).
@@ -408,6 +415,7 @@ prove that KRunner cannot authenticate to or call the backend directly.
 
 The working tree contained a coherent uncommitted release-candidate change set,
 so the base revision alone does not identify either assessed snapshot. The
-later KRunner correction and packaged `0.11.2-8` acceptance occurred after the
-sealed re-audit snapshot and are identified by current source, tests, and
-package evidence rather than by rewriting that historical digest.
+later KRunner correction and packaged `0.11.2-8` and `0.11.2-24` acceptance
+occurred after the sealed re-audit snapshot and are identified by current
+source, tests, and package evidence rather than by rewriting that historical
+digest.

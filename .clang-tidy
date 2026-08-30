@@ -15,6 +15,6 @@ Checks: >-
   -performance-enum-size
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(^|/)(src|runner|kcm)/'
-ExcludeHeaderFilterRegex: '(^|/)build[^/]*/'
+ExcludeHeaderFilterRegex: '(^|/)(build[^/]*|[^/]+_autogen)(/|$)'
 SystemHeaders: false
 ...

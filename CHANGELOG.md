@@ -5,6 +5,10 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.11.2] - 2026-08-30
+
 - Reactivate the backend after an unexpected service exit and explain when a
   Control Center left open across an RPM upgrade must be restarted.
 - Make tray shutdown explicit and wait for Proton Core to confirm a disconnect
@@ -21,9 +25,10 @@ All notable user-visible changes are recorded here. The project follows
   orchestration while retaining the existing Python import surface.
 - Isolate the deterministic demo adapter from the official Core adapter while
   preserving the established adapter import facade.
-
-## [0.11.2] - 2026-08-30
-
+- Reconcile the public documentation with the final installed `0.11.2-24`
+  acceptance evidence and remove stale development-milestone wording.
+- Keep Clang-Tidy focused on project source regardless of build-directory name
+  by excluding Qt-generated `_autogen` headers explicitly.
 - Add a reproducible Fedora rebuild of Proton's keyring adapter with the
   provider-neutral Secret Service alias and stable-client fixes used for
   KeePassXC acceptance.

@@ -11,9 +11,6 @@ independent upstream contribution, not a hidden part of this client.
 
 ## First public alpha
 
-- Complete this documentation consolidation and review the complete public
-  diff for provenance, licensing, local paths, development debris, and stale
-  claims.
 - Build the provider-neutral Proton keyring source and binary RPMs from their
   pinned manifest, verify the declared capability, and publish them beside the
   client until an equivalent upstream package is accepted and verified.
