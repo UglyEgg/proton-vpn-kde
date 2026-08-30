@@ -41,6 +41,8 @@ class VpnController final : public VpnConnectionController
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool locationSearchBusy READ locationSearchBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool npsSurveyAvailable READ npsSurveyAvailable NOTIFY npsSurveyChanged)
+    Q_PROPERTY(bool supportReportSubmissionEnabled READ supportReportSubmissionEnabled CONSTANT)
+    Q_PROPERTY(bool crashReportSubmissionEnabled READ crashReportSubmissionEnabled CONSTANT)
     Q_PROPERTY(QString state READ state NOTIFY snapshotChanged)
     Q_PROPERTY(QString errorCode READ errorCode NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverName READ serverName NOTIFY snapshotChanged)
@@ -87,6 +89,8 @@ public:
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] bool locationSearchBusy() const;
     [[nodiscard]] bool npsSurveyAvailable() const;
+    [[nodiscard]] bool supportReportSubmissionEnabled() const;
+    [[nodiscard]] bool crashReportSubmissionEnabled() const;
     [[nodiscard]] QString state() const;
     [[nodiscard]] QString errorCode() const;
     [[nodiscard]] QString serverName() const;
@@ -136,10 +140,17 @@ public:
     Q_INVOKABLE void clearGroupServerContext();
     Q_INVOKABLE void clearServerContext();
     Q_INVOKABLE void connectCountry(const QString &countryCode);
+    Q_INVOKABLE void connectCountryWithFeatures(
+        const QString &countryCode, const QStringList &features);
     Q_INVOKABLE void connectTarget(const QString &target);
+    Q_INVOKABLE void connectFastestWithFeature(const QString &feature);
+    Q_INVOKABLE void connectFastestWithFeatures(const QStringList &features);
     Q_INVOKABLE void connectGroup(const QString &countryCode,
                                   const QString &groupKind,
-                                  const QString &groupName);
+                                  const QString &groupName) override;
+    Q_INVOKABLE void connectGroupWithFeatures(
+        const QString &countryCode, const QString &groupKind,
+        const QString &groupName, const QStringList &features);
     Q_INVOKABLE void connectServer(const QString &serverName);
     Q_INVOKABLE void login(const QString &username, const QString &password);
     Q_INVOKABLE void submitTwoFactor(const QString &code);
@@ -152,7 +163,10 @@ public:
     Q_INVOKABLE void setCountryFilter(const QString &filterText);
     Q_INVOKABLE void setServerFilter(const QString &filterText);
     Q_INVOKABLE void setApplicationFilter(const QString &filterText);
+    Q_INVOKABLE void setServerGroupFeatureFilter(const QStringList &features);
+    Q_INVOKABLE void setServerFeatureFilter(const QStringList &features);
     Q_INVOKABLE void setReconnectionEnabled(bool enabled);
+    Q_INVOKABLE void setFastestFeatures(const QStringList &features);
     Q_INVOKABLE void loadSettings();
     Q_INVOKABLE void updateSetting(const QString &name, const QVariant &value);
     Q_INVOKABLE void loadSplitTunneling();
@@ -191,14 +205,27 @@ private:
 
     void registerClient();
     void unregisterClient();
+    void connectBackendSignals();
+    void disconnectBackendSignals();
     void setBackendAvailable(bool available);
     void applySnapshot(const QString &snapshotJson);
     void callOperation(const QString &method, const QVariantList &arguments = {});
+    void callFastestOperation(const QStringList &features);
     void callSecretOperation(const QString &method, const QJsonObject &fields,
                              bool updateBusy = true);
     void callControlOperation(const QString &method,
                               const QVariantList &arguments = {});
     void requestServerLoads();
+    void requestGroupServers(const QString &countryCode,
+                             const QString &groupKind,
+                             const QString &groupName,
+                             quint64 requestGeneration,
+                             int retryCount);
+    bool scheduleGroupServerRetry(const QString &countryCode,
+                                  const QString &groupKind,
+                                  const QString &groupName,
+                                  quint64 requestGeneration,
+                                  int retryCount);
     void dispatchPendingLocationRefreshes();
     void setLocationsBusy(bool busy);
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
@@ -232,6 +259,8 @@ private:
     LocationFilterProxyModel *m_serverFilterModel = nullptr;
     LocationFilterProxyModel *m_applicationFilterModel = nullptr;
     bool m_backendAvailable = false;
+    QString m_backendDestination;
+    quint64 m_backendGeneration = 0;
     ProtonVpnKde::ClientRegistrationState m_clientRegistration;
     unsigned int m_clientRegistrationRetryCount = 0;
     bool m_ready = false;
@@ -255,7 +284,9 @@ private:
     bool m_serverGroupRefreshPending = false;
     bool m_serverRefreshPending = false;
     bool m_serverLoadsRefreshPending = false;
+    quint64 m_serverRequestGeneration = 0;
     bool m_reconnectionEnabled = true;
+    QStringList m_fastestFeatures;
     QString m_currentServerCountry;
     QString m_currentServerGroupKind;
     QString m_currentServerGroupName;

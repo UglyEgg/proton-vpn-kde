@@ -1,28 +1,45 @@
 #include <KRunner/AbstractRunnerTest>
 
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QSignalSpy>
 #include <QTest>
 
-class BackendStub final : public QObject
+class ControlCenterStub final : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "proton.vpn.app.kde.Backend1")
+    Q_CLASSINFO("D-Bus Interface", "quest.entropy.PlasmaVPN.ControlCenter1")
 
 public slots:
-    void ConnectFastest() { emit operationRequested(QStringLiteral("fastest"), {}); }
-    void Disconnect() { emit operationRequested(QStringLiteral("disconnect"), {}); }
-    void ConnectCountry(const QString &country)
+    void ShowControlCenter()
     {
-        emit operationRequested(QStringLiteral("country"), country);
+        emit actionRequested(QStringLiteral("open"), {});
     }
-    void ConnectServer(const QString &server)
+    bool RequestRunnerAction(const QString &action, const QString &argument)
     {
-        emit operationRequested(QStringLiteral("server"), server);
+        emit actionRequested(action, argument);
+        return true;
     }
 
 signals:
-    void operationRequested(const QString &operation, const QString &argument);
+    void actionRequested(const QString &action, const QString &argument);
+};
+
+class BackendTrap final : public QObject
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "quest.entropy.PlasmaVPN.Backend1")
+
+public:
+    int calls = 0;
+
+public slots:
+    void AuthorizeClient(const QString &) { ++calls; }
+    void ConnectFastest() { ++calls; }
+    void ConnectFastestWithFeatures(const QStringList &) { ++calls; }
+    void Disconnect() { ++calls; }
+    void ConnectCountry(const QString &) { ++calls; }
+    void ConnectServer(const QString &) { ++calls; }
 };
 
 class ProtonVpnRunnerTest final : public KRunner::AbstractRunnerTest
@@ -34,18 +51,24 @@ private slots:
     void showsPrimaryActions();
     void showsCountryAction();
     void ignoresUnrelatedQueries();
-    void dispatchesBackendActions_data();
-    void dispatchesBackendActions();
+    void dispatchesControlCenterActions_data();
+    void dispatchesControlCenterActions();
 
 private:
-    BackendStub m_backend;
+    ControlCenterStub m_controlCenter;
+    BackendTrap m_backend;
 };
 
 void ProtonVpnRunnerTest::initTestCase()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
-    QVERIFY(bus.registerService(QStringLiteral("proton.vpn.app.kde.backend")));
-    QVERIFY(bus.registerObject(QStringLiteral("/proton/vpn/app/kde/backend"),
+    QVERIFY(bus.registerService(
+        QStringLiteral("quest.entropy.PlasmaVPN.ControlCenter")));
+    QVERIFY(bus.registerObject(
+        QStringLiteral("/quest/entropy/PlasmaVPN/ControlCenter"),
+        &m_controlCenter, QDBusConnection::ExportAllSlots));
+    QVERIFY(bus.registerService(QStringLiteral("quest.entropy.PlasmaVPN.Backend")));
+    QVERIFY(bus.registerObject(QStringLiteral("/quest/entropy/PlasmaVPN/Backend"),
                                &m_backend,
                                QDBusConnection::ExportAllSlots));
     initProperties();
@@ -55,7 +78,7 @@ void ProtonVpnRunnerTest::showsPrimaryActions()
 {
     const QList<KRunner::QueryMatch> matches = launchQuery(QStringLiteral("vpn"));
     QCOMPARE(matches.size(), 3);
-    QCOMPARE(matches.at(0).text(), QStringLiteral("Open Proton VPN"));
+    QCOMPARE(matches.at(0).text(), QStringLiteral("Open Plasma VPN"));
     QCOMPARE(matches.at(1).text(), QStringLiteral("Connect Proton VPN"));
     QCOMPARE(matches.at(2).text(), QStringLiteral("Disconnect Proton VPN"));
 }
@@ -74,12 +97,14 @@ void ProtonVpnRunnerTest::ignoresUnrelatedQueries()
     QVERIFY(launchQuery(QStringLiteral("ordinary search")).isEmpty());
 }
 
-void ProtonVpnRunnerTest::dispatchesBackendActions_data()
+void ProtonVpnRunnerTest::dispatchesControlCenterActions_data()
 {
     QTest::addColumn<QString>("query");
     QTest::addColumn<QString>("operation");
     QTest::addColumn<QString>("argument");
 
+    QTest::newRow("open") << QStringLiteral("vpn open")
+                           << QStringLiteral("open") << QString();
     QTest::newRow("fastest") << QStringLiteral("vpn fastest")
                               << QStringLiteral("fastest") << QString();
     QTest::newRow("disconnect") << QStringLiteral("vpn disconnect")
@@ -91,7 +116,7 @@ void ProtonVpnRunnerTest::dispatchesBackendActions_data()
                              << QStringLiteral("US-CA#18");
 }
 
-void ProtonVpnRunnerTest::dispatchesBackendActions()
+void ProtonVpnRunnerTest::dispatchesControlCenterActions()
 {
     QFETCH(QString, query);
     QFETCH(QString, operation);
@@ -99,12 +124,14 @@ void ProtonVpnRunnerTest::dispatchesBackendActions()
 
     const QList<KRunner::QueryMatch> matches = launchQuery(query);
     QCOMPARE(matches.size(), 1);
-    QSignalSpy spy(&m_backend, &BackendStub::operationRequested);
+    QSignalSpy spy(&m_controlCenter, &ControlCenterStub::actionRequested);
+    const int backendCalls = m_backend.calls;
     KRunner::RunnerContext context;
     runner->run(context, matches.constFirst());
     QTRY_COMPARE(spy.count(), 1);
     QCOMPARE(spy.constFirst().at(0).toString(), operation);
     QCOMPARE(spy.constFirst().at(1).toString(), argument);
+    QCOMPARE(m_backend.calls, backendCalls);
 }
 
 QTEST_GUILESS_MAIN(ProtonVpnRunnerTest)

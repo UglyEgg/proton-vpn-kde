@@ -1,7 +1,9 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QHash>
 #include <QSortFilterProxyModel>
+#include <QStringList>
 #include <QVector>
 
 class CountryModel final : public QAbstractListModel
@@ -194,6 +196,8 @@ public:
     void setFilterText(const QString &filterText);
     void setSearchRoles(const QList<int> &roles);
     void setAvailabilityRoles(int accessibleRole, int maintenanceRole);
+    void setFeatureRoles(const QHash<QString, int> &roles);
+    void setRequiredFeatures(const QStringList &features);
     void sortByRole(int role, Qt::SortOrder order = Qt::AscendingOrder);
 
 signals:
@@ -210,4 +214,6 @@ private:
     QList<int> m_searchRoles;
     int m_accessibleRole = -1;
     int m_maintenanceRole = -1;
+    QHash<QString, int> m_featureRoles;
+    QStringList m_requiredFeatures;
 };

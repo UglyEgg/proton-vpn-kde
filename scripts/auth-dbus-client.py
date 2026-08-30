@@ -13,16 +13,17 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from dbus_fast import Message
 from dbus_fast.aio import MessageBus
-from dbus_fast.constants import BusType
+from dbus_fast.constants import BusType, MessageType
 from dbus_fast.errors import DBusError
 
 
-BUS_NAME = "proton.vpn.app.kde.backend"
-OBJECT_PATH = "/proton/vpn/app/kde/backend"
-INTERFACE_NAME = "proton.vpn.app.kde.Backend1"
+BUS_NAME = "quest.entropy.PlasmaVPN.Backend"
+OBJECT_PATH = "/quest/entropy/PlasmaVPN/Backend"
+INTERFACE_NAME = "quest.entropy.PlasmaVPN.Backend1"
 KDF_INFO = b"proton-vpn-kde-auth-v1"
-AAD = b"proton.vpn.app.kde.Backend1"
+AAD = b"quest.entropy.PlasmaVPN.Backend1"
 
 
 def sealed_payload(fields: dict[str, str], backend_public_key: str) -> int:
@@ -71,6 +72,26 @@ async def main() -> None:
     proxy = bus.get_proxy_object(BUS_NAME, OBJECT_PATH, introspection)
     interface = proxy.get_interface(INTERFACE_NAME)
 
+    unexpected_fd = os.memfd_create(
+        "proton-vpn-kde-unexpected-fd",
+        os.MFD_CLOEXEC,
+    )
+    try:
+        unexpected_reply = await bus.call(
+            Message(
+                destination=BUS_NAME,
+                path=OBJECT_PATH,
+                interface=INTERFACE_NAME,
+                member="GetSnapshot",
+                unix_fds=[unexpected_fd],
+            )
+        )
+        assert unexpected_reply.message_type is MessageType.ERROR
+        assert unexpected_reply.error_name == "org.freedesktop.DBus.Error.InvalidArgs"
+        assert unexpected_reply.body == ["Unexpected Unix file descriptors"]
+    finally:
+        os.close(unexpected_fd)
+
     initial = await snapshot(interface)
     assert initial["authState"] == "signed_out"
     assert initial["killSwitch"] == 0
@@ -81,7 +102,7 @@ async def main() -> None:
 
     rejected_fd = sealed_payload(
         {"username": "demo-user", "password": "tampered"},
-        await interface.call_get_auth_public_key(),
+        await interface.call_get_auth_public_key("Login"),
     )
     try:
         encrypted = bytearray(os.pread(rejected_fd, 16 * 1024, 0))
@@ -95,7 +116,7 @@ async def main() -> None:
         try:
             await interface.call_login(rejected_fd)
         except DBusError as error:
-            assert error.type == "proton.vpn.app.kde.Error.InvalidSecretPayload"
+            assert error.type == "quest.entropy.PlasmaVPN.Error.InvalidSecretPayload"
             assert error.text == "Protected authentication data was rejected; try again"
             assert "Traceback" not in str(error)
             assert 'File "' not in str(error)
@@ -106,7 +127,7 @@ async def main() -> None:
 
     login_fd = sealed_payload(
         {"username": "demo-user", "password": "2fa"},
-        await interface.call_get_auth_public_key(),
+        await interface.call_get_auth_public_key("Login"),
     )
     try:
         await interface.call_login(login_fd)
@@ -118,7 +139,7 @@ async def main() -> None:
 
     code_fd = sealed_payload(
         {"code": "123456"},
-        await interface.call_get_auth_public_key(),
+        await interface.call_get_auth_public_key("SubmitTwoFactor"),
     )
     try:
         await interface.call_submit_two_factor(code_fd)
@@ -132,7 +153,7 @@ async def main() -> None:
     try:
         await interface.call_connect_country("NOT-A-COUNTRY")
     except DBusError as error:
-        assert error.type == "proton.vpn.app.kde.Error.OperationFailed"
+        assert error.type == "quest.entropy.PlasmaVPN.Error.OperationFailed"
         assert error.text == "Invalid country code"
         assert "Traceback" not in str(error)
         assert 'File "' not in str(error)
@@ -159,7 +180,7 @@ async def main() -> None:
     try:
         await interface.call_update_settings('{"password":"not-a-setting"}')
     except DBusError as error:
-        assert error.type == "proton.vpn.app.kde.Error.InvalidSettings"
+        assert error.type == "quest.entropy.PlasmaVPN.Error.InvalidSettings"
         assert "unsupported field" in error.text
         assert "Traceback" not in str(error)
     else:
@@ -189,7 +210,7 @@ async def main() -> None:
     try:
         await interface.call_update_split_tunneling('{"excludeAppPaths":["/usr/bin"]}')
     except DBusError as error:
-        assert error.type == ("proton.vpn.app.kde.Error.InvalidSplitTunneling")
+        assert error.type == ("quest.entropy.PlasmaVPN.Error.InvalidSplitTunneling")
         assert "specific application" in error.text
         assert "Traceback" not in str(error)
     else:
@@ -221,7 +242,7 @@ async def main() -> None:
     try:
         await interface.call_update_custom_dns('{"enabled":true}')
     except DBusError as error:
-        assert error.type == "proton.vpn.app.kde.Error.InvalidCustomDns"
+        assert error.type == "quest.entropy.PlasmaVPN.Error.InvalidCustomDns"
         assert "Disable NetShield" in error.text
         assert "Traceback" not in str(error)
     else:
@@ -243,14 +264,25 @@ async def main() -> None:
             ),
             "includeLogs": "false",
         },
-        await interface.call_get_auth_public_key(),
+        await interface.call_get_auth_public_key("SubmitSupportReport"),
     )
     try:
-        await interface.call_submit_support_report(report_fd)
+        try:
+            await interface.call_submit_support_report(report_fd)
+        except DBusError as error:
+            assert error.type == (
+                "quest.entropy.PlasmaVPN.Error.InvalidSupportReport"
+            )
+            assert error.text == (
+                "Direct Proton support submission is disabled in this "
+                "unofficial community build"
+            )
+        else:
+            raise AssertionError(
+                "an unofficial build accepted a direct Proton support report"
+            )
     finally:
         os.close(report_fd)
-    report_snapshot = await snapshot(interface)
-    assert report_snapshot["message"] == "Your issue has been reported"
 
     await interface.call_logout()
     signed_out = await snapshot(interface)

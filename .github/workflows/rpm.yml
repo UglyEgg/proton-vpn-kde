@@ -1,0 +1,82 @@
+name: RPM Package
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rpm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fedora-rpm:
+    name: Fedora 44 RPM
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    container: fedora:44
+    env:
+      RPM_TOPDIR: ${{ github.workspace }}/rpm-build
+
+    steps:
+      - name: Install RPM build dependencies
+        run: |
+          dnf install -y \
+            cmake cpio dbus-daemon desktop-file-utils \
+            extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
+            python3-cryptography python3-dbus-fast python3-devel rpm-build \
+            kf6-kconfig-devel kf6-kcoreaddons-devel \
+            kf6-kglobalaccel-devel kf6-kcmutils-devel \
+            kf6-knotifications-devel kf6-krunner-devel \
+            kf6-kservice-devel kf6-kstatusnotifieritem-devel \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-linguist
+
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Create source archive
+        run: |
+          name="$(sed -n 's/^Name:[[:space:]]*//p' packaging/fedora/proton-vpn-kde.spec | head -n 1)"
+          version="$(sed -n 's/^Version:[[:space:]]*//p' packaging/fedora/proton-vpn-kde.spec | head -n 1)"
+          mkdir -p "$RPM_TOPDIR"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS,TMP}
+          git archive \
+            --format=tar.gz \
+            --prefix="${name}-${version}/" \
+            --output="$RPM_TOPDIR/SOURCES/${name}-${version}.tar.gz" \
+            HEAD
+          cp packaging/fedora/proton-vpn-kde.spec "$RPM_TOPDIR/SPECS/"
+
+      - name: Build source and binary RPMs
+        run: |
+          rpmbuild \
+            --define "_topdir $RPM_TOPDIR" \
+            --define "_tmppath $RPM_TOPDIR/TMP" \
+            --define "_smp_build_ncpus 2" \
+            -ba "$RPM_TOPDIR/SPECS/proton-vpn-kde.spec"
+
+      - name: Inspect package artifacts
+        run: |
+          mapfile -t binary_rpms < <(
+            find "$RPM_TOPDIR/RPMS" -type f -name 'proton-vpn-kde-[0-9]*.rpm' -print
+          )
+          mapfile -t source_rpms < <(
+            find "$RPM_TOPDIR/SRPMS" -type f -name 'proton-vpn-kde-*.src.rpm' -print
+          )
+          [[ ${#binary_rpms[@]} -eq 1 ]]
+          [[ ${#source_rpms[@]} -eq 1 ]]
+          scripts/check-rpm-artifact.sh "${binary_rpms[0]}"
+          rpm -qpi "${source_rpms[0]}"
+          rpm -Uvh --test --nodeps --ignoresize "${binary_rpms[0]}"
+
+      - name: Upload RPM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: proton-vpn-kde-fedora-44
+          path: |
+            ${{ env.RPM_TOPDIR }}/RPMS/**/*.rpm
+            ${{ env.RPM_TOPDIR }}/SRPMS/*.rpm
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

@@ -70,7 +70,7 @@ private:
     bool m_moderateNat = false;
     bool m_portForwarding = false;
     bool m_ipv6 = true;
-    bool m_anonymousCrashReports = true;
+    bool m_anonymousCrashReports = false;
     bool m_paidFeaturesAvailable = false;
     bool m_protocolEditable = false;
     bool m_killSwitchEditable = false;

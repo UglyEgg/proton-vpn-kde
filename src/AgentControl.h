@@ -6,7 +6,7 @@
 class AgentControl final : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "proton.vpn.app.kde.Agent1")
+    Q_CLASSINFO("D-Bus Interface", "quest.entropy.PlasmaVPN.Agent1")
 
 public:
     explicit AgentControl(QObject *parent = nullptr);
@@ -27,7 +27,7 @@ class QWindow;
 class ControlCenterControl final : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "proton.vpn.app.kde.ControlCenter1")
+    Q_CLASSINFO("D-Bus Interface", "quest.entropy.PlasmaVPN.ControlCenter1")
 
 public:
     explicit ControlCenterControl(QObject *parent = nullptr);
@@ -37,7 +37,11 @@ public:
 public slots:
     void ShowControlCenter();
     void ShowSettings();
+    bool RequestRunnerAction(const QString &action, const QString &argument);
     void Quit();
+
+signals:
+    void runnerActionRequested(const QString &action, const QString &argument);
 
 private:
     void present(bool settings);

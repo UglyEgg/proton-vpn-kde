@@ -1,7 +1,7 @@
 [Global]
-IconName=proton-vpn-kde
+IconName=plasma-vpn
 Comment=Proton VPN connection events
-Name=Proton VPN for Plasma
+Name=Plasma VPN
 
 [Event/connected]
 Name=VPN connected

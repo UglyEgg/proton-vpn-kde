@@ -61,9 +61,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(started)
         self.assertFalse(controller.snapshot.ready)
         self.assertEqual("error", controller.snapshot.state)
-        self.assertEqual(
-            "Backend initialization failed", controller.snapshot.message
-        )
+        self.assertEqual("Backend initialization failed", controller.snapshot.message)
         output = "\n".join(captured.output)
         self.assertIn("RuntimeError", output)
         self.assertNotIn("credential=", output)
@@ -90,6 +88,31 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         states = [snapshot.state for snapshot in self.snapshots]
         self.assertIn("connecting", states)
         self.assertIn("disconnecting", states)
+
+    async def test_capability_connect_uses_a_validated_specialty(self):
+        await self.controller.connect_fastest_with_features([" Streaming ", "P2P"])
+        self.assertEqual("CH#101", self.controller.snapshot.server_name)
+        self.assertTrue(self.controller.snapshot.p2p)
+        self.assertTrue(self.controller.snapshot.streaming)
+
+        await self.controller.disconnect()
+        await self.controller.connect_fastest_with_features(["secure-core", "p2p"])
+        self.assertEqual("CH-DE#1", self.controller.snapshot.server_name)
+        self.assertTrue(self.controller.snapshot.secure_core)
+        self.assertTrue(self.controller.snapshot.p2p)
+
+        await self.controller.disconnect()
+        await self.controller.connect_country_with_features("CH", ["p2p", "streaming"])
+        self.assertEqual("CH#101", self.controller.snapshot.server_name)
+
+        await self.controller.disconnect()
+        await self.controller.connect_group_with_features(
+            "CH", "secure-core", "Via Secure Core", ["secure-core", "p2p"]
+        )
+        self.assertEqual("CH-DE#1", self.controller.snapshot.server_name)
+
+        with self.assertRaisesRegex(ValueError, "supported Proton server capabilities"):
+            await self.controller.connect_fastest_with_features(["random"])
 
     async def test_connecting_tunnel_can_be_cancelled_concurrently(self):
         connection = asyncio.create_task(self.controller.connect_fastest())
@@ -144,9 +167,13 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             "false",
         )
 
-        self.assertEqual("demo-user", self.controller._adapter.last_support_report.username)
+        self.assertEqual(
+            "demo-user", self.controller._adapter.last_support_report.username
+        )
         self.assertFalse(self.controller._adapter.last_support_report.include_logs)
-        self.assertEqual("Your issue has been reported", self.controller.snapshot.message)
+        self.assertEqual(
+            "Your issue has been reported", self.controller.snapshot.message
+        )
 
     async def test_pending_nps_survey_is_taken_and_submitted_once(self):
         adapter = DemoCoreAdapter(nps_survey_available=True)
@@ -188,7 +215,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn('"schemaVersion":1', countries)
         self.assertIn('"code":"CH"', countries)
-        self.assertIn('"serverCount":3', countries)
+        self.assertIn('"serverCount":4', countries)
         self.assertIn('"kind":"secure-core"', groups)
         self.assertIn('"secureCore":true', groups)
         self.assertIn('"entryCountry":"DE"', group_servers)
@@ -248,6 +275,27 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, events[-1].net_shield)
         self.assertFalse(events[-1].vpn_accelerator)
 
+    async def test_unofficial_build_rejects_crash_reporting_enable(self):
+        with self.assertRaisesRegex(RuntimeError, "unofficial community build"):
+            await self.controller.update_settings_json(
+                '{"anonymousCrashReports":true}'
+            )
+
+        unchanged = await self.controller.get_settings_json()
+        self.assertIn('"anonymousCrashReports":false', unchanged)
+
+    async def test_approved_build_allows_crash_reporting_preference(self):
+        controller = BackendController(
+            DemoCoreAdapter(), crash_report_submission_enabled=True
+        )
+        self.assertTrue(await controller.start())
+
+        updated = await controller.update_settings_json(
+            '{"anonymousCrashReports":true}'
+        )
+
+        self.assertIn('"anonymousCrashReports":true', updated)
+
     async def test_settings_patch_rejects_unknown_and_wrong_typed_values(self):
         with self.assertRaisesRegex(ValueError, "unsupported field"):
             settings_patch_from_json('{"password":"must-not-be-accepted"}')
@@ -292,9 +340,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
                 '{"excludeAppPaths":["/usr/bin/firefox","/usr/bin/firefox"]}'
             )
         with self.assertRaisesRegex(ValueError, "valid IPv4 or IPv6"):
-            split_tunneling_patch_from_json(
-                '{"excludeIpRanges":["not-a-network"]}'
-            )
+            split_tunneling_patch_from_json('{"excludeIpRanges":["not-a-network"]}')
         with self.assertRaisesRegex(ValueError, "selected twice"):
             split_tunneling_patch_from_json(
                 '{"excludeIpRanges":["10.0.0.1/8","10.0.0.0/8"]}'
@@ -342,6 +388,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             preserved["servers"][0]["address"],
             preserved["servers"][1]["address"],
         )
+
     async def test_demo_authentication_and_logout_lifecycle(self):
         controller = BackendController(DemoCoreAdapter(logged_in=False))
         await controller.start()
@@ -359,9 +406,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("signed_out", controller.snapshot.auth_state)
 
     async def test_permanent_kill_switch_must_be_disabled_before_login(self):
-        controller = BackendController(
-            DemoCoreAdapter(logged_in=False, kill_switch=2)
-        )
+        controller = BackendController(DemoCoreAdapter(logged_in=False, kill_switch=2))
         await controller.start()
 
         self.assertEqual(2, controller.snapshot.kill_switch)

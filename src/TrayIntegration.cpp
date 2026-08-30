@@ -1,5 +1,6 @@
 #include "TrayIntegration.h"
 
+#include "AppIcon.h"
 #include "AppSettings.h"
 #include "VpnConnectionController.h"
 
@@ -25,7 +26,7 @@ TrayIntegration::TrayIntegration(VpnConnectionController *controller,
     , m_showControlCenter(std::move(showControlCenter))
     , m_menu(new QMenu)
 {
-    m_showAction = m_menu->addAction(tr("Show Proton VPN"));
+    m_showAction = m_menu->addAction(tr("Show Plasma VPN"));
     m_connectionAction = m_menu->addAction(tr("Connect fastest"));
     m_pinnedSeparator = m_menu->addSeparator();
     QAction *quitAction = m_menu->addAction(tr("Quit background controls"));
@@ -40,6 +41,8 @@ TrayIntegration::TrayIntegration(VpnConnectionController *controller,
             this, &TrayIntegration::updateState);
     connect(m_settings, &AppSettings::pinnedServersChanged,
             this, &TrayIntegration::rebuildPinnedActions);
+    connect(m_settings, &AppSettings::pinnedServerGroupsChanged,
+            this, &TrayIntegration::rebuildPinnedActions);
     rebuildPinnedActions();
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM
@@ -47,12 +50,11 @@ TrayIntegration::TrayIntegration(VpnConnectionController *controller,
     m_tray->setCategory(KStatusNotifierItem::SystemServices);
     m_tray->setStandardActionsEnabled(false);
     m_tray->setContextMenu(m_menu);
-    m_tray->setIconByName(QStringLiteral("network-vpn"));
-    m_tray->setTitle(tr("Proton VPN"));
+    m_tray->setTitle(tr("Plasma VPN"));
     connect(m_tray, &KStatusNotifierItem::activateRequested,
             this, [this](bool, const QPoint &) { this->showControlCenter(); });
 #else
-    m_tray = new QSystemTrayIcon(QIcon::fromTheme(QStringLiteral("network-vpn")), this);
+    m_tray = new QSystemTrayIcon(this);
     m_tray->setContextMenu(m_menu);
     m_tray->show();
     connect(m_tray, &QSystemTrayIcon::activated, this,
@@ -63,7 +65,21 @@ TrayIntegration::TrayIntegration(VpnConnectionController *controller,
             });
 #endif
 
+    connect(m_settings, &AppSettings::iconStyleChanged,
+            this, &TrayIntegration::updateIcon);
+    updateIcon();
     updateState();
+}
+
+void TrayIntegration::updateIcon()
+{
+    const QIcon icon = ProtonVpnKde::applicationIcon(
+        m_settings->iconStyle());
+#ifdef HAVE_KSTATUSNOTIFIERITEM
+    m_tray->setIconByPixmap(icon);
+#else
+    m_tray->setIcon(icon);
+#endif
 }
 
 void TrayIntegration::rebuildPinnedActions()
@@ -76,10 +92,25 @@ void TrayIntegration::rebuildPinnedActions()
 
     for (const QString &target : m_settings->pinnedServers()) {
         QAction *action = new QAction(
-            QIcon::fromTheme(QStringLiteral("favorite")), target, m_menu);
+            QIcon::fromTheme(QStringLiteral("window-pin")), target, m_menu);
         action->setEnabled(m_controller->primaryActionEnabled());
         connect(action, &QAction::triggered, this,
                 [this, target] { m_controller->connectTarget(target); });
+        m_menu->insertAction(m_pinnedSeparator, action);
+        m_pinnedActions.append(action);
+    }
+    for (const AppSettings::PinnedServerGroup &group
+         : m_settings->pinnedServerGroups()) {
+        const QString label = QStringLiteral("%1 — %2")
+                                  .arg(group.countryCode, group.name);
+        QAction *action = new QAction(
+            QIcon::fromTheme(QStringLiteral("window-pin")), label, m_menu);
+        action->setEnabled(m_controller->primaryActionEnabled());
+        connect(action, &QAction::triggered, this,
+                [this, group] {
+                    m_controller->connectGroup(
+                        group.countryCode, group.kind, group.name);
+                });
         m_menu->insertAction(m_pinnedSeparator, action);
         m_pinnedActions.append(action);
     }
@@ -97,8 +128,8 @@ void TrayIntegration::updateState()
     const QString server = m_controller->serverName();
     const bool connected = state == QStringLiteral("connected");
     const QString tooltip = connected && !server.isEmpty()
-        ? tr("Proton VPN — connected to %1").arg(server)
-        : tr("Proton VPN — %1").arg(state);
+        ? tr("Plasma VPN — connected to %1").arg(server)
+        : tr("Plasma VPN — %1").arg(state);
 
     m_connectionAction->setText(m_controller->primaryActionText());
     m_connectionAction->setEnabled(m_controller->primaryActionEnabled());
@@ -107,7 +138,7 @@ void TrayIntegration::updateState()
     }
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM
-    m_tray->setToolTipTitle(tr("Proton VPN"));
+    m_tray->setToolTipTitle(tr("Plasma VPN"));
     m_tray->setToolTipSubTitle(tooltip);
     m_tray->setStatus(connected ? KStatusNotifierItem::Active
                                 : KStatusNotifierItem::Passive);

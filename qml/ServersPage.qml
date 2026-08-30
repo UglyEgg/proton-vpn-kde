@@ -14,6 +14,7 @@ Kirigami.ScrollablePage {
     required property bool groupAccessible
     required property bool groupUnderMaintenance
     property string initialServerFilter: ""
+    property var requiredCapabilities: []
 
     title: groupKind === "secure-core"
            ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
@@ -46,6 +47,7 @@ Kirigami.ScrollablePage {
     }
 
     Component.onCompleted: {
+        vpnController.setServerFeatureFilter(requiredCapabilities)
         vpnController.loadGroupServers(countryCode, groupKind, groupName)
         if (initialServerFilter.length > 0) {
             serverSearch.text = initialServerFilter
@@ -57,8 +59,12 @@ Kirigami.ScrollablePage {
             text: !page.groupAccessible
                   ? qsTr("Upgrade for this location")
                   : page.groupKind === "secure-core"
-                    ? qsTr("Connect fastest via Secure Core")
-                    : qsTr("Connect fastest in %1").arg(page.groupName)
+                    ? page.requiredCapabilities.length > 0
+                      ? qsTr("Connect fastest matching Secure Core route")
+                      : qsTr("Connect fastest via Secure Core")
+                    : page.requiredCapabilities.length > 0
+                      ? qsTr("Connect fastest match in %1").arg(page.groupName)
+                      : qsTr("Connect fastest in %1").arg(page.groupName)
             icon.name: page.groupAccessible
                        ? "network-connect" : "internet-web-browser"
             enabled: !page.groupUnderMaintenance
@@ -66,8 +72,14 @@ Kirigami.ScrollablePage {
                          ? vpnController.primaryActionEnabled : true)
             onTriggered: {
                 if (page.groupAccessible) {
-                    vpnController.connectGroup(
-                        page.countryCode, page.groupKind, page.groupName)
+                    if (page.requiredCapabilities.length > 0) {
+                        vpnController.connectGroupWithFeatures(
+                            page.countryCode, page.groupKind, page.groupName,
+                            page.requiredCapabilities)
+                    } else {
+                        vpnController.connectGroup(
+                            page.countryCode, page.groupKind, page.groupName)
+                    }
                 } else {
                     Qt.openUrlExternally("https://protonvpn.com/pricing")
                 }
@@ -96,7 +108,9 @@ Kirigami.ScrollablePage {
                          ? page.countryFlag + "  " + page.countryName
                            + " · " + qsTr("Secure Core")
                          : page.countryFlag + "  " + page.groupName
-                description: qsTr("Choose an exact Proton server.")
+                description: page.requiredCapabilities.length > 0
+                             ? qsTr("Choose an exact server matching every selected capability.")
+                             : qsTr("Choose an exact Proton server.")
                 iconName: page.groupKind === "secure-core"
                           ? "security-high" : "network-server"
             }
@@ -114,7 +128,9 @@ Kirigami.ScrollablePage {
             visible: serverList.count === 0
             text: vpnController.locationsBusy
                   ? qsTr("Loading servers…")
-                  : qsTr("No servers available")
+                  : page.requiredCapabilities.length > 0
+                    ? qsTr("No servers match the selected capabilities")
+                    : qsTr("No servers available")
             icon.name: vpnController.locationsBusy ? "view-refresh" : "network-offline"
         }
 
@@ -195,7 +211,8 @@ Kirigami.ScrollablePage {
                 },
 
                 Controls.ToolButton {
-                    icon.name: serverDelegate.pinned ? "favorite" : "non-starred-symbolic"
+                    icon.name: serverDelegate.pinned
+                               ? "window-unpin" : "window-pin"
                     text: serverDelegate.pinned ? qsTr("Unpin") : qsTr("Pin")
                     display: Controls.AbstractButton.IconOnly
                     onClicked: appSettings.togglePinnedServer(serverDelegate.name)
@@ -209,6 +226,7 @@ Kirigami.ScrollablePage {
 
     Component.onDestruction: {
         vpnController.setServerFilter("")
+        vpnController.setServerFeatureFilter([])
         vpnController.clearGroupServerContext()
     }
 }

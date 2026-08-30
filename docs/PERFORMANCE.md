@@ -2,8 +2,8 @@
 
 ## Resident Plasma agent
 
-Version `0.9.0` moves the system tray, global shortcuts, notifications,
-favorites, and auto-connect into `proton-vpn-kde-agent`. The agent does not
+The system tray, global shortcuts, notifications, favorites, and auto-connect
+run in `proton-vpn-kde-agent`. The agent does not
 load QML, server or application models, the protected authentication transport,
 or Proton's Python core. It observes without a resident client lease and uses
 one only transiently while an explicit connection action is starting.
@@ -26,11 +26,10 @@ disconnected.
 
 ## Search performance
 
-Phase 5 profiles the native global search against Proton's existing local
-server cache. The benchmark does not contact Proton, connect a VPN, or read
-credentials.
+The native global-search benchmark uses Proton's existing local server cache.
+It does not contact Proton, connect a VPN, or read credentials.
 
-## Fedora 44 measurement
+## Before-and-after search measurement
 
 The measured cache was 24,328,124 bytes and contained 18,138 logical servers
 across 200 locations. Measurements used system Python 3.14 and Proton VPN API
@@ -60,6 +59,42 @@ refresh invalidates the projection and rebuilds it lazily on the next search.
 An exact comparison with the previous implementation produced identical result
 fields and ordering for 12 representative location, exact-server, feature,
 broad, punctuation, and no-match queries.
+
+## Current 0.11.2 release-candidate measurement
+
+The public-release battery repeated the measurements after the authorization,
+diagnostic-bound, and capture-lifecycle hardening. An isolated offscreen demo
+stack settled at:
+
+| Process | PSS | RSS |
+| --- | ---: | ---: |
+| Python backend | 25,797 KiB | 34,180 KiB |
+| Resident Plasma agent | 4,559 KiB | 32,448 KiB |
+| Control Center | 54,139 KiB | 107,724 KiB |
+| **Combined** | **84,495 KiB (82.5 MiB)** | Not additive for shared pages |
+
+This is below the earlier 86.0 MiB post-remediation result and the 90.6 MiB
+pre-remediation source result. It is an isolated disconnected/demo measurement,
+not a claim about a live connected Core session.
+
+The current cache was 24,342,679 bytes, with 18,138 logical servers and 200
+locations. Projection construction plus its first query took 121.415 ms. The
+projection retained 2,629,663 bytes of traced allocation and peaked at
+5,267,624 bytes while building.
+
+| Query | Median | p95 | Maximum |
+| --- | ---: | ---: | ---: |
+| `ch` | 1.294 ms | 2.280 ms | 2.742 ms |
+| `zur` | 0.780 ms | 2.131 ms | 2.554 ms |
+| `us-` | 0.410 ms | 0.844 ms | 0.967 ms |
+| `#1` | 0.215 ms | 0.320 ms | 0.348 ms |
+| `a` | 6.766 ms | 7.856 ms | 9.195 ms |
+| no match | 0.343 ms | 0.793 ms | 1.178 ms |
+
+Each row used 50 iterations against the existing local cache. A separate
+visual-startup timing attempt was discarded because the isolated session lacked
+portal and systemd services and backend activation interfered with the sample;
+no startup-latency claim is made from that run.
 
 ## Reproduce
 

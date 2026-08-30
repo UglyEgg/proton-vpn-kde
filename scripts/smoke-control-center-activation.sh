@@ -11,11 +11,11 @@ cleanup() {
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.ControlCenter 2>/dev/null || true)" == "(true,)" ]]; then
+        quest.entropy.PlasmaVPN.ControlCenter 2>/dev/null || true)" == "(true,)" ]]; then
         gdbus call --session \
-            --dest proton.vpn.app.kde.ControlCenter \
-            --object-path /proton/vpn/app/kde/controlcenter \
-            --method proton.vpn.app.kde.ControlCenter1.Quit \
+            --dest quest.entropy.PlasmaVPN.ControlCenter \
+            --object-path /quest/entropy/PlasmaVPN/ControlCenter \
+            --method quest.entropy.PlasmaVPN.ControlCenter1.Quit \
             >/dev/null 2>&1 || true
     fi
     if [[ -n "$agent_pid" ]]; then
@@ -40,7 +40,7 @@ for _ in {1..80}; do
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.Agent 2>/dev/null)" == "(true,)" ]]; then
+        quest.entropy.PlasmaVPN.Agent 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05
@@ -52,16 +52,16 @@ if ! kill -0 "$agent_pid" 2>/dev/null; then
 fi
 
 gdbus call --session \
-    --dest proton.vpn.app.kde.Agent \
-    --object-path /proton/vpn/app/kde/agent \
-    --method proton.vpn.app.kde.Agent1.ShowControlCenter >/dev/null
+    --dest quest.entropy.PlasmaVPN.Agent \
+    --object-path /quest/entropy/PlasmaVPN/Agent \
+    --method quest.entropy.PlasmaVPN.Agent1.ShowControlCenter >/dev/null
 
 for _ in {1..120}; do
     if [[ "$(gdbus call --session \
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.ControlCenter 2>/dev/null)" == "(true,)" ]]; then
+        quest.entropy.PlasmaVPN.ControlCenter 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05
@@ -97,9 +97,9 @@ if [[ "$control_center_count" != "1" ]]; then
 fi
 
 gdbus call --session \
-    --dest proton.vpn.app.kde.Agent \
-    --object-path /proton/vpn/app/kde/agent \
-    --method proton.vpn.app.kde.Agent1.ShowControlCenter >/dev/null
+    --dest quest.entropy.PlasmaVPN.Agent \
+    --object-path /quest/entropy/PlasmaVPN/Agent \
+    --method quest.entropy.PlasmaVPN.Agent1.ShowControlCenter >/dev/null
 sleep 0.2
 control_center_count="$(pgrep -fc "^$build_dir/proton-vpn-kde( |$)" || true)"
 if [[ "$control_center_count" != "1" ]]; then
@@ -108,16 +108,16 @@ if [[ "$control_center_count" != "1" ]]; then
 fi
 
 gdbus call --session \
-    --dest proton.vpn.app.kde.ControlCenter \
-    --object-path /proton/vpn/app/kde/controlcenter \
-    --method proton.vpn.app.kde.ControlCenter1.Quit >/dev/null
+    --dest quest.entropy.PlasmaVPN.ControlCenter \
+    --object-path /quest/entropy/PlasmaVPN/ControlCenter \
+    --method quest.entropy.PlasmaVPN.ControlCenter1.Quit >/dev/null
 
 for _ in {1..80}; do
     if [[ "$(gdbus call --session \
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.ControlCenter 2>/dev/null)" == "(false,)" ]]; then
+        quest.entropy.PlasmaVPN.ControlCenter 2>/dev/null)" == "(false,)" ]]; then
         break
     fi
     sleep 0.05
@@ -126,7 +126,7 @@ if [[ "$(gdbus call --session \
     --dest org.freedesktop.DBus \
     --object-path /org/freedesktop/DBus \
     --method org.freedesktop.DBus.NameHasOwner \
-    proton.vpn.app.kde.ControlCenter 2>/dev/null)" != "(false,)" ]]; then
+    quest.entropy.PlasmaVPN.ControlCenter 2>/dev/null)" != "(false,)" ]]; then
     echo "Control Center did not exit on request" >&2
     exit 1
 fi

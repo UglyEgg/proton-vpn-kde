@@ -102,7 +102,10 @@ class ServerSearchProjection:
                         country_code=country_code,
                         server_names=tuple(server_names),
                     )
-                    for (country_code, location), server_names in location_servers.items()
+                    for (
+                        country_code,
+                        location,
+                    ), server_names in location_servers.items()
                 ),
                 key=lambda record: (record.folded_name, record.country_code),
             )
@@ -127,14 +130,17 @@ class ServerSearchProjection:
                     active_servers.append(server)
             if not active_servers:
                 continue
-            accessible = next(
-                iter(
-                    server_list.get_available_servers(
-                        active_servers, server_list.user_tier
-                    )
-                ),
-                None,
-            ) is not None
+            accessible = (
+                next(
+                    iter(
+                        server_list.get_available_servers(
+                            active_servers, server_list.user_tier
+                        )
+                    ),
+                    None,
+                )
+                is not None
+            )
             location_results.append(
                 LocationSearchInfo(
                     kind="location",
@@ -154,9 +160,7 @@ class ServerSearchProjection:
             server = server_list.get_by_name(record.name)
             available = next(
                 iter(
-                    server_list.get_available_servers(
-                        (server,), server_list.user_tier
-                    )
+                    server_list.get_available_servers((server,), server_list.user_tier)
                 ),
                 None,
             )

@@ -45,9 +45,7 @@ class StubServerList:
     @staticmethod
     def get_available_servers(servers, user_tier):
         return (
-            server
-            for server in servers
-            if server.enabled and server.tier <= user_tier
+            server for server in servers if server.enabled and server.tier <= user_tier
         )
 
 
@@ -71,9 +69,7 @@ class ServerSearchProjectionTests(unittest.TestCase):
             [
                 StubServer("CH#10", "CH", "Zürich", 42),
                 StubServer("CH#2", "CH", "Zürich", 21),
-                StubServer(
-                    "CH-DE#1", "CH", "Zürich", 35, secure_core=True
-                ),
+                StubServer("CH-DE#1", "CH", "Zürich", 35, secure_core=True),
                 StubServer("US#1", "US", "New York", 5, tier=3),
             ]
         )
@@ -84,9 +80,7 @@ class ServerSearchProjectionTests(unittest.TestCase):
         secure_core_results = projection.search(servers, "ch-de")
 
         self.assertEqual(["Zürich"], [item.name for item in location_results])
-        self.assertEqual(
-            ["CH#2", "CH#10"], [item.name for item in server_results]
-        )
+        self.assertEqual(["CH#2", "CH#10"], [item.name for item in server_results])
         self.assertEqual("secure-core", secure_core_results[0].group_kind)
         self.assertEqual("Via Secure Core", secure_core_results[0].group_name)
 

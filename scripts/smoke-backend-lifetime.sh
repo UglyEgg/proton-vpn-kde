@@ -32,7 +32,7 @@ for _ in {1..40}; do
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.backend 2>/dev/null)" == "(true,)" ]]; then
+        quest.entropy.PlasmaVPN.Backend 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05

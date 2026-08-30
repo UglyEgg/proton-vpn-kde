@@ -1,0 +1,49 @@
+name: Source CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fedora:
+    name: Fedora 44 build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: fedora:44
+
+    steps:
+      - name: Install build and analysis dependencies
+        run: |
+          dnf install -y \
+            ShellCheck cmake dbus-daemon desktop-file-utils libxml2 \
+            extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
+            python3-cryptography python3-dbus-fast ruff \
+            kf6-kconfig-devel kf6-kcoreaddons-devel \
+            kf6-kglobalaccel-devel kf6-kcmutils-devel \
+            kf6-knotifications-devel kf6-krunner-devel \
+            kf6-kservice-devel kf6-kstatusnotifieritem-devel \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-linguist
+
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Run static checks
+        run: scripts/check-static-analysis.sh
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --parallel 2
+
+      - name: Test
+        env:
+          CTEST_OUTPUT_ON_FAILURE: "1"
+        run: ctest --test-dir build --output-on-failure --parallel 2

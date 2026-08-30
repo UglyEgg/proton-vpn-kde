@@ -1,0 +1,69 @@
+name: Bug report
+description: Report reproducible behavior in the unofficial Plasma client.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tracker covers the community Plasma client, not Proton accounts,
+        billing, service incidents, or unmodified official applications. Never
+        include credentials, tokens, recovery codes, private keys, or raw
+        support bundles.
+
+  - type: input
+    id: version
+    attributes:
+      label: Client version
+      placeholder: 0.11.1
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Fedora, Plasma, and Proton VPN API Core versions.
+      placeholder: Fedora 44; Plasma 6.x; API Core 5.6.10
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Include the smallest repeatable sequence.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized diagnostics
+      description: Remove account data and secrets before pasting relevant lines.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, tokens, recovery codes, private keys, and personal account data.
+          required: true
+        - label: This concerns the community Plasma client rather than Proton customer support.
+          required: true

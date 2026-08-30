@@ -32,11 +32,26 @@ PYTHONPATH="$project_dir/backend" \
     >"$staging_dir/backend.log" 2>&1 &
 backend_pid=$!
 
+for _ in {1..40}; do
+    owner_reply="$(gdbus call --session \
+        --dest org.freedesktop.DBus \
+        --object-path /org/freedesktop/DBus \
+        --method org.freedesktop.DBus.GetNameOwner \
+        quest.entropy.PlasmaVPN.Backend 2>/dev/null || true)"
+    backend_owner="${owner_reply#*\'}"
+    backend_owner="${backend_owner%%\'*}"
+    if [[ "$backend_owner" == :* ]]; then
+        break
+    fi
+    sleep 0.05
+done
+
 env \
     QT_QPA_PLATFORM=offscreen \
     QT_QPA_PLATFORMTHEME=generic \
     QT_ACCESSIBILITY=0 \
     XDG_CONFIG_HOME="$staging_dir/config" \
+    PROTON_VPN_KDE_TEST_BACKEND_OWNER="$backend_owner" \
     "$build_dir/proton-vpn-kde-agent" \
     >"$staging_dir/agent.log" 2>&1 &
 agent_pid=$!
@@ -46,7 +61,7 @@ for _ in {1..80}; do
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.Agent 2>/dev/null)" == "(true,)" ]]; then
+        quest.entropy.PlasmaVPN.Agent 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05
@@ -63,6 +78,7 @@ env \
     QT_QPA_PLATFORMTHEME=generic \
     QT_ACCESSIBILITY=0 \
     XDG_CONFIG_HOME="$staging_dir/config" \
+    PROTON_VPN_KDE_TEST_BACKEND_OWNER="$backend_owner" \
     "$build_dir/proton-vpn-kde-agent" \
     >"$staging_dir/duplicate.log" 2>&1 &
 duplicate_pid=$!

@@ -1,6 +1,7 @@
 #include "AgentVpnClient.h"
 
 #include "BackendCallPolicy.h"
+#include "BackendIdentity.h"
 #include "ConnectionAction.h"
 
 #include <QDBusConnection>
@@ -15,9 +16,33 @@
 
 namespace
 {
-constexpr auto kBackendService = "proton.vpn.app.kde.backend";
-constexpr auto kBackendPath = "/proton/vpn/app/kde/backend";
-constexpr auto kBackendInterface = "proton.vpn.app.kde.Backend1";
+constexpr auto kBackendService = "quest.entropy.PlasmaVPN.Backend";
+constexpr auto kBackendPath = "/quest/entropy/PlasmaVPN/Backend";
+constexpr auto kBackendInterface = "quest.entropy.PlasmaVPN.Backend1";
+
+QStringList normalizedServerFeatures(const QStringList &features)
+{
+    static const QStringList supported{
+        QStringLiteral("p2p"),
+        QStringLiteral("streaming"),
+        QStringLiteral("tor"),
+        QStringLiteral("secure-core"),
+    };
+    QStringList requested;
+    for (const QString &feature : features) {
+        const QString normalized = feature.trimmed().toLower();
+        if (supported.contains(normalized) && !requested.contains(normalized)) {
+            requested.append(normalized);
+        }
+    }
+    QStringList result;
+    for (const QString &feature : supported) {
+        if (requested.contains(feature)) {
+            result.append(feature);
+        }
+    }
+    return result;
+}
 
 QString fixedCallFailureMessage(const QDBusError &error)
 {
@@ -47,14 +72,7 @@ AgentVpnClient::AgentVpnClient(QObject *parent)
             this, &AgentVpnClient::onServiceRegistered);
     connect(m_serviceWatcher, &QDBusServiceWatcher::serviceUnregistered,
             this, &AgentVpnClient::onServiceUnregistered);
-    QDBusConnection::sessionBus().connect(
-        QString::fromLatin1(kBackendService),
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("SnapshotChanged"),
-        this, SLOT(onSnapshotChanged(QString)));
-
-    const auto *interface = QDBusConnection::sessionBus().interface();
+    auto *interface = QDBusConnection::sessionBus().interface();
     if (interface && interface->isServiceRegistered(
             QString::fromLatin1(kBackendService))) {
         onServiceRegistered(QString::fromLatin1(kBackendService));
@@ -103,6 +121,11 @@ void AgentVpnClient::setReconnectionEnabled(bool enabled)
     }
 }
 
+void AgentVpnClient::setFastestFeatures(const QStringList &features)
+{
+    m_fastestFeatures = normalizedServerFeatures(features);
+}
+
 void AgentVpnClient::autoConnect(const QString &target)
 {
     queueConnection(target, false, true);
@@ -123,6 +146,38 @@ void AgentVpnClient::connectTarget(const QString &target)
     queueConnection(target, true, false);
 }
 
+void AgentVpnClient::connectGroup(const QString &countryCode,
+                                  const QString &groupKind,
+                                  const QString &groupName)
+{
+    const QString normalizedCountry = countryCode.trimmed().toUpper();
+    const QString normalizedKind = groupKind.trimmed().toLower();
+    const QString normalizedName = groupName.trimmed();
+    if (normalizedCountry.size() != 2
+        || normalizedCountry.at(0) < QLatin1Char('A')
+        || normalizedCountry.at(0) > QLatin1Char('Z')
+        || normalizedCountry.at(1) < QLatin1Char('A')
+        || normalizedCountry.at(1) > QLatin1Char('Z')
+        || (normalizedKind != QStringLiteral("location")
+            && normalizedKind != QStringLiteral("secure-core"))
+        || normalizedName.isEmpty() || normalizedName.size() > 256
+        || normalizedName.contains(QLatin1Char('\0'))
+        || normalizedName.contains(QLatin1Char('\n'))
+        || normalizedName.contains(QLatin1Char('\r'))) {
+        return;
+    }
+    m_pendingTarget.clear();
+    m_pendingGroup = {normalizedCountry, normalizedKind, normalizedName};
+    m_pendingInteractive = true;
+    m_pendingOnlyWhenDisconnected = false;
+    if (!m_backendAvailable) {
+        requestSnapshot(true);
+        return;
+    }
+    acquireTransientLease();
+    dispatchPendingConnection();
+}
+
 void AgentVpnClient::disconnect()
 {
     if (!m_backendAvailable || !m_ready || !m_loggedIn
@@ -137,23 +192,36 @@ void AgentVpnClient::onServiceRegistered(const QString &)
     ++m_serviceGeneration;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
-    setBackendAvailable(true);
-    m_reconnectionApplied = false;
-    if (!m_pendingTarget.isEmpty()) {
-        acquireTransientLease();
+    m_authorizationPending = false;
+    const auto identity = ProtonVpnKde::verifyBackendIdentity(
+        QDBusConnection::sessionBus(), QString::fromLatin1(kBackendService));
+    if (!identity.trusted) {
+        disconnectBackendSignals();
+        m_backendDestination.clear();
+        setBackendAvailable(false);
+        m_message = tr("The VPN backend could not be authenticated");
+        emit snapshotChanged();
+        return;
     }
-    applyReconnectionPreference();
-    requestSnapshot();
+    disconnectBackendSignals();
+    m_backendDestination = identity.uniqueOwner;
+    connectBackendSignals();
+    setBackendAvailable(false);
+    m_reconnectionApplied = false;
+    authorizeClient();
 }
 
 void AgentVpnClient::onServiceUnregistered(const QString &)
 {
+    disconnectBackendSignals();
+    m_backendDestination.clear();
     ++m_serviceGeneration;
     setBackendAvailable(false);
     m_ready = false;
     m_loggedIn = false;
     m_busy = false;
     m_reconnectionApplied = false;
+    m_authorizationPending = false;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
     m_killSwitch = 0;
@@ -179,13 +247,82 @@ void AgentVpnClient::setBackendAvailable(bool available)
     emit snapshotChanged();
 }
 
+void AgentVpnClient::connectBackendSignals()
+{
+    if (m_backendDestination.isEmpty()) {
+        return;
+    }
+    QDBusConnection::sessionBus().connect(
+        m_backendDestination, QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("SnapshotChanged"), this,
+        SLOT(onSnapshotChanged(QString)));
+}
+
+void AgentVpnClient::disconnectBackendSignals()
+{
+    if (m_backendDestination.isEmpty()) {
+        return;
+    }
+    QDBusConnection::sessionBus().disconnect(
+        m_backendDestination, QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface), {}, this, {});
+}
+
+void AgentVpnClient::authorizeClient()
+{
+    if (m_authorizationPending || m_backendDestination.isEmpty()) {
+        return;
+    }
+    const QString uniqueName = QDBusConnection::sessionBus().baseService();
+    if (uniqueName.isEmpty()) {
+        return;
+    }
+    m_authorizationPending = true;
+    const quint64 generation = m_serviceGeneration;
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        m_backendDestination, QString::fromLatin1(kBackendPath),
+        QString::fromLatin1(kBackendInterface),
+        QStringLiteral("AuthorizeClient"));
+    message << uniqueName;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 5000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, generation](QDBusPendingCallWatcher *finished) {
+        const QDBusPendingReply<> reply = *finished;
+        finished->deleteLater();
+        if (generation != m_serviceGeneration) {
+            return;
+        }
+        m_authorizationPending = false;
+        if (reply.isError()) {
+            setBackendAvailable(false);
+            m_message = fixedCallFailureMessage(reply.error());
+            emit snapshotChanged();
+            return;
+        }
+        setBackendAvailable(true);
+        applyReconnectionPreference();
+        requestSnapshot();
+        if (!m_pendingTarget.isEmpty()) {
+            acquireTransientLease();
+        }
+    });
+}
+
 void AgentVpnClient::requestSnapshot(bool allowActivation)
 {
-    if (!allowActivation && !m_backendAvailable) {
+    if (!m_backendAvailable || m_backendDestination.isEmpty()) {
+        if (allowActivation) {
+            if (auto *interface = QDBusConnection::sessionBus().interface()) {
+                static_cast<void>(interface->startService(
+                    QString::fromLatin1(kBackendService)));
+            }
+        }
         return;
     }
     QDBusMessage message = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kBackendService),
+        m_backendDestination,
         QString::fromLatin1(kBackendPath),
         QString::fromLatin1(kBackendInterface),
         QStringLiteral("GetSnapshot"));
@@ -202,7 +339,7 @@ void AgentVpnClient::applySnapshot(const QString &snapshotJson)
         snapshotJson.toUtf8(), &error);
     if (error.error != QJsonParseError::NoError || !document.isObject()) {
         m_message = tr("The backend returned an invalid state snapshot");
-        m_pendingTarget.clear();
+        clearPendingConnection();
         releaseTransientLease();
         emit snapshotChanged();
         return;
@@ -210,7 +347,7 @@ void AgentVpnClient::applySnapshot(const QString &snapshotJson)
     const QJsonObject snapshot = document.object();
     if (snapshot.value(QStringLiteral("schemaVersion")).toInt() != 1) {
         m_message = tr("The backend uses an unsupported interface version");
-        m_pendingTarget.clear();
+        clearPendingConnection();
         releaseTransientLease();
         emit snapshotChanged();
         return;
@@ -238,7 +375,7 @@ void AgentVpnClient::applyReconnectionPreference()
     }
     m_reconnectionApplied = false;
     QDBusMessage message = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kBackendService),
+        m_backendDestination,
         QString::fromLatin1(kBackendPath),
         QString::fromLatin1(kBackendInterface),
         QStringLiteral("SetReconnectionEnabled"));
@@ -271,7 +408,7 @@ void AgentVpnClient::acquireTransientLease()
     m_transientLeasePending = true;
     const quint64 generation = m_serviceGeneration;
     QDBusMessage message = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kBackendService),
+        m_backendDestination,
         QString::fromLatin1(kBackendPath),
         QString::fromLatin1(kBackendInterface),
         QStringLiteral("RegisterClient"));
@@ -288,9 +425,7 @@ void AgentVpnClient::acquireTransientLease()
         m_transientLeasePending = false;
         if (reply.isError()) {
             const bool interactive = m_pendingInteractive;
-            m_pendingTarget.clear();
-            m_pendingInteractive = false;
-            m_pendingOnlyWhenDisconnected = false;
+            clearPendingConnection();
             m_message = fixedCallFailureMessage(reply.error());
             emit snapshotChanged();
             if (interactive) {
@@ -310,11 +445,12 @@ void AgentVpnClient::releaseTransientLease()
     }
     m_transientLeaseActive = false;
     const QString uniqueName = QDBusConnection::sessionBus().baseService();
-    if (uniqueName.isEmpty() || !m_backendAvailable) {
+    if (uniqueName.isEmpty() || !m_backendAvailable
+        || m_backendDestination.isEmpty()) {
         return;
     }
     QDBusMessage message = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kBackendService),
+        m_backendDestination,
         QString::fromLatin1(kBackendPath),
         QString::fromLatin1(kBackendInterface),
         QStringLiteral("UnregisterClient"));
@@ -332,6 +468,7 @@ void AgentVpnClient::queueConnection(const QString &target, bool interactive,
         || normalized.contains(QLatin1Char('\r'))) {
         return;
     }
+    m_pendingGroup.clear();
     m_pendingTarget = normalized;
     m_pendingInteractive = interactive;
     m_pendingOnlyWhenDisconnected = onlyWhenDisconnected;
@@ -345,16 +482,15 @@ void AgentVpnClient::queueConnection(const QString &target, bool interactive,
 
 void AgentVpnClient::dispatchPendingConnection()
 {
-    if (m_pendingTarget.isEmpty() || !m_backendAvailable || !m_ready
+    if ((m_pendingTarget.isEmpty() && m_pendingGroup.isEmpty())
+        || !m_backendAvailable || !m_ready
         || !m_transientLeaseActive
         || !m_reconnectionApplied || m_busy) {
         return;
     }
     if (!m_loggedIn) {
         const bool interactive = m_pendingInteractive;
-        m_pendingTarget.clear();
-        m_pendingInteractive = false;
-        m_pendingOnlyWhenDisconnected = false;
+        clearPendingConnection();
         releaseTransientLease();
         if (interactive) {
             emit controlCenterRequested();
@@ -363,19 +499,25 @@ void AgentVpnClient::dispatchPendingConnection()
     }
     if (m_pendingOnlyWhenDisconnected
         && m_state != QStringLiteral("disconnected")) {
-        m_pendingTarget.clear();
-        m_pendingInteractive = false;
-        m_pendingOnlyWhenDisconnected = false;
+        clearPendingConnection();
         releaseTransientLease();
         return;
     }
 
     const QString target = m_pendingTarget;
-    m_pendingTarget.clear();
-    m_pendingInteractive = false;
-    m_pendingOnlyWhenDisconnected = false;
-    if (target == QStringLiteral("FASTEST")) {
-        callOperation(QStringLiteral("ConnectFastest"));
+    const QStringList group = m_pendingGroup;
+    clearPendingConnection();
+    if (group.size() == 3) {
+        callOperation(QStringLiteral("ConnectGroup"),
+                      {group.at(0), group.at(1), group.at(2)});
+    } else if (target == QStringLiteral("FASTEST")) {
+        if (m_fastestFeatures.isEmpty()) {
+            callOperation(QStringLiteral("ConnectFastest"));
+        } else {
+            callOperation(
+                QStringLiteral("ConnectFastestWithFeatures"),
+                {QVariant::fromValue(m_fastestFeatures)});
+        }
     } else if (target.contains(QLatin1Char('#'))) {
         callOperation(QStringLiteral("ConnectServer"), {target});
     } else {
@@ -383,14 +525,25 @@ void AgentVpnClient::dispatchPendingConnection()
     }
 }
 
+void AgentVpnClient::clearPendingConnection()
+{
+    m_pendingTarget.clear();
+    m_pendingGroup.clear();
+    m_pendingInteractive = false;
+    m_pendingOnlyWhenDisconnected = false;
+}
+
 void AgentVpnClient::callOperation(const QString &method,
                                    const QVariantList &arguments)
 {
+    if (!m_backendAvailable || m_backendDestination.isEmpty()) {
+        return;
+    }
     m_busy = true;
     m_message.clear();
     emit snapshotChanged();
     QDBusMessage message = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kBackendService),
+        m_backendDestination,
         QString::fromLatin1(kBackendPath),
         QString::fromLatin1(kBackendInterface), method);
     message.setArguments(arguments);
@@ -408,9 +561,7 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         m_busy = false;
         m_message = fixedCallFailureMessage(reply.error());
         const bool interactive = m_pendingInteractive;
-        m_pendingTarget.clear();
-        m_pendingInteractive = false;
-        m_pendingOnlyWhenDisconnected = false;
+        clearPendingConnection();
         releaseTransientLease();
         emit snapshotChanged();
         if (interactive) {
@@ -419,7 +570,8 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         return;
     }
     setBackendAvailable(true);
-    if (m_serviceGeneration != 0 && !m_pendingTarget.isEmpty()) {
+    if (m_serviceGeneration != 0
+        && (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty())) {
         acquireTransientLease();
     }
     applySnapshot(reply.value());

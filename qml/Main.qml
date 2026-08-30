@@ -11,7 +11,8 @@ Kirigami.ApplicationWindow {
     minimumWidth: 480
     minimumHeight: 560
     visible: !startMinimized
-    title: qsTr("Proton VPN")
+    title: qsTr("Plasma VPN")
+    pageStack.globalToolBar.style: Kirigami.ApplicationHeaderStyle.ToolBar
 
     onClosing: close => {
         close.accepted = true
@@ -24,8 +25,24 @@ Kirigami.ApplicationWindow {
             console.error("Unable to create a navigation page")
             return null
         }
-        pageStack.push(page)
+        if (pageStack.push(page) === null) {
+            page.destroy()
+            console.error("Unable to add a navigation page")
+            return null
+        }
+        root.ownedPages = root.ownedPages.concat([page])
         return page
+    }
+
+    function releaseOwnedPage(page) {
+        const index = root.ownedPages.indexOf(page)
+        if (index < 0) {
+            return
+        }
+        const remainingPages = root.ownedPages.slice()
+        remainingPages.splice(index, 1)
+        root.ownedPages = remainingPages
+        page.destroy()
     }
 
     function showPage(pageComponent, properties) {
@@ -102,6 +119,9 @@ Kirigami.ApplicationWindow {
     }
 
     function prepareForQuit() {
+        if (runnerActionDialog.visible) {
+            runnerActionDialog.close()
+        }
         if (sessionLimitDialog.visible) {
             sessionLimitDialog.close()
         }
@@ -121,6 +141,40 @@ Kirigami.ApplicationWindow {
             npsDialog.close()
         }
         pageStack.clear()
+    }
+
+    function requestRunnerAction(action, argument) {
+        if (runnerActionDialog.visible) {
+            return
+        }
+        runnerActionDialog.actionId = action
+        runnerActionDialog.argument = argument
+        runnerActionDialog.open()
+    }
+
+    function synchronizeNavigationDrawerMode() {
+        // Kirigami clears collapsible when a drawer becomes modal. Restore it
+        // explicitly when returning to the wide layout so the framework's
+        // internal assignment cannot permanently remove the collapse button.
+        if (navigationDrawer.modal) {
+            navigationDrawer.collapsible = false
+            navigationDrawer.collapsed = false
+            navigationDrawer.close()
+            return
+        }
+        navigationDrawer.collapsible = true
+        navigationDrawer.open()
+        navigationDrawer.collapsed = root.navigationSidebarCollapsed
+    }
+
+    function requireNavigationDrawerState(condition, description) {
+        if (condition) {
+            return true
+        }
+        console.error("navigation-drawer-smoke: " + description)
+        navigationDrawerDiagnostics.stop()
+        Qt.exit(2)
+        return false
     }
 
     function maybeShowNpsSurvey() {
@@ -171,6 +225,10 @@ Kirigami.ApplicationWindow {
             root.showSignIn()
         } else if (initialPageName === "about") {
             root.showAbout()
+        } else if (initialPageName === "report-issue") {
+            root.showReportIssue()
+        } else if (initialPageName === "release-notes") {
+            root.showReleaseNotes()
         } else if (!vpnController.ready || !vpnController.loggedIn) {
             root.showSignIn()
         } else {
@@ -180,6 +238,9 @@ Kirigami.ApplicationWindow {
         Qt.callLater(root.maybeShowCompatibilityWarning)
         if (diagnosticSmokeTest) {
             diagnosticNavigation.start()
+        }
+        if (settingsRouteSmokeTest) {
+            settingsRouteNavigation.start()
         }
     }
     onVisibleChanged: {
@@ -191,12 +252,34 @@ Kirigami.ApplicationWindow {
     property bool startupAccountRoutingPending: initialPageName === "overview"
     property string previousErrorCode: ""
     property bool compatibilityWarningShown: false
+    property var ownedPages: []
     property int diagnosticNavigationStep: 0
+    property int settingsRouteNavigationStep: 0
+    property int navigationDrawerDiagnosticStep: 0
+    property bool settingsRouteExpectedModerateNat: false
+    property bool navigationSidebarCollapsed: false
+    property bool navigationDrawerDiagnosticsComplete: !diagnosticSmokeTest
+    property real navigationDrawerDiagnosticOriginalWidth: width
     property string currentSection: "overview"
+    readonly property real navigationCompactBreakpoint:
+        Kirigami.Units.gridUnit * 46
+    readonly property string appIconSource:
+        appSettings.iconStyle === "light"
+        ? "qrc:/data/plasma-vpn-light.svg"
+        : appSettings.iconStyle === "dark"
+          ? "qrc:/data/plasma-vpn-dark.svg"
+          : "qrc:/data/plasma-vpn.svg"
 
     Component {
         id: overviewPageComponent
         OverviewPage { }
+    }
+
+    Connections {
+        target: pageStack
+        function onPageRemoved(page) {
+            root.releaseOwnedPage(page)
+        }
     }
 
     Component {
@@ -259,6 +342,9 @@ Kirigami.ApplicationWindow {
         interval: 120
         repeat: true
         onTriggered: {
+            if (!root.navigationDrawerDiagnosticsComplete) {
+                return
+            }
             switch (root.diagnosticNavigationStep) {
             case 0:
                 console.info("diagnostics-smoke: Overview")
@@ -330,6 +416,41 @@ Kirigami.ApplicationWindow {
                 console.info("diagnostics-smoke: Overview reload")
                 root.showOverview()
                 break
+            case 14:
+                root.requestRunnerAction("fastest", "")
+                if (!runnerActionDialog.visible
+                        || vpnController.state !== "disconnected") {
+                    stop()
+                    console.error("diagnostics-smoke: KRunner request bypassed confirmation")
+                    Qt.exit(2)
+                    return
+                }
+                console.info("diagnostics-smoke: KRunner confirmation required")
+                break
+            case 15:
+                runnerActionDialog.accept()
+                break
+            case 16:
+                if (vpnController.state !== "connected") {
+                    return
+                }
+                root.requestRunnerAction("disconnect", "")
+                if (!runnerActionDialog.visible) {
+                    stop()
+                    console.error("diagnostics-smoke: KRunner disconnect confirmation missing")
+                    Qt.exit(2)
+                    return
+                }
+                break
+            case 17:
+                runnerActionDialog.accept()
+                break
+            case 18:
+                if (vpnController.state !== "disconnected") {
+                    return
+                }
+                console.info("diagnostics-smoke: KRunner confirmed actions complete")
+                break
             default:
                 stop()
                 console.info("diagnostics-smoke: complete")
@@ -337,6 +458,191 @@ Kirigami.ApplicationWindow {
                 return
             }
             ++root.diagnosticNavigationStep
+        }
+    }
+
+    Timer {
+        id: navigationDrawerDiagnostics
+        interval: 120
+        repeat: true
+        running: diagnosticSmokeTest
+        onTriggered: {
+            const wideWidth = Math.max(
+                900, root.navigationCompactBreakpoint + Kirigami.Units.gridUnit)
+            const compactWidth = Math.max(
+                root.minimumWidth,
+                root.navigationCompactBreakpoint - Kirigami.Units.gridUnit)
+            switch (root.navigationDrawerDiagnosticStep) {
+            case 0:
+                root.width = wideWidth
+                break
+            case 1:
+                if (!root.requireNavigationDrawerState(
+                        !navigationDrawer.modal
+                        && navigationDrawer.collapsible
+                        && navigationDrawer.drawerOpen
+                        && !navigationDrawer.collapsed,
+                        "wide layout did not expose an expanded collapsible sidebar")) {
+                    return
+                }
+                navigationDrawer.collapsed = true
+                break
+            case 2:
+                if (!root.requireNavigationDrawerState(
+                        navigationDrawer.collapsed
+                        && root.navigationSidebarCollapsed,
+                        "wide layout did not retain the requested collapsed state")) {
+                    return
+                }
+                root.width = compactWidth
+                break
+            case 3:
+                if (!root.requireNavigationDrawerState(
+                        navigationDrawer.modal
+                        && !navigationDrawer.collapsible
+                        && !navigationDrawer.collapsed
+                        && !navigationDrawer.drawerOpen
+                        && navigationDrawer.handleVisible
+                        && navigationDrawer.handle.handleAnchor !== null
+                        && navigationDrawer.handle.handleAnchor.visible,
+                        "compact layout did not expose a closed overlay with an open handle")) {
+                    return
+                }
+                navigationDrawer.open()
+                break
+            case 4:
+                if (!root.requireNavigationDrawerState(
+                        navigationDrawer.modal
+                        && navigationDrawer.drawerOpen,
+                        "compact navigation handle could not open the overlay")) {
+                    return
+                }
+                navigationDrawer.close()
+                root.width = wideWidth
+                break
+            case 5:
+                if (!root.requireNavigationDrawerState(
+                        !navigationDrawer.modal
+                        && navigationDrawer.collapsible
+                        && navigationDrawer.drawerOpen
+                        && navigationDrawer.collapsed,
+                        "wide layout did not restore the sidebar and collapse control")) {
+                    return
+                }
+                navigationDrawer.collapsed = false
+                break
+            default:
+                if (!root.requireNavigationDrawerState(
+                        !navigationDrawer.collapsed
+                        && !root.navigationSidebarCollapsed,
+                        "wide sidebar could not be expanded again")) {
+                    return
+                }
+                stop()
+                root.width = root.navigationDrawerDiagnosticOriginalWidth
+                root.navigationDrawerDiagnosticsComplete = true
+                console.info("navigation-drawer-smoke: complete")
+                return
+            }
+            ++root.navigationDrawerDiagnosticStep
+        }
+    }
+
+    Timer {
+        id: settingsRouteNavigation
+        interval: 50
+        repeat: true
+        onTriggered: {
+            if (root.settingsRouteNavigationStep === 0) {
+                if (!vpnController.ready || !vpnController.loggedIn) {
+                    return
+                }
+                root.showSignIn()
+                root.settingsRouteNavigationStep = 1
+                return
+            }
+            if (root.settingsRouteNavigationStep === 1) {
+                root.showSettings()
+                root.settingsRouteNavigationStep = 2
+                return
+            }
+            if (root.settingsRouteNavigationStep === 2) {
+                if (!vpnController.settings.loaded
+                        || vpnController.settings.busy) {
+                    return
+                }
+                root.settingsRouteExpectedModerateNat =
+                    !vpnController.settings.moderateNat
+                vpnController.updateSetting(
+                    "moderateNat", root.settingsRouteExpectedModerateNat)
+                root.settingsRouteNavigationStep = 3
+                return
+            }
+            if (vpnController.settings.busy
+                    || vpnController.settings.moderateNat
+                       !== root.settingsRouteExpectedModerateNat) {
+                return
+            }
+            stop()
+            console.info("settings-route-smoke: current section",
+                         root.currentSection)
+            console.info("settings-route-smoke: owned pages",
+                         root.ownedPages.length)
+        }
+    }
+
+    Controls.Dialog {
+        id: runnerActionDialog
+        anchors.centerIn: parent
+        width: Math.min(root.width - Kirigami.Units.gridUnit * 2,
+                        Kirigami.Units.gridUnit * 28)
+        modal: true
+        title: qsTr("Confirm VPN action")
+        standardButtons: Controls.Dialog.Yes | Controls.Dialog.Cancel
+
+        property string actionId: ""
+        property string argument: ""
+
+        function clearRequest() {
+            actionId = ""
+            argument = ""
+        }
+
+        onOpened: {
+            const confirmButton = standardButton(Controls.Dialog.Yes)
+            if (confirmButton !== null) {
+                confirmButton.enabled = Qt.binding(function() {
+                    return vpnController.ready && !vpnController.busy
+                })
+            }
+        }
+        onAccepted: {
+            const confirmedAction = actionId
+            const confirmedArgument = argument
+            clearRequest()
+            if (confirmedAction === "fastest") {
+                vpnController.connectFastestWithFeatures(
+                    appSettings.fastestFeatures)
+            } else if (confirmedAction === "disconnect") {
+                vpnController.disconnect()
+            } else if (confirmedAction === "country") {
+                vpnController.connectCountry(confirmedArgument)
+            } else if (confirmedAction === "server") {
+                vpnController.connectServer(confirmedArgument)
+            }
+        }
+        onRejected: clearRequest()
+
+        Controls.Label {
+            width: Kirigami.Units.gridUnit * 24
+            wrapMode: Text.WordWrap
+            text: runnerActionDialog.actionId === "fastest"
+                  ? qsTr("Connect to the fastest Proton VPN server using your saved feature filters?")
+                  : runnerActionDialog.actionId === "disconnect"
+                    ? qsTr("Disconnect the current Proton VPN connection?")
+                    : runnerActionDialog.actionId === "country"
+                      ? qsTr("Connect to the fastest Proton VPN server in %1?").arg(runnerActionDialog.argument)
+                      : qsTr("Connect to Proton VPN server %1?").arg(runnerActionDialog.argument)
         }
     }
 
@@ -600,31 +906,32 @@ Kirigami.ApplicationWindow {
 
     globalDrawer: Kirigami.GlobalDrawer {
         id: navigationDrawer
-        title: qsTr("Proton VPN")
-        titleIcon: "network-vpn"
+        title: qsTr("Plasma VPN")
+        titleIcon: root.appIconSource
+        handleClosedIcon.name: "application-menu"
+        handleOpenIcon.name: "application-menu"
         isMenu: false
-        modal: root.width < Kirigami.Units.gridUnit * 46
-        collapsible: !modal
+        modal: root.width < root.navigationCompactBreakpoint
+        collapsible: false
         interactiveResizeEnabled: !modal
         preferredSize: Kirigami.Units.gridUnit * 14
         minimumSize: Kirigami.Units.gridUnit * 12
         maximumSize: Kirigami.Units.gridUnit * 18
 
-        Component.onCompleted: {
-            if (!modal) {
-                open()
-            }
-        }
+        Component.onCompleted: Qt.callLater(root.synchronizeNavigationDrawerMode)
         onModalChanged: {
+            Qt.callLater(root.synchronizeNavigationDrawerMode)
+        }
+        onCollapsedChanged: {
             if (!modal) {
-                open()
+                root.navigationSidebarCollapsed = collapsed
             }
         }
 
         actions: [
             Kirigami.Action {
                 text: qsTr("Overview")
-                icon.name: "network-vpn"
+                icon.source: root.appIconSource
                 checkable: true
                 checked: root.currentSection === "overview"
                 onTriggered: root.showOverview()
@@ -654,7 +961,7 @@ Kirigami.ApplicationWindow {
             },
             Kirigami.Action {
                 text: qsTr("Release notes")
-                icon.name: "view-list-text"
+                icon.name: "view-pim-notes"
                 checkable: true
                 checked: root.currentSection === "release-notes"
                 onTriggered: root.showReleaseNotes()

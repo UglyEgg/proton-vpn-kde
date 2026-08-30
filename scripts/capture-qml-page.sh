@@ -27,11 +27,42 @@ for _ in {1..40}; do
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.backend 2>/dev/null)" == "(true,)" ]]; then
+        quest.entropy.PlasmaVPN.Backend 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05
 done
+
+owner_reply="$(gdbus call --session \
+    --dest org.freedesktop.DBus \
+    --object-path /org/freedesktop/DBus \
+    --method org.freedesktop.DBus.GetNameOwner \
+    quest.entropy.PlasmaVPN.Backend)"
+backend_owner="${owner_reply#*\'}"
+backend_owner="${backend_owner%%\'*}"
+
+if [[ "$page_name" == "overview-connected" ]]; then
+    gdbus call --session \
+        --dest quest.entropy.PlasmaVPN.Backend \
+        --object-path /quest/entropy/PlasmaVPN/Backend \
+        --method quest.entropy.PlasmaVPN.Backend1.ConnectFastest \
+        >/dev/null
+    for _ in {1..20}; do
+        snapshot="$(gdbus call --session \
+            --dest quest.entropy.PlasmaVPN.Backend \
+            --object-path /quest/entropy/PlasmaVPN/Backend \
+            --method quest.entropy.PlasmaVPN.Backend1.GetSnapshot)"
+        if [[ "$snapshot" == *'"state":"connected"'* ]]; then
+            break
+        fi
+        sleep 0.05
+    done
+    if [[ "$snapshot" != *'"state":"connected"'* ]]; then
+        echo "Demo backend did not reach the connected state" >&2
+        exit 1
+    fi
+    page_name="overview"
+fi
 
 env \
     QT_QPA_PLATFORM=offscreen \
@@ -40,6 +71,7 @@ env \
     QT_ACCESSIBILITY=0 \
     XDG_CACHE_HOME="$staging_dir/cache" \
     XDG_CONFIG_HOME="$staging_dir/config" \
+    PROTON_VPN_KDE_TEST_BACKEND_OWNER="$backend_owner" \
     "$build_dir/proton-vpn-kde" \
         --visual-page "$page_name" \
         --visual-snapshot "$output_path"

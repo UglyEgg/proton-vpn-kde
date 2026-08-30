@@ -11,8 +11,10 @@ from dbus_fast.aio import MessageBus
 from dbus_fast.constants import BusType, NameFlag, RequestNameReply
 
 from .adapters import DemoCoreAdapter, ProtonCoreAdapter
+from .client_authorization import ClientAuthorizer
 from .controller import BackendController
 from .dbus_service import BUS_NAME, OBJECT_PATH, VpnDbusService
+from .features import TRUSTED_CLIENT_EXECUTABLES
 from .lifetime import BackendLifetime, name_has_owner
 
 
@@ -57,7 +59,14 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
             "PROTON_VPN_KDE_CLIENT_POLL_SECONDS", 2.0
         ),
     )
-    service = VpnDbusService(controller, lifetime)
+    authorizer = ClientAuthorizer(
+        bus,
+        TRUSTED_CLIENT_EXECUTABLES,
+        enforce_identity=not demo,
+    )
+    await authorizer.install()
+    bus.add_message_handler(authorizer.message_handler)
+    service = VpnDbusService(controller, lifetime, authorizer)
     bus.export(OBJECT_PATH, service)
 
     loop = asyncio.get_running_loop()
@@ -100,6 +109,8 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
         if initialized:
             await controller.close()
         bus.unexport(OBJECT_PATH, service)
+        bus.remove_message_handler(authorizer.message_handler)
+        await authorizer.uninstall()
         await bus.release_name(BUS_NAME)
         bus.disconnect()
 

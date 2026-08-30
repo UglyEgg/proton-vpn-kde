@@ -6,7 +6,7 @@ import org.kde.kirigami as Kirigami
 
 Kirigami.ScrollablePage {
     id: page
-    title: qsTr("Proton VPN")
+    title: qsTr("Plasma VPN")
 
     readonly property var settings: kcm.appSettings
 
@@ -73,6 +73,22 @@ Kirigami.ScrollablePage {
             text: qsTr("Show connection notifications")
             checked: page.settings.notificationsEnabled
             onToggled: page.settings.notificationsEnabled = checked
+        }
+
+        Controls.ComboBox {
+            Kirigami.FormData.label: qsTr("Interface icon:")
+            Layout.fillWidth: true
+            model: [
+                { "label": qsTr("Color"), "value": "color" },
+                { "label": qsTr("Light symbol"), "value": "light" },
+                { "label": qsTr("Dark symbol"), "value": "dark" }
+            ]
+            textRole: "label"
+            valueRole: "value"
+            currentIndex: page.settings.iconStyle === "light" ? 1
+                          : page.settings.iconStyle === "dark" ? 2 : 0
+            Accessible.name: qsTr("Interface icon style")
+            onActivated: page.settings.iconStyle = currentValue
         }
 
         Controls.TextField {

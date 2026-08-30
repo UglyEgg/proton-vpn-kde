@@ -7,12 +7,12 @@
                 "Name": "uglyegg"
             }
         ],
-        "Description": "Configure Proton VPN integration with KDE Plasma",
+        "Description": "Configure the Proton VPN-compatible Plasma client",
         "EnabledByDefault": true,
-        "Icon": "proton-vpn-kde",
+        "Icon": "plasma-vpn",
         "License": "GPL-3.0-or-later",
-        "Name": "Proton VPN",
-        "Website": "https://protonvpn.com/"
+        "Name": "Plasma VPN",
+        "Website": "https://github.com/uglyegg/proton-vpn-kde"
     },
     "X-KDE-Keywords": "vpn,proton,privacy,network,plasma",
     "X-KDE-System-Settings-Parent-Category": "network",

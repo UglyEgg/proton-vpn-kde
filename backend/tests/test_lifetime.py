@@ -53,18 +53,14 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(stopped.is_set())
 
     async def test_abandoned_startup_exits_after_idle_timeout(self):
-        lifetime, _, stopped, _ = self.make_lifetime(
-            state="starting", ready=False
-        )
+        lifetime, _, stopped, _ = self.make_lifetime(state="starting", ready=False)
 
         await asyncio.wait_for(lifetime.run(), timeout=0.2)
 
         self.assertTrue(stopped.is_set())
 
     async def test_live_frontend_protects_startup_prompt(self):
-        lifetime, _, stopped, owners = self.make_lifetime(
-            state="starting", ready=False
-        )
+        lifetime, _, stopped, owners = self.make_lifetime(state="starting", ready=False)
         owners.add(":1.42")
         await lifetime.register_client(":1.42")
         task = asyncio.create_task(lifetime.run())
@@ -76,9 +72,7 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.gather(task, return_exceptions=True)
 
     async def test_vanished_frontend_releases_startup_prompt(self):
-        lifetime, _, stopped, owners = self.make_lifetime(
-            state="starting", ready=False
-        )
+        lifetime, _, stopped, owners = self.make_lifetime(state="starting", ready=False)
         owners.add(":1.42")
         await lifetime.register_client(":1.42")
         owners.clear()

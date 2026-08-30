@@ -72,7 +72,8 @@ Kirigami.ScrollablePage {
         target: vpnController
         function onSnapshotChanged() {
             page.updateSecretStoreHint()
-            if (vpnController.loggedIn) {
+            if (vpnController.loggedIn
+                    && applicationWindow().pageStack.currentItem === page) {
                 applicationWindow().showOverview()
             } else if (page.previousAuthState !== vpnController.authState) {
                 page.previousAuthState = vpnController.authState
@@ -135,7 +136,7 @@ Kirigami.ScrollablePage {
             description: page.credentialsVisible
                          ? qsTr("Use your Proton account to access VPN servers.")
                          : qsTr("Complete the security check for this account.")
-            iconName: "proton-vpn-kde"
+            iconName: applicationWindow().appIconSource
         }
 
         Kirigami.InlineMessage {

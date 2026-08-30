@@ -46,14 +46,10 @@ class CoreMemoryOptimizationProbeTests(unittest.TestCase):
         )
 
     def test_accepts_both_verified_string_sharing_behaviors(self):
-        self.assertTrue(
-            _core_memory_optimization_behavior(self.optimized_module())
-        )
+        self.assertTrue(_core_memory_optimization_behavior(self.optimized_module()))
 
     def test_rejects_an_unoptimized_or_partial_core(self):
-        self.assertFalse(
-            _core_memory_optimization_behavior(SimpleNamespace())
-        )
+        self.assertFalse(_core_memory_optimization_behavior(SimpleNamespace()))
         self.assertFalse(
             _core_memory_optimization_behavior(
                 SimpleNamespace(
@@ -127,7 +123,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 ],
             ),
             ipv6=True,
-            anonymous_crash_reports=True,
+            anonymous_crash_reports=False,
             features=SimpleNamespace(
                 netshield=1,
                 moderate_nat=False,
@@ -158,6 +154,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             set_notification_seen=Mock(),
             load_settings=AsyncMock(return_value=settings),
             save_settings=AsyncMock(),
+            usage_reporting=SimpleNamespace(enabled=False),
         )
         return api, connector
 
@@ -221,12 +218,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_nps_survey_uses_cached_notification_and_official_api(self):
         api, _ = self.make_api()
-        survey = SimpleNamespace(
-            survey_id="survey-1", seen=False, is_active=True
-        )
-        api.refresher.notifications.get_nps_survey_notifications.return_value = [
-            survey
-        ]
+        survey = SimpleNamespace(survey_id="survey-1", seen=False, is_active=True)
+        api.refresher.notifications.get_nps_survey_notifications.return_value = [survey]
         adapter = ProtonCoreAdapter(api)
 
         self.assertTrue(await adapter.take_pending_nps_survey())
@@ -467,6 +460,56 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("", snapshots[-1].account_name)
         self.assertEqual("signed_out", snapshots[-1].auth_state)
 
+    async def test_failed_logout_restores_persisted_kill_switch(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        unreachable = type("ProtonAPINotReachable", (Exception,), {})
+        api.logout.side_effect = unreachable()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "unreachable"):
+            await adapter.logout()
+
+        self.assertEqual(2, settings.killswitch)
+        self.assertEqual(2, adapter._kill_switch)
+        self.assertEqual(2, api.save_settings.await_count)
+        self.assertTrue(adapter._logged_in)
+
+    async def test_failed_logout_surfaces_kill_switch_rollback_failure(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 1
+        api.logout.side_effect = RuntimeError("remote failure")
+        api.save_settings.side_effect = [None, RuntimeError("disk failure")]
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "could not be restored"):
+            await adapter.logout()
+
+        self.assertTrue(adapter._logged_in)
+
+    async def test_logout_rolls_back_when_reconnector_disable_fails(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        adapter._reconnector.disable = AsyncMock(
+            side_effect=RuntimeError("reconnector failure")
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "could not complete"):
+            await adapter.logout()
+
+        self.assertEqual(2, settings.killswitch)
+        self.assertEqual(2, adapter._kill_switch)
+        self.assertEqual(2, api.save_settings.await_count)
+        api.logout.assert_not_awaited()
+        self.assertTrue(adapter._logged_in)
+
     async def test_expired_api_session_returns_to_sign_in_state(self):
         api, _ = self.make_api()
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
@@ -579,6 +622,102 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.connect.assert_awaited_once_with("vpn-server", protocol="wireguard")
 
+    async def test_capability_intersection_uses_official_filter_and_score(self):
+        from proton.vpn.session.servers import ServerFeatureEnum
+
+        api, connector = self.make_api()
+        logical_server = object()
+        server_list = SimpleNamespace(
+            logicals=[logical_server],
+            user_tier=2,
+            get_available_servers=Mock(return_value=iter([logical_server])),
+            get_servers_with_features=Mock(return_value=iter([logical_server])),
+            get_fastest_server=Mock(return_value=logical_server),
+        )
+        api.refresher.get_up_to_date_server_list.return_value = server_list
+        adapter = ProtonCoreAdapter(api)
+        adapter._connector = connector
+
+        await adapter.connect_fastest_with_features(("p2p", "streaming"))
+
+        server_list.get_available_servers.assert_called_once_with(
+            server_list.logicals, server_list.user_tier
+        )
+        server_list.get_servers_with_features.assert_called_once()
+        _, filter_kwargs = server_list.get_servers_with_features.call_args
+        self.assertEqual(
+            ServerFeatureEnum.P2P | ServerFeatureEnum.STREAMING,
+            filter_kwargs["request_features"],
+        )
+        self.assertEqual(
+            ServerFeatureEnum(0),
+            filter_kwargs["exclude_features"],
+        )
+        server_list.get_fastest_server.assert_called_once()
+        connector.get_vpn_server.assert_called_once_with(
+            logical_server, "client-config"
+        )
+        connector.connect.assert_awaited_once_with("vpn-server", protocol="wireguard")
+
+    async def test_capability_connect_rejects_unknown_or_unavailable_selection(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        adapter._connector = connector
+
+        with self.assertRaisesRegex(ValueError, "supported Proton server capabilities"):
+            await adapter.connect_fastest_with_features(("random",))
+
+        server_list = SimpleNamespace(
+            logicals=[],
+            user_tier=2,
+            get_available_servers=Mock(return_value=iter(())),
+            get_servers_with_features=Mock(return_value=iter(())),
+            get_fastest_server=Mock(return_value=None),
+        )
+        api.refresher.get_up_to_date_server_list.return_value = server_list
+        with self.assertRaisesRegex(RuntimeError, "current tier"):
+            await adapter.connect_fastest_with_features(("tor", "p2p"))
+
+        connector.connect.assert_not_awaited()
+
+    async def test_scoped_capability_connect_uses_only_the_selected_pool(self):
+        api, connector = self.make_api()
+        country_server = object()
+        group_server = object()
+        group = SimpleNamespace(name="Zurich", servers=[group_server])
+        country = SimpleNamespace(
+            code="CH",
+            servers=[country_server, group_server],
+            locations=[group],
+            secure_core_group=None,
+        )
+        server_list = SimpleNamespace(
+            logicals=[country_server, group_server],
+            user_tier=2,
+            group_by_country=Mock(return_value=[country]),
+            get_available_servers=Mock(side_effect=lambda items, _: iter(items)),
+            get_servers_with_features=Mock(side_effect=lambda items, **_: iter(items)),
+            get_fastest_server=Mock(side_effect=[country_server, group_server]),
+        )
+        api.refresher.get_up_to_date_server_list.return_value = server_list
+        adapter = ProtonCoreAdapter(api)
+        adapter._connector = connector
+
+        await adapter.connect_country_with_features("CH", ("p2p",))
+        self.assertIs(
+            server_list.get_available_servers.call_args_list[0].args[0],
+            country.servers,
+        )
+
+        await adapter.connect_group_with_features(
+            "CH", "location", "Zurich", ("streaming",)
+        )
+        self.assertIs(
+            server_list.get_available_servers.call_args_list[1].args[0],
+            group.servers,
+        )
+        self.assertEqual(2, connector.connect.await_count)
+
     async def test_settings_round_trip_uses_official_core_objects(self):
         api, connector = self.make_api()
         adapter = ProtonCoreAdapter(api)
@@ -602,6 +741,60 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, updated.net_shield)
         connector.connect.assert_not_awaited()
 
+    async def test_unofficial_build_persists_crash_reporting_off(self):
+        api, _ = self.make_api()
+        persisted = api.load_settings.return_value
+        persisted.anonymous_crash_reports = True
+        api.usage_reporting.enabled = True
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        current = await adapter.get_settings()
+        again = await adapter.get_settings()
+
+        self.assertFalse(current.anonymous_crash_reports)
+        self.assertFalse(again.anonymous_crash_reports)
+        self.assertFalse(persisted.anonymous_crash_reports)
+        self.assertFalse(api.usage_reporting.enabled)
+        api.save_settings.assert_awaited_once_with(persisted)
+
+    async def test_unofficial_build_rejects_crash_reporting_enable(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "unofficial community build"):
+            await adapter.update_settings({"anonymousCrashReports": True})
+
+        api.load_settings.assert_not_awaited()
+        api.save_settings.assert_not_awaited()
+
+    async def test_unofficial_build_disables_sender_when_persistence_fails(self):
+        api, _ = self.make_api()
+        api.load_settings.return_value.anonymous_crash_reports = True
+        api.usage_reporting.enabled = True
+        api.save_settings.side_effect = RuntimeError("disk failure")
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "save the VPN settings"):
+            await adapter.get_settings()
+
+        self.assertFalse(api.usage_reporting.enabled)
+
+    async def test_approved_build_preserves_crash_reporting_preference(self):
+        api, _ = self.make_api()
+        api.load_settings.return_value.anonymous_crash_reports = True
+        api.usage_reporting.enabled = True
+        adapter = ProtonCoreAdapter(api, crash_report_submission_enabled=True)
+        await adapter.initialize(Mock())
+
+        current = await adapter.get_settings()
+
+        self.assertTrue(current.anonymous_crash_reports)
+        self.assertTrue(api.usage_reporting.enabled)
+        api.save_settings.assert_not_awaited()
+
     async def test_connection_sensitive_settings_require_disconnect(self):
         api, connector = self.make_api()
         connector.current_state = state_named("Connected")
@@ -620,7 +813,9 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connection = SimpleNamespace(
             server_name="US-IL#42",
             settings=SimpleNamespace(
-                packet_capture=SimpleNamespace(directory_path="/tmp")
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
             ),
             supports_packet_capture=Mock(return_value=True),
             start_packet_capture=AsyncMock(),
@@ -644,6 +839,142 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.stop_packet_capture()
         connection.stop_packet_capture.assert_awaited_once_with()
         self.assertFalse(snapshots[-1].packet_capture_active)
+
+    async def test_packet_capture_fails_closed_without_core_byte_limit(self):
+        api, connector = self.make_api()
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(directory_path="/tmp")
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            with self.assertRaisesRegex(RuntimeError, "byte limit"):
+                await adapter.start_packet_capture(capture_directory)
+
+        connection.start_packet_capture.assert_not_awaited()
+
+    async def test_packet_capture_cannot_replace_an_active_generation(self):
+        api, connector = self.make_api()
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            await adapter.start_packet_capture(capture_directory)
+            with self.assertRaisesRegex(RuntimeError, "already active"):
+                await adapter.start_packet_capture(capture_directory)
+
+        connection.start_packet_capture.assert_awaited_once_with()
+        await adapter.stop_packet_capture()
+
+    async def test_packet_capture_watchdog_stops_once_and_clears_state(self):
+        api, connector = self.make_api()
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        snapshots = []
+        adapter = ProtonCoreAdapter(api, packet_capture_max_seconds=0.01)
+        await adapter.initialize(snapshots.append)
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            await adapter.start_packet_capture(capture_directory)
+            await asyncio.sleep(0.05)
+
+        connection.stop_packet_capture.assert_awaited_once_with()
+        self.assertFalse(snapshots[-1].packet_capture_active)
+        self.assertIn("safety limit", snapshots[-1].message)
+
+    async def test_manual_packet_capture_stop_cancels_watchdog(self):
+        api, connector = self.make_api()
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = ProtonCoreAdapter(api, packet_capture_max_seconds=0.02)
+        await adapter.initialize(Mock())
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            await adapter.start_packet_capture(capture_directory)
+            await adapter.stop_packet_capture()
+            await asyncio.sleep(0.05)
+
+        connection.stop_packet_capture.assert_awaited_once_with()
+
+    async def test_manual_stop_racing_watchdog_calls_core_once(self):
+        api, connector = self.make_api()
+        stop_entered = asyncio.Event()
+        release_stop = asyncio.Event()
+
+        async def stop_capture():
+            stop_entered.set()
+            await release_stop.wait()
+
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(side_effect=stop_capture),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = ProtonCoreAdapter(api, packet_capture_max_seconds=0.01)
+        await adapter.initialize(Mock())
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            await adapter.start_packet_capture(capture_directory)
+            await asyncio.wait_for(stop_entered.wait(), timeout=1.0)
+            manual_stop = asyncio.create_task(adapter.stop_packet_capture())
+            await asyncio.sleep(0)
+            release_stop.set()
+            await asyncio.wait_for(manual_stop, timeout=1.0)
+
+        connection.stop_packet_capture.assert_awaited_once_with()
+        self.assertFalse(adapter._packet_capture_active)
 
     async def test_settings_conflicts_are_rejected_without_side_effects(self):
         api, _ = self.make_api()
@@ -793,9 +1124,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(ValueError, "at least one included"):
-            await adapter.update_split_tunneling(
-                {"mode": "include", "enabled": True}
-            )
+            await adapter.update_split_tunneling({"mode": "include", "enabled": True})
         self.assertEqual("exclude", settings.features.split_tunneling.mode.value)
         self.assertFalse(settings.features.split_tunneling.enabled)
         api.save_settings.assert_not_awaited()
@@ -804,6 +1133,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         from proton.vpn.session.servers import ServerFeatureEnum
 
         api, _ = self.make_api()
+
         def server(name, exit_country, location, load, features, entry_country=None):
             return SimpleNamespace(
                 name=name,
@@ -818,12 +1148,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 smart_routing=entry_country not in {None, exit_country},
             )
 
-        normal = server(
-            "CH#10", "CH", "Zurich", 42, [ServerFeatureEnum.P2P]
-        )
-        tor = server(
-            "CH-TOR#1", "CH", "Zurich", 27, [ServerFeatureEnum.TOR]
-        )
+        normal = server("CH#10", "CH", "Zurich", 42, [ServerFeatureEnum.P2P])
+        tor = server("CH-TOR#1", "CH", "Zurich", 27, [ServerFeatureEnum.TOR])
         secure_core = server(
             "CH-DE#1",
             "CH",
@@ -833,7 +1159,10 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             "DE",
         )
         us = server(
-            "US-NY#5", "US", "New York, NY", 18,
+            "US-NY#5",
+            "US",
+            "New York, NY",
+            18,
             [ServerFeatureEnum.STREAMING],
         )
         zurich_group = SimpleNamespace(
@@ -882,9 +1211,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         secure_core_servers = await adapter.get_group_servers(
             "CH", "secure-core", "Via Secure Core"
         )
-        location_servers = await adapter.get_group_servers(
-            "CH", "location", "Zurich"
-        )
+        location_servers = await adapter.get_group_servers("CH", "location", "Zurich")
         swiss_loads = await adapter.get_server_loads("CH")
         location_search = await adapter.search_locations("zur")
         server_search = await adapter.search_locations("ch#")
@@ -971,9 +1298,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, connector = self.make_api()
         logical_server = object()
         group = SimpleNamespace(name="Zurich", servers=[logical_server])
-        country = SimpleNamespace(
-            code="ch", locations=[group], secure_core_group=None
-        )
+        country = SimpleNamespace(code="ch", locations=[group], secure_core_group=None)
         server_list = SimpleNamespace(
             get_fastest_in_country=Mock(return_value=logical_server),
             get_by_name=Mock(return_value=logical_server),

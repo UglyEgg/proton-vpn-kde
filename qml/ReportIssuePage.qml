@@ -14,6 +14,48 @@ Kirigami.ScrollablePage {
     property bool submitted: false
     property string statusMessage: ""
 
+    function submitReport() {
+        if (!vpnController.supportReportSubmissionEnabled) {
+            submissionUnavailableDialog.open()
+            return
+        }
+        page.submitting = true
+        page.submitted = false
+        page.statusMessage = ""
+        vpnController.submitSupportReport(
+            usernameField.text,
+            emailField.text,
+            descriptionField.text,
+            includeLogs.checked)
+    }
+
+    Component.onCompleted: {
+        if (!vpnController.supportReportSubmissionEnabled) {
+            Qt.callLater(function() {
+                submissionUnavailableDialog.open()
+            })
+        }
+    }
+
+    Controls.Dialog {
+        id: submissionUnavailableDialog
+        parent: Controls.Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(Kirigami.Units.gridUnit * 26,
+                        page.width - Kirigami.Units.gridUnit * 2)
+        implicitHeight: unavailableMessage.implicitHeight
+                        + Kirigami.Units.gridUnit * 6
+        modal: true
+        title: qsTr("Direct reporting unavailable")
+        standardButtons: Controls.Dialog.Ok
+
+        contentItem: Controls.Label {
+            id: unavailableMessage
+            wrapMode: Text.WordWrap
+            text: qsTr("This build cannot send reports to Proton. The form remains visible only as a proof of concept for possible future approval. Report Plasma VPN client problems in the community project tracker. Contact Proton only for confirmed service or Core issues.")
+        }
+    }
+
     Connections {
         target: vpnController
         function onSupportReportFinished(success, message) {
@@ -28,8 +70,17 @@ Kirigami.ScrollablePage {
 
         PageHeader {
             heading: qsTr("Report an issue")
-            description: qsTr("Send a report through Proton's official VPN API.")
+            description: vpnController.supportReportSubmissionEnabled
+                         ? qsTr("Send a report through Proton's official VPN API.")
+                         : qsTr("Preview the direct-reporting proof of concept.")
             iconName: "tools-report-bug"
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: !vpnController.supportReportSubmissionEnabled
+            type: Kirigami.MessageType.Warning
+            text: qsTr("Direct Proton submission is not enabled for this unofficial community client.")
         }
 
         Kirigami.InlineMessage {
@@ -47,7 +98,9 @@ Kirigami.ScrollablePage {
         Controls.Label {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: qsTr("Send a report directly to Proton support. The form is submitted through Proton's official VPN API.")
+            text: vpnController.supportReportSubmissionEnabled
+                  ? qsTr("Send a report directly to Proton support. The form is submitted through Proton's official VPN API.")
+                  : qsTr("This inactive form preserves the reviewed reporting workflow without sending community-client reports to Proton.")
         }
 
         Kirigami.FormLayout {
@@ -124,24 +177,26 @@ Kirigami.ScrollablePage {
             Layout.alignment: Qt.AlignHCenter
 
             Controls.Button {
-                text: page.submitting ? qsTr("Submitting…") : qsTr("Submit")
+                text: !vpnController.supportReportSubmissionEnabled
+                      ? qsTr("Submission disabled")
+                      : page.submitting ? qsTr("Submitting…") : qsTr("Submit")
                 icon.name: "mail-send"
-                highlighted: true
-                enabled: vpnController.loggedIn && !page.submitting
+                highlighted: vpnController.supportReportSubmissionEnabled
+                enabled: vpnController.supportReportSubmissionEnabled
+                         && vpnController.loggedIn && !page.submitting
                          && !vpnController.busy
                          && usernameField.text.trim().length > 0
                          && emailField.text.trim().length > 0
                          && descriptionField.length >= 50
-                onClicked: {
-                    page.submitting = true
-                    page.submitted = false
-                    page.statusMessage = ""
-                    vpnController.submitSupportReport(
-                        usernameField.text,
-                        emailField.text,
-                        descriptionField.text,
-                        includeLogs.checked)
-                }
+                onClicked: page.submitReport()
+            }
+
+            Controls.Button {
+                text: qsTr("Community issue tracker")
+                icon.name: "tools-report-bug"
+                enabled: !page.submitting
+                onClicked: Qt.openUrlExternally(
+                    "https://github.com/uglyegg/proton-vpn-kde/issues/new/choose")
             }
 
             Controls.Button {

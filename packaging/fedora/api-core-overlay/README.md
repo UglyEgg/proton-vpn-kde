@@ -1,6 +1,6 @@
 # Reproducible API Core overlay
 
-This directory rebuilds the locally optimized API Core package from Proton's
+This directory rebuilds the optional optimized API Core package from Proton's
 exact signed Fedora `5.6.10-1.fc44` RPM. The vendor RPM is a build input only;
 the workflow does not install Proton's GTK client and does not download or
 combine payload files from any other package.

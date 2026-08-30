@@ -1,5 +1,7 @@
 #include "AgentControl.h"
+#include "AppIcon.h"
 #include "AppSettings.h"
+#include "BackendIdentity.h"
 #include "TranslationLoader.h"
 #include "UpdateChannel.h"
 #include "VpnController.h"
@@ -8,30 +10,30 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QDebug>
-#include <QIcon>
 #include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
 #include <QTimer>
+#include <QVariant>
 
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("proton-vpn-kde"));
-    QApplication::setApplicationDisplayName(QStringLiteral("Proton VPN for Plasma"));
+    QApplication::setApplicationDisplayName(QStringLiteral("Plasma VPN"));
     QApplication::setApplicationVersion(QStringLiteral(PROTON_VPN_KDE_VERSION));
-    QApplication::setOrganizationDomain(QStringLiteral("proton.me"));
+    QApplication::setOrganizationDomain(QStringLiteral("entropy.quest"));
     QApplication::setDesktopFileName(QStringLiteral("proton-vpn-kde"));
-    QApplication::setWindowIcon(QIcon::fromTheme(
-        QStringLiteral("proton-vpn-kde"),
-        QIcon::fromTheme(QStringLiteral("network-vpn"))));
+    AppSettings settings;
+    QApplication::setWindowIcon(
+        ProtonVpnKde::applicationIcon(settings.iconStyle()));
     QApplication::setQuitOnLastWindowClosed(true);
     TranslationLoader::installSystemLocale(app);
 
     QCommandLineParser commandLine;
     commandLine.setApplicationDescription(
-        QStringLiteral("Native Proton VPN client for KDE Plasma"));
+        QStringLiteral("Unofficial Plasma client compatible with Proton VPN"));
     commandLine.addHelpOption();
     commandLine.addVersionOption();
     const QCommandLineOption settingsOption(
@@ -40,6 +42,10 @@ int main(int argc, char *argv[])
     const QCommandLineOption diagnosticSmokeOption(
         QStringLiteral("diagnostics-smoke"),
         QStringLiteral("Exercise native pages and quit (internal test option)"));
+    const QCommandLineOption settingsRouteSmokeOption(
+        QStringLiteral("settings-route-smoke"),
+        QStringLiteral("Exercise a settings update after sign-in navigation "
+                       "(internal test option)"));
     const QCommandLineOption showOption(
         QStringLiteral("show"),
         QStringLiteral("Show the Proton VPN Control Center"));
@@ -53,16 +59,26 @@ int main(int argc, char *argv[])
         QStringLiteral("page"), QStringLiteral("overview"));
     commandLine.addOption(settingsOption);
     commandLine.addOption(diagnosticSmokeOption);
+    commandLine.addOption(settingsRouteSmokeOption);
     commandLine.addOption(showOption);
     commandLine.addOption(visualSnapshotOption);
     commandLine.addOption(visualPageOption);
     commandLine.process(app);
     const bool openSettings = commandLine.isSet(settingsOption);
     const bool diagnosticSmoke = commandLine.isSet(diagnosticSmokeOption);
+    const bool settingsRouteSmoke = commandLine.isSet(settingsRouteSmokeOption);
     const bool forceShow = commandLine.isSet(showOption);
     const QString visualSnapshotPath = commandLine.value(visualSnapshotOption);
     const bool visualSnapshot = !visualSnapshotPath.isEmpty();
-    const bool internalTest = diagnosticSmoke || visualSnapshot;
+    const bool internalTest = diagnosticSmoke || settingsRouteSmoke
+                              || visualSnapshot;
+
+    if (internalTest
+        && ProtonVpnKde::isRootOwnedImmutableFile(
+            QCoreApplication::applicationFilePath())) {
+        qCritical() << "Internal test options are unavailable in an installed build";
+        return 2;
+    }
 
     if (internalTest
         && qEnvironmentVariableIntValue("PROTON_KDE_DIAGNOSTIC_RTL") == 1) {
@@ -75,7 +91,6 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    AppSettings settings;
     if (!internalTest) {
         ProtonVpnKde::setAgentEnabled(settings.closeToTray());
         QObject::connect(&settings, &AppSettings::closeToTrayChanged,
@@ -92,9 +107,14 @@ int main(int argc, char *argv[])
     VpnController controller;
     bool startupActionHandled = false;
     controller.setReconnectionEnabled(settings.reconnectEnabled());
+    controller.setFastestFeatures(settings.fastestFeatures());
     QObject::connect(&settings, &AppSettings::reconnectEnabledChanged,
                      &controller, [&settings, &controller] {
         controller.setReconnectionEnabled(settings.reconnectEnabled());
+    });
+    QObject::connect(&settings, &AppSettings::fastestFeaturesChanged,
+                     &controller, [&settings, &controller] {
+        controller.setFastestFeatures(settings.fastestFeatures());
     });
     QObject::connect(&controller, &VpnController::snapshotChanged,
                      &app, [&controller, &settings, &startupActionHandled] {
@@ -129,6 +149,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("diagnosticSmokeTest"), diagnosticSmoke);
     engine.rootContext()->setContextProperty(
+        QStringLiteral("settingsRouteSmokeTest"), settingsRouteSmoke);
+    engine.rootContext()->setContextProperty(
         QStringLiteral("diagnosticWindowWidth"),
         qEnvironmentVariableIntValue("PROTON_KDE_DIAGNOSTIC_WIDTH"));
     engine.rootContext()->setContextProperty(
@@ -149,6 +171,24 @@ int main(int argc, char *argv[])
     }
 
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+    window->setIcon(ProtonVpnKde::applicationIcon(settings.iconStyle()));
+    QObject::connect(&settings, &AppSettings::iconStyleChanged,
+                     window, [&settings, window] {
+        const QIcon icon = ProtonVpnKde::applicationIcon(
+            settings.iconStyle());
+        QApplication::setWindowIcon(icon);
+        window->setIcon(icon);
+    });
+    QObject::connect(
+        &controlCenter, &ControlCenterControl::runnerActionRequested,
+        window, [window](const QString &action, const QString &argument) {
+        if (!QMetaObject::invokeMethod(
+                window, "requestRunnerAction", Qt::QueuedConnection,
+                Q_ARG(QVariant, QVariant(action)),
+                Q_ARG(QVariant, QVariant(argument)))) {
+            qWarning() << "Unable to present the KRunner action confirmation";
+        }
+    });
     controlCenter.setWindow(window);
     QObject::connect(&app, &QCoreApplication::aboutToQuit, window, [window] {
         QMetaObject::invokeMethod(window, "prepareForQuit");

@@ -10,9 +10,9 @@ Kirigami.ScrollablePage {
         spacing: Kirigami.Units.largeSpacing
 
         PageHeader {
-            heading: qsTr("Proton VPN for Plasma")
-            description: qsTr("Version %1").arg(appVersion)
-            iconName: "proton-vpn-kde"
+            heading: qsTr("Plasma VPN")
+            description: qsTr("Proton VPN-compatible community client · Version %1").arg(appVersion)
+            iconName: applicationWindow().appIconSource
         }
 
         SectionCard {
@@ -23,7 +23,7 @@ Kirigami.ScrollablePage {
             Controls.Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: qsTr("The Qt and Kirigami frontend is independent community work. Networking, VPN protocols, account sessions, kill switch, and split tunneling remain provided by Proton's official open-source Linux core.")
+                text: qsTr("This client is independent community work and is not developed, reviewed, or endorsed by Proton AG. Networking, VPN protocols, account sessions, kill switch, and split tunneling remain provided by Proton's official open-source Linux core.")
             }
 
             RowLayout {

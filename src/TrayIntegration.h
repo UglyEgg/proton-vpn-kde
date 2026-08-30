@@ -26,6 +26,7 @@ public:
 
 private:
     void showControlCenter();
+    void updateIcon();
     void updateState();
     void rebuildPinnedActions();
 

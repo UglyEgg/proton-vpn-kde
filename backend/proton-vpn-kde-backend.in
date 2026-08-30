@@ -1,4 +1,4 @@
-#!@Python3_EXECUTABLE@
+#!@Python3_EXECUTABLE@ -I
 """Installed launcher for the Proton VPN KDE backend."""
 
 import sys

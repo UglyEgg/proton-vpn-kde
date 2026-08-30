@@ -12,9 +12,36 @@ import re
 from typing import Callable, Protocol, TypeAlias, TypeVar
 
 from .errors import UserVisibleRuntimeError, UserVisibleValueError
+from .features import CRASH_REPORT_SUBMISSION_ENABLED
 
 
 logger = logging.getLogger(__name__)
+
+SUPPORTED_SERVER_FEATURES = (
+    "p2p",
+    "streaming",
+    "tor",
+    "secure-core",
+)
+
+
+def normalize_server_features(features: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    """Validate and canonically order an AND-set of Proton server features."""
+    if not isinstance(features, (list, tuple)) or len(features) > len(
+        SUPPORTED_SERVER_FEATURES
+    ):
+        raise UserVisibleValueError("Select supported Proton server capabilities")
+    requested: set[str] = set()
+    for feature in features:
+        if not isinstance(feature, str):
+            raise UserVisibleValueError("Select supported Proton server capabilities")
+        normalized = feature.strip().lower()
+        if normalized not in SUPPORTED_SERVER_FEATURES:
+            raise UserVisibleValueError("Select supported Proton server capabilities")
+        requested.add(normalized)
+    return tuple(
+        feature for feature in SUPPORTED_SERVER_FEATURES if feature in requested
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,7 +181,7 @@ class VpnSettings:
     moderate_nat: bool = False
     port_forwarding: bool = False
     ipv6: bool = True
-    anonymous_crash_reports: bool = True
+    anonymous_crash_reports: bool = False
     paid_features_available: bool = False
     protocol_editable: bool = True
     kill_switch_editable: bool = True
@@ -611,9 +638,23 @@ class CoreAdapter(Protocol):
         self, patch: dict[str, CustomDnsValue]
     ) -> CustomDnsSettings: ...
     async def connect_fastest(self) -> None: ...
+    async def connect_fastest_with_feature(self, feature: str) -> None: ...
+    async def connect_fastest_with_features(
+        self, features: tuple[str, ...]
+    ) -> None: ...
     async def connect_country(self, country_code: str) -> None: ...
+    async def connect_country_with_features(
+        self, country_code: str, features: tuple[str, ...]
+    ) -> None: ...
     async def connect_group(
         self, country_code: str, group_kind: str, group_name: str
+    ) -> None: ...
+    async def connect_group_with_features(
+        self,
+        country_code: str,
+        group_kind: str,
+        group_name: str,
+        features: tuple[str, ...],
     ) -> None: ...
     async def connect_server(self, server_name: str) -> None: ...
     async def start_packet_capture(self, directory_path: str) -> None: ...
@@ -637,8 +678,14 @@ class CoreAdapter(Protocol):
 class BackendController:
     """Serializes mutating operations and publishes immutable snapshots."""
 
-    def __init__(self, adapter: CoreAdapter):
+    def __init__(
+        self,
+        adapter: CoreAdapter,
+        *,
+        crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
+    ):
         self._adapter = adapter
+        self._crash_report_submission_enabled = crash_report_submission_enabled
         self._snapshot = VpnSnapshot()
         self._listeners: list[SnapshotCallback] = []
         self._server_data_listeners: list[ServerDataCallback] = []
@@ -690,6 +737,19 @@ class BackendController:
         if not self._snapshot.logged_in:
             raise UserVisibleRuntimeError("A Proton account session is required")
         await self._run_operation(self._adapter.connect_fastest)
+
+    async def connect_fastest_with_feature(self, feature: str) -> None:
+        await self.connect_fastest_with_features([feature])
+
+    async def connect_fastest_with_features(self, features: list[str]) -> None:
+        self._require_session()
+        normalized_features = normalize_server_features(features)
+        if not normalized_features:
+            await self._run_operation(self._adapter.connect_fastest)
+            return
+        await self._run_operation(
+            lambda: self._adapter.connect_fastest_with_features(normalized_features)
+        )
 
     async def get_countries_json(self) -> str:
         self._require_session()
@@ -762,6 +822,13 @@ class BackendController:
     async def update_settings_json(self, patch_json: str) -> str:
         self._require_session()
         patch = settings_patch_from_json(patch_json)
+        if (
+            patch.get("anonymousCrashReports") is True
+            and not self._crash_report_submission_enabled
+        ):
+            raise UserVisibleRuntimeError(
+                "Anonymous crash reporting is disabled in this unofficial community build"
+            )
         if self._operation_lock.locked():
             raise UserVisibleRuntimeError(
                 "Another VPN operation is already in progress"
@@ -854,6 +921,23 @@ class BackendController:
             lambda: self._adapter.connect_country(normalized_code)
         )
 
+    async def connect_country_with_features(
+        self, country_code: str, features: list[str]
+    ) -> None:
+        self._require_session()
+        normalized_code = self._validate_country_code(country_code)
+        normalized_features = normalize_server_features(features)
+        if not normalized_features:
+            await self._run_operation(
+                lambda: self._adapter.connect_country(normalized_code)
+            )
+            return
+        await self._run_operation(
+            lambda: self._adapter.connect_country_with_features(
+                normalized_code, normalized_features
+            )
+        )
+
     async def connect_group(
         self, country_code: str, group_kind: str, group_name: str
     ) -> None:
@@ -865,6 +949,35 @@ class BackendController:
         await self._run_operation(
             lambda: self._adapter.connect_group(
                 normalized_code, normalized_kind, normalized_name
+            )
+        )
+
+    async def connect_group_with_features(
+        self,
+        country_code: str,
+        group_kind: str,
+        group_name: str,
+        features: list[str],
+    ) -> None:
+        self._require_session()
+        normalized_code = self._validate_country_code(country_code)
+        normalized_kind, normalized_name = self._validate_server_group(
+            group_kind, group_name
+        )
+        normalized_features = normalize_server_features(features)
+        if not normalized_features:
+            await self._run_operation(
+                lambda: self._adapter.connect_group(
+                    normalized_code, normalized_kind, normalized_name
+                )
+            )
+            return
+        await self._run_operation(
+            lambda: self._adapter.connect_group_with_features(
+                normalized_code,
+                normalized_kind,
+                normalized_name,
+                normalized_features,
             )
         )
 

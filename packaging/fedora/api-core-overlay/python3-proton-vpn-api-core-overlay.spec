@@ -4,7 +4,7 @@
 
 Name:           python3-proton-vpn-api-core
 Version:        5.6.10
-Release:        6.codex1%{?dist}
+Release:        6.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
@@ -120,11 +120,9 @@ fi
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
-* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-6.codex1
-- Avoid API Core's internal call to its deprecated FIDO2 capability property.
-- Preserve the platform-availability and registered-key truth table.
-
-* Sat Aug 29 2026 Codex Local Build - 5.6.10-5.codex1
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-6.plasmavpn1
 - Reconstruct the overlay from Proton's exact signed Fedora payload.
 - Verify the vendor, patch, path-set, and resulting installed-file hashes.
 - Deterministically rebuild only bytecode derived from the three patched files.
+- Avoid API Core's internal call to its deprecated FIDO2 capability property.
+- Preserve the platform-availability and registered-key truth table.

@@ -38,7 +38,7 @@ ShortcutIntegration::ShortcutIntegration(
     });
 
     QAction *toggleWindowAction = registerAction(
-        QStringLiteral("toggle-window"), tr("Show Proton VPN"));
+        QStringLiteral("toggle-window"), tr("Show Plasma VPN"));
     connect(toggleWindowAction, &QAction::triggered,
             this, &ShortcutIntegration::showControlCenter);
 }

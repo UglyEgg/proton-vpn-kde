@@ -1,4 +1,4 @@
 [D-BUS Service]
-Name=proton.vpn.app.kde.Agent
+Name=quest.entropy.PlasmaVPN.Agent
 Exec=@CMAKE_INSTALL_FULL_BINDIR@/proton-vpn-kde-agent
 SystemdService=proton-vpn-kde-agent.service

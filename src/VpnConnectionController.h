@@ -26,6 +26,9 @@ public:
 public slots:
     virtual void activatePrimaryAction() = 0;
     virtual void connectTarget(const QString &target) = 0;
+    virtual void connectGroup(const QString &countryCode,
+                              const QString &groupKind,
+                              const QString &groupName) = 0;
     virtual void disconnect() = 0;
 
 signals:

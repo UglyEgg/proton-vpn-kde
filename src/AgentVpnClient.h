@@ -3,6 +3,7 @@
 #include "VpnConnectionController.h"
 
 #include <QString>
+#include <QStringList>
 #include <QtTypes>
 #include <QVariant>
 
@@ -29,11 +30,15 @@ public:
     [[nodiscard]] bool primaryActionEnabled() const override;
 
     void setReconnectionEnabled(bool enabled);
+    void setFastestFeatures(const QStringList &features);
     void autoConnect(const QString &target);
 
 public slots:
     void activatePrimaryAction() override;
     void connectTarget(const QString &target) override;
+    void connectGroup(const QString &countryCode,
+                      const QString &groupKind,
+                      const QString &groupName) override;
     void disconnect() override;
 
 signals:
@@ -46,6 +51,9 @@ private slots:
 
 private:
     void setBackendAvailable(bool available);
+    void connectBackendSignals();
+    void disconnectBackendSignals();
+    void authorizeClient();
     void requestSnapshot(bool allowActivation = false);
     void applySnapshot(const QString &snapshotJson);
     void applyReconnectionPreference();
@@ -53,6 +61,7 @@ private:
     void releaseTransientLease();
     void queueConnection(const QString &target, bool interactive,
                          bool onlyWhenDisconnected);
+    void clearPendingConnection();
     void dispatchPendingConnection();
     void callOperation(const QString &method,
                        const QVariantList &arguments = {});
@@ -61,6 +70,8 @@ private:
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
     bool m_backendAvailable = false;
+    QString m_backendDestination;
+    bool m_authorizationPending = false;
     bool m_ready = false;
     bool m_loggedIn = false;
     bool m_busy = false;
@@ -74,7 +85,9 @@ private:
     QString m_state = QStringLiteral("disconnected");
     QString m_serverName;
     QString m_message;
+    QStringList m_fastestFeatures;
     QString m_pendingTarget;
+    QStringList m_pendingGroup;
     bool m_pendingInteractive = false;
     bool m_pendingOnlyWhenDisconnected = false;
 };

@@ -25,10 +25,17 @@ for _ in {1..40}; do
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.backend 2>/dev/null)" == "(true,)" ]]; then
+        quest.entropy.PlasmaVPN.Backend 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05
 done
 
+descriptor_count_before="$(find "/proc/$backend_pid/fd" -mindepth 1 -maxdepth 1 -printf '.' | wc -c)"
 /usr/bin/python3 "$project_dir/scripts/auth-dbus-client.py"
+sleep 0.05
+descriptor_count_after="$(find "/proc/$backend_pid/fd" -mindepth 1 -maxdepth 1 -printf '.' | wc -c)"
+if [[ "$descriptor_count_after" -ne "$descriptor_count_before" ]]; then
+    echo "Authentication smoke leaked backend file descriptors: $descriptor_count_before -> $descriptor_count_after" >&2
+    exit 1
+fi

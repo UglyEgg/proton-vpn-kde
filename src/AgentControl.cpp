@@ -1,4 +1,5 @@
 #include "AgentControl.h"
+#include "RunnerActionRequest.h"
 
 #include <QCoreApplication>
 #include <QDBusConnection>
@@ -13,13 +14,13 @@
 
 namespace
 {
-constexpr auto kAgentService = "proton.vpn.app.kde.Agent";
-constexpr auto kAgentPath = "/proton/vpn/app/kde/agent";
-constexpr auto kAgentInterface = "proton.vpn.app.kde.Agent1";
-constexpr auto kControlCenterService = "proton.vpn.app.kde.ControlCenter";
-constexpr auto kControlCenterPath = "/proton/vpn/app/kde/controlcenter";
+constexpr auto kAgentService = "quest.entropy.PlasmaVPN.Agent";
+constexpr auto kAgentPath = "/quest/entropy/PlasmaVPN/Agent";
+constexpr auto kAgentInterface = "quest.entropy.PlasmaVPN.Agent1";
+constexpr auto kControlCenterService = "quest.entropy.PlasmaVPN.ControlCenter";
+constexpr auto kControlCenterPath = "/quest/entropy/PlasmaVPN/ControlCenter";
 constexpr auto kControlCenterInterface =
-    "proton.vpn.app.kde.ControlCenter1";
+    "quest.entropy.PlasmaVPN.ControlCenter1";
 
 QString siblingExecutable(const QString &name)
 {
@@ -123,6 +124,19 @@ void ControlCenterControl::ShowControlCenter()
 void ControlCenterControl::ShowSettings()
 {
     present(true);
+}
+
+bool ControlCenterControl::RequestRunnerAction(const QString &action,
+                                               const QString &argument)
+{
+    const auto request = ProtonVpnKde::validatedRunnerActionRequest(
+        action, argument);
+    if (!request) {
+        return false;
+    }
+    present(false);
+    emit runnerActionRequested(request->action, request->argument);
+    return true;
 }
 
 void ControlCenterControl::Quit()

@@ -1,185 +1,118 @@
-# Proton VPN for KDE Plasma
+<p align="center">
+  <img src="data/plasma-vpn.svg" width="96" alt="Plasma VPN application mark">
+</p>
 
-An experimental native KDE Plasma frontend for Proton VPN.
+<h1 align="center">Plasma VPN</h1>
 
-The GUI is C++/Qt 6 with Kirigami and has no GTK dependency. It talks over a
-small, versioned session D-Bus interface to a headless service that reuses
-Proton's official Python VPN core. Networking, protocol selection, kill switch,
-split tunneling, and persisted connection state remain owned by Proton's core.
+<p align="center">
+  <strong>A native KDE Plasma client for Proton VPN, built around Proton's official Linux VPN Core.</strong>
+</p>
 
-## Current milestone
+<p align="center">
+  <a href="https://github.com/uglyegg/proton-vpn-kde/actions/workflows/ci.yml"><img alt="Source CI" src="https://github.com/uglyegg/proton-vpn-kde/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/uglyegg/proton-vpn-kde/actions/workflows/rpm.yml"><img alt="RPM package" src="https://github.com/uglyegg/proton-vpn-kde/actions/workflows/rpm.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg"></a>
+  <a href="docs/COMPATIBILITY.md"><img alt="Fedora 44" src="https://img.shields.io/badge/Fedora-44-51A2DA?logo=fedora&amp;logoColor=white"></a>
+  <a href="docs/VISUAL-SYSTEM.md"><img alt="KDE Plasma 6" src="https://img.shields.io/badge/KDE%20Plasma-6-1D99F3?logo=kde&amp;logoColor=white"></a>
+  <img alt="Public alpha" src="https://img.shields.io/badge/status-public%20alpha-orange.svg">
+</p>
 
-- Native Qt 6/Kirigami overview window
-- A lean, windowless Plasma agent for the system tray, global shortcuts,
-  notifications, favorites, and auto-connect, using `KStatusNotifierItem` when
-  available
-- An on-demand Kirigami Control Center that exits when closed without
-  disconnecting an active tunnel or keeping the full interface resident
-- Plasma Global Shortcuts actions for toggling the connection, connecting to
-  the fastest server, disconnecting, and showing the Control Center; all are
-  unbound by default and user-configurable in System Settings
-- Native KRunner actions: type `vpn` to open the client, connect fastest,
-  disconnect, or connect by country code or exact server name
-- Independent single-instance activation for the Plasma agent and Control
-  Center, with a `--settings` deep link for desktop integration surfaces
-- A native System Settings module for auto-connect, recovery, tray behavior,
-  notifications, favorites, packet-capture storage, and shortcut handoff
-- Versioned D-Bus contract with JSON snapshots
-- D-Bus activation and a systemd user service for installed builds
-- Safe demo backend for UI development
-- Opt-in Proton core adapter for the existing logged-in session
-- Fastest, country, and individual-server connection actions
-- Native country and server lists with localized country names, load, P2P,
-  streaming, Tor, Smart Routing, Secure Core, and location metadata
-- Free-plan discovery parity: free locations remain connectable while paid-only
-  countries, locations, and servers stay visible with native upgrade actions
-- Native global search across localized country names, cities, and exact
-  servers, backed by a compact generation-scoped scalar projection that keeps
-  current load and availability in Proton's official objects
-- Proton-driven server refresh notifications with compact load-only updates;
-  existing Qt rows change in place instead of rebuilding the server list
-- Native server ordering by current load, updated without resetting the list
-- Native Proton settings for protocol, kill switch, NetShield, VPN Accelerator,
-  moderate NAT, port forwarding, IPv6, and anonymous crash reports
-- Native split-tunneling controls and a Plasma application chooser backed by
-  `KApplicationTrader`, including validated IPv4/IPv6 CIDR rules
-- Native custom-DNS controls with validated IPv4/IPv6 entries, preserved
-  per-entry state, and explicit NetShield conflict handling
-- Conflict-aware settings controls that preserve Proton core's paid-plan,
-  split-tunneling, custom-DNS, and connected-state constraints
-- Provider-agnostic Secret Service initialization that cannot block D-Bus
-- Desktop-neutral asyncio reconnection after an unexpected tunnel drop; the
-  previous server, protocol, and backend are reused without a GLib main loop
-- Safe, localized connection-error summaries and Proton-compatible session-limit
-  recovery guidance without exposing backend exception details
-- Proton-compatible error-state cancellation that releases a failed connection's
-  protective network block instead of attempting another connection
-- Proton-compatible startup validation with actionable missing-component guidance
-  and a fallback for Fedora's initial API-core 5.5.6 package
-- Native Qt translation loading in the app, KRunner, and System Settings, seeded
-  from exact shared strings in Proton's existing GPLv3 catalogs
-- Plasma connection notifications through `KNotification`
-- Auto-connect targets and pinned country/server actions in the native Plasma
-  system-tray menu
-- Live connection metadata and forwarded-port display with native clipboard
-  integration
-- Port-forward changes and split-tunneling restart guidance matching the
-  official client's connection-status behavior
-- Consent-gated troubleshooting packet capture through the selected official
-  protocol implementation
-- Native issue reporting through Proton's official support API, with optional
-  fixed-scope journal attachments and protected form transport
-- Fedora stable/Beta repository selection through an exact-package, no-shell
-  Polkit action while Discover retains control of package updates
-- Persistent Plasma settings through KConfig for reconnection, notifications,
-  resident tray controls, and tray-only startup behavior
-- Native sign-in, TOTP/recovery-code authentication, security-key/FIDO2
-  interaction, account metadata, session expiry, and logout
-- Official account/help links and service-driven anonymous NPS surveys using
-  Proton's cached notification and response APIs
-- Pre-login permanent-kill-switch recovery and kill-switch-safe sign-out; closing
-  the Control Center never changes the active tunnel
-- Ephemeral X25519/AES-GCM encryption plus sealed one-use memory-file transport
-  for passwords, codes, and security-key PINs; plaintext never appears in D-Bus
-  messages, observable descriptors, or state snapshots
+> [!IMPORTANT]
+> Plasma VPN is independent community software. It is not developed, reviewed, sponsored, or endorsed by Proton AG. “Proton” and “Proton VPN” identify compatibility with Proton's service; Proton's names and marks remain its own.
 
-The real backend is intentionally not auto-started from the development tree.
-This prevents an unfinished frontend from changing a working VPN session.
-Packaged builds install separate D-Bus and systemd user-service metadata for
-the lean Plasma agent and the backend. Merely running the agent does not start
-or lease the Python backend. An explicit tray connection action activates it
-on demand and holds only a temporary startup lease until that action finishes.
+Plasma VPN gives Proton's Linux networking stack a first-class KDE home: a Kirigami Control Center, a lean resident Plasma agent, native notifications, KRunner actions, global shortcuts, System Settings integration, and a Plasma status notifier. The visible client is implemented entirely with C++20, Qt 6, KDE Frameworks 6, and Kirigami; it has no direct GTK or GNOME desktop dependency.
 
-The audited official-client capability contract and deliberate Plasma
-differences are tracked in [`docs/PARITY.md`](docs/PARITY.md).
-The prioritized post-review work, including completed and pending phases, is
-tracked in [`docs/ROADMAP.md`](docs/ROADMAP.md).
-The installed systemd sandbox and its deliberate compatibility exclusions are
-documented in [`docs/HARDENING.md`](docs/HARDENING.md).
+Proton's Fedora API Core package currently retains a transitive dependency on `NetworkManager-openvpn-gnome`, which installs GTK libraries. Plasma VPN does not use that editor component or add another GTK dependency, but it also does not remove or conceal an upstream Core packaging requirement.
 
-## Build the frontend
+It is not a new VPN implementation. Proton's installed Core continues to own protocols, NetworkManager integration, server scoring, kill switch, IPv6 leak protection, split tunneling, account sessions, and persisted VPN state.
+
+## See it
+
+| Connected overview | Server browser | Native settings |
+| :---: | :---: | :---: |
+| [![Connected overview](docs/images/overview.png)](docs/images/overview.png) | [![Capability-aware server browser](docs/images/locations.png)](docs/images/locations.png) | [![Native Plasma settings](docs/images/settings.png)](docs/images/settings.png) |
+
+The screenshots use the deterministic demo backend. The connection is simulated; no Proton account, NetworkManager state, or real VPN tunnel was used.
+
+## Why this exists
+
+Proton's official Linux networking stack is reusable, but its shipping desktop experience is GTK/GNOME-oriented. Plasma VPN asks a narrow question: what would the same service feel like if KDE Plasma were the target desktop rather than a compatibility environment?
+
+The project was started by a paying Proton subscriber since 2017 who wanted the Linux and KDE experience to reflect the quality of the underlying service. The goal is constructive: build a credible Plasma client, preserve Proton's security ownership, and make both the community code and any upstream patches inexpensive to review.
+
+## What it offers
+
+- Native password, TOTP/recovery-code, and Proton FIDO2 sign-in flows.
+- Country, city/state, Secure Core, and exact-server browsing with combinable P2P, Streaming, Tor, and Secure Core filters.
+- Proton-ranked fastest connections, saved capability defaults, global search, and pinned tray targets.
+- Protocol, NetShield, NAT, port forwarding, IPv6, custom DNS, kill-switch, and split-tunneling controls through Core's public settings APIs.
+- A resident native agent for tray actions, notifications, shortcuts, auto-connect, and reconnect coordination while the full Control Center stays on demand.
+- KRunner connection requests that require explicit Control Center confirmation rather than trusting the shared KRunner process as a VPN controller.
+- Direct Proton support-report and crash-report submission disabled in community builds so unofficial-client defects are not sent to Proton as official-client reports.
+
+The maintained comparison with Proton's GTK client is in [Feature parity](docs/PARITY.md).
+
+## Trust boundary
+
+```text
+Plasma agent (resident)  ─┐
+                          ├─ authenticated session D-Bus
+Control Center (on demand)┘
+                                  │
+                    Community adapter (Python)
+                                  │ official public API
+                    Proton VPN API Core (official)
+                                  │
+        NetworkManager · protocols · kill switch · split tunneling
+```
+
+Community code owns the Plasma experience, bounded input validation, and lifecycle coordination. Official Proton packages own VPN networking and session persistence. Authentication fields cross the community process boundary only as bounded, one-use encrypted ciphertext in sealed Linux memory descriptors.
+
+For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authentication](docs/AUTHENTICATION.md), and [Backend service hardening](docs/HARDENING.md).
+
+## Engineering posture
+
+| Evidence | 0.11.2 release candidate |
+| --- | --- |
+| Automated verification | 35/35 CTest tests, including 128 backend tests, QML diagnostics, D-Bus activation, staged installation, KRunner, and System Settings |
+| Package verification | Fedora source and binary RPM build, artifact policy checks, and an isolated transaction test |
+| Security assessment | All seven findings closed; no finding from the assessment remains open |
+| Disconnected demo footprint | 82.5 MiB combined PSS across backend, agent, and Control Center; the resident agent measured 4.5 MiB PSS |
+| Server search | 0.215–6.766 ms measured median across representative queries against an 18,138-server cache |
+
+These are scoped engineering measurements, not certification. The project has completed a maintainer-directed, AI-assisted security assessment, but it has not received an independent security audit or penetration test. Read the [security assessment](docs/SECURITY-AUDIT-2026-08-30.md) and [performance methodology](docs/PERFORMANCE.md) for the evidence and limits.
+
+## Current status
+
+The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and Proton VPN API Core 5.5.6 or newer. Other distributions may work but have not completed the packaged acceptance battery.
+
+> [!NOTE]
+> Verified KeePassXC support currently uses the separately patched Proton keyring adapter recorded in [Compatibility](docs/COMPATIBILITY.md). The KDE RPM does not silently replace that package. Public binary distribution of the compatible adapter or acceptance of the focused upstream patch remains a first-release gate.
+
+## Evaluate or contribute
+
+The safe demo backend exercises the interface without a Proton account or NetworkManager access:
 
 ```bash
-cmake -S . -B build -G Ninja
+cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
 cmake --build build
-cmake --install build
-```
 
-The top-level install includes the Qt/Kirigami Control Center, Plasma agent,
-Python backend, desktop entry, icon, D-Bus activation metadata, and systemd
-user units. Fedora
-packagers can still build `backend/pyproject.toml` as a separate noarch package.
-
-For full Plasma tray integration on Fedora:
-
-```bash
-sudo dnf install kf6-kconfig-devel kf6-knotifications-devel \
-    kf6-kcoreaddons-devel \
-    kf6-kglobalaccel-devel kf6-kcmutils-devel kf6-krunner-devel \
-    kf6-kservice-devel \
-    kf6-kstatusnotifieritem-devel openssl-devel
-```
-
-Kirigami is loaded as a QML runtime dependency. Install
-`kf6-kirigami` if it is not already part of the Plasma desktop.
-
-## Run safely in demo mode
-
-Start the backend:
-
-```bash
 PYTHONPATH=backend python3 -m proton_vpn_kde_backend --demo
-```
-
-Then start the frontend:
-
-```bash
 ./build/proton-vpn-kde
 ```
 
-Demo mode never touches NetworkManager, Proton credentials, or the active VPN.
+Run `ctest --test-dir build --output-on-failure` and `scripts/check-static-analysis.sh` for the complete source verification. Fedora dependencies and RPM instructions are in the [packaging guide](packaging/fedora/README.md).
 
-To exercise the complete native authentication UI safely:
+Before contributing, read [Contributing](CONTRIBUTING.md). Security issues must follow the private process in [Security policy](SECURITY.md); account, billing, service, and unmodified official-package problems belong with [Proton Support](https://proton.me/support/contact).
 
-```bash
-PYTHONPATH=backend python3 -m proton_vpn_kde_backend --demo-logged-out
-```
+## Project references
 
-Use any username, password `2fa`, and code `123456`. This deterministic path
-uses the same encrypted, sealed file-descriptor transport as a real login
-without making an API request or writing to Secret Service.
+| Question | Reference |
+| --- | --- |
+| Will it work on my system? | [Compatibility](docs/COMPATIBILITY.md) |
+| What is implemented or intentionally different? | [Feature parity](docs/PARITY.md) |
+| What is planned next? | [Roadmap](docs/ROADMAP.md) |
+| How are releases produced? | [Release procedure](docs/RELEASING.md) |
+| What changed? | [Changelog](CHANGELOG.md) |
 
-Run the complete local verification with:
-
-```bash
-ctest --test-dir build --output-on-failure
-PYTHONPATH=backend python3 -m unittest discover -s backend/tests -v
-dbus-run-session -- scripts/smoke-demo.sh
-dbus-run-session -- scripts/smoke-auth-demo.sh
-```
-
-## Real backend development mode
-
-```bash
-PYTHONPATH=backend python3 -m proton_vpn_kde_backend
-```
-
-Real mode uses the official installed `python3-proton-vpn-api-core`. It supports
-creating and removing the saved Proton session directly, so the official GTK
-client is no longer needed as a login bootstrapper. It does not connect
-automatically, but by default it recovers an unexpectedly dropped active
-tunnel. An intentional disconnect always remains disconnected.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the safety and migration
-boundaries and [docs/FEDORA.md](docs/FEDORA.md) for packaging and coexistence
-notes. [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) documents the credential
-transport and its threat boundary.
-
-## License and project status
-
-The project is licensed under the GNU General Public License, version 3 or any
-later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the complete
-terms and [COPYING.md](COPYING.md) for the project notice.
-
-This is independent community work and is not developed or endorsed by Proton
-AG. The software license does not grant rights to Proton's names or logos.
+Community code is licensed under `GPL-3.0-or-later`; see [LICENSE](LICENSE), [COPYING.md](COPYING.md), and [Third-party notices](THIRD_PARTY_NOTICES.md). This repository intentionally uses original neutral artwork rather than Proton's logo. The GPL license for Proton's source code does not grant trademark rights or imply endorsement.

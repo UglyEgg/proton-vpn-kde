@@ -6,13 +6,13 @@
                 "Name": "uglyegg"
             }
         ],
-        "Description": "Control Proton VPN from KRunner",
+        "Description": "Control the Proton VPN-compatible Plasma client",
         "EnabledByDefault": true,
-        "Icon": "proton-vpn-kde",
+        "Icon": "plasma-vpn",
         "License": "GPL-3.0-or-later",
-        "Name": "Proton VPN",
+        "Name": "Plasma VPN",
         "Version": "@PROJECT_VERSION@",
-        "Website": "https://protonvpn.com/"
+        "Website": "@PROJECT_HOMEPAGE_URL@"
     },
     "X-Plasma-Runner-Min-Letter-Count": 3
 }

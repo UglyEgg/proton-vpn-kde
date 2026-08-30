@@ -14,9 +14,15 @@ from proton_vpn_kde_backend.secret_payload import AAD, KDF_INFO, SecretPayloadRe
 
 
 class SecretPayloadTests(unittest.TestCase):
-    def make_descriptor(self, reader: SecretPayloadReader, payload: object) -> int:
+    def make_descriptor(
+        self,
+        reader: SecretPayloadReader,
+        payload: object,
+        sender: str = ":1.10",
+        operation: str = "Login",
+    ) -> int:
         backend_public_key = x25519.X25519PublicKey.from_public_bytes(
-            base64.b64decode(reader.public_key, validate=True)
+            base64.b64decode(reader.issue_public_key(sender, operation), validate=True)
         )
         ephemeral = x25519.X25519PrivateKey.generate()
         shared_secret = ephemeral.exchange(backend_public_key)
@@ -41,45 +47,53 @@ class SecretPayloadTests(unittest.TestCase):
 
     def test_reads_and_closes_expected_fields(self):
         reader = SecretPayloadReader()
-        original_public_key = reader.public_key
         descriptor = self.make_descriptor(
             reader, {"username": "demo", "password": "not-persisted"}
         )
 
-        payload = reader.read(descriptor, {"username", "password"})
+        payload = reader.read(":1.10", "Login", descriptor, {"username", "password"})
 
         self.assertEqual("demo", payload["username"])
         self.assertEqual("not-persisted", payload["password"])
-        self.assertNotEqual(original_public_key, reader.public_key)
         with self.assertRaises(OSError):
             os.fstat(descriptor)
 
     def test_rejects_extra_fields_without_echoing_values(self):
         reader = SecretPayloadReader()
         descriptor = self.make_descriptor(
-            reader, {"code": "123456", "unexpected": "do-not-echo"}
+            reader,
+            {"code": "123456", "unexpected": "do-not-echo"},
+            operation="SubmitTwoFactor",
         )
 
         with self.assertRaises(ValueError) as context:
-            reader.read(descriptor, {"code"})
+            reader.read(":1.10", "SubmitTwoFactor", descriptor, {"code"})
 
         self.assertNotIn("do-not-echo", str(context.exception))
 
-    def test_rejects_replay_after_rotating_key(self):
+    def test_rejects_replay_after_consuming_key(self):
         reader = SecretPayloadReader()
-        descriptor = self.make_descriptor(reader, {"code": "123456"})
+        descriptor = self.make_descriptor(
+            reader, {"code": "123456"}, operation="SubmitTwoFactor"
+        )
         encrypted = os.pread(descriptor, 16 * 1024, 0)
 
-        self.assertEqual({"code": "123456"}, reader.read(descriptor, {"code"}))
+        self.assertEqual(
+            {"code": "123456"},
+            reader.read(":1.10", "SubmitTwoFactor", descriptor, {"code"}),
+        )
 
         replay = os.memfd_create("proton-vpn-kde-replay", os.MFD_CLOEXEC)
         os.write(replay, encrypted)
+        reader.issue_public_key(":1.10", "SubmitTwoFactor")
         with self.assertRaisesRegex(ValueError, "could not be decrypted"):
-            reader.read(replay, {"code"})
+            reader.read(":1.10", "SubmitTwoFactor", replay, {"code"})
 
     def test_rejects_tampering_without_echoing_secret(self):
         reader = SecretPayloadReader()
-        descriptor = self.make_descriptor(reader, {"pin": "very-secret-pin"})
+        descriptor = self.make_descriptor(
+            reader, {"pin": "very-secret-pin"}, operation="SubmitFido2Pin"
+        )
         encrypted = bytearray(os.pread(descriptor, 16 * 1024, 0))
         os.close(descriptor)
         encrypted[-1] ^= 1
@@ -87,9 +101,29 @@ class SecretPayloadTests(unittest.TestCase):
         os.write(tampered, encrypted)
 
         with self.assertRaises(ValueError) as context:
-            reader.read(tampered, {"pin"})
+            reader.read(":1.10", "SubmitFido2Pin", tampered, {"pin"})
 
         self.assertNotIn("very-secret-pin", str(context.exception))
+
+    def test_key_is_bound_to_sender_and_operation(self):
+        reader = SecretPayloadReader()
+        descriptor = self.make_descriptor(reader, {"code": "123456"})
+
+        with self.assertRaisesRegex(ValueError, "No protected operation"):
+            reader.read(":1.11", "Login", descriptor, {"code"})
+
+        with self.assertRaises(OSError):
+            os.fstat(descriptor)
+
+    def test_revoking_sender_preserves_other_callers_keys(self):
+        reader = SecretPayloadReader()
+        reader.issue_public_key(":1.10", "Login")
+        reader.issue_public_key(":1.11", "Login")
+
+        reader.revoke_sender(":1.10")
+
+        self.assertNotIn((":1.10", "Login"), reader._private_keys)
+        self.assertIn((":1.11", "Login"), reader._private_keys)
 
 
 if __name__ == "__main__":

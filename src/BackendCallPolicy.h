@@ -15,7 +15,7 @@ enum class BackendCallFailure
 [[nodiscard]] inline BackendCallFailure classifyBackendCallFailure(
     QDBusError::ErrorType type, QStringView name)
 {
-    if (name == u"proton.vpn.app.kde.Error.InvalidSecretPayload") {
+    if (name == u"quest.entropy.PlasmaVPN.Error.InvalidSecretPayload") {
         return BackendCallFailure::InvalidSecretPayload;
     }
     switch (type) {

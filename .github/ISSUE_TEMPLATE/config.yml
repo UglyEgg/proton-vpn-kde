@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Proton account or service support
+    url: https://proton.me/support/contact
+    about: Contact Proton for accounts, billing, subscriptions, or service incidents.

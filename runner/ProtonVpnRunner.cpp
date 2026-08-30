@@ -7,14 +7,13 @@
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusMessage>
-#include <QProcess>
 #include <QVariantMap>
 
 namespace
 {
-constexpr auto serviceName = "proton.vpn.app.kde.backend";
-constexpr auto objectPath = "/proton/vpn/app/kde/backend";
-constexpr auto interfaceName = "proton.vpn.app.kde.Backend1";
+constexpr auto serviceName = "quest.entropy.PlasmaVPN.ControlCenter";
+constexpr auto objectPath = "/quest/entropy/PlasmaVPN/ControlCenter";
+constexpr auto interfaceName = "quest.entropy.PlasmaVPN.ControlCenter1";
 
 QString actionId(RunnerAction action)
 {
@@ -50,15 +49,18 @@ RunnerAction actionFromId(const QString &id)
     return RunnerAction::Open;
 }
 
-void callBackend(const QString &method, const QString &argument = {})
+void requestControlCenterAction(RunnerAction action, const QString &argument)
 {
-    QDBusMessage message = QDBusMessage::createMethodCall(
+    const bool open = action == RunnerAction::Open;
+    QDBusMessage request = QDBusMessage::createMethodCall(
         QString::fromLatin1(serviceName), QString::fromLatin1(objectPath),
-        QString::fromLatin1(interfaceName), method);
-    if (!argument.isEmpty()) {
-        message << argument;
+        QString::fromLatin1(interfaceName),
+        open ? QStringLiteral("ShowControlCenter")
+             : QStringLiteral("RequestRunnerAction"));
+    if (!open) {
+        request << actionId(action) << argument;
     }
-    QDBusConnection::sessionBus().send(message);
+    (void)QDBusConnection::sessionBus().send(request);
 }
 }
 
@@ -98,14 +100,14 @@ void ProtonVpnRunner::addMatch(KRunner::RunnerContext &context, int rawAction,
 
     switch (action) {
     case RunnerAction::Open:
-        result.setText(tr("Open Proton VPN"));
-        result.setSubtext(tr("Show the native Plasma client"));
-        result.setIconName(QStringLiteral("proton-vpn-kde"));
+        result.setText(tr("Open Plasma VPN"));
+        result.setSubtext(tr("Show the Proton VPN-compatible community client"));
+        result.setIconName(QStringLiteral("plasma-vpn"));
         result.setRelevance(0.95);
         break;
     case RunnerAction::ConnectFastest:
         result.setText(tr("Connect Proton VPN"));
-        result.setSubtext(tr("Use the fastest available server"));
+        result.setSubtext(tr("Use the saved fastest-server capability filters"));
         result.setIconName(QStringLiteral("network-connect"));
         result.setRelevance(0.9);
         break;
@@ -140,20 +142,11 @@ void ProtonVpnRunner::run(const KRunner::RunnerContext &context,
 
     switch (action) {
     case RunnerAction::Open:
-        QProcess::startDetached(QStringLiteral("proton-vpn-kde"),
-                                {QStringLiteral("--show")});
-        break;
     case RunnerAction::ConnectFastest:
-        callBackend(QStringLiteral("ConnectFastest"));
-        break;
     case RunnerAction::Disconnect:
-        callBackend(QStringLiteral("Disconnect"));
-        break;
     case RunnerAction::ConnectCountry:
-        callBackend(QStringLiteral("ConnectCountry"), argument);
-        break;
     case RunnerAction::ConnectServer:
-        callBackend(QStringLiteral("ConnectServer"), argument);
+        requestControlCenterAction(action, argument);
         break;
     }
 }

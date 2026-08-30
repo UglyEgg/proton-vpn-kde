@@ -18,7 +18,7 @@ void ProtonVpnKcmTest::loadsQmlConfigurationModule()
         QStringLiteral(PROTON_VPN_KCM_PLUGIN_DIR),
         QStringLiteral(PROTON_VPN_KCM_PLUGIN_NAME));
     QVERIFY2(metadata.isValid(), "KCM plugin metadata was not discoverable");
-    QCOMPARE(metadata.name(), QStringLiteral("Proton VPN"));
+    QCOMPARE(metadata.name(), QStringLiteral("Plasma VPN"));
 
     const auto result = KQuickConfigModuleLoader::loadModule(metadata, this);
     QVERIFY2(result.plugin, qPrintable(result.errorString));

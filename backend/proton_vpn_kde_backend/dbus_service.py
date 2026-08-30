@@ -18,23 +18,43 @@ from .controller import (
     VpnSettings,
     VpnSnapshot,
 )
-from .errors import UserVisibleError
-from .secret_payload import SecretPayloadReader
+from .client_authorization import (
+    CLASSIFIED_METHODS,
+    ClientAuthorizer,
+    UNAUTHORIZED_ERROR,
+    UNAUTHORIZED_MESSAGE,
+    current_request_sender,
+)
+from .errors import UserVisibleError, UserVisibleRuntimeError
+from .features import SUPPORT_REPORT_SUBMISSION_ENABLED
+from .secret_payload import SecretPayloadReader, close_descriptor
 from .lifetime import BackendLifetime
 
 
 logger = logging.getLogger(__name__)
 
-BUS_NAME = "proton.vpn.app.kde.backend"
-OBJECT_PATH = "/proton/vpn/app/kde/backend"
-INTERFACE_NAME = "proton.vpn.app.kde.Backend1"
-INVALID_SECRET_ERROR = "proton.vpn.app.kde.Error.InvalidSecretPayload"
-INVALID_SETTINGS_ERROR = "proton.vpn.app.kde.Error.InvalidSettings"
-INVALID_SPLIT_TUNNELING_ERROR = "proton.vpn.app.kde.Error.InvalidSplitTunneling"
-INVALID_CUSTOM_DNS_ERROR = "proton.vpn.app.kde.Error.InvalidCustomDns"
-INVALID_SUPPORT_REPORT_ERROR = "proton.vpn.app.kde.Error.InvalidSupportReport"
-OPERATION_FAILED_ERROR = "proton.vpn.app.kde.Error.OperationFailed"
+BUS_NAME = "quest.entropy.PlasmaVPN.Backend"
+OBJECT_PATH = "/quest/entropy/PlasmaVPN/Backend"
+INTERFACE_NAME = "quest.entropy.PlasmaVPN.Backend1"
+INVALID_SECRET_ERROR = "quest.entropy.PlasmaVPN.Error.InvalidSecretPayload"
+INVALID_SETTINGS_ERROR = "quest.entropy.PlasmaVPN.Error.InvalidSettings"
+INVALID_SPLIT_TUNNELING_ERROR = "quest.entropy.PlasmaVPN.Error.InvalidSplitTunneling"
+INVALID_CUSTOM_DNS_ERROR = "quest.entropy.PlasmaVPN.Error.InvalidCustomDns"
+INVALID_SUPPORT_REPORT_ERROR = "quest.entropy.PlasmaVPN.Error.InvalidSupportReport"
+OPERATION_FAILED_ERROR = "quest.entropy.PlasmaVPN.Error.OperationFailed"
 OPERATION_FAILED_MESSAGE = "The VPN operation could not be completed"
+SUPPORT_REPORT_DISABLED_MESSAGE = (
+    "Direct Proton support submission is disabled in this unofficial community build"
+)
+SECRET_OPERATIONS = frozenset(
+    {
+        "Login",
+        "SubmitTwoFactor",
+        "SubmitFido2Pin",
+        "SubmitNpsSurvey",
+        "SubmitSupportReport",
+    }
+)
 
 
 Result = TypeVar("Result")
@@ -62,6 +82,11 @@ def dbus_error_boundary(
                     return await operation(*args, **kwargs)
                 except DBusError:
                     raise
+                except PermissionError:
+                    raise DBusError(
+                        UNAUTHORIZED_ERROR,
+                        UNAUTHORIZED_MESSAGE,
+                    ) from None
                 except UserVisibleError as error:
                     raise DBusError(
                         error_name,
@@ -84,6 +109,11 @@ def dbus_error_boundary(
                 return operation(*args, **kwargs)
             except DBusError:
                 raise
+            except PermissionError:
+                raise DBusError(
+                    UNAUTHORIZED_ERROR,
+                    UNAUTHORIZED_MESSAGE,
+                ) from None
             except UserVisibleError as error:
                 raise DBusError(
                     error_name,
@@ -105,27 +135,47 @@ def dbus_error_boundary(
 
 class VpnDbusService(ServiceInterface):
     def __init__(
-        self, controller: BackendController, lifetime: BackendLifetime | None = None
+        self,
+        controller: BackendController,
+        lifetime: BackendLifetime | None = None,
+        authorizer: ClientAuthorizer | None = None,
     ):
         super().__init__(INTERFACE_NAME)
         self._controller = controller
         self._lifetime = lifetime
+        self._authorizer = authorizer
         self._secret_payloads = SecretPayloadReader()
+        if authorizer is not None:
+            authorizer.subscribe_revocation(self._secret_payloads.revoke_sender)
         controller.subscribe(self._on_snapshot)
         controller.subscribe_server_data(self._on_server_data)
         controller.subscribe_settings(self._on_settings)
         controller.subscribe_split_tunneling(self._on_split_tunneling)
         controller.subscribe_custom_dns(self._on_custom_dns)
 
+    @method(name="AuthorizeClient")
+    @dbus_error_boundary()
+    async def authorize_client(self, unique_name: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
+        if self._authorizer is not None:
+            await self._authorizer.authorize(unique_name)
+
     @method(name="RegisterClient")
     @dbus_error_boundary()
     async def register_client(self, unique_name: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
+        if self._authorizer is not None:
+            await self._authorizer.authorize(unique_name)
+            unique_name = current_request_sender()
         if self._lifetime is not None:
             await self._lifetime.register_client(unique_name)
 
     @method(name="UnregisterClient")
     @dbus_error_boundary()
     def unregister_client(self, unique_name: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
+        if self._authorizer is not None:
+            sender = self._authorizer.require_authorized_sender()
+            if unique_name != sender:
+                raise PermissionError(UNAUTHORIZED_MESSAGE)
+            unique_name = sender
         if self._lifetime is not None:
             self._lifetime.unregister_client(unique_name)
 
@@ -136,13 +186,27 @@ class VpnDbusService(ServiceInterface):
 
     @method(name="GetAuthPublicKey")
     @dbus_error_boundary()
-    def get_auth_public_key(self) -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
-        return self._secret_payloads.public_key
+    def get_auth_public_key(self, operation: "s") -> "s":  # type: ignore[valid-type]  # noqa: F722,F821
+        if operation not in SECRET_OPERATIONS:
+            raise UserVisibleRuntimeError("The protected operation is unsupported")
+        return self._secret_payloads.issue_public_key(
+            current_request_sender(), operation
+        )
 
     @method(name="ConnectFastest")
     @dbus_error_boundary()
     async def connect_fastest(self):
         await self._controller.connect_fastest()
+
+    @method(name="ConnectFastestWithFeature")
+    @dbus_error_boundary()
+    async def connect_fastest_with_feature(self, feature: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
+        await self._controller.connect_fastest_with_feature(feature)
+
+    @method(name="ConnectFastestWithFeatures")
+    @dbus_error_boundary()
+    async def connect_fastest_with_features(self, features: "as"):  # type: ignore[valid-type]  # noqa: F722,F821
+        await self._controller.connect_fastest_with_features(features)
 
     @method(name="GetCountries")
     @dbus_error_boundary()
@@ -234,6 +298,15 @@ class VpnDbusService(ServiceInterface):
     async def connect_country(self, country_code: "s"):  # type: ignore[valid-type]  # noqa: F722,F821
         await self._controller.connect_country(country_code)
 
+    @method(name="ConnectCountryWithFeatures")
+    @dbus_error_boundary()
+    async def connect_country_with_features(
+        self,
+        country_code: "s",  # noqa: F821
+        features: "as",  # type: ignore[valid-type]  # noqa: F722,F821
+    ):
+        await self._controller.connect_country_with_features(country_code, features)
+
     @method(name="ConnectGroup")
     @dbus_error_boundary()
     async def connect_group(
@@ -243,6 +316,19 @@ class VpnDbusService(ServiceInterface):
         group_name: "s",  # type: ignore[valid-type]  # noqa: F722,F821
     ):
         await self._controller.connect_group(country_code, group_kind, group_name)
+
+    @method(name="ConnectGroupWithFeatures")
+    @dbus_error_boundary()
+    async def connect_group_with_features(
+        self,
+        country_code: "s",  # noqa: F821
+        group_kind: "s",  # noqa: F821
+        group_name: "s",  # noqa: F821
+        features: "as",  # type: ignore[valid-type]  # noqa: F722,F821
+    ):
+        await self._controller.connect_group_with_features(
+            country_code, group_kind, group_name, features
+        )
 
     @method(name="ConnectServer")
     @dbus_error_boundary()
@@ -270,8 +356,12 @@ class VpnDbusService(ServiceInterface):
         "The issue report could not be submitted",
     )
     async def submit_support_report(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
+        if not SUPPORT_REPORT_SUBMISSION_ENABLED:
+            close_descriptor(secret_fd)
+            raise UserVisibleRuntimeError(SUPPORT_REPORT_DISABLED_MESSAGE)
         payload = self._read_secret(
             secret_fd,
+            "SubmitSupportReport",
             {"username", "email", "description", "includeLogs"},
         )
         await self._controller.submit_support_report(
@@ -286,6 +376,7 @@ class VpnDbusService(ServiceInterface):
     async def submit_nps_survey(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
         payload = self._read_secret(
             secret_fd,
+            "SubmitNpsSurvey",
             {"score", "comments", "responseType"},
         )
         await self._controller.submit_nps_survey(
@@ -295,13 +386,13 @@ class VpnDbusService(ServiceInterface):
     @method(name="Login")
     @dbus_error_boundary()
     async def login(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
-        payload = self._read_secret(secret_fd, {"username", "password"})
+        payload = self._read_secret(secret_fd, "Login", {"username", "password"})
         await self._controller.login(payload["username"], payload["password"])
 
     @method(name="SubmitTwoFactor")
     @dbus_error_boundary()
     async def submit_two_factor(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
-        payload = self._read_secret(secret_fd, {"code"})
+        payload = self._read_secret(secret_fd, "SubmitTwoFactor", {"code"})
         await self._controller.submit_two_factor(payload["code"])
 
     @method(name="CancelLogin")
@@ -317,7 +408,7 @@ class VpnDbusService(ServiceInterface):
     @method(name="SubmitFido2Pin")
     @dbus_error_boundary()
     async def submit_fido2_pin(self, secret_fd: "h"):  # type: ignore[valid-type]  # noqa: F722,F821
-        payload = self._read_secret(secret_fd, {"pin"})
+        payload = self._read_secret(secret_fd, "SubmitFido2Pin", {"pin"})
         await self._controller.submit_fido2_pin(payload["pin"])
 
     @method(name="CancelFido2")
@@ -381,12 +472,27 @@ class VpnDbusService(ServiceInterface):
     def _read_secret(
         self,
         secret_fd: int,
+        operation: str,
         required_fields: set[str],
     ) -> dict[str, str]:
         try:
-            return self._secret_payloads.read(secret_fd, required_fields)
+            return self._secret_payloads.read(
+                current_request_sender(), operation, secret_fd, required_fields
+            )
         except ValueError as error:
             raise DBusError(
                 INVALID_SECRET_ERROR,
                 "Protected authentication data was rejected; try again",
             ) from error
+
+
+def exported_method_names() -> frozenset[str]:
+    """Expose the declared method set for the authorization meta-test."""
+    return frozenset(
+        member.__DBUS_METHOD.name
+        for member in vars(VpnDbusService).values()
+        if getattr(member, "__DBUS_METHOD", None) is not None
+    )
+
+
+assert exported_method_names() == CLASSIFIED_METHODS

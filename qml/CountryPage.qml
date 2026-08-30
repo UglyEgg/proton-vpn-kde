@@ -11,6 +11,7 @@ Kirigami.ScrollablePage {
     required property string countryFlag
     required property bool countryAccessible
     required property bool countryUnderMaintenance
+    property var requiredCapabilities: []
 
     title: countryFlag + "  " + countryName
 
@@ -38,12 +39,17 @@ Kirigami.ScrollablePage {
         return details.join(" · ")
     }
 
-    Component.onCompleted: vpnController.loadServerGroups(countryCode)
+    Component.onCompleted: {
+        vpnController.setServerGroupFeatureFilter(requiredCapabilities)
+        vpnController.loadServerGroups(countryCode)
+    }
 
     actions: [
         Kirigami.Action {
             text: page.countryAccessible
-                  ? qsTr("Connect fastest in %1").arg(page.countryName)
+                  ? page.requiredCapabilities.length > 0
+                    ? qsTr("Connect fastest match in %1").arg(page.countryName)
+                    : qsTr("Connect fastest in %1").arg(page.countryName)
                   : qsTr("Upgrade for %1").arg(page.countryName)
             icon.name: page.countryAccessible
                        ? "network-connect" : "internet-web-browser"
@@ -52,7 +58,12 @@ Kirigami.ScrollablePage {
                          ? vpnController.primaryActionEnabled : true)
             onTriggered: {
                 if (page.countryAccessible) {
-                    vpnController.connectCountry(page.countryCode)
+                    if (page.requiredCapabilities.length > 0) {
+                        vpnController.connectCountryWithFeatures(
+                            page.countryCode, page.requiredCapabilities)
+                    } else {
+                        vpnController.connectCountry(page.countryCode)
+                    }
                 } else {
                     Qt.openUrlExternally("https://protonvpn.com/pricing")
                 }
@@ -75,6 +86,9 @@ Kirigami.ScrollablePage {
             width: groupList.width
             heading: page.countryFlag + "  " + page.countryName
             description: qsTr("Choose a location or specialized server group.")
+                         + (page.requiredCapabilities.length > 0
+                            ? " " + qsTr("Only groups supporting every selected capability are shown.")
+                            : "")
             iconName: "mark-location"
         }
 
@@ -83,7 +97,9 @@ Kirigami.ScrollablePage {
             visible: groupList.count === 0
             text: vpnController.locationsBusy
                   ? qsTr("Loading locations…")
-                  : qsTr("No locations available")
+                  : page.requiredCapabilities.length > 0
+                    ? qsTr("No locations match the selected capabilities")
+                    : qsTr("No locations available")
             icon.name: vpnController.locationsBusy ? "view-refresh" : "network-offline"
         }
 
@@ -99,6 +115,20 @@ Kirigami.ScrollablePage {
             required property bool tor
             required property bool p2p
             required property bool streaming
+            property bool pinned: appSettings.isServerGroupPinned(
+                                      page.countryCode,
+                                      groupDelegate.kind,
+                                      groupDelegate.name)
+
+            Connections {
+                target: appSettings
+                function onPinnedServerGroupsChanged() {
+                    groupDelegate.pinned = appSettings.isServerGroupPinned(
+                        page.countryCode,
+                        groupDelegate.kind,
+                        groupDelegate.name)
+                }
+            }
 
             width: ListView.view.width
             text: groupDelegate.secureCore
@@ -111,7 +141,8 @@ Kirigami.ScrollablePage {
             opacity: groupDelegate.accessible
                      && !groupDelegate.underMaintenance ? 1.0 : 0.65
 
-            trailingContent: Controls.ToolButton {
+            trailingContent: [
+                Controls.ToolButton {
                     text: groupDelegate.accessible ? qsTr("Fastest")
                                                    : qsTr("Upgrade")
                     icon.name: groupDelegate.accessible
@@ -132,7 +163,20 @@ Kirigami.ScrollablePage {
 
                     Controls.ToolTip.visible: hovered || activeFocus
                     Controls.ToolTip.text: text
-            }
+                },
+
+                Controls.ToolButton {
+                    icon.name: groupDelegate.pinned
+                               ? "window-unpin" : "window-pin"
+                    text: groupDelegate.pinned ? qsTr("Unpin") : qsTr("Pin")
+                    display: Controls.AbstractButton.IconOnly
+                    onClicked: appSettings.togglePinnedServerGroup(
+                        page.countryCode, groupDelegate.kind, groupDelegate.name)
+
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: text
+                }
+            ]
 
             onClicked: applicationWindow().pushServers({
                     "countryCode": page.countryCode,
@@ -141,10 +185,14 @@ Kirigami.ScrollablePage {
                     "groupKind": groupDelegate.kind,
                     "groupName": groupDelegate.name,
                     "groupAccessible": groupDelegate.accessible,
-                    "groupUnderMaintenance": groupDelegate.underMaintenance
+                    "groupUnderMaintenance": groupDelegate.underMaintenance,
+                    "requiredCapabilities": page.requiredCapabilities
                 })
         }
     }
 
-    Component.onDestruction: vpnController.clearServerContext()
+    Component.onDestruction: {
+        vpnController.setServerGroupFeatureFilter([])
+        vpnController.clearServerContext()
+    }
 }

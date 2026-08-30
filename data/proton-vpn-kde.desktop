@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Proton VPN for Plasma
-GenericName=VPN Client
-Comment=Native KDE Plasma frontend for Proton VPN
+Name=Plasma VPN
+GenericName=Proton VPN-compatible Client
+Comment=Unofficial native Plasma client compatible with Proton VPN
 Exec=proton-vpn-kde --show
-Icon=proton-vpn-kde
+Icon=plasma-vpn
 Terminal=false
 Categories=Network;Qt;KDE;
 Keywords=VPN;Privacy;Security;Proton;KDE;Plasma;

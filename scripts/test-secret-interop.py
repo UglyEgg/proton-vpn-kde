@@ -16,8 +16,10 @@ def main() -> None:
         raise SystemExit("usage: test-secret-interop.py SECRET_TRANSPORT_VECTOR")
 
     reader = SecretPayloadReader()
+    sender = ":interop.test"
+    operation = "Login"
     completed = subprocess.run(
-        [sys.argv[1], reader.public_key],
+        [sys.argv[1], reader.issue_public_key(sender, operation)],
         check=True,
         capture_output=True,
         text=True,
@@ -27,7 +29,9 @@ def main() -> None:
     try:
         os.write(descriptor, encrypted)
         try:
-            payload = reader.read(descriptor, {"username", "password"})
+            payload = reader.read(
+                sender, operation, descriptor, {"username", "password"}
+            )
         finally:
             # SecretPayloadReader owns and closes every descriptor it receives.
             descriptor = -1

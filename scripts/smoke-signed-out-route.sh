@@ -30,11 +30,19 @@ for _ in {1..40}; do
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.backend 2>/dev/null)" == "(true,)" ]]; then
+        quest.entropy.PlasmaVPN.Backend 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05
 done
+
+owner_reply="$(gdbus call --session \
+    --dest org.freedesktop.DBus \
+    --object-path /org/freedesktop/DBus \
+    --method org.freedesktop.DBus.GetNameOwner \
+    quest.entropy.PlasmaVPN.Backend)"
+backend_owner="${owner_reply#*\'}"
+backend_owner="${backend_owner%%\'*}"
 
 frontend_log="$staging_dir/frontend.log"
 if ! env \
@@ -45,6 +53,7 @@ if ! env \
         QT_FORCE_STDERR_LOGGING=1 \
         XDG_CACHE_HOME="$staging_dir/cache" \
         XDG_CONFIG_HOME="$staging_dir/config" \
+        PROTON_VPN_KDE_TEST_BACKEND_OWNER="$backend_owner" \
         PROTON_KDE_SNAPSHOT_DELAY_MS=800 \
         timeout 10s "$build_dir/proton-vpn-kde" \
             --visual-page overview \

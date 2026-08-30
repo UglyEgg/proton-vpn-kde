@@ -1,16 +1,19 @@
 [Unit]
-Description=Proton VPN backend for the native KDE Plasma client
-Documentation=https://github.com/ProtonVPN/proton-vpn-gtk-app
+Description=Backend adapter for the Plasma VPN community client
 
 [Service]
 Type=dbus
-BusName=proton.vpn.app.kde.backend
+BusName=quest.entropy.PlasmaVPN.Backend
 ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/proton-vpn-kde-backend
 Restart=on-failure
 RestartSec=2s
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=full
+# PrivateTmp and ProtectSystem create a mount namespace that prevents this
+# unprivileged service from authenticating peer executables through procfs on
+# Fedora/SELinux. The backend already runs as the desktop user and cannot write
+# root-owned system paths; preserving peer authentication is the stronger
+# boundary.
+UnsetEnvironment=PYTHONPATH PYTHONHOME LD_PRELOAD LD_AUDIT LD_LIBRARY_PATH KDE_PLUGIN_PATH QT_PLUGIN_PATH QT_QPA_PLATFORM_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH
 
 [Install]
 WantedBy=default.target

@@ -1,374 +1,202 @@
 # Architecture
 
-## Goals
+## Design boundary
 
-1. Make the visible client a native Plasma application: Qt 6, Kirigami,
-   `KStatusNotifierItem`, Breeze icons, and Plasma's color scheme.
-2. Preserve Proton's existing networking behavior instead of reimplementing
-   WireGuard, OpenVPN, Protun, kill switch, or split tunneling in the GUI.
-3. Never persist or log credentials, and never expose plaintext credentials
-   over D-Bus.
-4. Allow the frontend to restart independently from an active VPN connection.
-5. Keep the backend boundary desktop-neutral so a CLI or another frontend can
-   reuse it later.
+Plasma VPN is a native KDE frontend around Proton's official Linux VPN Core.
+Its architecture follows five invariants:
 
-## Process boundary
+1.  Proton Core owns VPN protocols, NetworkManager integration, kill switch,
+    IPv6 leak protection, split tunneling, server scoring, session persistence,
+    and packet-capture writing.
+2.  Community code owns presentation, Plasma integration, bounded validation,
+    lifecycle coordination, and a versioned adapter around Core's public API.
+3.  Plaintext credentials and second factors never appear in D-Bus arguments,
+    snapshots, notifications, or logs.
+4.  Closing or restarting the Control Center does not implicitly disconnect an
+    active tunnel.
+5.  The disconnected resident footprint does not include QML, Proton Core, or
+    the complete server model.
+
+## Process model
 
 ```text
-┌─────────────────────────────────────┐
-│ proton-vpn-kde-agent                │
-│ C++ / Qt 6 / KF6 · resident         │
-│ tray · shortcuts · notifications    │
-└─────────────────┬───────────────────┘
-                  │ observes; action lease only
-┌─────────────────┴───────────────────┐
-│ proton-vpn-kde                      │
-│ C++ / Qt 6 / Kirigami · on demand  │
-│ Control Center · settings · auth    │
-└─────────────────┬───────────────────┘
-                  │ session D-Bus
-                  │ proton.vpn.app.kde.Backend1
-┌─────────────────▼───────────────────┐
-│ proton-vpn-kde-backend              │
-│ Python / asyncio / dbus-fast        │
-│                                     │
-│ auth · state · server selection     │
-└─────────────────┬───────────────────┘
-                  │ public Python API
-┌─────────────────▼───────────────────┐
-│ python-proton-vpn-api-core          │
-│ official Proton networking stack    │
-│                                     │
-│ NetworkManager · protocols · KS · ST│
-└─────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│ proton-vpn-kde-agent                  │
+│ resident C++/Qt/KF6 process           │
+│ tray · shortcuts · notifications      │
+└───────────────────┬───────────────────┘
+                    │ observes; temporary lease for actions
+┌───────────────────▼───────────────────┐
+│ proton-vpn-kde                        │
+│ on-demand C++/Qt/Kirigami process     │
+│ Control Center · settings · sign-in   │
+└───────────────────┬───────────────────┘
+                    │ authenticated session D-Bus
+┌───────────────────▼───────────────────┐
+│ proton-vpn-kde-backend                │
+│ unprivileged Python/asyncio service   │
+│ bounded adapter · state · lifecycle   │
+└───────────────────┬───────────────────┘
+                    │ official public Python API
+┌───────────────────▼───────────────────┐
+│ python3-proton-vpn-api-core           │
+│ official Proton package               │
+│ protocols · NetworkManager · KS · ST  │
+└───────────────────────────────────────┘
 ```
+The official privileged split-tunneling daemon remains unchanged. KRunner is
+not shown as a backend client because the shared KRunner process is
+deliberately outside the trusted set; it sends bounded requests to the Control
+Center and requires confirmation there.
 
-The split-tunneling system daemon remains unchanged.
+## Responsibility map
 
-## D-Bus contract
 
-- Bus name: `proton.vpn.app.kde.backend`
-- Object path: `/proton/vpn/app/kde/backend`
-- Interface: `proton.vpn.app.kde.Backend1`
+|Concern|Owner|
+|-|-|
+|Control Center, tray, KRunner, KCM, shortcuts, and notifications|Community C++/Qt/KF6 code|
+|Input schemas, public error vocabulary, process lifetime, and reconnection scheduling|Community adapter|
+|Account authentication and persisted Proton session|Official Proton SSO/Core through Secret Service|
+|Server construction, feature flags, access checks, and fastest scoring|Official Proton Core|
+|VPN protocols, routes, DNS application, kill switch, IPv6 leak protection, and split tunneling|Official Proton Core and its packaged services|
+|User-interface preferences and pinned targets|KConfig|
+|VPN settings, custom DNS, and split-tunneling configuration|Official Core settings objects|
 
-The additive version-one contract currently contains:
+## Session D-Bus contract
 
-- `GetSnapshot() -> JSON string`
-- `GetCountries() -> JSON string`
-- `GetServerGroups(countryCode) -> JSON string`
-- `GetGroupServers(countryCode, groupKind, groupName) -> JSON string`
-- `GetServerLoads(countryCode) -> JSON string`
-- `SearchLocations(query) -> JSON string`
-- `GetPendingNpsSurvey() -> JSON string`
-- `GetSettings() -> JSON string`
-- `UpdateSettings(JSON patch) -> JSON string`
-- `GetSplitTunneling() -> JSON string`
-- `UpdateSplitTunneling(JSON patch) -> JSON string`
-- `GetCustomDns() -> JSON string`
-- `UpdateCustomDns(JSON patch) -> JSON string`
-- `StartPacketCapture(directoryPath)`
-- `StopPacketCapture()`
-- `SubmitSupportReport(sealedReportFd)`
-- `SubmitNpsSurvey(sealedResponseFd)`
-- `ConnectFastest()`
-- `ConnectCountry(countryCode)`
-- `ConnectGroup(countryCode, groupKind, groupName)`
-- `ConnectServer(serverName)`
-- `Disconnect()`
-- `GetAuthPublicKey() -> base64 X25519 public key`
-- `Login(sealedCredentialFd)`
-- `SubmitTwoFactor(sealedCodeFd)`
-- `CancelLogin()`
-- `BeginFido2()`
-- `SubmitFido2Pin(sealedPinFd)`
-- `CancelFido2()`
-- `Logout()`
-- `SetReconnectionEnabled(enabled)`
-- `SnapshotChanged(JSON string)`
-- `ServerDataChanged(topologyChanged)`
-- `SettingsChanged(JSON string)`
-- `SplitTunnelingChanged(JSON string)`
-- `CustomDnsChanged(JSON string)`
+The adapter exports:
 
-JSON keeps the prototype easy to inspect while `schemaVersion` protects the
-boundary. Before a public release, frequently accessed fields can become typed
-D-Bus properties without breaking the version-one interface.
+- bus name `quest.entropy.PlasmaVPN.Backend`;
+- object path `/quest/entropy/PlasmaVPN/Backend`; and
+- interface `quest.entropy.PlasmaVPN.Backend1`.
 
-The non-sensitive snapshot also carries the installed API Core package version
-and a boolean runtime diagnostic for the two server-string sharing paths. The
-backend exercises those paths only with synthetic dictionaries and checks
-object identity; it never reads or mutates the live server model. The frontend
-uses that metadata solely to warn when a package upgrade has replaced the
-memory overlay. It does not gate connection or account behavior.
+The version-one contract groups operations into:
 
-The NPS prompt consumes only Proton core's cached active notification, marks it
-seen through the official persistence API when offered, and submits or dismisses
-it through the official survey API. Optional free-form feedback uses the sealed
-file-descriptor transport so it is not visible in D-Bus message arguments.
+- non-sensitive snapshots and server browsing;
+- connection and reconnection control;
+- VPN settings, custom DNS, and split-tunneling settings;
+- sign-in, second-factor, FIDO2, logout, and the narrow signed-out kill-switch
+  recovery action;
+- NPS survey state;
+- bounded packet-capture lifecycle; and
+- client authorization and lifetime leases.
 
-No token, password, certificate, private key, or raw API response may appear in
-the D-Bus message body or state snapshot. Authentication fields are encrypted
-for a one-use backend X25519 public key with HKDF-SHA256 and AES-256-GCM, then
-cross the process boundary as ciphertext in a sealed Linux `memfd` sent with
-D-Bus Unix file-descriptor passing. The backend rotates its key before every
-decryption attempt, reads the bounded payload once, closes the descriptor, and
-overwrites its mutable input buffer. The same protected transport carries the
-username, contact email, and description in an explicitly submitted support
-report; they never appear as ordinary D-Bus strings.
+Structured payloads include a schema version. Input JSON is field-allowlisted,
+type-checked, range-checked, and bounded before it reaches Core. An
+incompatible contract change requires a new D-Bus interface version; additive
+version-one changes must preserve existing clients.
 
-Installed builds use D-Bus activation backed by systemd user services. The
-backend is demand-started by the first control call and remains separate from
-the privileged split-tunneling system daemon. While open, the full Control
-Center holds a lease using its unique session-bus name. The backend verifies
-that name and removes the lease after a crash. With no live Control Center it
-exits after a short grace period only when Proton reports a fully disconnected,
-idle state; connected tunnels and packet captures therefore remain supervised.
-A clean exit is reactivated on demand and releases the Python core's server
-model and native networking libraries while the application is not in use. The
-Plasma agent deliberately does not hold a lease while observing. For an
-explicit tray connection action it takes a temporary lease while the backend
-initializes and releases it when the action completes. This protects a real
-Secret Service prompt without letting an idle disconnected backend remain
-resident while the tray is merely available.
+Read-only status remains separate from mutation authority. The backend captures
+the actual D-Bus sender before method dispatch and authenticates package-owned
+Control Center or resident-agent executables for protected methods. Claims in
+arguments never replace the actual sender. Authorization, leases, and one-use
+secret keys are revoked on owner loss. Native clients independently verify and
+pin the packaged backend's unique owner before sending operations or accepting
+signals.
 
-The installed unit executes the backend by its absolute packaged path and
-enables `NoNewPrivileges`, a private temporary directory, and read-only system
-directories. User data remains writable because Proton persists settings and
-caches below the home directory and packet capture supports an arbitrary folder
-chosen by the user. More restrictive home, network, device, or address-family
-sandboxes are intentionally excluded where they would interfere with Secret
-Service, NetworkManager, FIDO2, split tunneling, or capture workflows. The
-tested boundary and exclusions are recorded in [Backend service hardening](HARDENING.md).
+The full authentication design is documented in
+[Authentication](AUTHENTICATION.md); deployment identity and systemd tradeoffs
+are documented in [Hardening](HARDENING.md).
 
-The backend requests its well-known name with `DO_NOT_QUEUE` and starts Proton
-core only after becoming the primary owner. Accidental manual or test launches
-therefore exit without creating a second refresher, connector, or SSO session.
-If Proton Core initialization fails, the backend publishes only its fixed
-startup-failure state, releases its D-Bus resources, and exits nonzero. The
-user unit's `Restart=on-failure` policy can then recover transient Secret
-Service, NetworkManager, or Core startup failures instead of retaining a
-permanently unready process.
+## Backend lifecycle
 
-Frontend leases become active only after `RegisterClient` returns successfully.
-Registration requests carry a service-generation token, so a late reply from a
-replaced backend cannot mark the new generation as registered. Failed requests
-retry with bounded exponential delay, while a service registration causes an
-immediate fresh request. Other asynchronous control calls also observe their
-replies and classify backend-unavailable, protected-secret, and ordinary
-operation failures without blocking the UI.
+The backend is D-Bus activated and requests its well-known name without
+queueing. Only the primary owner initializes Proton Core, preventing duplicate
+refreshers, connectors, or SSO sessions.
 
-The official SSO stack reaches Secret Service through a synchronous keyring
-API. The backend warms that saved session on a worker thread before creating
-the VPN connector. This remains provider-agnostic while preventing a KeePassXC,
-KWallet, or other provider unlock prompt from freezing the D-Bus event loop.
-The worker is process-disposable, and the normal backend lifetime supervisor
-runs during initialization. If the activating Control Center disappears before
-the prompt is answered, the abandoned backend exits after the same short grace
-period; a live Control Center or explicit agent action keeps initialization
-protected.
+The Control Center holds a lease while open. The resident agent observes
+without a lease and acquires one only while an explicit action is starting.
+With no live lease, the backend exits after a short grace period only when Core
+reports a fully disconnected, idle state. Active tunnels and packet captures
+keep it alive. Closing the Control Center during an unanswered Secret Service
+prompt therefore does not strand an initializing backend indefinitely, while a
+real frontend or tray action protects the prompt long enough to complete.
 
-Settings are read from and persisted through Proton's public core settings
-objects. The D-Bus boundary accepts only a bounded, field-allowlisted JSON
-patch; values are type- and range-checked before they reach the core. Protocol
-and kill-switch changes require a disconnected tunnel, paid features respect
-the account tier, and existing custom-DNS or split-tunneling conflicts are
-reported instead of silently disabling another feature. Structured DNS and
-split-tunneling data use separate contracts so scalar setting updates cannot
-replace either collection accidentally.
+If Core initialization fails, the backend publishes a fixed startup-failure
+state, releases D-Bus resources, and exits nonzero. The user service can
+recover transient Secret Service, NetworkManager, or Core failures through
+`Restart=on-failure` instead of retaining a permanently unready process.
 
-Custom-DNS writes construct Proton core's public `CustomDNSEntry` objects and
-use the official settings save path. The bounded contract accepts only numeric
-IPv4/IPv6 addresses and their existing per-entry enabled state. Addresses are
-canonicalized consistently while existing duplicate entries remain intact.
-Enabling custom DNS requires a paid plan and is rejected while NetShield is
-active; the client never silently disables either setting. Changes made during
-an active tunnel are clearly marked for application on the next connection.
+## Authentication and account state
 
-Split-tunneling writes use Proton core's existing `SplitTunneling` and
-`SplitTunnelingConfig` objects and the official save/apply path. The bounded
-D-Bus patch can change only enabled state, mode, and the per-mode application
-paths and IP ranges. IP ranges are parsed and canonicalized with strict bounded
-validation before they reach Proton core. The client never changes the protocol,
-disables the kill switch, or talks directly to the privileged split-tunneling
-daemon. Incompatible settings are reported to the user instead of being silently
-rewritten.
+The adapter calls Proton's public API facade for password login, TOTP and
+recovery codes, FIDO2, session retrieval, and logout. Proton SSO persists the
+session through whichever conforming Freedesktop Secret Service provider owns
+`org.freedesktop.secrets`.
 
-Packet capture remains an operation of Proton's active protocol implementation.
-The UI is shown only when that implementation advertises packet-capture support,
-and capture is allowed only for a connected tunnel and an existing writable
-absolute directory chosen with Plasma's native folder dialog. Leaving Settings,
-disconnecting, or stopping the backend ends an active capture. The KDE client
-does not inspect, rename, upload, or otherwise process the resulting PCAP file.
+The frontend receives only minimum account display metadata. Authentication
+fields use a one-use encrypted and sealed descriptor transport, and provider
+exceptions are mapped to fixed public errors. Logout disconnects first and
+restores the previous Core kill-switch setting if any later step fails.
 
-Issue reports use Proton core's official support endpoint and validated public
-`BugReportForm`. Diagnostic attachment is an explicit checkbox at submission
-time. When selected, the backend runs fixed `journalctl` argument lists without
-a shell and attaches only available logs from the previous 24 hours for its
-user service, NetworkManager, and Proton's split-tunneling unit. Temporary files
-and descriptors are closed immediately after the API request, whether it
-succeeds or fails.
+## Server data and connection selection
 
-## Authentication
+Country, location-group, and exact-server reads are serialized at the frontend
+boundary. Requests carry generations so replies for obsolete navigation targets
+are discarded. A bounded retry covers Core's short topology-replacement window
+without turning a genuinely empty group into an infinite refresh loop.
 
-The backend calls the official `ProtonVPNAPI` facade for password login,
-TOTP/recovery codes, FIDO2 assertions, session data retrieval, and logout.
-Successful sessions are persisted by Proton SSO through whichever conforming
-Freedesktop Secret Service provider owns `org.freedesktop.secrets`.
+Global search uses an immutable scalar projection per Core topology generation.
+It stores normalized display fields but no Proton server objects. Current load,
+maintenance state, and account availability are resolved through current Core
+objects for matching records. Load-only updates do not rebuild the projection;
+topology or localized-name changes invalidate it for lazy reconstruction.
 
-The native frontend exposes only non-sensitive account metadata: account name,
-human-readable plan title, tier, and maximum connection count. Authentication
-errors are mapped to fixed user-facing messages so exception strings cannot
-accidentally echo credentials. A session-expired API response disables recovery
-and returns the UI to sign-in state.
+Capability-aware selection accepts bounded combinations of P2P, Streaming, Tor,
+and Secure Core with AND semantics. The adapter asks Core to filter by the
+combined feature mask and delegates final selection to Core's fastest-server
+score. The frontend does not replace Proton's scoring with displayed load.
 
-The signed-out snapshot contains only the numeric kill-switch mode needed to
-detect permanent mode. A dedicated operation can turn that setting off before
-authentication but cannot alter any other VPN setting. Login is rejected until
-permanent mode is disabled, and sign-out disables the kill switch before the
-Proton session is removed.
+## Settings and diagnostics
 
-FIDO2 remains implemented by Proton's official `python3-fido2` integration. The
-backend bridges touch, key-selection, and PIN prompts into its authentication
-state machine; PINs use the same encrypted descriptor transport. Proton's
-current Linux core reports human-verification challenges but does not expose a native
-completion callback, so the UI safely directs the user to their Proton account
-instead of attempting to handle or export the verification token.
+Settings use Core's public settings objects and official save/apply paths.
+Protocol and kill-switch changes require a disconnected tunnel. Paid features
+respect account access, and custom-DNS or split-tunneling conflicts are shown
+to the user rather than resolved by silently changing another setting.
 
-## Reconnection
+The IPv6 setting controls whether supported IPv6 traffic is carried inside the
+VPN tunnel. It does not disable Core's separate connection-scoped IPv6 leak
+protection. NetworkManager may therefore show Core's `pvpn-killswitch-ipv6`
+connection while the general kill-switch setting is Off; Core removes that
+temporary protection after disconnecting.
 
-Unexpected tunnel drops are recovered by a small asyncio subscriber in the
-backend. It retains Proton core's current connection and asks the official
-connector to reconnect to the same server with the same protocol and backend.
-Retries use capped exponential jitter and wait until a network route is
-available and the systemd-logind session is unlocked. Authentication, session
-limit, 2FA, and certificate-validity errors are not retried; an expired
-certificate is handed to Proton's official data refresher.
-If Proton temporarily exposes an error state before restoring its previous
-connection metadata, the reconnector keeps the same bounded retry cycle instead
-of becoming inert. It still reconnects only after Core supplies the prior
-server, protocol, and backend tuple.
+Packet capture remains an operation of the active official protocol. The
+adapter requires Core's reviewed byte ceiling and adds a 15-minute lifecycle
+watchdog, but it does not inspect, rename, upload, or rewrite PCAP data.
 
-Connection failures cross D-Bus as a closed set of stable `errorCode` values
-derived only from Proton event class names. The frontend owns their translated
-text and gives the session-limit condition the same explicit recovery dialog as
-the official client. Authentication denial, hard-jailed 2FA, and invalid system
-time also receive the official recovery guidance, and an error-state primary
-action always cancels the failed connection so Proton's protective network
-block can be released. Unknown event classes collapse to `unexpected_error`;
-raw exception text never becomes observable state.
-
-Every exported D-Bus method also passes through one shared exception boundary.
-Only bounded, single-line messages explicitly marked as user-visible by this
-backend may cross it. Unexpected exceptions collapse to stable typed errors;
-the backend log records their class but not their text. Reconnection status uses
-the same rule and never incorporates third-party exception strings.
-
-Startup compatibility uses the official core's
-`validate_connection_availability()` when present. Fedora's initial 5.5.6
-package predates that public helper, so the adapter falls back to the
-connector's public protocol enumeration. A negative result is exposed as one
-boolean and handled by the frontend with Proton's setup guidance; the native
-client does not duplicate the core's backend registry rules.
-
-This replaces only the GTK application's GLib scheduling and monitoring glue.
-It does not replace Proton's server construction, NetworkManager backend,
-protocol implementation, kill switch, or split-tunneling behavior. Reconnection
-is configurable through KConfig and never treats the intentional `Disconnected`
-state as a dropped tunnel.
+Direct support submission and anonymous crash reporting to Proton are disabled
+in community builds through synchronized build, frontend, and backend gates.
+The retained support implementation is bounded and inactive unless an approved
+distribution deliberately enables it.
 
 ## Plasma integration
 
-The resident agent keeps desktop concerns out of the backend. `KNotification` owns
-connection popups, KConfig stores user preferences in
-`proton-vpn-kderc`, and a `QSortFilterProxyModel` provides zero-copy filtering
-for country, server, and application lists. `KApplicationTrader` supplies the
-localized Plasma application catalog, icon names, desktop visibility, and
-launch commands without a GTK/Gio dependency. Native executable paths follow
-Proton's daemon matching contract; Flatpak and Snap launchers receive the same
-prefix transformations required by the official client. The system tray remains a native
-`KStatusNotifierItem` when the KF6 development component is present at build
-time.
+The resident agent owns the status notifier, notifications, global shortcuts,
+pinned targets, and auto-connect behavior. The complete Kirigami Control Center
+starts on demand and exits when its window closes. Both are single-instance
+processes.
 
-The backend subscribes to Proton core's separate full-list and load-only
-refresh callbacks. A full-list change refreshes country counts and the visible
-country's topology. A load-only change transfers only server names and load
-percentages; the Qt model emits targeted `dataChanged` notifications and the
-sorting proxy reorders rows only when necessary. The user-facing list stays in
-lowest-load order; search handles deliberate server or location selection
-without exposing low-value implementation-centric sort controls. The KDE layer
-does not add a polling schedule or make its own server-list API requests.
-Global search keeps localized country matching in Qt and uses one compact,
-immutable scalar projection per Proton topology generation for locations and
-exact servers. The projection precomputes normalized display names, grouping,
-natural server order, and secure-core classification, but never retains or
-wraps Proton server objects and never reorders the official list. Matching
-records resolve their current Core objects, so load, maintenance state, and plan
-availability remain live. Load-only refreshes do not rebuild the projection;
-full topology and localized-location-name callbacks discard it for a lazy
-rebuild. Each query returns at most 100 locations and 100 accessible servers.
-The same core access checks annotate countries, locations, and servers for the
-active account tier. Accessible rows sort first; paid-only and maintenance rows
-remain visible but cannot accidentally reach a connect operation, matching the
-official client's free-plan discovery and upgrade behavior.
+KRunner recognizes only explicit VPN prefixes and validated connection targets.
+It addresses the Control Center activation service, never the backend. A modal
+confirmation is required before the Control Center's authenticated controller
+acts.
 
-Fedora update-channel selection is intentionally a frontend packaging concern,
-not a VPN backend operation. The native settings page detects Proton's exact
-stable or Beta release-package names with `rpm`. After an explicit confirmation
-and a normal Polkit prompt, it invokes `pkexec` with a fixed argument vector for
-`dnf swap`; no shell command or user-controlled package name is constructed.
-The repository switch does not reinstall this community frontend or perform a
-system upgrade. Discover or `dnf` remains responsible for showing and applying
-the resulting official Proton component updates.
-
-The agent registers four unbound actions with `KGlobalAccel`: toggle the
-current connection, connect to the fastest server, disconnect, and show or hide
-the Control Center. Plasma owns shortcut assignment and conflict handling
-through System Settings. Registration uses autoloading so a user's assignments
-survive agent restarts and upgrades. The actions call the same controller operations
-as the visible interface and do not add a second networking path.
-
-The native KRunner plug-in recognizes only the explicit `vpn` and `proton vpn`
-prefixes. It offers the visible client, fastest connection, disconnection,
-two-letter country targets, and syntactically validated exact server names.
-Connection actions send fixed method names and typed string arguments to the
-same versioned session D-Bus service, allowing normal D-Bus activation without
-starting a second frontend. No query is interpreted as a command line or shell
-fragment.
-
-The agent and Control Center each own one session instance. Reopening the
-application activates and raises the existing Control Center, while the fixed
-`--settings` option also replaces its current page with the native settings
-page. Closing that window exits the complete QML process without disconnecting
-the tunnel. The independent agent keeps one tray item and launches the Control
-Center on demand; the backend continues to supervise an active tunnel and
-otherwise returns to the D-Bus-activated stopped state.
-
-The `Proton VPN` System Settings module owns only desktop integration choices:
-startup, auto-connect target, unexpected-drop recovery, window/tray behavior,
-notifications, pinned targets, and packet-capture storage. These are persisted
-immediately through the same `proton-vpn-kderc` KConfig file used by the client.
-Writes carry KConfig's cross-process notification flag, and both the client and
-KCM watch the file, so a running tray client applies changes without a restart.
-The module links to Plasma's Global Shortcuts page and uses the fixed
-`--settings` activation option for account-bound VPN settings. Protocol, DNS,
-split tunneling, and other live Proton-core values are not duplicated into a
-second controller.
+The System Settings module owns desktop preferences only: startup,
+auto-connect, drop recovery, window and tray behavior, notifications, pinned
+targets, icon style, and capture storage. Live Proton settings are not
+duplicated into a second controller. KConfig change notifications synchronize
+the KCM, agent, and Control Center.
 
 ## Safety rules
 
-- The backend never auto-connects in development mode.
-- Mutating operations are serialized.
-- The GUI disables connection actions while an operation is active.
-- A signed-out process can only disable the kill switch through a dedicated
-  method; it cannot mutate the general Proton settings surface.
-- Closing or quitting the Control Center does not change an active tunnel;
-  disconnect remains an explicit VPN action.
-- Demo mode is the default path used by tests and visual development.
-- The official GTK client may remain installed during development, but is no
-  longer required to create the Proton session.
-- Direct NetworkManager mutations from the GUI are out of scope.
-
-## Next milestones
-
-1. Verify feature parity against the official client's regression suite and
-   package the next native Plasma preview.
+- Demo mode is the default path for automated and visual tests and cannot
+  connect NetworkManager or a Proton account.
+- Real mutations are serialized, and connection actions are disabled while an
+  incompatible operation is active.
+- A signed-out client can disable permanent kill switch for login only through
+  one dedicated operation; it cannot reach general settings.
+- Closing the Control Center never disconnects an active tunnel.
+- KRunner and other shared plugin hosts are not trusted backend clients.
+- The GUI never issues direct NetworkManager mutations.
+- Optional representation-only Core memory optimizations never gate VPN or
+  account behavior.

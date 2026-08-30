@@ -10,6 +10,7 @@
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
 #include <openssl/rand.h>
+#include <string_view>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -19,10 +20,9 @@ constexpr unsigned char kPayloadVersion = 1;
 constexpr qsizetype kPublicKeySize = 32;
 constexpr qsizetype kNonceSize = 12;
 constexpr qsizetype kTagSize = 16;
-constexpr char kKdfInfo[] = "proton-vpn-kde-auth-v1";
-constexpr char kAdditionalData[] = "proton.vpn.app.kde.Backend1";
-static_assert(sizeof(kKdfInfo) - 1 == 22);
-static_assert(sizeof(kAdditionalData) - 1 == 27);
+constexpr std::string_view kKdfInfo = "proton-vpn-kde-auth-v1";
+constexpr std::string_view kAdditionalData =
+    "quest.entropy.PlasmaVPN.Backend1";
 
 using PKey = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using PKeyContext = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;
@@ -74,8 +74,8 @@ QByteArray deriveKey(EVP_PKEY *privateKey, EVP_PKEY *peerKey)
                static_cast<int>(shared.size())) > 0
         && EVP_PKEY_CTX_add1_hkdf_info(
                hkdf.get(),
-               reinterpret_cast<const unsigned char *>(kKdfInfo),
-               sizeof(kKdfInfo) - 1) > 0
+               reinterpret_cast<const unsigned char *>(kKdfInfo.data()),
+               kKdfInfo.size()) > 0
         && EVP_PKEY_derive(
                hkdf.get(), reinterpret_cast<unsigned char *>(key.data()),
                &keySize) > 0;
@@ -148,8 +148,8 @@ QByteArray encrypt(const QByteArray &plaintext, const QByteArray &backendPublicK
                reinterpret_cast<const unsigned char *>(nonce.constData())) > 0
         && EVP_EncryptUpdate(
                context.get(), nullptr, &outputSize,
-               reinterpret_cast<const unsigned char *>(kAdditionalData),
-               sizeof(kAdditionalData) - 1) > 0
+               reinterpret_cast<const unsigned char *>(kAdditionalData.data()),
+               static_cast<int>(kAdditionalData.size())) > 0
         && EVP_EncryptUpdate(
                context.get(),
                reinterpret_cast<unsigned char *>(ciphertext.data()),

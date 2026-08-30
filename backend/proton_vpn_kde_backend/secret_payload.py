@@ -19,28 +19,46 @@ PUBLIC_KEY_SIZE = 32
 NONCE_SIZE = 12
 TAG_SIZE = 16
 KDF_INFO = b"proton-vpn-kde-auth-v1"
-AAD = b"proton.vpn.app.kde.Backend1"
+AAD = b"quest.entropy.PlasmaVPN.Backend1"
 
 
 class SecretPayloadReader:
-    """Owns a rotating X25519 key and decrypts one-use credential payloads."""
+    """Own sender- and operation-bound one-use credential keys."""
 
-    def __init__(self):
-        self._private_key = x25519.X25519PrivateKey.generate()
+    def __init__(self, *, maximum_pending_keys: int = 32):
+        self._private_keys: dict[tuple[str, str], x25519.X25519PrivateKey] = {}
+        self._maximum_pending_keys = max(1, maximum_pending_keys)
 
-    @property
-    def public_key(self) -> str:
-        raw_public_key = self._private_key.public_key().public_bytes_raw()
+    def issue_public_key(self, sender: str, operation: str) -> str:
+        if not sender.startswith(":") or not operation:
+            raise ValueError("A valid secret capability is required")
+        capability = (sender, operation)
+        if capability not in self._private_keys and (
+            len(self._private_keys) >= self._maximum_pending_keys
+        ):
+            raise ValueError("Too many protected operations are pending")
+        private_key = x25519.X25519PrivateKey.generate()
+        self._private_keys[capability] = private_key
+        raw_public_key = private_key.public_key().public_bytes_raw()
         return base64.b64encode(raw_public_key).decode("ascii")
+
+    def revoke_sender(self, sender: str) -> None:
+        for capability in tuple(self._private_keys):
+            if capability[0] == sender:
+                del self._private_keys[capability]
 
     def read(
         self,
+        sender: str,
+        operation: str,
         file_descriptor: int,
         required_fields: Iterable[str],
     ) -> dict[str, str]:
         """Read, decrypt, validate, close, and overwrite a credential payload."""
-        private_key = self._private_key
-        self._private_key = x25519.X25519PrivateKey.generate()
+        private_key = self._private_keys.pop((sender, operation), None)
+        if private_key is None:
+            close_descriptor(file_descriptor)
+            raise ValueError("No protected operation is pending")
         encrypted = _read_descriptor(file_descriptor)
         plaintext = bytearray()
         try:
@@ -106,7 +124,17 @@ def _read_descriptor(file_descriptor: int) -> bytearray:
             raise ValueError("The authentication payload is too large")
         return raw
     finally:
+        close_descriptor(file_descriptor)
+
+
+def close_descriptor(file_descriptor: int) -> None:
+    """Close an adopted D-Bus descriptor exactly once, ignoring stale values."""
+    if not isinstance(file_descriptor, int) or file_descriptor < 0:
+        return
+    try:
         os.close(file_descriptor)
+    except OSError:
+        pass
 
 
 def _overwrite(buffer: bytearray) -> None:

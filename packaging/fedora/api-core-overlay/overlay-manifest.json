@@ -11,7 +11,7 @@
   },
   "overlay": {
     "packageName": "python3-proton-vpn-api-core",
-    "nevra": "python3-proton-vpn-api-core-5.6.10-6.codex1.fc44.x86_64",
+    "nevra": "python3-proton-vpn-api-core-5.6.10-6.plasmavpn1.fc44.x86_64",
     "pythonCacheTag": "cpython-314",
     "representationOnly": false,
     "upstreamRepository": "https://github.com/ProtonVPN/python-proton-vpn-api-core.git",

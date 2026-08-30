@@ -11,6 +11,11 @@ Kirigami.ScrollablePage {
     property var vpnSettings: vpnController.settings
     property var splitSettings: vpnController.splitTunneling
     property var customDns: vpnController.customDns
+    readonly property var iconStyleOptions: [
+        { "label": qsTr("Color"), "value": "color" },
+        { "label": qsTr("Light symbol"), "value": "light" },
+        { "label": qsTr("Dark symbol"), "value": "dark" }
+    ]
     readonly property bool splitProtocolCompatible:
         vpnSettings.protocol === "wireguard"
         || vpnSettings.protocol.indexOf("protun-") === 0
@@ -18,6 +23,15 @@ Kirigami.ScrollablePage {
         !splitSettings.enabled
         || (splitProtocolCompatible && vpnSettings.killSwitch === 0)
     property var packetCaptureFolderDialog: null
+
+    function iconStyleIndex(style) {
+        for (let index = 0; index < iconStyleOptions.length; ++index) {
+            if (iconStyleOptions[index].value === style) {
+                return index
+            }
+        }
+        return 0
+    }
 
     Component {
         id: packetCaptureFolderDialogComponent
@@ -222,6 +236,29 @@ Kirigami.ScrollablePage {
             color: Kirigami.Theme.disabledTextColor
         }
 
+            }
+        }
+
+        SectionCard {
+            title: qsTr("Default fastest server")
+            description: qsTr("Require every checked capability whenever Connect fastest is used from the overview, tray, global shortcut, KRunner, or auto-connect.")
+            iconName: "speedometer"
+
+            ServerCapabilitySelector {
+                Layout.fillWidth: true
+                selectedFeatures: appSettings.fastestFeatures
+                onSelectionChanged: function(features) {
+                    appSettings.fastestFeatures = features
+                }
+            }
+
+            Controls.Label {
+                Layout.fillWidth: true
+                text: appSettings.fastestFeatures.length === 0
+                      ? qsTr("No default capability filter.")
+                      : qsTr("Proton Core will choose the fastest server matching all checked capabilities.")
+                color: Kirigami.Theme.disabledTextColor
+                wrapMode: Text.WordWrap
             }
         }
 
@@ -490,9 +527,18 @@ Kirigami.ScrollablePage {
         Controls.Switch {
             Kirigami.FormData.label: qsTr("Diagnostics:")
             text: qsTr("Send anonymous crash reports")
-            checked: vpnSettings.anonymousCrashReports
-            enabled: vpnSettings.loaded && !vpnSettings.busy
+            checked: vpnController.crashReportSubmissionEnabled
+                     && vpnSettings.anonymousCrashReports
+            enabled: vpnController.crashReportSubmissionEnabled
+                     && vpnSettings.loaded && !vpnSettings.busy
             onClicked: vpnController.updateSetting("anonymousCrashReports", checked)
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: !vpnController.crashReportSubmissionEnabled
+            type: Kirigami.MessageType.Warning
+            text: qsTr("Anonymous crash reporting to Proton is disabled in this unofficial community build. Report Plasma VPN client crashes in the community project tracker.")
         }
 
         Kirigami.InlineMessage {
@@ -570,6 +616,25 @@ Kirigami.ScrollablePage {
             onToggled: appSettings.notificationsEnabled = checked
         }
 
+        Controls.ComboBox {
+            id: iconStyleCombo
+            Kirigami.FormData.label: qsTr("Interface icon:")
+            Layout.fillWidth: true
+            model: page.iconStyleOptions
+            textRole: "label"
+            valueRole: "value"
+            currentIndex: page.iconStyleIndex(appSettings.iconStyle)
+            Accessible.name: qsTr("Interface icon style")
+            onActivated: appSettings.iconStyle = currentValue
+        }
+
+        Controls.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            text: qsTr("Choose the color mark or a fixed light or dark symbol for the Control Center and system tray. The application launcher keeps the color mark for reliable visibility.")
+            color: Kirigami.Theme.disabledTextColor
+        }
+
         Controls.Switch {
             Kirigami.FormData.label: qsTr("Window:")
             text: qsTr("Keep Plasma tray controls available after closing")
@@ -585,7 +650,7 @@ Kirigami.ScrollablePage {
         }
 
         Controls.TextField {
-            Kirigami.FormData.label: qsTr("Tray favorites:")
+            Kirigami.FormData.label: qsTr("Pinned countries and servers:")
             Layout.fillWidth: true
             text: appSettings.pinnedServersText
             placeholderText: qsTr("US, CH#101, NL#42")
@@ -595,10 +660,18 @@ Kirigami.ScrollablePage {
             }
         }
 
+        Controls.TextField {
+            Kirigami.FormData.label: qsTr("Pinned locations:")
+            Layout.fillWidth: true
+            readOnly: true
+            text: appSettings.pinnedServerGroupsText
+            placeholderText: qsTr("Pin states or cities from the Locations browser")
+        }
+
         Controls.Label {
             Layout.maximumWidth: Kirigami.Units.gridUnit * 22
             wrapMode: Text.WordWrap
-            text: qsTr("Favorite countries and servers appear as one-click connections in the Plasma system tray.")
+            text: qsTr("Pinned countries, states, cities, and exact servers appear as one-click connections in the Plasma system tray.")
             color: Kirigami.Theme.disabledTextColor
         }
 

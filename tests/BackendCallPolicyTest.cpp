@@ -25,11 +25,11 @@ void BackendCallPolicyTest::classifiesBackendFailures()
     QCOMPARE(
         ProtonVpnKde::classifyBackendCallFailure(
             QDBusError::Other,
-            u"proton.vpn.app.kde.Error.InvalidSecretPayload"),
+            u"quest.entropy.PlasmaVPN.Error.InvalidSecretPayload"),
         BackendCallFailure::InvalidSecretPayload);
     QCOMPARE(
         ProtonVpnKde::classifyBackendCallFailure(
-            QDBusError::Other, u"proton.vpn.app.kde.Error.OperationFailed"),
+            QDBusError::Other, u"quest.entropy.PlasmaVPN.Error.OperationFailed"),
         BackendCallFailure::Rejected);
 }
 

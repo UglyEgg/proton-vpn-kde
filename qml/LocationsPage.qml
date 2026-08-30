@@ -8,6 +8,7 @@ Kirigami.Page {
     title: qsTr("Locations")
 
     readonly property bool searching: searchField.text.trim().length > 0
+    property var requiredCapabilities: []
 
     function openCountry(code, name, flag, accessible, underMaintenance) {
         applicationWindow().pushCountry({
@@ -15,7 +16,8 @@ Kirigami.Page {
                 "countryName": name,
                 "countryFlag": flag,
                 "countryAccessible": accessible,
-                "countryUnderMaintenance": underMaintenance
+                "countryUnderMaintenance": underMaintenance,
+                "requiredCapabilities": page.requiredCapabilities
             })
     }
 
@@ -38,12 +40,16 @@ Kirigami.Page {
                                  : (location.length > 0 ? location : name),
                     "groupAccessible": accessible,
                     "groupUnderMaintenance": underMaintenance,
-                    "initialServerFilter": kind === "server" ? name : ""
+                    "initialServerFilter": kind === "server" ? name : "",
+                    "requiredCapabilities": page.requiredCapabilities
                 })
         }
     }
 
-    Component.onCompleted: vpnController.loadCountries()
+    Component.onCompleted: {
+        requiredCapabilities = Array.from(appSettings.fastestFeatures)
+        vpnController.loadCountries()
+    }
     Component.onDestruction: vpnController.clearLocationSearch()
 
     actions: [
@@ -126,7 +132,7 @@ Kirigami.Page {
 
                 Controls.ToolButton {
                     icon.name: countryDelegate.pinned
-                               ? "favorite" : "non-starred-symbolic"
+                               ? "window-unpin" : "window-pin"
                     text: countryDelegate.pinned ? qsTr("Unpin") : qsTr("Pin")
                     display: Controls.AbstractButton.IconOnly
                     onClicked: appSettings.togglePinnedServer(countryDelegate.code)
@@ -150,6 +156,54 @@ Kirigami.Page {
             heading: qsTr("Countries and servers")
             description: qsTr("Choose a country, city, or exact Proton server.")
             iconName: "network-server"
+        }
+
+        SectionCard {
+            title: qsTr("Server capabilities")
+            description: qsTr("Check every capability a server must support. The filters follow you into countries and server groups.")
+            iconName: "speedometer"
+
+            ServerCapabilitySelector {
+                Layout.fillWidth: true
+                selectedFeatures: page.requiredCapabilities
+                enabled: vpnController.userTier > 0
+                onSelectionChanged: function(features) {
+                    page.requiredCapabilities = features
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Controls.Label {
+                    Layout.fillWidth: true
+                    text: vpnController.userTier === 0
+                          ? qsTr("Specialized servers require Proton VPN Plus.")
+                          : page.requiredCapabilities.length === 0
+                            ? qsTr("No capability filter; Proton Core chooses the fastest available server.")
+                            : qsTr("Only servers matching every checked capability are eligible.")
+                    color: Kirigami.Theme.disabledTextColor
+                    wrapMode: Text.WordWrap
+                }
+
+                Controls.Button {
+                    text: qsTr("Connect fastest match")
+                    icon.name: "network-connect"
+                    enabled: vpnController.primaryActionEnabled
+                             && (page.requiredCapabilities.length === 0
+                                 || vpnController.userTier > 0)
+                    onClicked: vpnController.connectFastestWithFeatures(
+                        page.requiredCapabilities)
+                }
+            }
+
+            Controls.Label {
+                Layout.fillWidth: true
+                visible: page.requiredCapabilities.length > 0
+                text: qsTr("Countries remain visible for navigation; incompatible groups and exact servers are hidden as you browse.")
+                color: Kirigami.Theme.disabledTextColor
+                wrapMode: Text.WordWrap
+            }
         }
 
         Kirigami.SearchField {
@@ -227,6 +281,51 @@ Kirigami.Page {
                     required property int serverCount
                     required property bool accessible
                     required property bool underMaintenance
+                    property bool pinned: resultDelegate.kind === "location"
+                                          ? appSettings.isServerGroupPinned(
+                                                resultDelegate.countryCode,
+                                                resultDelegate.groupKind,
+                                                resultDelegate.groupName)
+                                          : appSettings.isServerPinned(
+                                                resultDelegate.kind === "country"
+                                                ? resultDelegate.countryCode
+                                                : resultDelegate.name)
+
+                    function refreshPinned() {
+                        resultDelegate.pinned = resultDelegate.kind === "location"
+                            ? appSettings.isServerGroupPinned(
+                                  resultDelegate.countryCode,
+                                  resultDelegate.groupKind,
+                                  resultDelegate.groupName)
+                            : appSettings.isServerPinned(
+                                  resultDelegate.kind === "country"
+                                  ? resultDelegate.countryCode
+                                  : resultDelegate.name)
+                    }
+
+                    function togglePinned() {
+                        if (resultDelegate.kind === "location") {
+                            appSettings.togglePinnedServerGroup(
+                                resultDelegate.countryCode,
+                                resultDelegate.groupKind,
+                                resultDelegate.groupName)
+                        } else {
+                            appSettings.togglePinnedServer(
+                                resultDelegate.kind === "country"
+                                ? resultDelegate.countryCode
+                                : resultDelegate.name)
+                        }
+                    }
+
+                    Connections {
+                        target: appSettings
+                        function onPinnedServersChanged() {
+                            resultDelegate.refreshPinned()
+                        }
+                        function onPinnedServerGroupsChanged() {
+                            resultDelegate.refreshPinned()
+                        }
+                    }
 
                     width: ListView.view.width
                     text: resultDelegate.name
@@ -247,29 +346,42 @@ Kirigami.Page {
                     opacity: resultDelegate.accessible
                              && !resultDelegate.underMaintenance ? 1.0 : 0.65
 
-                    trailingContent: Controls.ToolButton {
-                        visible: !resultDelegate.accessible
-                                 || resultDelegate.kind === "server"
-                        text: !resultDelegate.accessible ? qsTr("Upgrade")
-                              : qsTr("Connect")
-                        icon.name: !resultDelegate.accessible
-                                   ? "internet-web-browser" : "network-connect"
-                        display: Controls.AbstractButton.IconOnly
-                        enabled: !resultDelegate.underMaintenance
-                                 && (resultDelegate.kind !== "server"
-                                     || vpnController.primaryActionEnabled)
-                        onClicked: {
-                            if (!resultDelegate.accessible) {
-                                Qt.openUrlExternally(
-                                    "https://protonvpn.com/pricing")
-                            } else {
-                                vpnController.connectServer(resultDelegate.name)
+                    trailingContent: [
+                        Controls.ToolButton {
+                            visible: !resultDelegate.accessible
+                                     || resultDelegate.kind === "server"
+                            text: !resultDelegate.accessible ? qsTr("Upgrade")
+                                  : qsTr("Connect")
+                            icon.name: !resultDelegate.accessible
+                                       ? "internet-web-browser" : "network-connect"
+                            display: Controls.AbstractButton.IconOnly
+                            enabled: !resultDelegate.underMaintenance
+                                     && (resultDelegate.kind !== "server"
+                                         || vpnController.primaryActionEnabled)
+                            onClicked: {
+                                if (!resultDelegate.accessible) {
+                                    Qt.openUrlExternally(
+                                        "https://protonvpn.com/pricing")
+                                } else {
+                                    vpnController.connectServer(resultDelegate.name)
+                                }
                             }
-                        }
 
-                        Controls.ToolTip.visible: hovered || activeFocus
-                        Controls.ToolTip.text: text
-                    }
+                            Controls.ToolTip.visible: hovered || activeFocus
+                            Controls.ToolTip.text: text
+                        },
+
+                        Controls.ToolButton {
+                            text: resultDelegate.pinned ? qsTr("Unpin") : qsTr("Pin")
+                            icon.name: resultDelegate.pinned
+                                       ? "window-unpin" : "window-pin"
+                            display: Controls.AbstractButton.IconOnly
+                            onClicked: resultDelegate.togglePinned()
+
+                            Controls.ToolTip.visible: hovered || activeFocus
+                            Controls.ToolTip.text: text
+                        }
+                    ]
 
                     onClicked: page.activateSearchResult(
                         resultDelegate.kind, resultDelegate.name,

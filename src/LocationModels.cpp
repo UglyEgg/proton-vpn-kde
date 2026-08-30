@@ -597,6 +597,33 @@ void LocationFilterProxyModel::setAvailabilityRoles(int accessibleRole,
     invalidate();
 }
 
+void LocationFilterProxyModel::setFeatureRoles(
+    const QHash<QString, int> &roles)
+{
+    beginFilterChange();
+    m_featureRoles = roles;
+    endFilterChange(QSortFilterProxyModel::Direction::Rows);
+}
+
+void LocationFilterProxyModel::setRequiredFeatures(
+    const QStringList &features)
+{
+    QStringList normalized;
+    for (const QString &feature : features) {
+        const QString candidate = feature.trimmed().toLower();
+        if (m_featureRoles.contains(candidate)
+            && !normalized.contains(candidate)) {
+            normalized.append(candidate);
+        }
+    }
+    if (m_requiredFeatures == normalized) {
+        return;
+    }
+    beginFilterChange();
+    m_requiredFeatures = normalized;
+    endFilterChange(QSortFilterProxyModel::Direction::Rows);
+}
+
 void LocationFilterProxyModel::sortByRole(int role, Qt::SortOrder order)
 {
     setSortRole(role);
@@ -606,16 +633,26 @@ void LocationFilterProxyModel::sortByRole(int role, Qt::SortOrder order)
 bool LocationFilterProxyModel::filterAcceptsRow(
     int sourceRow, const QModelIndex &sourceParent) const
 {
-    if (m_filterText.isEmpty()) {
-        return true;
-    }
     const QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
-    for (const int role : m_searchRoles) {
-        if (index.data(role).toString().contains(m_filterText, Qt::CaseInsensitive)) {
-            return true;
+    if (!m_filterText.isEmpty()) {
+        bool textMatches = false;
+        for (const int role : m_searchRoles) {
+            if (index.data(role).toString().contains(
+                    m_filterText, Qt::CaseInsensitive)) {
+                textMatches = true;
+                break;
+            }
+        }
+        if (!textMatches) {
+            return false;
         }
     }
-    return false;
+    for (const QString &feature : m_requiredFeatures) {
+        if (!index.data(m_featureRoles.value(feature)).toBool()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool LocationFilterProxyModel::lessThan(const QModelIndex &sourceLeft,

@@ -1,12 +1,13 @@
 [Unit]
-Description=Plasma integration agent for Proton VPN
+Description=Plasma integration agent for the Plasma VPN community client
 
 [Service]
 Type=dbus
-BusName=proton.vpn.app.kde.Agent
+BusName=quest.entropy.PlasmaVPN.Agent
 ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/proton-vpn-kde-agent
 Restart=on-failure
 RestartSec=2s
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=full
+# See the backend unit: the agent must inspect the verified backend's procfs
+# identity, which Fedora/SELinux denies across a systemd mount namespace.
+UnsetEnvironment=LD_PRELOAD LD_AUDIT LD_LIBRARY_PATH KDE_PLUGIN_PATH QT_PLUGIN_PATH QT_QPA_PLATFORM_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH

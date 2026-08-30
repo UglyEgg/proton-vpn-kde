@@ -38,7 +38,7 @@ rpmbuild -ba \
     --define "_tmppath $topdir/tmp" \
     "$topdir/SPECS/python3-proton-vpn-api-core-overlay.spec"
 
-overlay_rpm="$topdir/RPMS/x86_64/python3-proton-vpn-api-core-5.6.10-6.codex1.fc44.x86_64.rpm"
+overlay_rpm="$topdir/RPMS/x86_64/python3-proton-vpn-api-core-5.6.10-6.plasmavpn1.fc44.x86_64.rpm"
 "$overlay_dir/rebuild_overlay.py" verify-rpm \
     --manifest "$overlay_dir/overlay-manifest.json" \
     --vendor-rpm "$vendor_rpm" \

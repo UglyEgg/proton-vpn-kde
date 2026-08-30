@@ -1,12 +1,12 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.10.2
-Release:        1%{?dist}
-Summary:        Native KDE Plasma frontend for Proton VPN
+Version:        0.11.2
+Release:        11%{?dist}
+Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
-URL:            https://protonvpn.com/
+URL:            https://github.com/uglyegg/proton-vpn-kde
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  cmake
@@ -28,7 +28,6 @@ BuildRequires:  openssl-devel
 BuildRequires:  python3-cryptography
 BuildRequires:  python3-dbus-fast
 BuildRequires:  python3-devel
-BuildRequires:  python3-proton-vpn-api-core
 BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
 BuildRequires:  qt6-linguist
@@ -44,11 +43,13 @@ Requires:       python3-proton-vpn-api-core >= 5.5.6
 Requires:       qt6-qtdeclarative
 
 %description
-Proton VPN for KDE Plasma is a native Qt 6 and Kirigami frontend that reuses
-Proton's official Python VPN core. Networking, protocols, NetworkManager,
-kill-switch behavior, split tunneling, and session persistence remain owned by
-the official core. The frontend has no GTK or GNOME Keyring dependency and
-uses the Freedesktop Secret Service provider selected by the desktop session.
+Plasma VPN is an unofficial native Qt 6 and Kirigami frontend compatible with
+Proton VPN. It reuses Proton's official Python VPN core. VPN protocols,
+NetworkManager integration, kill-switch behavior, split tunneling, and session
+persistence remain owned by the official core. The frontend has no direct GTK
+or GNOME Keyring dependency and uses the Freedesktop Secret Service provider
+selected by the desktop session. The official API Core package may retain its
+own desktop integration dependencies.
 
 %prep
 %autosetup -n %{name}-%{version}
@@ -57,6 +58,10 @@ uses the Freedesktop Secret Service provider selected by the desktop session.
 %cmake \
     -DBUILD_TESTING=ON \
     -DCMAKE_INSTALL_LIBEXECDIR=%{_libexecdir} \
+    -DKDE_INSTALL_LIBEXECDIR=%{_libexecdir} \
+    -DKDE_INSTALL_SBINDIR=%{_sbindir} \
+    -DPROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION=OFF \
+    -DPROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION=OFF \
 %if %{without kstatusnotifier}
     -DCMAKE_DISABLE_FIND_PACKAGE_KF6StatusNotifierItem=ON \
 %endif
@@ -68,11 +73,6 @@ uses the Freedesktop Secret Service provider selected by the desktop session.
 
 %install
 %cmake_install
-install -d %{buildroot}%{_userunitdir}
-mv %{buildroot}%{_libdir}/systemd/user/proton-vpn-kde-backend.service \
-    %{buildroot}%{_userunitdir}/
-mv %{buildroot}%{_libdir}/systemd/user/proton-vpn-kde-agent.service \
-    %{buildroot}%{_userunitdir}/
 desktop-file-validate \
     %{buildroot}%{_datadir}/applications/proton-vpn-kde.desktop
 
@@ -88,17 +88,20 @@ desktop-file-validate \
 %files
 %defattr(-,root,root,-)
 %license LICENSE COPYING.md
-%doc README.md docs
+%doc README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md SUPPORT.md
+%doc THIRD_PARTY_NOTICES.md docs
 %{_bindir}/proton-vpn-kde
 %{_bindir}/proton-vpn-kde-agent
 %{_bindir}/proton-vpn-kde-backend
 %{_libexecdir}/proton-vpn-kde/
 %{_datadir}/applications/proton-vpn-kde.desktop
 %{_datadir}/applications/kcm_proton_vpn_kde.desktop
-%{_datadir}/dbus-1/services/proton.vpn.app.kde.backend.service
-%{_datadir}/dbus-1/services/proton.vpn.app.kde.Agent.service
-%{_datadir}/dbus-1/services/proton.vpn.app.kde.ControlCenter.service
-%{_datadir}/icons/hicolor/scalable/apps/proton-vpn-kde.svg
+%{_datadir}/dbus-1/services/quest.entropy.PlasmaVPN.Backend.service
+%{_datadir}/dbus-1/services/quest.entropy.PlasmaVPN.Agent.service
+%{_datadir}/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service
+%{_datadir}/icons/hicolor/scalable/apps/plasma-vpn.svg
+%{_datadir}/icons/hicolor/scalable/apps/plasma-vpn-light.svg
+%{_datadir}/icons/hicolor/scalable/apps/plasma-vpn-dark.svg
 %{_datadir}/knotifications6/proton-vpn-kde.notifyrc
 %{_datadir}/proton-vpn-kde/translations/
 %{_kf6_plugindir}/krunner/proton-vpn-kde-runner.so
@@ -107,6 +110,78 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-11
+- Remove the prescriptive upstream-engagement guide from the public documentation.
+- Let GitHub render README prose without a fixed source-column width.
+- Clarify the GTK-free frontend boundary without hiding Core's transitive dependency.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-10
+- Build and inspect source and binary RPMs in a dedicated Fedora CI workflow.
+- Keep Proton VPN API Core as a runtime dependency, not an unused build dependency.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-9
+- Consolidate public documentation and separate current audit posture from history.
+- Add a public-facing README gallery with reproducible demo screenshots.
+- Record the downstream Proton keyring build required by verified KeePassXC support.
+- Remove obsolete Fedora and runtime-diagnostics worklog documents.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-8
+- Remove the shared KRunner host from the backend trusted-client allowlist.
+- Route four validated connection requests through explicit Control Center confirmation.
+- Add adversarial coverage proving KRunner cannot call the backend directly.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-7
+- Disable and persist anonymous crash reporting in unofficial builds.
+- Explain the reporting policy in Settings and reject attempts to re-enable it.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-6
+- Make deepest server-browser requests win and retry transient empty snapshots.
+- Keep Plasma pin actions available in search with native pin artwork.
+- Add persistent state, city, and Secure Core group tray connections.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-5
+- Replace exclusive capability selection with AND-combinable checkboxes.
+- Filter server browsing and scoped fastest actions by selected capabilities.
+- Persist shared default fastest filters for every Plasma connection entry point.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-4
+- Queue server-browser requests across backend initialization.
+- Add Proton-ranked fastest P2P, Streaming, Tor, and Secure Core selection.
+- Validate and authorize the additive capability-selection D-Bus operation.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-3
+- Preserve procfs-based D-Bus client authorization under Fedora SELinux.
+- Remove incompatible mount namespaces from the unprivileged user services.
+- Retain NoNewPrivileges and interpreter, loader, and UI injection cleanup.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-2
+- Accept Fedora's immutable root-owned global systemd user-service policy.
+- Continue rejecting user-owned, writable, and mixed-trust service overrides.
+- Add host-ownership regression coverage for backend identity verification.
+
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-1
+- Authenticate and pin the packaged backend's unique D-Bus owner.
+- Authorize mutations by actual sender and bind secret keys to each operation.
+- Roll back the Core kill-switch setting on every incomplete sign-out.
+- Close unexpected descriptors and byte-bound optional support logs.
+- Validate Core's packet-capture cap and serialize the 15-minute watchdog.
+- Add the security audit and post-remediation regression evidence.
+- Add selectable color, light-symbol, and dark-symbol interface icons.
+- Apply icon changes live to the Control Center and resident tray agent.
+- Expose the shared preference in both Settings and Plasma System Settings.
+- Disable direct Proton support-report submission in unofficial builds.
+- Distinguish Release Notes with a bound-notebook navigation icon.
+
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.11.1-1
+- Embed the application mark for reliable window and tray presentation.
+- Destroy removed Kirigami pages and prevent stale sign-in routing.
+- Exercise settings changes through the frontend controller in regression tests.
+
+* Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.11.0-1
+- Adopt an original Plasma VPN identity and explicit community-client status.
+- Move private session services into the quest.entropy.PlasmaVPN namespace.
+- Add public-release CI, provenance, contribution, support, and release guidance.
+
 * Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 0.10.2-1
 - Keep Settings active after successful VPN configuration changes.
 - Limit automatic Overview routing to the native sign-in flow.

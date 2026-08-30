@@ -11,8 +11,8 @@ Kirigami.ScrollablePage {
 
         PageHeader {
             heading: qsTr("Release notes")
-            description: qsTr("Changes in Proton VPN for Plasma")
-            iconName: "view-list-text"
+            description: qsTr("Changes in the Proton VPN-compatible Plasma client")
+            iconName: "view-pim-notes"
         }
 
         SectionCard {
@@ -21,6 +21,36 @@ Kirigami.ScrollablePage {
 
         Kirigami.Heading {
             level: 1
+            text: "0.11.2"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Choose a color mark, light symbol, or dark symbol for the Control Center and resident Plasma tray icon. The shared preference applies immediately and is also available in Plasma System Settings. Release Notes uses a distinct bound-notebook symbol in collapsed navigation. KRunner connection requests now require explicit Control Center confirmation and the shared plug-in host is not trusted by the VPN backend. Direct Proton support-report submission is disabled in unofficial builds; the reporting page remains an inactive proof of concept and directs client problems to the community tracker.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
+            text: "0.11.1"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Present an original Plasma VPN identity, make the Proton VPN-compatible community relationship explicit, and add reproducible public-release guidance. The application mark is now embedded, and Settings remains open after configuration changes.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
             text: "0.10.2"
         }
 
@@ -102,7 +132,7 @@ Kirigami.ScrollablePage {
         Controls.Label {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: qsTr("Harden the on-demand backend with private temporary storage, read-only system directories, and prevention of privilege gain while preserving Proton networking and user-selected capture folders.")
+            text: qsTr("Harden the on-demand backend with absolute service paths, prevention of privilege gain, and explicit interpreter and loader environment cleanup while preserving Proton networking and user-selected capture folders.")
         }
 
         Kirigami.Separator {

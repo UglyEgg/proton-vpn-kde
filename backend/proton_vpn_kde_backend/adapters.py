@@ -33,8 +33,10 @@ from .controller import (
     SupportReport,
     VpnSettings,
     VpnSnapshot,
+    normalize_server_features,
 )
 from .fido_interaction import FidoInteraction
+from .features import CRASH_REPORT_SUBMISSION_ENABLED
 from .reconnector import AsyncReconnector
 from .search_projection import ServerSearchProjection, fold_search_text
 from .support import collect_support_logs
@@ -46,12 +48,8 @@ def _supports_split_tunneling(protocol: str) -> bool:
 
 def _core_memory_optimization_behavior(logicals_module: Any) -> bool:
     """Checks both string-sharing paths without touching live Core state."""
-    deduplicate = getattr(
-        logicals_module, "_deduplicate_server_strings", None
-    )
-    hook_factory = getattr(
-        logicals_module, "_server_string_object_hook", None
-    )
+    deduplicate = getattr(logicals_module, "_deduplicate_server_strings", None)
+    hook_factory = getattr(logicals_module, "_server_string_object_hook", None)
     if not callable(deduplicate) or not callable(hook_factory):
         return False
 
@@ -119,6 +117,7 @@ class DemoCoreAdapter:
             ),
             paid_features_available=logged_in,
             kill_switch=kill_switch,
+            anonymous_crash_reports=False,
         )
         self._split_tunneling = SplitTunnelingSettings(
             available=True,
@@ -149,17 +148,65 @@ class DemoCoreAdapter:
         if not self._connection_cancelled:
             await self._transition("connected", "US-IL#600")
 
+    async def connect_fastest_with_feature(self, feature: str) -> None:
+        await self.connect_fastest_with_features((feature,))
+
+    async def connect_fastest_with_features(self, features: tuple[str, ...]) -> None:
+        servers = [
+            *self._servers_for_country("CH"),
+            *self._servers_for_country("US"),
+            *await self.get_group_servers("CH", "secure-core", "Via Secure Core"),
+        ]
+        await self._connect_fastest_matching(servers, features)
+
+    async def _connect_fastest_matching(
+        self, servers: list[ServerInfo], features: tuple[str, ...]
+    ) -> None:
+        normalized = normalize_server_features(features)
+        feature_attributes = {
+            "p2p": "p2p",
+            "streaming": "streaming",
+            "tor": "tor",
+            "secure-core": "secure_core",
+        }
+        available = [
+            server
+            for server in servers
+            if server.accessible
+            and not server.under_maintenance
+            and all(
+                bool(getattr(server, feature_attributes[feature]))
+                for feature in normalized
+            )
+        ]
+        if not available:
+            raise UserVisibleRuntimeError("No server available in the current tier")
+        await self.connect_server(min(available, key=lambda server: server.load).name)
+
     async def get_countries(self) -> list[CountryInfo]:
         return [
-            CountryInfo("CH", 3, free=True),
+            CountryInfo("CH", 4, free=True),
             CountryInfo("US", 5, free=True),
         ]
 
     async def get_server_groups(self, country_code: str) -> list[ServerGroupInfo]:
         demo_groups = {
             "CH": [
-                ServerGroupInfo("location", "Zurich", 2, p2p=True, streaming=True),
-                ServerGroupInfo("secure-core", "Via Secure Core", 1, secure_core=True),
+                ServerGroupInfo(
+                    "location",
+                    "Zurich",
+                    3,
+                    tor=True,
+                    p2p=True,
+                    streaming=True,
+                ),
+                ServerGroupInfo(
+                    "secure-core",
+                    "Via Secure Core",
+                    1,
+                    secure_core=True,
+                    p2p=True,
+                ),
             ],
             "US": [
                 ServerGroupInfo("location", "Chicago, IL", 1, p2p=True),
@@ -179,6 +226,7 @@ class DemoCoreAdapter:
                     entry_country="DE",
                     load=35,
                     secure_core=True,
+                    p2p=True,
                 )
             ]
         return [
@@ -191,8 +239,9 @@ class DemoCoreAdapter:
     def _servers_for_country(country_code: str) -> list[ServerInfo]:
         demo_servers = {
             "CH": [
-                ServerInfo("CH#101", "Zurich", 24, p2p=True),
+                ServerInfo("CH#101", "Zurich", 24, p2p=True, streaming=True),
                 ServerInfo("CH#202", "Zurich", 51, streaming=True),
+                ServerInfo("CH#TOR1", "Zurich", 42, tor=True),
             ],
             "US": [
                 ServerInfo("US-IL#600", "Chicago, IL", 32, p2p=True),
@@ -391,6 +440,16 @@ class DemoCoreAdapter:
         if not self._connection_cancelled:
             await self._transition("connected", f"{country_code}#FASTEST")
 
+    async def connect_country_with_features(
+        self, country_code: str, features: tuple[str, ...]
+    ) -> None:
+        servers = list(self._servers_for_country(country_code))
+        if country_code == "CH":
+            servers.extend(
+                await self.get_group_servers("CH", "secure-core", "Via Secure Core")
+            )
+        await self._connect_fastest_matching(servers, features)
+
     async def connect_group(
         self, country_code: str, group_kind: str, group_name: str
     ) -> None:
@@ -399,6 +458,16 @@ class DemoCoreAdapter:
         if not available:
             raise UserVisibleRuntimeError("No server available in the current tier")
         await self.connect_server(min(available, key=lambda server: server.load).name)
+
+    async def connect_group_with_features(
+        self,
+        country_code: str,
+        group_kind: str,
+        group_name: str,
+        features: tuple[str, ...],
+    ) -> None:
+        servers = await self.get_group_servers(country_code, group_kind, group_name)
+        await self._connect_fastest_matching(servers, features)
 
     async def connect_server(self, server_name: str) -> None:
         self._connection_cancelled = False
@@ -529,14 +598,47 @@ class DemoCoreAdapter:
         message: str = "",
     ) -> VpnSnapshot:
         details = {
-            "CH#101": ("Zurich", "CH", "", False),
-            "CH#202": ("Zurich", "CH", "", False),
-            "CH-DE#1": ("Zurich", "CH", "DE", True),
-            "US-IL#600": ("Chicago, IL", "US", "", False),
-            "US-NY#88": ("New York, NY", "US", "", False),
-            "US#FASTEST": ("Fastest available", "US", "", False),
-            "CH#FASTEST": ("Fastest available", "CH", "", False),
-        }.get(server_name, ("", "", "", False))
+            "CH#101": ("Zurich", "CH", "", False, False, True, True),
+            "CH#202": ("Zurich", "CH", "", False, False, False, True),
+            "CH#TOR1": ("Zurich", "CH", "", False, True, False, False),
+            "CH-DE#1": ("Zurich", "CH", "DE", True, False, True, False),
+            "US-IL#600": (
+                "Chicago, IL",
+                "US",
+                "",
+                False,
+                False,
+                True,
+                False,
+            ),
+            "US-NY#88": (
+                "New York, NY",
+                "US",
+                "",
+                False,
+                False,
+                False,
+                True,
+            ),
+            "US#FASTEST": (
+                "Fastest available",
+                "US",
+                "",
+                False,
+                False,
+                False,
+                False,
+            ),
+            "CH#FASTEST": (
+                "Fastest available",
+                "CH",
+                "",
+                False,
+                False,
+                False,
+                False,
+            ),
+        }.get(server_name, ("", "", "", False, False, False, False))
         return VpnSnapshot(
             ready=True,
             logged_in=self._logged_in,
@@ -556,6 +658,9 @@ class DemoCoreAdapter:
                 51820 if state == "connected" and self._settings.port_forwarding else 0
             ),
             secure_core=details[3],
+            tor=details[4],
+            p2p=details[5],
+            streaming=details[6],
             packet_capture_active=self._packet_capture_active,
             core_memory_optimized=True,
             core_version="demo",
@@ -568,6 +673,10 @@ class DemoCoreAdapter:
             self._callback(self._snapshot)
 
 
+PACKET_CAPTURE_MAX_SECONDS = 15 * 60
+MAX_ACCEPTED_CORE_CAPTURE_BYTES = 512 * 1024 * 1024
+
+
 class ProtonCoreAdapter:
     """Thin adapter over the official python-proton-vpn-api-core package.
 
@@ -575,7 +684,13 @@ class ProtonCoreAdapter:
     dependency on a locally installed Proton client.
     """
 
-    def __init__(self, api: Any = None):
+    def __init__(
+        self,
+        api: Any = None,
+        *,
+        packet_capture_max_seconds: float = PACKET_CAPTURE_MAX_SECONDS,
+        crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
+    ):
         self._api: Any = api
         self._connector: Any = None
         self._callback: SnapshotCallback | None = None
@@ -588,6 +703,12 @@ class ProtonCoreAdapter:
         self._session_services_enabled = False
         self._fido_interaction: FidoInteraction | None = None
         self._packet_capture_active = False
+        self._packet_capture_max_seconds = max(0.01, float(packet_capture_max_seconds))
+        self._crash_report_submission_enabled = crash_report_submission_enabled
+        self._packet_capture_watchdog_task: asyncio.Task | None = None
+        self._packet_capture_generation = 0
+        self._packet_capture_connection: Any = None
+        self._packet_capture_stop_lock = asyncio.Lock()
         self._kill_switch = 0
         self._startup_compatible = True
         self._server_list_generation = 0
@@ -641,7 +762,7 @@ class ProtonCoreAdapter:
 
         if not self._logged_in:
             try:
-                settings = await self._api.load_settings()
+                settings = await self._load_settings()
             except Exception:
                 self._kill_switch = 0
             else:
@@ -656,6 +777,41 @@ class ProtonCoreAdapter:
         server_list = await self._get_server_list()
         logical_server = server_list.get_fastest()
         await self._connect_logical(logical_server)
+
+    async def connect_fastest_with_feature(self, feature: str) -> None:
+        await self.connect_fastest_with_features((feature,))
+
+    async def connect_fastest_with_features(self, features: tuple[str, ...]) -> None:
+        server_list = await self._get_server_list()
+        logical_server = self._fastest_matching(
+            server_list, server_list.logicals, features
+        )
+        await self._connect_logical(logical_server)
+
+    @staticmethod
+    def _fastest_matching(server_list, servers, features: tuple[str, ...]):
+        from proton.vpn.session.servers import ServerFeatureEnum
+
+        normalized = normalize_server_features(features)
+        feature_flags = {
+            "p2p": ServerFeatureEnum.P2P,
+            "streaming": ServerFeatureEnum.STREAMING,
+            "tor": ServerFeatureEnum.TOR,
+            "secure-core": ServerFeatureEnum.SECURE_CORE,
+        }
+        requested = ServerFeatureEnum(0)
+        for feature in normalized:
+            requested |= feature_flags[feature]
+        available = server_list.get_available_servers(servers, server_list.user_tier)
+        matching = server_list.get_servers_with_features(
+            available,
+            request_features=requested,
+            exclude_features=ServerFeatureEnum(0),
+        )
+        logical_server = server_list.get_fastest_server(matching)
+        if logical_server is None:
+            raise UserVisibleRuntimeError("No server available in the current tier")
+        return logical_server
 
     async def get_countries(self) -> list[CountryInfo]:
         server_list = await self._get_server_list()
@@ -765,6 +921,13 @@ class ProtonCoreAdapter:
         return self._custom_dns_from_core(settings)
 
     async def update_settings(self, patch: dict[str, SettingsValue]) -> VpnSettings:
+        if (
+            patch.get("anonymousCrashReports") is True
+            and not self._crash_report_submission_enabled
+        ):
+            raise UserVisibleRuntimeError(
+                "Anonymous crash reporting is disabled in this unofficial community build"
+            )
         settings = await self._load_settings()
         state_name = type(self._connector.current_state).__name__.lower()
         if state_name != "disconnected" and ({"protocol", "killSwitch"} & set(patch)):
@@ -916,13 +1079,28 @@ class ProtonCoreAdapter:
 
     async def _load_settings(self):
         try:
-            return await self._api.load_settings()
+            settings = await self._api.load_settings()
         except Exception as error:
             if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
                 await self._raise_session_error(error)
             raise UserVisibleRuntimeError(
                 "Proton could not load the VPN settings"
             ) from None
+        if self._crash_report_submission_enabled:
+            return settings
+
+        try:
+            if bool(settings.anonymous_crash_reports):
+                settings.anonymous_crash_reports = False
+                await self._save_settings(settings)
+        finally:
+            # Core's public load_settings method mirrors the persisted value
+            # into UsageReporting before it returns. Keep the in-memory sender
+            # disabled even if persistence or connector application fails.
+            usage_reporting = getattr(self._api, "usage_reporting", None)
+            if usage_reporting is not None:
+                usage_reporting.enabled = False
+        return settings
 
     async def _save_settings(self, settings: Any) -> None:
         try:
@@ -938,6 +1116,14 @@ class ProtonCoreAdapter:
         server_list = await self._get_server_list()
         await self._connect_logical(server_list.get_fastest_in_country(country_code))
 
+    async def connect_country_with_features(
+        self, country_code: str, features: tuple[str, ...]
+    ) -> None:
+        server_list = await self._get_server_list()
+        country = self._country(server_list, country_code)
+        logical_server = self._fastest_matching(server_list, country.servers, features)
+        await self._connect_logical(logical_server)
+
     async def connect_group(
         self, country_code: str, group_kind: str, group_name: str
     ) -> None:
@@ -951,11 +1137,25 @@ class ProtonCoreAdapter:
             raise UserVisibleRuntimeError("No server available in the current tier")
         await self._connect_logical(logical_server)
 
+    async def connect_group_with_features(
+        self,
+        country_code: str,
+        group_kind: str,
+        group_name: str,
+        features: tuple[str, ...],
+    ) -> None:
+        server_list = await self._get_server_list()
+        group = self._server_group(server_list, country_code, group_kind, group_name)
+        logical_server = self._fastest_matching(server_list, group.servers, features)
+        await self._connect_logical(logical_server)
+
     async def connect_server(self, server_name: str) -> None:
         server_list = await self._get_server_list()
         await self._connect_logical(server_list.get_by_name(server_name))
 
     async def start_packet_capture(self, directory_path: str) -> None:
+        if self._packet_capture_active:
+            raise UserVisibleRuntimeError("Packet capture is already active")
         if type(self._connector.current_state).__name__.lower() != "connected":
             raise UserVisibleRuntimeError(
                 "Connect the VPN before starting packet capture"
@@ -966,6 +1166,17 @@ class ProtonCoreAdapter:
         ):
             raise UserVisibleRuntimeError(
                 "The selected protocol does not support packet capture"
+            )
+        capture_settings = getattr(connection.settings, "packet_capture", None)
+        core_max_bytes = getattr(capture_settings, "max_bytes", None)
+        if (
+            isinstance(core_max_bytes, bool)
+            or not isinstance(core_max_bytes, int)
+            or core_max_bytes <= 0
+            or core_max_bytes > MAX_ACCEPTED_CORE_CAPTURE_BYTES
+        ):
+            raise UserVisibleRuntimeError(
+                "The installed Proton Core does not expose a supported packet-capture byte limit"
             )
         path = Path(directory_path)
         if not path.is_absolute():
@@ -979,28 +1190,109 @@ class ProtonCoreAdapter:
         if not resolved.is_dir() or not os.access(resolved, os.W_OK | os.X_OK):
             raise UserVisibleValueError("Select a writable packet-capture folder")
         try:
-            connection.settings.packet_capture.directory_path = str(resolved)
+            capture_settings.directory_path = str(resolved)
             await connection.start_packet_capture()
         except Exception:
             raise UserVisibleRuntimeError(
                 "Proton could not start packet capture"
             ) from None
+        self._packet_capture_generation += 1
+        generation = self._packet_capture_generation
         self._packet_capture_active = True
+        self._packet_capture_connection = connection
+        self._cancel_packet_capture_watchdog()
+        self._packet_capture_watchdog_task = asyncio.create_task(
+            self._packet_capture_watchdog(generation, connection)
+        )
         self._publish_snapshot()
 
     async def stop_packet_capture(self) -> None:
-        connection = self._connector.current_connection
         if not self._packet_capture_active:
+            self._cancel_packet_capture_watchdog()
             return
+        generation = self._packet_capture_generation
+        connection = self._packet_capture_connection
+        await self._stop_packet_capture_generation(
+            generation,
+            connection,
+            attempts=1,
+            safety_limit=False,
+        )
+
+    async def _packet_capture_watchdog(self, generation: int, connection: Any) -> None:
         try:
-            if connection is not None:
-                await connection.stop_packet_capture()
-        except Exception:
-            raise UserVisibleRuntimeError(
-                "Proton could not stop packet capture"
-            ) from None
+            await asyncio.sleep(self._packet_capture_max_seconds)
+            await self._stop_packet_capture_generation(
+                generation,
+                connection,
+                attempts=3,
+                safety_limit=True,
+            )
+        except asyncio.CancelledError:
+            return
+
+    async def _stop_packet_capture_generation(
+        self,
+        generation: int,
+        connection: Any,
+        *,
+        attempts: int,
+        safety_limit: bool,
+    ) -> bool:
+        """Stop one capture generation exactly once across every caller."""
+        async with self._packet_capture_stop_lock:
+            if (
+                generation != self._packet_capture_generation
+                or not self._packet_capture_active
+                or connection is not self._packet_capture_connection
+            ):
+                return False
+
+            for attempt in range(attempts):
+                try:
+                    if connection is not None:
+                        await connection.stop_packet_capture()
+                    break
+                except Exception:
+                    if attempt + 1 < attempts:
+                        await asyncio.sleep(1.0)
+                        continue
+                    if safety_limit:
+                        self._status_message = "Packet capture reached its time limit but Proton Core could not stop it"
+                        self._publish_snapshot()
+                        return False
+                    raise UserVisibleRuntimeError(
+                        "Proton could not stop packet capture"
+                    ) from None
+
+            if (
+                generation != self._packet_capture_generation
+                or connection is not self._packet_capture_connection
+            ):
+                return False
+            self._finish_packet_capture_state()
+            if safety_limit:
+                self._status_message = (
+                    "Packet capture stopped at the 15-minute safety limit"
+                )
+            self._publish_snapshot()
+            return True
+
+    def _cancel_packet_capture_watchdog(self) -> None:
+        task = self._packet_capture_watchdog_task
+        self._packet_capture_watchdog_task = None
+        try:
+            current_task = asyncio.current_task()
+        except RuntimeError:
+            current_task = None
+        if task is not None and task is not current_task:
+            task.cancel()
+
+    def _finish_packet_capture_state(self) -> None:
         self._packet_capture_active = False
-        self._publish_snapshot()
+        self._packet_capture_connection = None
+        self._packet_capture_generation += 1
+        self._cancel_packet_capture_watchdog()
 
     async def submit_support_report(self, report: SupportReport) -> None:
         from proton.vpn.session.dataclasses import BugReportForm
@@ -1129,7 +1421,7 @@ class ProtonCoreAdapter:
         try:
             client_config = await self._api.refresher.get_up_to_date_client_config()
             vpn_server = self._connector.get_vpn_server(logical_server, client_config)
-            settings = await self._api.load_settings()
+            settings = await self._load_settings()
             await self._connector.connect(vpn_server, protocol=settings.protocol)
         except Exception as error:
             await self._raise_session_error(error)
@@ -1358,18 +1650,45 @@ class ProtonCoreAdapter:
         if type(self._connector.current_state).__name__ != "Disconnected":
             await self._connector.disconnect()
         settings = await self._load_settings()
-        if self._kill_switch_value(settings) != 0:
-            settings.killswitch = 0
-            await self._save_settings(settings)
-        self._kill_switch = 0
-        if self._reconnector:
-            await self._reconnector.disable()
-        self._session_services_enabled = False
+        previous_kill_switch = self._kill_switch_value(settings)
+        kill_switch_changed = previous_kill_switch != 0
+        zero_kill_switch_persisted = False
         try:
+            if kill_switch_changed:
+                settings.killswitch = 0
+                await self._save_settings(settings)
+                zero_kill_switch_persisted = True
+            self._kill_switch = 0
+            if self._reconnector:
+                await self._reconnector.disable()
+            self._session_services_enabled = False
             await self._api.logout()
-        except Exception as error:
+        except (Exception, asyncio.CancelledError) as error:
+            rollback_failed = False
+            if kill_switch_changed:
+                settings.killswitch = previous_kill_switch
+                self._kill_switch = previous_kill_switch
+                try:
+                    if zero_kill_switch_persisted:
+                        await self._save_settings(settings)
+                except (Exception, asyncio.CancelledError):
+                    rollback_failed = True
+            session_recovery_failed = False
             if self._logged_in:
-                await self._enable_session_services()
+                try:
+                    await self._enable_session_services()
+                except (Exception, asyncio.CancelledError):
+                    session_recovery_failed = True
+            if rollback_failed:
+                raise UserVisibleRuntimeError(
+                    "Sign-out failed and the kill switch setting could not be restored; review VPN settings before reconnecting"
+                ) from None
+            if session_recovery_failed:
+                raise UserVisibleRuntimeError(
+                    "Sign-out failed and the Proton session could not be restored"
+                ) from None
+            if isinstance(error, asyncio.CancelledError):
+                raise
             error_name = type(error).__name__
             if error_name in {"ProtonAPINotReachable", "ProtonAPINotAvailable"}:
                 raise UserVisibleRuntimeError(
@@ -1404,7 +1723,10 @@ class ProtonCoreAdapter:
             try:
                 await self.stop_packet_capture()
             except RuntimeError:
-                self._packet_capture_active = False
+                # Preserve active state when Core cannot confirm the stop. The
+                # service must not report a false clean shutdown condition.
+                pass
+        self._cancel_packet_capture_watchdog()
         if self._api:
             self._api.refresher.set_server_list_updated_callback(None)
             self._api.refresher.set_server_loads_updated_callback(None)
@@ -1550,7 +1872,8 @@ class ProtonCoreAdapter:
         if state_name not in allowed_states:
             state_name = "error"
         if state_name != "connected":
-            self._packet_capture_active = False
+            if self._packet_capture_active or self._packet_capture_watchdog_task:
+                self._finish_packet_capture_state()
 
         error_code = ""
         if state_name == "error":

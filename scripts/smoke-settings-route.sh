@@ -35,11 +35,19 @@ for _ in {1..40}; do
         --dest org.freedesktop.DBus \
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.NameHasOwner \
-        proton.vpn.app.kde.backend 2>/dev/null)" == "(true,)" ]]; then
+        quest.entropy.PlasmaVPN.Backend 2>/dev/null)" == "(true,)" ]]; then
         break
     fi
     sleep 0.05
 done
+
+owner_reply="$(gdbus call --session \
+    --dest org.freedesktop.DBus \
+    --object-path /org/freedesktop/DBus \
+    --method org.freedesktop.DBus.GetNameOwner \
+    quest.entropy.PlasmaVPN.Backend)"
+backend_owner="${owner_reply#*\'}"
+backend_owner="${backend_owner%%\'*}"
 
 frontend_log="$staging_dir/frontend.log"
 env \
@@ -50,25 +58,16 @@ env \
     QT_FORCE_STDERR_LOGGING=1 \
     XDG_CACHE_HOME="$staging_dir/cache" \
     XDG_CONFIG_HOME="$staging_dir/config" \
+    PROTON_VPN_KDE_TEST_BACKEND_OWNER="$backend_owner" \
     PROTON_KDE_SNAPSHOT_DELAY_MS=1400 \
     timeout 10s "$build_dir/proton-vpn-kde" \
+        --settings-route-smoke \
         --visual-page settings \
         --visual-snapshot "$staging_dir/settings.png" \
         >"$frontend_log" 2>&1 &
 frontend_pid=$!
 
 sleep 0.5
-settings_result="$staging_dir/settings-result.log"
-if ! gdbus call --session \
-        --dest proton.vpn.app.kde.backend \
-        --object-path /proton/vpn/app/kde/backend \
-        --method proton.vpn.app.kde.Backend1.UpdateSettings \
-        '{"moderateNat":true}' >"$settings_result" 2>&1; then
-    echo "Demo settings update failed" >&2
-    cat "$settings_result" >&2
-    exit 1
-fi
-
 if ! wait "$frontend_pid"; then
     frontend_pid=""
     echo "Settings navigation check did not exit cleanly" >&2
@@ -77,15 +76,23 @@ if ! wait "$frontend_pid"; then
 fi
 frontend_pid=""
 
-if ! grep -Fq -- '"moderateNat":true' "$settings_result"; then
-    echo "Demo settings update did not apply moderate NAT" >&2
-    cat "$settings_result" >&2
+if ! grep -Fqx -- \
+        "visual-snapshot: current section settings" "$frontend_log"; then
+    echo "A settings update unexpectedly changed the current page" >&2
+    cat "$frontend_log" >&2
     exit 1
 fi
 
 if ! grep -Fqx -- \
-        "visual-snapshot: current section settings" "$frontend_log"; then
-    echo "A settings update unexpectedly changed the current page" >&2
+        "qml: settings-route-smoke: current section settings" "$frontend_log"; then
+    echo "The frontend settings update did not preserve its current page" >&2
+    cat "$frontend_log" >&2
+    exit 1
+fi
+
+if ! grep -Fqx -- \
+        "qml: settings-route-smoke: owned pages 1" "$frontend_log"; then
+    echo "Removed navigation pages were not destroyed" >&2
     cat "$frontend_log" >&2
     exit 1
 fi
