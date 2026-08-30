@@ -23,7 +23,9 @@ components without an explicit architecture decision and security review.
 
 The frontend/backend D-Bus contract is versioned. Additive changes must remain
 compatible with schema version 1; incompatible changes require a new interface
-version and migration plan.
+version and migration plan. Edit the introspection XML under `data/dbus/`, then
+run `scripts/generate-dbus-contracts.py`; do not hand-edit the generated native
+or Python constants.
 
 No credential, token, private key, raw API response, or exception text that may
 contain sensitive data may appear in a D-Bus body, state snapshot, notification,

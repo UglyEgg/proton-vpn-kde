@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include "DbusContract.h"
+
 #include <QDBusError>
+#include <QLatin1StringView>
 #include <QStringView>
 
 namespace ProtonVpnKde
@@ -18,7 +21,8 @@ enum class BackendCallFailure
 [[nodiscard]] inline BackendCallFailure classifyBackendCallFailure(
     QDBusError::ErrorType type, QStringView name)
 {
-    if (name == u"quest.entropy.PlasmaVPN.Error.InvalidSecretPayload") {
+    if (name == QLatin1StringView(
+                    DBusContract::Backend::Error::invalidSecretPayload)) {
         return BackendCallFailure::InvalidSecretPayload;
     }
     switch (type) {

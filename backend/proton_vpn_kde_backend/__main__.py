@@ -16,7 +16,8 @@ from dbus_fast.constants import BusType, NameFlag, RequestNameReply
 from .adapters import DemoCoreAdapter, ProtonCoreAdapter
 from .client_authorization import ClientAuthorizer
 from .controller import BackendController
-from .dbus_service import BUS_NAME, OBJECT_PATH, VpnDbusService
+from .dbus_contract import BUS_NAME, OBJECT_PATH
+from .dbus_service import VpnDbusService
 from .features import TRUSTED_CLIENT_EXECUTABLES
 from .lifetime import BackendLifetime, name_has_owner
 

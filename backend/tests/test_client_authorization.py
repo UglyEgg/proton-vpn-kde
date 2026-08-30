@@ -13,12 +13,12 @@ from dbus_fast.constants import MessageType
 from proton_vpn_kde_backend.client_authorization import (
     BACKEND_INTERFACE,
     BACKEND_OBJECT_PATH,
-    CLASSIFIED_METHODS,
     ClientAuthorizer,
     INVALID_ARGUMENTS_ERROR,
     INVALID_SECRET_ERROR,
     UNAUTHORIZED_ERROR,
 )
+from proton_vpn_kde_backend.dbus_contract import CLASSIFIED_METHODS
 from proton_vpn_kde_backend.dbus_service import exported_method_names
 from proton_vpn_kde_backend.features import TRUSTED_CLIENT_EXECUTABLES
 

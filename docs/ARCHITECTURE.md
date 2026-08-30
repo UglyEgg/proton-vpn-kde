@@ -70,6 +70,13 @@ The adapter exports:
 - object path `/quest/entropy/PlasmaVPN/Backend`; and
 - interface `quest.entropy.PlasmaVPN.Backend1`.
 
+The installed introspection XML under `data/dbus/` is the authoritative
+machine-readable contract for the backend, resident agent, and Control Center.
+Native endpoint, method, signal, and error constants and the Python contract and
+authorization definitions are generated from those files. Static analysis
+rejects stale generated output, and a backend test compares the Python service's
+live signatures with Backend1 before a contract change can merge.
+
 The version-one contract groups operations into:
 
 - non-sensitive snapshots and server browsing;

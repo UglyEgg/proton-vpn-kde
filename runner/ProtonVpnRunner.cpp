@@ -3,6 +3,7 @@
 
 #include "ProtonVpnRunner.h"
 
+#include "DbusContract.h"
 #include "RunnerCommand.h"
 #include "TranslationLoader.h"
 
@@ -14,9 +15,7 @@
 
 namespace
 {
-constexpr auto serviceName = "quest.entropy.PlasmaVPN.ControlCenter";
-constexpr auto objectPath = "/quest/entropy/PlasmaVPN/ControlCenter";
-constexpr auto interfaceName = "quest.entropy.PlasmaVPN.ControlCenter1";
+namespace ControlCenterDbus = ProtonVpnKde::DBusContract::ControlCenter;
 
 QString actionId(RunnerAction action)
 {
@@ -56,10 +55,14 @@ void requestControlCenterAction(RunnerAction action, const QString &argument)
 {
     const bool open = action == RunnerAction::Open;
     QDBusMessage request = QDBusMessage::createMethodCall(
-        QString::fromLatin1(serviceName), QString::fromLatin1(objectPath),
-        QString::fromLatin1(interfaceName),
-        open ? QStringLiteral("ShowControlCenter")
-             : QStringLiteral("RequestRunnerAction"));
+        QString::fromLatin1(ControlCenterDbus::serviceName),
+        QString::fromLatin1(ControlCenterDbus::objectPath),
+        QString::fromLatin1(ControlCenterDbus::interfaceName),
+        open
+            ? QString::fromLatin1(
+                  ControlCenterDbus::Method::showControlCenter)
+            : QString::fromLatin1(
+                  ControlCenterDbus::Method::requestRunnerAction));
     if (!open) {
         request << actionId(action) << argument;
     }

@@ -17,13 +17,8 @@
 
 namespace
 {
-constexpr auto kAgentService = "quest.entropy.PlasmaVPN.Agent";
-constexpr auto kAgentPath = "/quest/entropy/PlasmaVPN/Agent";
-constexpr auto kAgentInterface = "quest.entropy.PlasmaVPN.Agent1";
-constexpr auto kControlCenterService = "quest.entropy.PlasmaVPN.ControlCenter";
-constexpr auto kControlCenterPath = "/quest/entropy/PlasmaVPN/ControlCenter";
-constexpr auto kControlCenterInterface =
-    "quest.entropy.PlasmaVPN.ControlCenter1";
+namespace AgentDbus = ProtonVpnKde::DBusContract::Agent;
+namespace ControlCenterDbus = ProtonVpnKde::DBusContract::ControlCenter;
 
 QString siblingExecutable(const QString &name)
 {
@@ -34,17 +29,17 @@ QString siblingExecutable(const QString &name)
 QDBusMessage agentCall(const QString &method)
 {
     return QDBusMessage::createMethodCall(
-        QString::fromLatin1(kAgentService),
-        QString::fromLatin1(kAgentPath),
-        QString::fromLatin1(kAgentInterface), method);
+        QString::fromLatin1(AgentDbus::serviceName),
+        QString::fromLatin1(AgentDbus::objectPath),
+        QString::fromLatin1(AgentDbus::interfaceName), method);
 }
 
 QDBusMessage controlCenterCall(const QString &method)
 {
     return QDBusMessage::createMethodCall(
-        QString::fromLatin1(kControlCenterService),
-        QString::fromLatin1(kControlCenterPath),
-        QString::fromLatin1(kControlCenterInterface), method);
+        QString::fromLatin1(ControlCenterDbus::serviceName),
+        QString::fromLatin1(ControlCenterDbus::objectPath),
+        QString::fromLatin1(ControlCenterDbus::interfaceName), method);
 }
 }
 
@@ -56,14 +51,14 @@ AgentControl::AgentControl(QObject *parent)
 bool AgentControl::registerOnSessionBus()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
-    if (!bus.registerService(QString::fromLatin1(kAgentService))) {
+    if (!bus.registerService(QString::fromLatin1(AgentDbus::serviceName))) {
         return false;
     }
-    if (bus.registerObject(QString::fromLatin1(kAgentPath), this,
+    if (bus.registerObject(QString::fromLatin1(AgentDbus::objectPath), this,
                            QDBusConnection::ExportAllSlots)) {
         return true;
     }
-    bus.unregisterService(QString::fromLatin1(kAgentService));
+    bus.unregisterService(QString::fromLatin1(AgentDbus::serviceName));
     return false;
 }
 
@@ -100,14 +95,14 @@ ControlCenterControl::ControlCenterControl(QObject *parent)
 bool ControlCenterControl::registerOnSessionBus()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
-    if (!bus.registerService(QString::fromLatin1(kControlCenterService))) {
+    if (!bus.registerService(QString::fromLatin1(ControlCenterDbus::serviceName))) {
         return false;
     }
-    if (bus.registerObject(QString::fromLatin1(kControlCenterPath), this,
+    if (bus.registerObject(QString::fromLatin1(ControlCenterDbus::objectPath), this,
                            QDBusConnection::ExportAllSlots)) {
         return true;
     }
-    bus.unregisterService(QString::fromLatin1(kControlCenterService));
+    bus.unregisterService(QString::fromLatin1(ControlCenterDbus::serviceName));
     return false;
 }
 
@@ -168,18 +163,18 @@ void ProtonVpnKde::setAgentEnabled(bool enabled)
 {
     auto *interface = QDBusConnection::sessionBus().interface();
     const bool registered = interface && interface->isServiceRegistered(
-        QString::fromLatin1(kAgentService));
+        QString::fromLatin1(AgentDbus::serviceName));
     if (!enabled) {
         if (registered) {
             QDBusConnection::sessionBus().asyncCall(
-                agentCall(QStringLiteral("Quit")), 2000);
+                agentCall(QString::fromLatin1(AgentDbus::Method::quit)), 2000);
         }
         return;
     }
 
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(
-            agentCall(QStringLiteral("EnsureRunning")), 3000),
+            agentCall(QString::fromLatin1(AgentDbus::Method::ensureRunning)), 3000),
         QCoreApplication::instance());
     QObject::connect(watcher, &QDBusPendingCallWatcher::finished,
                      QCoreApplication::instance(),
@@ -196,8 +191,9 @@ void ProtonVpnKde::setAgentEnabled(bool enabled)
 
 void ProtonVpnKde::requestControlCenter(bool settings)
 {
-    const QString method = settings ? QStringLiteral("ShowSettings")
-                                    : QStringLiteral("ShowControlCenter");
+    const QString method = settings
+        ? QString::fromLatin1(ControlCenterDbus::Method::showSettings)
+        : QString::fromLatin1(ControlCenterDbus::Method::showControlCenter);
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(controlCenterCall(method), 5000),
         QCoreApplication::instance());

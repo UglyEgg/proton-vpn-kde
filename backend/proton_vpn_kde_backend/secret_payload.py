@@ -15,6 +15,8 @@ from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from .dbus_contract import INTERFACE_NAME
+
 
 MAX_SECRET_PAYLOAD = 16 * 1024
 PAYLOAD_VERSION = 1
@@ -22,7 +24,7 @@ PUBLIC_KEY_SIZE = 32
 NONCE_SIZE = 12
 TAG_SIZE = 16
 KDF_INFO = b"proton-vpn-kde-auth-v1"
-AAD = b"quest.entropy.PlasmaVPN.Backend1"
+AAD = INTERFACE_NAME.encode("ascii")
 
 
 class SecretPayloadReader:

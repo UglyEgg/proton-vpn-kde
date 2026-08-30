@@ -32,6 +32,7 @@ def is_project_source(path: Path) -> bool:
         ".sh",
         ".spec",
         ".toml",
+        ".xml",
         ".yml",
     }
 

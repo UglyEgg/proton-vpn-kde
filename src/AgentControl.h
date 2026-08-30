@@ -3,13 +3,15 @@
 
 #pragma once
 
+#include "DbusContract.h"
+
 #include <QObject>
 #include <QStringList>
 
 class AgentControl final : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "quest.entropy.PlasmaVPN.Agent1")
+    Q_CLASSINFO("D-Bus Interface", PROTON_VPN_KDE_DBUS_AGENT_INTERFACE)
 
 public:
     explicit AgentControl(QObject *parent = nullptr);
@@ -30,7 +32,7 @@ class QWindow;
 class ControlCenterControl final : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "quest.entropy.PlasmaVPN.ControlCenter1")
+    Q_CLASSINFO("D-Bus Interface", PROTON_VPN_KDE_DBUS_CONTROL_CENTER_INTERFACE)
 
 public:
     explicit ControlCenterControl(QObject *parent = nullptr);

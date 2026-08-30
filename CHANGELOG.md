@@ -28,6 +28,9 @@ No changes yet.
   it found.
 - Add enforced SPDX copyright and license identifiers to every project-authored
   source and build file without relabeling Proton-derived materials.
+- Make installed D-Bus introspection XML the checked-in source of truth for
+  endpoint, method, signal, error, and authorization policy constants, with
+  generated native/Python definitions and runtime-signature drift tests.
 - Consolidate the public documentation, make the security assessment
   unambiguous about current versus historical findings, and record the exact
   downstream keyring dependency used for KeePassXC acceptance.

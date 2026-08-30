@@ -3,6 +3,8 @@
 
 #include "SecretTransport.h"
 
+#include "DbusContract.h"
+
 #include <QByteArray>
 #include <QJsonDocument>
 
@@ -26,7 +28,7 @@ constexpr int kNonceSize = 12;
 constexpr int kTagSize = 16;
 constexpr std::string_view kKdfInfo = "proton-vpn-kde-auth-v1";
 constexpr std::string_view kAdditionalData =
-    "quest.entropy.PlasmaVPN.Backend1";
+    ProtonVpnKde::DBusContract::Backend::interfaceName;
 
 using PKey = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using PKeyContext = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;

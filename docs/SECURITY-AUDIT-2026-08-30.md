@@ -8,7 +8,7 @@ two low severity. All seven were corrected and their original failure modes no
 longer reproduce in focused tests.
 
 The current source passes 35 of 35 native, QML, activation, packaging, and
-integration tests plus 128 backend tests. A locally built Fedora package,
+integration tests plus 130 backend tests. A locally built Fedora package,
 `0.11.2-8.fc44`, also passed scoped installed acceptance for package ownership,
 service activation, KeePassXC Secret Service access through the declared
 downstream keyring build, unauthorized-call
@@ -182,7 +182,7 @@ The current remediated tree passed:
 - 35 of 35 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 128 backend Python tests;
+- 130 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

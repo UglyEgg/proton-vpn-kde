@@ -8,6 +8,7 @@ project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_dir"
 
 python3 scripts/check-spdx-headers.py
+python3 scripts/generate-dbus-contracts.py --check
 ruff check backend packaging/fedora/api-core-overlay scripts
 shellcheck \
     scripts/*.sh \

@@ -35,7 +35,11 @@ required_paths=(
     /usr/lib/systemd/user/proton-vpn-kde-agent.service
     /usr/lib/systemd/user/proton-vpn-kde-backend.service
     /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/__main__.py
+    /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/dbus_contract.py
     /usr/share/applications/proton-vpn-kde.desktop
+    /usr/share/dbus-1/interfaces/quest.entropy.PlasmaVPN.Backend1.xml
+    /usr/share/dbus-1/interfaces/quest.entropy.PlasmaVPN.Agent1.xml
+    /usr/share/dbus-1/interfaces/quest.entropy.PlasmaVPN.ControlCenter1.xml
     /usr/share/dbus-1/services/quest.entropy.PlasmaVPN.Backend.service
     /usr/share/icons/hicolor/scalable/apps/plasma-vpn.svg
     /usr/share/doc/proton-vpn-kde/docs/images/overview.png

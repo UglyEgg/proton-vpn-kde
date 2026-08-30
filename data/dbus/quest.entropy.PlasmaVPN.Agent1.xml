@@ -1,0 +1,16 @@
+<!-- SPDX-FileCopyrightText: 2026 Plasma VPN contributors -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+
+<!DOCTYPE node PUBLIC
+  "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "https://dbus.freedesktop.org/doc/dbus-specification.html">
+<node name="/quest/entropy/PlasmaVPN/Agent">
+  <interface name="quest.entropy.PlasmaVPN.Agent1">
+    <annotation name="quest.entropy.PlasmaVPN.BusName"
+                value="quest.entropy.PlasmaVPN.Agent"/>
+    <method name="EnsureRunning"/>
+    <method name="Quit"/>
+    <method name="ShowControlCenter"/>
+    <method name="ShowSettings"/>
+  </interface>
+</node>

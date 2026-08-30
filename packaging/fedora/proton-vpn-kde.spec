@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        15%{?dist}
+Release:        16%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -106,6 +106,9 @@ desktop-file-validate \
 %{_datadir}/dbus-1/services/quest.entropy.PlasmaVPN.Backend.service
 %{_datadir}/dbus-1/services/quest.entropy.PlasmaVPN.Agent.service
 %{_datadir}/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service
+%{_datadir}/dbus-1/interfaces/quest.entropy.PlasmaVPN.Backend1.xml
+%{_datadir}/dbus-1/interfaces/quest.entropy.PlasmaVPN.Agent1.xml
+%{_datadir}/dbus-1/interfaces/quest.entropy.PlasmaVPN.ControlCenter1.xml
 %{_datadir}/icons/hicolor/scalable/apps/plasma-vpn.svg
 %{_datadir}/icons/hicolor/scalable/apps/plasma-vpn-light.svg
 %{_datadir}/icons/hicolor/scalable/apps/plasma-vpn-dark.svg
@@ -117,6 +120,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-16
+- Generate native and Python D-Bus constants from installed XML contracts.
+- Verify the live Python service signatures and authorization policy against XML.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-15
 - Add enforced SPDX provenance to project-authored source and build files.
 

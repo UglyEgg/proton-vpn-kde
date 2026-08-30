@@ -1,0 +1,212 @@
+<!-- SPDX-FileCopyrightText: 2026 Plasma VPN contributors -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+
+<!DOCTYPE node PUBLIC
+  "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "https://dbus.freedesktop.org/doc/dbus-specification.html">
+<node name="/quest/entropy/PlasmaVPN/Backend">
+  <interface name="quest.entropy.PlasmaVPN.Backend1">
+    <annotation name="quest.entropy.PlasmaVPN.BusName"
+                value="quest.entropy.PlasmaVPN.Backend"/>
+    <annotation name="quest.entropy.PlasmaVPN.Error.InvalidCustomDns"
+                value="quest.entropy.PlasmaVPN.Error.InvalidCustomDns"/>
+    <annotation name="quest.entropy.PlasmaVPN.Error.InvalidSecretPayload"
+                value="quest.entropy.PlasmaVPN.Error.InvalidSecretPayload"/>
+    <annotation name="quest.entropy.PlasmaVPN.Error.InvalidSettings"
+                value="quest.entropy.PlasmaVPN.Error.InvalidSettings"/>
+    <annotation name="quest.entropy.PlasmaVPN.Error.InvalidSplitTunneling"
+                value="quest.entropy.PlasmaVPN.Error.InvalidSplitTunneling"/>
+    <annotation name="quest.entropy.PlasmaVPN.Error.InvalidSupportReport"
+                value="quest.entropy.PlasmaVPN.Error.InvalidSupportReport"/>
+    <annotation name="quest.entropy.PlasmaVPN.Error.OperationFailed"
+                value="quest.entropy.PlasmaVPN.Error.OperationFailed"/>
+    <annotation name="quest.entropy.PlasmaVPN.Error.Unauthorized"
+                value="quest.entropy.PlasmaVPN.Error.Unauthorized"/>
+
+    <method name="AuthorizeClient">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="handshake"/>
+      <arg name="unique_name" direction="in" type="s"/>
+    </method>
+    <method name="BeginFido2">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+    </method>
+    <method name="CancelFido2">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+    </method>
+    <method name="CancelLogin">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+    </method>
+    <method name="ConnectCountry">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="country_code" direction="in" type="s"/>
+    </method>
+    <method name="ConnectCountryWithFeatures">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="country_code" direction="in" type="s"/>
+      <arg name="features" direction="in" type="as"/>
+    </method>
+    <method name="ConnectFastest">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+    </method>
+    <method name="ConnectFastestWithFeature">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="feature" direction="in" type="s"/>
+    </method>
+    <method name="ConnectFastestWithFeatures">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="features" direction="in" type="as"/>
+    </method>
+    <method name="ConnectGroup">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="country_code" direction="in" type="s"/>
+      <arg name="group_kind" direction="in" type="s"/>
+      <arg name="group_name" direction="in" type="s"/>
+    </method>
+    <method name="ConnectGroupWithFeatures">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="country_code" direction="in" type="s"/>
+      <arg name="group_kind" direction="in" type="s"/>
+      <arg name="group_name" direction="in" type="s"/>
+      <arg name="features" direction="in" type="as"/>
+    </method>
+    <method name="ConnectServer">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="server_name" direction="in" type="s"/>
+    </method>
+    <method name="DisableKillSwitchForLogin">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+    </method>
+    <method name="Disconnect">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+    </method>
+    <method name="GetAuthPublicKey">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="operation" direction="in" type="s"/>
+      <arg name="public_key" direction="out" type="s"/>
+    </method>
+    <method name="GetCountries">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="read-only"/>
+      <arg name="countries_json" direction="out" type="s"/>
+    </method>
+    <method name="GetCustomDns">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="read-only"/>
+      <arg name="settings_json" direction="out" type="s"/>
+    </method>
+    <method name="GetGroupServers">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="read-only"/>
+      <arg name="country_code" direction="in" type="s"/>
+      <arg name="group_kind" direction="in" type="s"/>
+      <arg name="group_name" direction="in" type="s"/>
+      <arg name="servers_json" direction="out" type="s"/>
+    </method>
+    <method name="GetPendingNpsSurvey">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="survey_json" direction="out" type="s"/>
+    </method>
+    <method name="GetServerGroups">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="read-only"/>
+      <arg name="country_code" direction="in" type="s"/>
+      <arg name="groups_json" direction="out" type="s"/>
+    </method>
+    <method name="GetServerLoads">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="read-only"/>
+      <arg name="country_code" direction="in" type="s"/>
+      <arg name="loads_json" direction="out" type="s"/>
+    </method>
+    <method name="GetSettings">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="read-only"/>
+      <arg name="settings_json" direction="out" type="s"/>
+    </method>
+    <method name="GetSnapshot">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="read-only"/>
+      <arg name="snapshot_json" direction="out" type="s"/>
+    </method>
+    <method name="GetSplitTunneling">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="read-only"/>
+      <arg name="settings_json" direction="out" type="s"/>
+    </method>
+    <method name="Login">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <annotation name="quest.entropy.PlasmaVPN.SecretDescriptor" value="true"/>
+      <arg name="secret_fd" direction="in" type="h"/>
+    </method>
+    <method name="Logout">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+    </method>
+    <method name="RegisterClient">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="handshake"/>
+      <arg name="unique_name" direction="in" type="s"/>
+    </method>
+    <method name="SearchLocations">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="read-only"/>
+      <arg name="query" direction="in" type="s"/>
+      <arg name="locations_json" direction="out" type="s"/>
+    </method>
+    <method name="SetReconnectionEnabled">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="enabled" direction="in" type="b"/>
+    </method>
+    <method name="StartPacketCapture">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="directory_path" direction="in" type="s"/>
+    </method>
+    <method name="StopPacketCapture">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+    </method>
+    <method name="SubmitFido2Pin">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <annotation name="quest.entropy.PlasmaVPN.SecretDescriptor" value="true"/>
+      <arg name="secret_fd" direction="in" type="h"/>
+    </method>
+    <method name="SubmitNpsSurvey">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <annotation name="quest.entropy.PlasmaVPN.SecretDescriptor" value="true"/>
+      <arg name="secret_fd" direction="in" type="h"/>
+    </method>
+    <method name="SubmitSupportReport">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <annotation name="quest.entropy.PlasmaVPN.SecretDescriptor" value="true"/>
+      <arg name="secret_fd" direction="in" type="h"/>
+    </method>
+    <method name="SubmitTwoFactor">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <annotation name="quest.entropy.PlasmaVPN.SecretDescriptor" value="true"/>
+      <arg name="secret_fd" direction="in" type="h"/>
+    </method>
+    <method name="UnregisterClient">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="handshake"/>
+      <arg name="unique_name" direction="in" type="s"/>
+    </method>
+    <method name="UpdateCustomDns">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="patch_json" direction="in" type="s"/>
+      <arg name="settings_json" direction="out" type="s"/>
+    </method>
+    <method name="UpdateSettings">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="patch_json" direction="in" type="s"/>
+      <arg name="settings_json" direction="out" type="s"/>
+    </method>
+    <method name="UpdateSplitTunneling">
+      <annotation name="quest.entropy.PlasmaVPN.Authorization" value="protected"/>
+      <arg name="patch_json" direction="in" type="s"/>
+      <arg name="settings_json" direction="out" type="s"/>
+    </method>
+
+    <signal name="CustomDnsChanged">
+      <arg name="settings_json" type="s"/>
+    </signal>
+    <signal name="ServerDataChanged">
+      <arg name="topology_changed" type="b"/>
+    </signal>
+    <signal name="SettingsChanged">
+      <arg name="settings_json" type="s"/>
+    </signal>
+    <signal name="SnapshotChanged">
+      <arg name="snapshot_json" type="s"/>
+    </signal>
+    <signal name="SplitTunnelingChanged">
+      <arg name="settings_json" type="s"/>
+    </signal>
+  </interface>
+</node>

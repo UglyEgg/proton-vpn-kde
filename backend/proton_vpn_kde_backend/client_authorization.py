@@ -14,78 +14,28 @@ import stat
 from dbus_fast import Message
 from dbus_fast.constants import MessageType
 
+from .dbus_contract import (
+    HANDSHAKE_METHODS,
+    INTERFACE_NAME,
+    OBJECT_PATH,
+    PROTECTED_METHODS,
+    READ_ONLY_METHODS,
+    SECRET_DESCRIPTOR_METHODS,
+    Error,
+)
 
-BACKEND_OBJECT_PATH = "/quest/entropy/PlasmaVPN/Backend"
-BACKEND_INTERFACE = "quest.entropy.PlasmaVPN.Backend1"
-UNAUTHORIZED_ERROR = "quest.entropy.PlasmaVPN.Error.Unauthorized"
+
+BACKEND_OBJECT_PATH = OBJECT_PATH
+BACKEND_INTERFACE = INTERFACE_NAME
+UNAUTHORIZED_ERROR = Error.UNAUTHORIZED
 UNAUTHORIZED_MESSAGE = "This application is not authorized to control the VPN"
-INVALID_SECRET_ERROR = "quest.entropy.PlasmaVPN.Error.InvalidSecretPayload"
+INVALID_SECRET_ERROR = Error.INVALID_SECRET_PAYLOAD
 INVALID_SECRET_MESSAGE = "The protected payload is invalid or no longer valid"
 INVALID_ARGUMENTS_ERROR = "org.freedesktop.DBus.Error.InvalidArgs"
 INVALID_ARGUMENTS_MESSAGE = "Unexpected Unix file descriptors"
 _NAME_OWNER_MATCH = (
     "sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',"
     "path='/org/freedesktop/DBus',member='NameOwnerChanged'"
-)
-
-# These methods have no side effects and expose only the community client's
-# documented, non-sensitive VPN presentation state. Everything else is denied
-# unless it is an explicit authorization/lease handshake or the sender has
-# already been authenticated.
-READ_ONLY_METHODS = frozenset(
-    {
-        "GetSnapshot",
-        "GetCountries",
-        "GetServerGroups",
-        "GetGroupServers",
-        "GetServerLoads",
-        "SearchLocations",
-        "GetSettings",
-        "GetSplitTunneling",
-        "GetCustomDns",
-    }
-)
-HANDSHAKE_METHODS = frozenset({"AuthorizeClient", "RegisterClient", "UnregisterClient"})
-PROTECTED_METHODS = frozenset(
-    {
-        "GetAuthPublicKey",
-        "ConnectFastest",
-        "ConnectFastestWithFeature",
-        "ConnectFastestWithFeatures",
-        "ConnectCountry",
-        "ConnectCountryWithFeatures",
-        "ConnectGroup",
-        "ConnectGroupWithFeatures",
-        "ConnectServer",
-        "Disconnect",
-        "UpdateSettings",
-        "UpdateSplitTunneling",
-        "UpdateCustomDns",
-        "StartPacketCapture",
-        "StopPacketCapture",
-        "SubmitSupportReport",
-        "SubmitNpsSurvey",
-        "GetPendingNpsSurvey",
-        "Login",
-        "SubmitTwoFactor",
-        "CancelLogin",
-        "BeginFido2",
-        "SubmitFido2Pin",
-        "CancelFido2",
-        "Logout",
-        "DisableKillSwitchForLogin",
-        "SetReconnectionEnabled",
-    }
-)
-CLASSIFIED_METHODS = READ_ONLY_METHODS | HANDSHAKE_METHODS | PROTECTED_METHODS
-SECRET_DESCRIPTOR_METHODS = frozenset(
-    {
-        "Login",
-        "SubmitTwoFactor",
-        "SubmitFido2Pin",
-        "SubmitNpsSurvey",
-        "SubmitSupportReport",
-    }
 )
 
 _request_sender: contextvars.ContextVar[str] = contextvars.ContextVar(

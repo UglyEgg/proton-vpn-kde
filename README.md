@@ -74,7 +74,7 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 | Evidence | 0.11.2 release candidate |
 | --- | --- |
-| Automated verification | 35/35 CTest tests, including 128 backend tests, plus Mypy, Clang-Tidy, ASan/LSan/UBSan, and a measured 75% backend branch-coverage floor |
+| Automated verification | 35/35 CTest tests, including 130 backend tests, plus Mypy, Clang-Tidy, ASan/LSan/UBSan, and a measured 75% backend branch-coverage floor |
 | Integration verification | QML diagnostics, D-Bus activation, staged installation, KRunner, and System Settings |
 | Package verification | Fedora source and binary RPM build, artifact policy checks, and an isolated transaction test |
 | Security assessment | All seven findings closed; no finding from the assessment remains open |

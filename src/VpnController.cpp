@@ -6,6 +6,7 @@
 #include "BackendCallPolicy.h"
 #include "BackendIdentity.h"
 #include "ConnectionAction.h"
+#include "DbusContract.h"
 #include "InstalledApplicationModel.h"
 #include "CustomDnsModel.h"
 #include "LocationModels.h"
@@ -26,6 +27,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QLatin1StringView>
 #include <QMetaType>
 #include <QRegularExpression>
 #include <QSet>
@@ -41,9 +43,7 @@
 
 namespace
 {
-constexpr auto kBackendService = "quest.entropy.PlasmaVPN.Backend";
-constexpr auto kBackendPath = "/quest/entropy/PlasmaVPN/Backend";
-constexpr auto kBackendInterface = "quest.entropy.PlasmaVPN.Backend1";
+namespace BackendDbus = ProtonVpnKde::DBusContract::Backend;
 
 bool normalizeServerFeatures(const QStringList &features, QStringList *result)
 {
@@ -84,7 +84,7 @@ VpnController::VpnController(QObject *parent)
 VpnController::VpnController(QObject *parent, bool discoverApplications)
     : VpnConnectionController(parent)
     , m_serviceWatcher(new QDBusServiceWatcher(
-          QString::fromLatin1(kBackendService),
+          QString::fromLatin1(BackendDbus::serviceName),
           QDBusConnection::sessionBus(),
           QDBusServiceWatcher::WatchForRegistration
               | QDBusServiceWatcher::WatchForUnregistration,
@@ -142,13 +142,13 @@ VpnController::VpnController(QObject *parent, bool discoverApplications)
 
     auto *interface = QDBusConnection::sessionBus().interface();
     if (interface && interface->isServiceRegistered(
-            QString::fromLatin1(kBackendService))) {
-        onServiceRegistered(QString::fromLatin1(kBackendService));
+            QString::fromLatin1(BackendDbus::serviceName))) {
+        onServiceRegistered(QString::fromLatin1(BackendDbus::serviceName));
     } else if (interface) {
         // Activation itself carries no application data. No Backend1 method is
         // called until the resulting unique owner has been authenticated.
         static_cast<void>(interface->startService(
-            QString::fromLatin1(kBackendService)));
+            QString::fromLatin1(BackendDbus::serviceName)));
     }
 }
 
@@ -247,9 +247,9 @@ void VpnController::refresh()
     }
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetSnapshot"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getSnapshot));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished,
@@ -262,12 +262,12 @@ void VpnController::activatePrimaryAction()
         return;
     }
     if (m_state == QStringLiteral("connecting")) {
-        callControlOperation(QStringLiteral("Disconnect"));
+        callControlOperation(QString::fromLatin1(BackendDbus::Method::disconnect));
         return;
     }
     const bool shouldDisconnect = ProtonVpnKde::primaryActionDisconnects(m_state);
     if (shouldDisconnect) {
-        callOperation(QStringLiteral("Disconnect"));
+        callOperation(QString::fromLatin1(BackendDbus::Method::disconnect));
     } else {
         callFastestOperation(m_fastestFeatures);
     }
@@ -279,7 +279,7 @@ void VpnController::disconnect()
         || m_state == QStringLiteral("disconnected")) {
         return;
     }
-    callControlOperation(QStringLiteral("Disconnect"));
+    callControlOperation(QString::fromLatin1(BackendDbus::Method::disconnect));
 }
 
 void VpnController::copyForwardedPort()
@@ -306,7 +306,7 @@ void VpnController::startPacketCapture(const QString &directoryPath)
         emit snapshotChanged();
         return;
     }
-    callOperation(QStringLiteral("StartPacketCapture"), {normalized});
+    callOperation(QString::fromLatin1(BackendDbus::Method::startPacketCapture), {normalized});
 }
 
 void VpnController::stopPacketCapture()
@@ -315,7 +315,7 @@ void VpnController::stopPacketCapture()
         || !m_packetCaptureActive) {
         return;
     }
-    callOperation(QStringLiteral("StopPacketCapture"));
+    callOperation(QString::fromLatin1(BackendDbus::Method::stopPacketCapture));
 }
 
 void VpnController::submitSupportReport(const QString &username,
@@ -370,10 +370,10 @@ void VpnController::submitSupportReport(const QString &username,
     const quint64 backendGeneration = m_backendGeneration;
     QDBusMessage keyRequest = QDBusMessage::createMethodCall(
         backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetAuthPublicKey"));
-    keyRequest << QStringLiteral("SubmitSupportReport");
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getAuthPublicKey));
+    keyRequest << QString::fromLatin1(BackendDbus::Method::submitSupportReport);
     auto *keyWatcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(keyRequest, 5000), this);
     connect(keyWatcher, &QDBusPendingCallWatcher::finished, this,
@@ -402,9 +402,9 @@ void VpnController::submitSupportReport(const QString &username,
 
         QDBusMessage reportRequest = QDBusMessage::createMethodCall(
             backendDestination,
-            QString::fromLatin1(kBackendPath),
-            QString::fromLatin1(kBackendInterface),
-            QStringLiteral("SubmitSupportReport"));
+            QString::fromLatin1(BackendDbus::objectPath),
+            QString::fromLatin1(BackendDbus::interfaceName),
+            QString::fromLatin1(BackendDbus::Method::submitSupportReport));
         reportRequest << QVariant::fromValue(descriptor);
         auto *reportWatcher = new QDBusPendingCallWatcher(
             QDBusConnection::sessionBus().asyncCall(reportRequest, 120000), this);
@@ -442,9 +442,9 @@ void VpnController::loadCountries()
     setLocationsBusy(true);
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetCountries"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getCountries));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished,
@@ -477,9 +477,9 @@ void VpnController::searchLocations(const QString &query)
     emit locationsChanged();
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("SearchLocations"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::searchLocations));
     message << normalizedQuery;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
@@ -502,7 +502,7 @@ void VpnController::submitNpsSurvey(int score, const QString &comments)
     m_npsSurveyAvailable = false;
     emit npsSurveyChanged();
     callSecretOperation(
-        QStringLiteral("SubmitNpsSurvey"),
+        QString::fromLatin1(BackendDbus::Method::submitNpsSurvey),
         {{QStringLiteral("score"), QString::number(score)},
          {QStringLiteral("comments"), comments.left(250)},
          {QStringLiteral("responseType"), QStringLiteral("submit")}},
@@ -517,7 +517,7 @@ void VpnController::dismissNpsSurvey()
     m_npsSurveyAvailable = false;
     emit npsSurveyChanged();
     callSecretOperation(
-        QStringLiteral("SubmitNpsSurvey"),
+        QString::fromLatin1(BackendDbus::Method::submitNpsSurvey),
         {{QStringLiteral("score"), QStringLiteral("0")},
          {QStringLiteral("comments"), QString()},
          {QStringLiteral("responseType"), QStringLiteral("dismiss")}},
@@ -553,9 +553,9 @@ void VpnController::loadServerGroups(const QString &countryCode)
     setLocationsBusy(true);
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetServerGroups"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getServerGroups));
     message << normalizedCode;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
@@ -612,9 +612,9 @@ void VpnController::requestGroupServers(const QString &countryCode,
 {
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetGroupServers"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getGroupServers));
     message << countryCode << groupKind << groupName;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
@@ -694,7 +694,7 @@ void VpnController::clearGroupServerContext()
 void VpnController::connectCountry(const QString &countryCode)
 {
     if (primaryActionEnabled()) {
-        callOperation(QStringLiteral("ConnectCountry"), {countryCode});
+        callOperation(QString::fromLatin1(BackendDbus::Method::connectCountry), {countryCode});
     }
 }
 
@@ -705,7 +705,7 @@ void VpnController::connectCountryWithFeatures(
     if (primaryActionEnabled()
         && normalizeServerFeatures(features, &normalized)) {
         callOperation(
-            QStringLiteral("ConnectCountryWithFeatures"),
+            QString::fromLatin1(BackendDbus::Method::connectCountryWithFeatures),
             {countryCode, QVariant::fromValue(normalized)});
     }
 }
@@ -719,9 +719,9 @@ void VpnController::connectTarget(const QString &target)
     if (normalized == QStringLiteral("FASTEST")) {
         callFastestOperation(m_fastestFeatures);
     } else if (normalized.contains(QLatin1Char('#'))) {
-        callOperation(QStringLiteral("ConnectServer"), {normalized});
+        callOperation(QString::fromLatin1(BackendDbus::Method::connectServer), {normalized});
     } else if (!normalized.isEmpty()) {
-        callOperation(QStringLiteral("ConnectCountry"), {normalized});
+        callOperation(QString::fromLatin1(BackendDbus::Method::connectCountry), {normalized});
     }
 }
 
@@ -743,7 +743,7 @@ void VpnController::connectGroup(const QString &countryCode,
 {
     if (primaryActionEnabled()) {
         callOperation(
-            QStringLiteral("ConnectGroup"),
+            QString::fromLatin1(BackendDbus::Method::connectGroup),
             {countryCode, groupKind, groupName});
     }
 }
@@ -756,7 +756,7 @@ void VpnController::connectGroupWithFeatures(
     if (primaryActionEnabled()
         && normalizeServerFeatures(features, &normalized)) {
         callOperation(
-            QStringLiteral("ConnectGroupWithFeatures"),
+            QString::fromLatin1(BackendDbus::Method::connectGroupWithFeatures),
             {countryCode, groupKind, groupName,
              QVariant::fromValue(normalized)});
     }
@@ -765,7 +765,7 @@ void VpnController::connectGroupWithFeatures(
 void VpnController::connectServer(const QString &serverName)
 {
     if (primaryActionEnabled()) {
-        callOperation(QStringLiteral("ConnectServer"), {serverName});
+        callOperation(QString::fromLatin1(BackendDbus::Method::connectServer), {serverName});
     }
 }
 
@@ -775,7 +775,7 @@ void VpnController::login(const QString &username, const QString &password)
         return;
     }
     callSecretOperation(
-        QStringLiteral("Login"),
+        QString::fromLatin1(BackendDbus::Method::login),
         {{QStringLiteral("username"), username},
          {QStringLiteral("password"), password}});
 }
@@ -786,36 +786,36 @@ void VpnController::submitTwoFactor(const QString &code)
         return;
     }
     callSecretOperation(
-        QStringLiteral("SubmitTwoFactor"),
+        QString::fromLatin1(BackendDbus::Method::submitTwoFactor),
         {{QStringLiteral("code"), code}});
 }
 
 void VpnController::cancelLogin()
 {
-    callOperation(QStringLiteral("CancelLogin"));
+    callOperation(QString::fromLatin1(BackendDbus::Method::cancelLogin));
 }
 
 void VpnController::beginFido2()
 {
-    callOperation(QStringLiteral("BeginFido2"));
+    callOperation(QString::fromLatin1(BackendDbus::Method::beginFido2));
 }
 
 void VpnController::submitFido2Pin(const QString &pin)
 {
     callSecretOperation(
-        QStringLiteral("SubmitFido2Pin"),
+        QString::fromLatin1(BackendDbus::Method::submitFido2Pin),
         {{QStringLiteral("pin"), pin}},
         false);
 }
 
 void VpnController::cancelFido2()
 {
-    callControlOperation(QStringLiteral("CancelFido2"));
+    callControlOperation(QString::fromLatin1(BackendDbus::Method::cancelFido2));
 }
 
 void VpnController::logout()
 {
-    callOperation(QStringLiteral("Logout"));
+    callOperation(QString::fromLatin1(BackendDbus::Method::logout));
 }
 
 void VpnController::disableKillSwitchForLogin()
@@ -824,7 +824,7 @@ void VpnController::disableKillSwitchForLogin()
         || m_killSwitch == 0) {
         return;
     }
-    callOperation(QStringLiteral("DisableKillSwitchForLogin"));
+    callOperation(QString::fromLatin1(BackendDbus::Method::disableKillSwitchForLogin));
 }
 
 void VpnController::setCountryFilter(const QString &filterText)
@@ -858,7 +858,9 @@ void VpnController::setReconnectionEnabled(bool enabled)
     if (!m_backendAvailable) {
         return;
     }
-    callControlOperation(QStringLiteral("SetReconnectionEnabled"), {enabled});
+    callControlOperation(
+        QString::fromLatin1(BackendDbus::Method::setReconnectionEnabled),
+        {enabled});
 }
 
 void VpnController::setFastestFeatures(const QStringList &features)
@@ -878,9 +880,9 @@ void VpnController::loadSettings()
     m_settings->setMessage({});
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetSettings"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getSettings));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 10000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished,
@@ -945,9 +947,9 @@ void VpnController::updateSetting(const QString &name, const QVariant &value)
     m_settings->setMessage({});
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("UpdateSettings"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::updateSettings));
     message << patchJson;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
@@ -965,9 +967,9 @@ void VpnController::loadSplitTunneling()
     m_splitTunneling->setMessage(QString{});
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetSplitTunneling"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getSplitTunneling));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 10000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished,
@@ -1035,9 +1037,9 @@ void VpnController::updateSplitTunneling(const QString &name,
     m_splitTunneling->setMessage(QString{});
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("UpdateSplitTunneling"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::updateSplitTunneling));
     message << patchJson;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
@@ -1145,9 +1147,9 @@ void VpnController::loadCustomDns()
     m_customDns->setMessage(QString{});
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetCustomDns"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getCustomDns));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 10000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished,
@@ -1206,9 +1208,9 @@ void VpnController::updateCustomDns(const QString &name,
     m_customDns->setMessage(QString{});
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("UpdateCustomDns"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::updateCustomDns));
     message << patchJson;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
@@ -1271,25 +1273,25 @@ void VpnController::connectBackendSignals()
         return;
     }
     QDBusConnection bus = QDBusConnection::sessionBus();
-    bus.connect(m_backendDestination, QString::fromLatin1(kBackendPath),
-                QString::fromLatin1(kBackendInterface),
-                QStringLiteral("SnapshotChanged"), this,
+    bus.connect(m_backendDestination, QString::fromLatin1(BackendDbus::objectPath),
+                QString::fromLatin1(BackendDbus::interfaceName),
+                QString::fromLatin1(BackendDbus::Signal::snapshotChanged), this,
                 SLOT(onSnapshotChanged(QString)));
-    bus.connect(m_backendDestination, QString::fromLatin1(kBackendPath),
-                QString::fromLatin1(kBackendInterface),
-                QStringLiteral("ServerDataChanged"), this,
+    bus.connect(m_backendDestination, QString::fromLatin1(BackendDbus::objectPath),
+                QString::fromLatin1(BackendDbus::interfaceName),
+                QString::fromLatin1(BackendDbus::Signal::serverDataChanged), this,
                 SLOT(onServerDataChanged(bool)));
-    bus.connect(m_backendDestination, QString::fromLatin1(kBackendPath),
-                QString::fromLatin1(kBackendInterface),
-                QStringLiteral("SettingsChanged"), this,
+    bus.connect(m_backendDestination, QString::fromLatin1(BackendDbus::objectPath),
+                QString::fromLatin1(BackendDbus::interfaceName),
+                QString::fromLatin1(BackendDbus::Signal::settingsChanged), this,
                 SLOT(onSettingsChanged(QString)));
-    bus.connect(m_backendDestination, QString::fromLatin1(kBackendPath),
-                QString::fromLatin1(kBackendInterface),
-                QStringLiteral("SplitTunnelingChanged"), this,
+    bus.connect(m_backendDestination, QString::fromLatin1(BackendDbus::objectPath),
+                QString::fromLatin1(BackendDbus::interfaceName),
+                QString::fromLatin1(BackendDbus::Signal::splitTunnelingChanged), this,
                 SLOT(onSplitTunnelingChanged(QString)));
-    bus.connect(m_backendDestination, QString::fromLatin1(kBackendPath),
-                QString::fromLatin1(kBackendInterface),
-                QStringLiteral("CustomDnsChanged"), this,
+    bus.connect(m_backendDestination, QString::fromLatin1(BackendDbus::objectPath),
+                QString::fromLatin1(BackendDbus::interfaceName),
+                QString::fromLatin1(BackendDbus::Signal::customDnsChanged), this,
                 SLOT(onCustomDnsChanged(QString)));
 }
 
@@ -1299,14 +1301,14 @@ void VpnController::disconnectBackendSignals()
         return;
     }
     QDBusConnection bus = QDBusConnection::sessionBus();
-    bus.disconnect(m_backendDestination, QString::fromLatin1(kBackendPath),
-                   QString::fromLatin1(kBackendInterface), {}, this, {});
+    bus.disconnect(m_backendDestination, QString::fromLatin1(BackendDbus::objectPath),
+                   QString::fromLatin1(BackendDbus::interfaceName), {}, this, {});
 }
 
 void VpnController::onServiceRegistered(const QString &)
 {
     const auto identity = ProtonVpnKde::verifyBackendIdentity(
-        QDBusConnection::sessionBus(), QString::fromLatin1(kBackendService));
+        QDBusConnection::sessionBus(), QString::fromLatin1(BackendDbus::serviceName));
     if (!identity.trusted) {
         disconnectBackendSignals();
         m_backendDestination.clear();
@@ -1386,9 +1388,9 @@ void VpnController::registerClient()
     }
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("RegisterClient"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::registerClient));
     message.setArguments({uniqueName});
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
@@ -1411,9 +1413,9 @@ void VpnController::unregisterClient()
     }
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("UnregisterClient"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::unregisterClient));
     message.setArguments({uniqueName});
     // The event loop has already stopped when this destructor runs. A direct
     // fire-and-forget send still queues the release before bus teardown.
@@ -1598,8 +1600,8 @@ void VpnController::callOperation(const QString &method,
 
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
         method);
     message.setArguments(arguments);
     auto *watcher = new QDBusPendingCallWatcher(
@@ -1615,10 +1617,10 @@ void VpnController::callFastestOperation(const QStringList &features)
         return;
     }
     if (normalized.isEmpty()) {
-        callOperation(QStringLiteral("ConnectFastest"));
+        callOperation(QString::fromLatin1(BackendDbus::Method::connectFastest));
     } else {
         callOperation(
-            QStringLiteral("ConnectFastestWithFeatures"),
+            QString::fromLatin1(BackendDbus::Method::connectFastestWithFeatures),
             {QVariant::fromValue(normalized)});
     }
 }
@@ -1645,9 +1647,9 @@ void VpnController::callSecretOperation(const QString &method,
     const quint64 backendGeneration = m_backendGeneration;
     QDBusMessage keyRequest = QDBusMessage::createMethodCall(
         backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetAuthPublicKey"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getAuthPublicKey));
     keyRequest << method;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(keyRequest, 5000), this);
@@ -1682,8 +1684,8 @@ void VpnController::callSecretOperation(const QString &method,
         }
 
         QDBusMessage request = QDBusMessage::createMethodCall(
-            backendDestination, QString::fromLatin1(kBackendPath),
-            QString::fromLatin1(kBackendInterface), method);
+            backendDestination, QString::fromLatin1(BackendDbus::objectPath),
+            QString::fromLatin1(BackendDbus::interfaceName), method);
         request << QVariant::fromValue(descriptor);
         auto *operationWatcher = new QDBusPendingCallWatcher(
             QDBusConnection::sessionBus().asyncCall(request, 120000), this);
@@ -1701,8 +1703,8 @@ void VpnController::callControlOperation(const QString &method,
     }
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
         method);
     message.setArguments(arguments);
     auto *watcher = new QDBusPendingCallWatcher(
@@ -1725,9 +1727,9 @@ void VpnController::requestServerLoads()
     setLocationsBusy(true);
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetServerLoads"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getServerLoads));
     message << m_currentServerCountry;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
@@ -1919,9 +1921,9 @@ void VpnController::loadPendingNpsSurvey()
     m_npsSurveyChecked = true;
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
-        QString::fromLatin1(kBackendPath),
-        QString::fromLatin1(kBackendInterface),
-        QStringLiteral("GetPendingNpsSurvey"));
+        QString::fromLatin1(BackendDbus::objectPath),
+        QString::fromLatin1(BackendDbus::interfaceName),
+        QString::fromLatin1(BackendDbus::Method::getPendingNpsSurvey));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 10000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished,
@@ -2054,7 +2056,7 @@ void VpnController::handleSettingsReply(QDBusPendingCallWatcher *watcher)
     m_settings->setBusy(false);
     if (reply.isError()) {
         if (reply.error().name()
-            == QStringLiteral("quest.entropy.PlasmaVPN.Error.InvalidSettings")) {
+            == QLatin1StringView(BackendDbus::Error::invalidSettings)) {
             QString message = reply.error().message().trimmed();
             if (message.isEmpty() || message.size() > 256
                 || message.contains(QLatin1Char('\n'))) {
@@ -2080,8 +2082,8 @@ void VpnController::handleSplitTunnelingReply(
     m_splitTunneling->setBusy(false);
     if (reply.isError()) {
         if (reply.error().name()
-            == QStringLiteral(
-                "quest.entropy.PlasmaVPN.Error.InvalidSplitTunneling")) {
+            == QLatin1StringView(
+                BackendDbus::Error::invalidSplitTunneling)) {
             QString message = reply.error().message().trimmed();
             if (message.isEmpty() || message.size() > 256
                 || message.contains(QLatin1Char('\n'))) {
@@ -2109,7 +2111,7 @@ void VpnController::handleCustomDnsReply(QDBusPendingCallWatcher *watcher)
     m_customDns->setBusy(false);
     if (reply.isError()) {
         if (reply.error().name()
-            == QStringLiteral("quest.entropy.PlasmaVPN.Error.InvalidCustomDns")) {
+            == QLatin1StringView(BackendDbus::Error::invalidCustomDns)) {
             QString message = reply.error().message().trimmed();
             if (message.isEmpty() || message.size() > 256
                 || message.contains(QLatin1Char('\n'))) {

@@ -961,6 +961,11 @@ install(
     DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
 )
 install(
+    DIRECTORY data/dbus/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/interfaces
+    FILES_MATCHING PATTERN "*.xml"
+)
+install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-agent.service
     DESTINATION ${KDE_INSTALL_SYSTEMDUSERUNITDIR}
 )
