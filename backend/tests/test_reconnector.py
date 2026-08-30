@@ -67,6 +67,13 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         for _ in range(5):
             await asyncio.sleep(0)
 
+    async def wait_until(self, predicate, message: str):
+        for _ in range(20):
+            if predicate():
+                return
+            await asyncio.sleep(0)
+        self.fail(message)
+
     async def test_reconnects_same_server_after_nonfatal_drop(self):
         reconnector, connector, refresher, messages = self.make_reconnector()
 
@@ -123,19 +130,24 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_waits_for_previous_connection_then_retries(self):
         reconnector, connector, _, messages = self.make_reconnector(
-            delay_factory=lambda _attempt: 0.01
+            delay_factory=lambda _attempt: 0
         )
         previous_connection = connector.current_connection
         connector.current_connection = None
 
         reconnector.enable()
-        await asyncio.sleep(0.015)
+        await self.wait_until(
+            lambda: "Waiting for the previous VPN connection…" in messages,
+            "The missing previous connection was not observed",
+        )
 
         connector.connect.assert_not_awaited()
-        self.assertIn("Waiting for the previous VPN connection…", messages)
 
         connector.current_connection = previous_connection
-        await asyncio.sleep(0.02)
+        await self.wait_until(
+            lambda: connector.connect.await_count == 1,
+            "The previous VPN connection was not retried",
+        )
 
         connector.connect.assert_awaited_once()
         await reconnector.disable()

@@ -123,6 +123,7 @@ desktop-file-validate \
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-24
 - Recover the Control Center after an unexpected backend service exit.
 - Explain package-upgrade client authentication failures without retry churn.
+- Make the reconnect release test independent of scheduler timing.
 
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-23
 - Make keep-connected tray shutdown explicit.
