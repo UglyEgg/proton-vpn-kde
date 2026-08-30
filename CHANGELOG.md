@@ -13,6 +13,8 @@ All notable user-visible changes are recorded here. The project follows
   and settings units without changing its QML or D-Bus behavior.
 - Separate immutable backend state and payload validation from asynchronous
   orchestration while retaining the existing Python import surface.
+- Isolate the deterministic demo adapter from the official Core adapter while
+  preserving the established adapter import facade.
 
 ## [0.11.2] - 2026-08-30
 
