@@ -86,6 +86,26 @@ void VpnController::clearLocationSearch()
     searchLocations({});
 }
 
+quint64 VpnController::claimServerContext(const QString &countryCode)
+{
+    if (countryCode.trimmed().size() != 2) {
+        return 0;
+    }
+    const quint64 generation = ++m_serverContextGeneration;
+    loadServerGroups(countryCode);
+    return generation;
+}
+
+void VpnController::releaseServerContext(quint64 contextGeneration)
+{
+    if (contextGeneration == 0
+        || contextGeneration != m_serverContextGeneration) {
+        return;
+    }
+    ++m_serverContextGeneration;
+    resetServerContext();
+}
+
 void VpnController::loadServerGroups(const QString &countryCode)
 {
     const QString normalizedCode = countryCode.trimmed().toUpper();
@@ -113,17 +133,76 @@ void VpnController::loadServerGroups(const QString &countryCode)
     }
     m_serverGroupRefreshPending = false;
     setLocationsBusy(true);
+    requestServerGroups(normalizedCode, 0);
+}
+
+void VpnController::requestServerGroups(const QString &countryCode,
+                                        int retryCount)
+{
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
         QString::fromLatin1(BackendDbus::objectPath),
         QString::fromLatin1(BackendDbus::interfaceName),
         QString::fromLatin1(BackendDbus::Method::getServerGroups));
-    message << normalizedCode;
+    message << countryCode;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
-    watcher->setProperty("countryCode", normalizedCode);
+    watcher->setProperty("countryCode", countryCode);
+    watcher->setProperty("retryCount", retryCount);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleServerGroupsReply);
+}
+
+bool VpnController::scheduleServerGroupRetry(const QString &countryCode,
+                                             int retryCount)
+{
+    // A country returned by GetCountries necessarily owns at least one server
+    // group. Core can briefly expose an empty grouped view while replacing its
+    // topology snapshot, so retry that inconsistency with a small bounded
+    // exponential backoff instead of requiring a manual refresh.
+    if (retryCount >= 4) {
+        return false;
+    }
+    const quint64 backendGeneration = m_backendGeneration;
+    const int retryDelayMs = 150 * (1 << retryCount);
+    QTimer::singleShot(retryDelayMs, this,
+        [this, countryCode, retryCount, backendGeneration] {
+            if (backendGeneration != m_backendGeneration
+                || countryCode != m_currentServerCountry
+                || !m_backendAvailable || !m_ready || !m_loggedIn) {
+                setLocationsBusy(false);
+                dispatchPendingLocationRefreshes();
+                return;
+            }
+            requestServerGroups(countryCode, retryCount + 1);
+        });
+    return true;
+}
+
+quint64 VpnController::claimGroupServerContext(const QString &countryCode,
+                                               const QString &groupKind,
+                                               const QString &groupName)
+{
+    const QString normalizedKind = groupKind.trimmed();
+    if (countryCode.trimmed().size() != 2
+        || (normalizedKind != QStringLiteral("location")
+            && normalizedKind != QStringLiteral("secure-core"))
+        || groupName.trimmed().isEmpty()) {
+        return 0;
+    }
+    const quint64 generation = ++m_groupServerContextGeneration;
+    loadGroupServers(countryCode, groupKind, groupName);
+    return generation;
+}
+
+void VpnController::releaseGroupServerContext(quint64 contextGeneration)
+{
+    if (contextGeneration == 0
+        || contextGeneration != m_groupServerContextGeneration) {
+        return;
+    }
+    ++m_groupServerContextGeneration;
+    resetGroupServerContext();
 }
 
 void VpnController::loadGroupServers(const QString &countryCode,
@@ -222,12 +301,14 @@ bool VpnController::scheduleGroupServerRetry(const QString &countryCode,
     return true;
 }
 
-void VpnController::clearServerContext()
+void VpnController::resetServerContext()
 {
     const bool wasBusy = locationsBusy();
+    m_serverGroupFilterModel->setRequiredFeatures({});
     m_currentServerCountry.clear();
     m_currentServerGroupKind.clear();
     m_currentServerGroupName.clear();
+    ++m_groupServerContextGeneration;
     m_serverGroupRefreshPending = false;
     m_serverRefreshPending = false;
     m_serverLoadsRefreshPending = false;
@@ -239,9 +320,11 @@ void VpnController::clearServerContext()
     }
 }
 
-void VpnController::clearGroupServerContext()
+void VpnController::resetGroupServerContext()
 {
     const bool wasBusy = locationsBusy();
+    m_serverFilterModel->setFilterText({});
+    m_serverFilterModel->setRequiredFeatures({});
     m_currentServerGroupKind.clear();
     m_currentServerGroupName.clear();
     m_serverRefreshPending = false;
@@ -388,13 +471,18 @@ void VpnController::handleServerGroupsReply(QDBusPendingCallWatcher *watcher)
 {
     const QDBusPendingReply<QString> reply = *watcher;
     const QString requestedCountry = watcher->property("countryCode").toString();
+    const int retryCount = watcher->property("retryCount").toInt();
     watcher->deleteLater();
-    setLocationsBusy(false);
     if (requestedCountry != m_currentServerCountry) {
+        setLocationsBusy(false);
         dispatchPendingLocationRefreshes();
         return;
     }
     if (reply.isError()) {
+        if (scheduleServerGroupRetry(requestedCountry, retryCount)) {
+            return;
+        }
+        setLocationsBusy(false);
         m_message = tr("Unable to load locations");
         emit snapshotChanged();
         dispatchPendingLocationRefreshes();
@@ -402,9 +490,17 @@ void VpnController::handleServerGroupsReply(QDBusPendingCallWatcher *watcher)
     }
     QString errorMessage;
     if (!m_serverGroupModel->resetFromJson(reply.value(), &errorMessage)) {
+        setLocationsBusy(false);
         m_message = errorMessage;
         emit snapshotChanged();
+        dispatchPendingLocationRefreshes();
+        return;
     }
+    if (m_serverGroupModel->rowCount() == 0
+        && scheduleServerGroupRetry(requestedCountry, retryCount)) {
+        return;
+    }
+    setLocationsBusy(false);
     dispatchPendingLocationRefreshes();
 }
 

@@ -136,12 +136,16 @@ public:
     Q_INVOKABLE void clearLocationSearch();
     Q_INVOKABLE void submitNpsSurvey(int score, const QString &comments);
     Q_INVOKABLE void dismissNpsSurvey();
+    Q_INVOKABLE quint64 claimServerContext(const QString &countryCode);
+    Q_INVOKABLE void releaseServerContext(quint64 contextGeneration);
     Q_INVOKABLE void loadServerGroups(const QString &countryCode);
+    Q_INVOKABLE quint64 claimGroupServerContext(const QString &countryCode,
+                                                const QString &groupKind,
+                                                const QString &groupName);
+    Q_INVOKABLE void releaseGroupServerContext(quint64 contextGeneration);
     Q_INVOKABLE void loadGroupServers(const QString &countryCode,
                                       const QString &groupKind,
                                       const QString &groupName);
-    Q_INVOKABLE void clearGroupServerContext();
-    Q_INVOKABLE void clearServerContext();
     Q_INVOKABLE void connectCountry(const QString &countryCode);
     Q_INVOKABLE void connectCountryWithFeatures(
         const QString &countryCode, const QStringList &features);
@@ -219,6 +223,8 @@ private:
     void callControlOperation(const QString &method,
                               const QVariantList &arguments = {});
     void requestServerLoads();
+    void requestServerGroups(const QString &countryCode, int retryCount);
+    bool scheduleServerGroupRetry(const QString &countryCode, int retryCount);
     void requestGroupServers(const QString &countryCode,
                              const QString &groupKind,
                              const QString &groupName,
@@ -229,6 +235,8 @@ private:
                                   const QString &groupName,
                                   quint64 requestGeneration,
                                   int retryCount);
+    void resetServerContext();
+    void resetGroupServerContext();
     void dispatchPendingLocationRefreshes();
     void setLocationsBusy(bool busy);
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
@@ -288,6 +296,8 @@ private:
     bool m_serverRefreshPending = false;
     bool m_serverLoadsRefreshPending = false;
     quint64 m_serverRequestGeneration = 0;
+    quint64 m_serverContextGeneration = 0;
+    quint64 m_groupServerContextGeneration = 0;
     bool m_reconnectionEnabled = true;
     QStringList m_fastestFeatures;
     QString m_currentServerCountry;

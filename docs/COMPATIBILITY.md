@@ -54,7 +54,7 @@ KRunner actions, and VPN connection and disconnection.
 | Proton VPN API Core | 5.6.10 |
 | Proton keyring adapter | 0.2.3-4.codex1 downstream build; source-equivalent repository rebuild is 0.2.3-4.plasmavpn1 |
 | Proton VPN daemon | 0.13.8 |
-| Plasma client | 0.11.2 (`0.11.2-21.fc44` release candidate) |
+| Plasma client | 0.11.2 (`0.11.2-22.fc44` release candidate) |
 
 Downstream package release suffixes are not part of the runtime compatibility
 contract.

@@ -15,6 +15,7 @@ Kirigami.ScrollablePage {
     required property bool countryAccessible
     required property bool countryUnderMaintenance
     property var requiredCapabilities: []
+    property var serverContextGeneration: 0
 
     title: countryFlag + "  " + countryName
 
@@ -44,7 +45,7 @@ Kirigami.ScrollablePage {
 
     Component.onCompleted: {
         vpnController.setServerGroupFeatureFilter(requiredCapabilities)
-        vpnController.loadServerGroups(countryCode)
+        serverContextGeneration = vpnController.claimServerContext(countryCode)
     }
 
     actions: [
@@ -195,7 +196,6 @@ Kirigami.ScrollablePage {
     }
 
     Component.onDestruction: {
-        vpnController.setServerGroupFeatureFilter([])
-        vpnController.clearServerContext()
+        vpnController.releaseServerContext(serverContextGeneration)
     }
 }

@@ -27,6 +27,7 @@ public:
     int groupCalls = 0;
     int serverCalls = 0;
     int capabilityCalls = 0;
+    int emptyGroupResponses = 0;
     int emptyServerResponses = 0;
     bool ready = true;
     bool loggedIn = true;
@@ -136,6 +137,11 @@ public slots:
         ++groupCalls;
         browseCallOrder.append(QStringLiteral("groups"));
         lastCountry = countryCode;
+        if (emptyGroupResponses > 0) {
+            --emptyGroupResponses;
+            return QStringLiteral(
+                R"json({"schemaVersion":1,"groups":[]})json");
+        }
         return QStringLiteral(R"json({
             "schemaVersion":1,
             "groups":[
@@ -184,7 +190,9 @@ private slots:
     void rejectsAnUnpinnedBackendOwner();
     void queuesInitialBrowserLoadUntilBackendIsReady();
     void loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint();
+    void retriesTransientEmptyServerGroupResponses();
     void retriesTransientEmptyServerResponse();
+    void stalePageCleanupCannotClearReplacementContexts();
     void requestsFastestServerByValidatedCapabilities();
     void supportReportSubmissionFollowsBuildPolicy();
     void crashReportSubmissionFollowsBuildPolicy();
@@ -344,6 +352,67 @@ void GroupedNavigationTest::retriesTransientEmptyServerResponse()
     QTRY_COMPARE_WITH_TIMEOUT(controller.serverModel()->rowCount(), 2, 3000);
     QCOMPARE(m_backend.serverCalls, serverCallsBefore + 2);
     QVERIFY(!controller.locationsBusy());
+}
+
+void GroupedNavigationTest::retriesTransientEmptyServerGroupResponses()
+{
+    m_backend.publishSession(true, true);
+    const int groupCallsBefore = m_backend.groupCalls;
+    m_backend.emptyGroupResponses = 2;
+    VpnController controller(nullptr, false);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    controller.loadServerGroups(QStringLiteral("US"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverGroupModel()->rowCount(), 2, 4000);
+    QCOMPARE(m_backend.groupCalls, groupCallsBefore + 3);
+    QVERIFY(!controller.locationsBusy());
+}
+
+void GroupedNavigationTest::stalePageCleanupCannotClearReplacementContexts()
+{
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+
+    const quint64 oldCountryContext =
+        controller.claimServerContext(QStringLiteral("CH"));
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverGroupModel()->rowCount(), 2, 2000);
+    const quint64 replacementCountryContext =
+        controller.claimServerContext(QStringLiteral("US"));
+    controller.setServerGroupFeatureFilter({QStringLiteral("secure-core")});
+    controller.releaseServerContext(oldCountryContext);
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.lastCountry, QStringLiteral("US"), 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverGroupModel()->rowCount(), 1, 2000);
+
+    const quint64 oldGroupContext = controller.claimGroupServerContext(
+        QStringLiteral("CH"), QStringLiteral("location"),
+        QStringLiteral("Zurich"));
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverModel()->rowCount(), 2, 2000);
+    const quint64 replacementGroupContext = controller.claimGroupServerContext(
+        QStringLiteral("US"), QStringLiteral("location"),
+        QStringLiteral("Arizona"));
+    controller.setServerFeatureFilter({QStringLiteral("streaming")});
+    controller.releaseGroupServerContext(oldGroupContext);
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.lastCountry, QStringLiteral("US"), 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.lastGroupName,
+                              QStringLiteral("Arizona"), 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverModel()->rowCount(), 1, 2000);
+
+    controller.releaseGroupServerContext(replacementGroupContext);
+    QCOMPARE(controller.serverModel()->rowCount(), 0);
+    controller.releaseServerContext(replacementCountryContext);
+    QCOMPARE(controller.serverGroupModel()->rowCount(), 0);
+
+    controller.claimServerContext(QStringLiteral("US"));
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverGroupModel()->rowCount(), 2, 2000);
+    controller.claimGroupServerContext(QStringLiteral("US"),
+                                       QStringLiteral("location"),
+                                       QStringLiteral("Arizona"));
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverModel()->rowCount(), 2, 2000);
 }
 
 void GroupedNavigationTest::requestsFastestServerByValidatedCapabilities()

@@ -18,6 +18,7 @@ Kirigami.ScrollablePage {
     required property bool groupUnderMaintenance
     property string initialServerFilter: ""
     property var requiredCapabilities: []
+    property var groupServerContextGeneration: 0
 
     title: groupKind === "secure-core"
            ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
@@ -51,7 +52,8 @@ Kirigami.ScrollablePage {
 
     Component.onCompleted: {
         vpnController.setServerFeatureFilter(requiredCapabilities)
-        vpnController.loadGroupServers(countryCode, groupKind, groupName)
+        groupServerContextGeneration = vpnController.claimGroupServerContext(
+            countryCode, groupKind, groupName)
         if (initialServerFilter.length > 0) {
             serverSearch.text = initialServerFilter
         }
@@ -228,8 +230,6 @@ Kirigami.ScrollablePage {
     }
 
     Component.onDestruction: {
-        vpnController.setServerFilter("")
-        vpnController.setServerFeatureFilter([])
-        vpnController.clearGroupServerContext()
+        vpnController.releaseGroupServerContext(groupServerContextGeneration)
     }
 }

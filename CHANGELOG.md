@@ -5,6 +5,8 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Keep server-browser cleanup scoped to the page that owns the active context
+  and retry transiently empty country-group snapshots without manual refresh.
 - Respect `TMPDIR` in the Python analysis gate so constrained or isolated RPM
   builders do not silently fall back to the host temporary filesystem.
 - Test the full backend on Python 3.11 with hash-pinned minimum dependencies

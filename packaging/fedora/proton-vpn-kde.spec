@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        21%{?dist}
+Release:        22%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -120,6 +120,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-22
+- Keep server-browser cleanup scoped to its owning page context.
+- Retry transiently empty country-group snapshots without manual refresh.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-21
 - Isolate deterministic demo behavior from the official Core adapter.
 
