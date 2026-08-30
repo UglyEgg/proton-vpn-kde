@@ -322,7 +322,9 @@ void VpnController::onServiceUnregistered(const QString &)
     m_locationsBusy = false;
     m_state = QStringLiteral("unavailable");
     m_errorCode.clear();
-    m_message = tr("The Proton backend service stopped");
+    if (!m_clientIdentityRejected) {
+        m_message = tr("The Proton backend service stopped");
+    }
     m_countryModel->clear();
     m_serverGroupModel->clear();
     m_serverModel->clear();
@@ -353,7 +355,16 @@ void VpnController::onServiceUnregistered(const QString &)
 
 void VpnController::registerClient()
 {
+    if (m_clientIdentityRejected) {
+        return;
+    }
     if (m_backendDestination.isEmpty()) {
+        auto *interface = QDBusConnection::sessionBus().interface();
+        if (!interface
+            || !interface->startService(
+                    QString::fromLatin1(BackendDbus::serviceName)).isValid()) {
+            scheduleClientRegistrationRetry();
+        }
         return;
     }
     const auto generation = m_clientRegistration.begin();
@@ -637,9 +648,25 @@ void VpnController::handleRegisterClientReply(QDBusPendingCallWatcher *watcher)
         return;
     }
     if (completion == ProtonVpnKde::ClientRegistrationState::Completion::Failed) {
+        if (ProtonVpnKde::classifyBackendCallFailure(
+                reply.error().type(), reply.error().name())
+            == ProtonVpnKde::BackendCallFailure::Unauthorized) {
+            m_clientIdentityRejected = true;
+            setBackendAvailable(false);
+            m_ready = false;
+            m_busy = false;
+            m_state = QStringLiteral("unavailable");
+            m_message = tr(
+                "The Control Center could not be authenticated. Close and "
+                "reopen it after an upgrade; reinstall the client if the "
+                "problem continues.");
+            emit snapshotChanged();
+            return;
+        }
         scheduleClientRegistrationRetry();
         return;
     }
+    m_clientIdentityRejected = false;
     m_clientRegistrationRetryTimer->stop();
     m_clientRegistrationRetryCount = 0;
     setBackendAvailable(true);
@@ -649,7 +676,7 @@ void VpnController::handleRegisterClientReply(QDBusPendingCallWatcher *watcher)
 
 void VpnController::scheduleClientRegistrationRetry()
 {
-    if (m_clientRegistration.registered()
+    if (m_clientIdentityRejected || m_clientRegistration.registered()
         || m_clientRegistration.inFlight()
         || m_clientRegistrationRetryTimer->isActive()) {
         return;

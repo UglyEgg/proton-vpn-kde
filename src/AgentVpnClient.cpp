@@ -53,6 +53,7 @@ QString fixedCallFailureMessage(const QDBusError &error)
         error.type(), error.name())) {
     case BackendCallFailure::Unavailable:
         return AgentVpnClient::tr("The Proton backend is not available");
+    case BackendCallFailure::Unauthorized:
     case BackendCallFailure::InvalidSecretPayload:
     case BackendCallFailure::Rejected:
         return AgentVpnClient::tr("The Proton backend rejected the request");

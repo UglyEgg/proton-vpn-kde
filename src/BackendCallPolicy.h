@@ -14,6 +14,7 @@ namespace ProtonVpnKde
 enum class BackendCallFailure
 {
     Unavailable,
+    Unauthorized,
     InvalidSecretPayload,
     Rejected,
 };
@@ -24,6 +25,10 @@ enum class BackendCallFailure
     if (name == QLatin1StringView(
                     DBusContract::Backend::Error::invalidSecretPayload)) {
         return BackendCallFailure::InvalidSecretPayload;
+    }
+    if (name == QLatin1StringView(
+                    DBusContract::Backend::Error::unauthorized)) {
+        return BackendCallFailure::Unauthorized;
     }
     switch (type) {
     case QDBusError::ServiceUnknown:

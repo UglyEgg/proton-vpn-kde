@@ -7,7 +7,7 @@ candidate.** The review found seven issues in total: one high, four medium, and
 two low severity. All seven were corrected and their original failure modes no
 longer reproduce in focused tests.
 
-The current source passes 35 of 35 native, QML, activation, packaging, and
+The current source passes 36 of 36 native, QML, activation, packaging, and
 integration tests plus 130 backend tests. A locally built Fedora package,
 `0.11.2-8.fc44`, also passed scoped installed acceptance for package ownership,
 service activation, KeePassXC Secret Service access through the declared
@@ -179,7 +179,7 @@ and are not represented as undisclosed vulnerabilities.
 
 The current remediated tree passed:
 
-- 35 of 35 CTest tests, including native controllers, QML, D-Bus activation,
+- 36 of 36 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
 - 130 backend Python tests;

@@ -274,6 +274,7 @@ private:
     quint64 m_backendGeneration = 0;
     ProtonVpnKde::ClientRegistrationState m_clientRegistration;
     unsigned int m_clientRegistrationRetryCount = 0;
+    bool m_clientIdentityRejected = false;
     bool m_ready = false;
     bool m_startupCompatible = true;
     bool m_loggedIn = false;

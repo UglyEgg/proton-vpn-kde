@@ -5,6 +5,8 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Reactivate the backend after an unexpected service exit and explain when a
+  Control Center left open across an RPM upgrade must be restarted.
 - Make tray shutdown explicit and wait for Proton Core to confirm a disconnect
   before quitting background controls.
 - Keep server-browser cleanup scoped to the page that owns the active context

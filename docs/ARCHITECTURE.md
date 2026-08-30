@@ -124,6 +124,12 @@ state, releases D-Bus resources, and exits nonzero. The user service can
 recover transient Secret Service, NetworkManager, or Core failures through
 `Restart=on-failure` instead of retaining a permanently unready process.
 
+If the backend owner disappears while the Control Center remains open, the
+frontend requests bounded D-Bus reactivation and re-establishes its lease. A
+client-identity rejection is not retried: it fails closed with restart and
+reinstall guidance, which covers an executable left running across an RPM
+replacement without turning the backend into a restart loop.
+
 ## Authentication and account state
 
 The adapter calls Proton's public API facade for password login, TOTP and

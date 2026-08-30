@@ -8,6 +8,7 @@
 #include <QAbstractItemModel>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QDBusContext>
 #include <QtTest>
 #include <memory>
 
@@ -16,7 +17,7 @@ namespace
 constexpr auto kBackendService = "quest.entropy.PlasmaVPN.Backend";
 constexpr auto kBackendPath = "/quest/entropy/PlasmaVPN/Backend";
 
-class GroupedNavigationBackend final : public QObject
+class GroupedNavigationBackend final : public QObject, protected QDBusContext
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "quest.entropy.PlasmaVPN.Backend1")
@@ -29,6 +30,7 @@ public:
     int capabilityCalls = 0;
     int emptyGroupResponses = 0;
     int emptyServerResponses = 0;
+    bool rejectRegistration = false;
     bool ready = true;
     bool loggedIn = true;
     QString lastCountry;
@@ -51,6 +53,12 @@ public slots:
     void RegisterClient(const QString &)
     {
         ++registrationCalls;
+        if (rejectRegistration) {
+            sendErrorReply(
+                QStringLiteral("quest.entropy.PlasmaVPN.Error.Unauthorized"),
+                QStringLiteral(
+                    "This application is not authorized to control the VPN"));
+        }
     }
 
     void UnregisterClient(const QString &)
@@ -188,6 +196,7 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void rejectsAnUnpinnedBackendOwner();
+    void explainsRejectedClientIdentityWithoutRetrying();
     void queuesInitialBrowserLoadUntilBackendIsReady();
     void loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint();
     void retriesTransientEmptyServerGroupResponses();
@@ -246,6 +255,26 @@ void GroupedNavigationTest::rejectsAnUnpinnedBackendOwner()
     QVERIFY(!controller.backendAvailable());
     QCOMPARE(m_backend.registrationCalls, registrationsBefore);
     qputenv("PROTON_VPN_KDE_TEST_BACKEND_OWNER", trustedOwner);
+}
+
+void GroupedNavigationTest::explainsRejectedClientIdentityWithoutRetrying()
+{
+    m_backend.rejectRegistration = true;
+    const int registrationsBefore = m_backend.registrationCalls;
+    {
+        VpnController controller(nullptr, false);
+
+        QTRY_COMPARE_WITH_TIMEOUT(
+            m_backend.registrationCalls, registrationsBefore + 1, 2000);
+        QTRY_VERIFY_WITH_TIMEOUT(
+            controller.message().contains(
+                QStringLiteral("Close and reopen"), Qt::CaseInsensitive),
+            2000);
+        QVERIFY(!controller.backendAvailable());
+        QTest::qWait(1200);
+        QCOMPARE(m_backend.registrationCalls, registrationsBefore + 1);
+    }
+    m_backend.rejectRegistration = false;
 }
 
 void GroupedNavigationTest::loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint()
