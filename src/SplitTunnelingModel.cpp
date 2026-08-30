@@ -82,7 +82,7 @@ QStringList SplitTunnelingModel::selectedIpRanges() const
 }
 int SplitTunnelingModel::selectedIpRangeCount() const
 {
-    return selectedIpRanges().size();
+    return static_cast<int>(selectedIpRanges().size());
 }
 QStringList SplitTunnelingModel::excludeAppPaths() const
 {
@@ -115,7 +115,7 @@ bool SplitTunnelingModel::applyJson(const QString &settingsJson,
         }
         return false;
     };
-    if (settingsJson.size() > 1024 * 1024) {
+    if (settingsJson.size() > qsizetype{1024} * 1024) {
         return fail(tr("The backend returned oversized split-tunneling settings"));
     }
 

@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
+#include <limits>
 #include <memory>
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
@@ -17,9 +18,9 @@
 namespace
 {
 constexpr unsigned char kPayloadVersion = 1;
-constexpr qsizetype kPublicKeySize = 32;
-constexpr qsizetype kNonceSize = 12;
-constexpr qsizetype kTagSize = 16;
+constexpr int kPublicKeySize = 32;
+constexpr int kNonceSize = 12;
+constexpr int kTagSize = 16;
 constexpr std::string_view kKdfInfo = "proton-vpn-kde-auth-v1";
 constexpr std::string_view kAdditionalData =
     "quest.entropy.PlasmaVPN.Backend1";
@@ -89,9 +90,11 @@ QByteArray deriveKey(EVP_PKEY *privateKey, EVP_PKEY *peerKey)
 
 QByteArray encrypt(const QByteArray &plaintext, const QByteArray &backendPublicKey)
 {
-    if (backendPublicKey.size() != kPublicKeySize) {
+    if (backendPublicKey.size() != kPublicKeySize
+        || plaintext.size() > std::numeric_limits<int>::max()) {
         return {};
     }
+    const int plaintextSize = static_cast<int>(plaintext.size());
 
     PKeyContext keygenContext(EVP_PKEY_CTX_new_id(EVP_PKEY_X25519, nullptr),
                               EVP_PKEY_CTX_free);
@@ -128,7 +131,7 @@ QByteArray encrypt(const QByteArray &plaintext, const QByteArray &backendPublicK
     }
     QByteArray nonce(kNonceSize, '\0');
     if (RAND_bytes(
-            reinterpret_cast<unsigned char *>(nonce.data()), nonce.size()) != 1) {
+            reinterpret_cast<unsigned char *>(nonce.data()), kNonceSize) != 1) {
         key.fill('\0');
         return {};
     }
@@ -141,7 +144,7 @@ QByteArray encrypt(const QByteArray &plaintext, const QByteArray &backendPublicK
         && EVP_EncryptInit_ex(context.get(), EVP_aes_256_gcm(), nullptr,
                               nullptr, nullptr) > 0
         && EVP_CIPHER_CTX_ctrl(
-               context.get(), EVP_CTRL_GCM_SET_IVLEN, nonce.size(), nullptr) > 0
+               context.get(), EVP_CTRL_GCM_SET_IVLEN, kNonceSize, nullptr) > 0
         && EVP_EncryptInit_ex(
                context.get(), nullptr, nullptr,
                reinterpret_cast<const unsigned char *>(key.constData()),
@@ -155,7 +158,7 @@ QByteArray encrypt(const QByteArray &plaintext, const QByteArray &backendPublicK
                reinterpret_cast<unsigned char *>(ciphertext.data()),
                &outputSize,
                reinterpret_cast<const unsigned char *>(plaintext.constData()),
-               plaintext.size()) > 0;
+               plaintextSize) > 0;
     key.fill('\0');
     if (!initialized) {
         ciphertext.fill('\0');
@@ -174,7 +177,7 @@ QByteArray encrypt(const QByteArray &plaintext, const QByteArray &backendPublicK
 
     QByteArray tag(kTagSize, '\0');
     if (EVP_CIPHER_CTX_ctrl(
-            context.get(), EVP_CTRL_GCM_GET_TAG, tag.size(), tag.data()) <= 0) {
+            context.get(), EVP_CTRL_GCM_GET_TAG, kTagSize, tag.data()) <= 0) {
         ciphertext.fill('\0');
         return {};
     }

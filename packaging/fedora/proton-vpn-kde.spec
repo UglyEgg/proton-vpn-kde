@@ -2,7 +2,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        13%{?dist}
+Release:        14%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -114,6 +114,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-14
+- Add blocking Clang-Tidy and address/leak/undefined-behavior sanitizer CI.
+- Remove avoidable Qt container conversions and make size narrowing explicit.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-13
 - Enforce Python type analysis and measured branch coverage in CI and RPM checks.
 

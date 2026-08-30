@@ -1,0 +1,17 @@
+---
+# Qt parent ownership is not modeled by NewDeleteLeaks; asynchronous D-Bus
+# watchers are parented and also deleteLater() on completion.
+# Qt model roles intentionally retain Qt's integer representation.
+Checks: >-
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  clang-analyzer-*,
+  -clang-analyzer-cplusplus.NewDeleteLeaks,
+  performance-*,
+  -performance-enum-size
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(^|/)(src|runner|kcm)/'
+ExcludeHeaderFilterRegex: '(^|/)build[^/]*/'
+SystemHeaders: false
+...

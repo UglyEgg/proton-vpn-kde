@@ -426,7 +426,7 @@ QVector<AppSettings::PinnedServerGroup> AppSettings::normalizePinnedServerGroups
 
 QString AppSettings::normalizeIconStyle(const QString &style)
 {
-    const QString normalized = style.trimmed().toLower();
+    QString normalized = style.trimmed().toLower();
     if (normalized == QStringLiteral("light")
         || normalized == QStringLiteral("dark")) {
         return normalized;

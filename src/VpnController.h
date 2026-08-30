@@ -74,30 +74,30 @@ public:
     explicit VpnController(QObject *parent = nullptr);
     ~VpnController() override;
 
-    [[nodiscard]] bool backendAvailable() const;
-    [[nodiscard]] bool ready() const;
+    [[nodiscard]] bool backendAvailable() const override;
+    [[nodiscard]] bool ready() const override;
     [[nodiscard]] bool startupCompatible() const;
-    [[nodiscard]] bool loggedIn() const;
+    [[nodiscard]] bool loggedIn() const override;
     [[nodiscard]] QString authState() const;
     [[nodiscard]] QString accountName() const;
     [[nodiscard]] QString planTitle() const;
     [[nodiscard]] int userTier() const;
     [[nodiscard]] int maxConnections() const;
     [[nodiscard]] bool fido2Available() const;
-    [[nodiscard]] int killSwitch() const;
-    [[nodiscard]] bool busy() const;
+    [[nodiscard]] int killSwitch() const override;
+    [[nodiscard]] bool busy() const override;
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] bool locationSearchBusy() const;
     [[nodiscard]] bool npsSurveyAvailable() const;
     [[nodiscard]] bool supportReportSubmissionEnabled() const;
     [[nodiscard]] bool crashReportSubmissionEnabled() const;
-    [[nodiscard]] QString state() const;
+    [[nodiscard]] QString state() const override;
     [[nodiscard]] QString errorCode() const;
-    [[nodiscard]] QString serverName() const;
+    [[nodiscard]] QString serverName() const override;
     [[nodiscard]] QString serverLocation() const;
     [[nodiscard]] QString exitCountry() const;
     [[nodiscard]] QString entryCountry() const;
-    [[nodiscard]] int forwardedPort() const;
+    [[nodiscard]] int forwardedPort() const override;
     [[nodiscard]] bool secureCore() const;
     [[nodiscard]] bool tor() const;
     [[nodiscard]] bool p2p() const;
@@ -106,9 +106,9 @@ public:
     [[nodiscard]] bool packetCaptureActive() const;
     [[nodiscard]] bool coreMemoryOptimized() const;
     [[nodiscard]] QString coreVersion() const;
-    [[nodiscard]] QString message() const;
-    [[nodiscard]] QString primaryActionText() const;
-    [[nodiscard]] bool primaryActionEnabled() const;
+    [[nodiscard]] QString message() const override;
+    [[nodiscard]] QString primaryActionText() const override;
+    [[nodiscard]] bool primaryActionEnabled() const override;
     [[nodiscard]] QAbstractItemModel *countryModel() const;
     [[nodiscard]] QAbstractItemModel *locationSearchModel() const;
     [[nodiscard]] QAbstractItemModel *serverGroupModel() const;
@@ -119,8 +119,8 @@ public:
     [[nodiscard]] CustomDnsModel *customDns() const;
 
     Q_INVOKABLE void refresh();
-    Q_INVOKABLE void activatePrimaryAction();
-    Q_INVOKABLE void disconnect();
+    Q_INVOKABLE void activatePrimaryAction() override;
+    Q_INVOKABLE void disconnect() override;
     Q_INVOKABLE void copyForwardedPort();
     Q_INVOKABLE void startPacketCapture(const QString &directoryPath);
     Q_INVOKABLE void stopPacketCapture();
@@ -142,7 +142,7 @@ public:
     Q_INVOKABLE void connectCountry(const QString &countryCode);
     Q_INVOKABLE void connectCountryWithFeatures(
         const QString &countryCode, const QStringList &features);
-    Q_INVOKABLE void connectTarget(const QString &target);
+    Q_INVOKABLE void connectTarget(const QString &target) override;
     Q_INVOKABLE void connectFastestWithFeature(const QString &feature);
     Q_INVOKABLE void connectFastestWithFeatures(const QStringList &features);
     Q_INVOKABLE void connectGroup(const QString &countryCode,

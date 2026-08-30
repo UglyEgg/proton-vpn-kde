@@ -39,6 +39,9 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 scripts/check-static-analysis.sh
 scripts/check-python-analysis.sh
+# Requires Clang, Clang-Tidy, and compiler-rt:
+scripts/check-native-sanitizers.sh
+scripts/check-clang-tidy.sh
 ```
 
 Use the deterministic demo backend for interface development. Tests and demos
@@ -50,7 +53,9 @@ lifecycle controls require both success and failure-path coverage.
 ## Style
 
 - C++ uses C++20, four-space indentation, Qt ownership conventions, and the
-  compiler warning policy defined in CMake.
+  compiler warning policy defined in CMake. Production source must also pass
+  the checked-in Clang-Tidy policy and the address/leak/undefined-behavior
+  sanitizer build.
 - Python supports 3.11 or newer and must pass Ruff, Mypy, and the measured
   branch-coverage floor recorded in `backend/pyproject.toml`.
 - Shell scripts use Bash with `set -euo pipefail` and must pass ShellCheck.

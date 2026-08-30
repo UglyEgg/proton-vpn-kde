@@ -51,3 +51,31 @@ jobs:
         env:
           CTEST_OUTPUT_ON_FAILURE: "1"
         run: ctest --test-dir build --output-on-failure --parallel 2
+
+  native-analysis:
+    name: Clang analysis and sanitizers
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    container: fedora:44
+
+    steps:
+      - name: Install native analysis dependencies
+        run: |
+          dnf install -y \
+            clang clang-tools-extra cmake compiler-rt dbus-daemon \
+            extra-cmake-modules git ninja-build openssl-devel \
+            python3-cryptography python3-dbus-fast \
+            kf6-kconfig-devel kf6-kcoreaddons-devel \
+            kf6-kglobalaccel-devel kf6-kcmutils-devel \
+            kf6-knotifications-devel kf6-krunner-devel \
+            kf6-kservice-devel kf6-kstatusnotifieritem-devel \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-linguist
+
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build and test with Clang sanitizers
+        run: scripts/check-native-sanitizers.sh
+
+      - name: Run Clang-Tidy
+        run: scripts/check-clang-tidy.sh

@@ -83,7 +83,7 @@ bool CustomDnsModel::applyJson(const QString &settingsJson,
         }
         return false;
     };
-    if (settingsJson.size() > 256 * 1024) {
+    if (settingsJson.size() > qsizetype{256} * 1024) {
         return fail(tr("The backend returned oversized custom-DNS settings"));
     }
 

@@ -32,6 +32,8 @@ machine-specific paths, editor state, or unrelated development debris.
 ```bash
 scripts/check-static-analysis.sh
 scripts/check-python-analysis.sh
+scripts/check-native-sanitizers.sh
+scripts/check-clang-tidy.sh
 cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
 cmake --build build
 ctest --test-dir build --output-on-failure

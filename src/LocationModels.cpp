@@ -88,7 +88,7 @@ CountryModel::CountryModel(QObject *parent)
 
 int CountryModel::rowCount(const QModelIndex &parent) const
 {
-    return parent.isValid() ? 0 : m_entries.size();
+    return parent.isValid() ? 0 : static_cast<int>(m_entries.size());
 }
 
 QVariant CountryModel::data(const QModelIndex &index, int role) const
@@ -131,7 +131,7 @@ bool CountryModel::resetFromJson(const QString &json, QString *errorMessage)
 
     QVector<Entry> entries;
     entries.reserve(items.size());
-    for (const QJsonValue &value : items) {
+    for (const auto &value : items) {
         const QJsonObject item = value.toObject();
         const QString code = item.value(QStringLiteral("code")).toString().toUpper();
         if (code.size() != 2) {
@@ -181,7 +181,7 @@ LocationSearchModel::LocationSearchModel(QObject *parent)
 
 int LocationSearchModel::rowCount(const QModelIndex &parent) const
 {
-    return parent.isValid() ? 0 : m_entries.size();
+    return parent.isValid() ? 0 : static_cast<int>(m_entries.size());
 }
 
 QVariant LocationSearchModel::data(const QModelIndex &index, int role) const
@@ -265,7 +265,7 @@ bool LocationSearchModel::resetFromJson(const QString &json,
         });
     }
 
-    for (const QJsonValue &value : items) {
+    for (const auto &value : items) {
         const QJsonObject item = value.toObject();
         const QString kind = item.value(QStringLiteral("kind")).toString();
         const QString name = item.value(QStringLiteral("name")).toString();
@@ -341,7 +341,7 @@ ServerModel::ServerModel(QObject *parent)
 
 int ServerModel::rowCount(const QModelIndex &parent) const
 {
-    return parent.isValid() ? 0 : m_entries.size();
+    return parent.isValid() ? 0 : static_cast<int>(m_entries.size());
 }
 
 QVariant ServerModel::data(const QModelIndex &index, int role) const
@@ -392,7 +392,7 @@ bool ServerModel::resetFromJson(const QString &json, QString *errorMessage)
 
     QVector<Entry> entries;
     entries.reserve(items.size());
-    for (const QJsonValue &value : items) {
+    for (const auto &value : items) {
         const QJsonObject item = value.toObject();
         const QString name = item.value(QStringLiteral("name")).toString();
         if (name.isEmpty()) {
@@ -429,7 +429,7 @@ bool ServerModel::updateLoadsFromJson(const QString &json, QString *errorMessage
 
     QHash<QString, int> loads;
     loads.reserve(items.size());
-    for (const QJsonValue &value : items) {
+    for (const auto &value : items) {
         const QJsonObject item = value.toObject();
         const QString name = item.value(QStringLiteral("name")).toString();
         if (!name.isEmpty()) {
@@ -469,7 +469,7 @@ ServerGroupModel::ServerGroupModel(QObject *parent)
 
 int ServerGroupModel::rowCount(const QModelIndex &parent) const
 {
-    return parent.isValid() ? 0 : m_entries.size();
+    return parent.isValid() ? 0 : static_cast<int>(m_entries.size());
 }
 
 QVariant ServerGroupModel::data(const QModelIndex &index, int role) const
@@ -518,7 +518,7 @@ bool ServerGroupModel::resetFromJson(const QString &json, QString *errorMessage)
 
     QVector<Entry> entries;
     entries.reserve(items.size());
-    for (const QJsonValue &value : items) {
+    for (const auto &value : items) {
         const QJsonObject item = value.toObject();
         const QString kind = item.value(QStringLiteral("kind")).toString();
         const QString name = item.value(QStringLiteral("name")).toString();

@@ -58,7 +58,7 @@ InstalledApplicationModel::InstalledApplicationModel(
 
 int InstalledApplicationModel::rowCount(const QModelIndex &parent) const
 {
-    return parent.isValid() ? 0 : m_applications.size();
+    return parent.isValid() ? 0 : static_cast<int>(m_applications.size());
 }
 
 QVariant InstalledApplicationModel::data(const QModelIndex &index, int role) const
@@ -183,7 +183,7 @@ QString InstalledApplicationModel::executableFromExecLine(
     if (parseError != KShell::NoError || arguments.isEmpty()) {
         return {};
     }
-    const QString command = arguments.constFirst();
+    const QString &command = arguments.constFirst();
     const QString commandName = QFileInfo(command).fileName();
 
     if (commandName == QStringLiteral("flatpak")) {
