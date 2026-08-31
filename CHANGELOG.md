@@ -5,7 +5,15 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
-No changes yet.
+- Keep Protun's transient WireGuard key in its existing unsaved NetworkManager
+  profile so Plasma reconnects do not depend on a missing Protun secret-agent
+  plugin.
+- Clear cached account and tunnel metadata when the backend stops instead of
+  continuing to present a stale signed-in state.
+- Offer an explicit service retry after Secret Service session restoration
+  remains incomplete, without imposing an automatic prompt timeout.
+- Build, verify, transaction-test, and retain the API-Core overlay's binary and
+  source RPMs with the client and provider-neutral keyring artifacts.
 
 ## [0.11.2] - 2026-08-30
 

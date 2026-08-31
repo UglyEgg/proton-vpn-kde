@@ -26,6 +26,7 @@ Kirigami.ScrollablePage {
     ].includes(vpnController.authState)
     property string previousAuthState: vpnController.authState
     property bool secretStoreHintVisible: false
+    property bool backendRetryVisible: false
 
     function updateSecretStoreHint() {
         const waiting = vpnController.busy
@@ -37,6 +38,18 @@ Kirigami.ScrollablePage {
         } else {
             secretStoreHintTimer.stop()
             secretStoreHintVisible = false
+        }
+    }
+
+    function updateBackendRetry() {
+        const waiting = page.preparingSignIn && vpnController.backendAvailable
+        if (waiting) {
+            if (!backendRetryVisible && !backendRetryTimer.running) {
+                backendRetryTimer.start()
+            }
+        } else {
+            backendRetryTimer.stop()
+            backendRetryVisible = false
         }
     }
 
@@ -75,6 +88,7 @@ Kirigami.ScrollablePage {
         target: vpnController
         function onSnapshotChanged() {
             page.updateSecretStoreHint()
+            page.updateBackendRetry()
             if (vpnController.loggedIn
                     && applicationWindow().pageStack.currentItem === page) {
                 applicationWindow().showOverview()
@@ -88,6 +102,7 @@ Kirigami.ScrollablePage {
     Component.onCompleted: {
         Qt.callLater(page.focusCurrentInput)
         page.updateSecretStoreHint()
+        page.updateBackendRetry()
     }
 
     Timer {
@@ -98,6 +113,17 @@ Kirigami.ScrollablePage {
             if (vpnController.busy
                     && vpnController.authState === "signing_in") {
                 page.secretStoreHintVisible = true
+            }
+        }
+    }
+
+    Timer {
+        id: backendRetryTimer
+        interval: 10000
+        repeat: false
+        onTriggered: {
+            if (page.preparingSignIn && vpnController.backendAvailable) {
+                page.backendRetryVisible = true
             }
         }
     }
@@ -130,6 +156,19 @@ Kirigami.ScrollablePage {
             text: vpnController.backendAvailable
                   ? qsTr("Preparing Proton sign-in. Your desktop secret store may ask for access before the account state is available.")
                   : qsTr("Starting the Proton VPN service…")
+
+            actions: [
+                Kirigami.Action {
+                    text: qsTr("Retry service")
+                    icon.name: "view-refresh"
+                    visible: page.backendRetryVisible
+                    onTriggered: {
+                        page.backendRetryVisible = false
+                        vpnController.restartBackend()
+                        page.updateBackendRetry()
+                    }
+                }
+            ]
         }
 
         PageHeader {

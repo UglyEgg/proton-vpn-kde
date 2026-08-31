@@ -89,6 +89,8 @@ The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and Pro
 
 > [!NOTE]
 > Verified KeePassXC support uses the separately packaged, provider-neutral Proton keyring rebuild recorded in [Compatibility](docs/COMPATIBILITY.md). The source, patches, tests, manifest, and Fedora spec are included under [`packaging/fedora/keyring-overlay`](packaging/fedora/keyring-overlay/); release CI builds its binary and source RPMs beside the client. The client RPM requires that explicit capability instead of silently replacing an installed Python file.
+>
+> Reliable Protun reconnects on Plasma also use the independently reviewable API-Core overlay under [`packaging/fedora/api-core-overlay`](packaging/fedora/api-core-overlay/). It reconstructs Proton's exact signed Fedora payload, verifies every changed path and hash, and keeps the transient tunnel key in Core's existing unsaved NetworkManager profile instead of relying on a missing Plasma Protun secret plugin. Release CI ships that overlay's binary and source RPMs as part of the required artifact set.
 
 ## Evaluate or contribute
 

@@ -54,6 +54,16 @@ packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
     '' "$PWD/build-keyring-overlay"
 ```
 
+Build the Plasma-compatible API-Core dependency next. Its script fetches and
+digest-verifies Proton's exact signed Fedora RPM, applies only the manifest
+patch set, rejects every unlisted payload change, runs the behavior checks,
+and emits both source and binary RPMs:
+
+```bash
+packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
+    '' "$PWD/build-api-core-overlay"
+```
+
 Create a dedicated top directory and release archive, then build with Fedora's
 package flags and `%check` enabled:
 
@@ -73,14 +83,15 @@ rpmbuild \
 Replace `VERSION` with the verified release version. The resulting build is not
 releasable if `%check` is skipped or reports a failure.
 
-The `RPM Package` GitHub Actions workflow repeats both builds from every pushed
-commit and pull request. It inspects the main package's identity, dependency
-boundary, required payload, ownership, permissions, community reporting feature
-gates, digest, and transaction validity; it also verifies the keyring package's
-identity, provider-neutral capability, dependency boundary, and payload. Both
-sets of binary and source RPMs are retained as CI artifacts for 14 days. These
-unsigned CI artifacts are review evidence, not published releases and not a
-substitute for the clean-environment live acceptance below.
+The `RPM Package` GitHub Actions workflow repeats all three builds from every
+pushed commit and pull request. It inspects the main package's identity,
+dependency boundary, required payload, ownership, permissions, community
+reporting feature gates, digest, and transaction validity; it also verifies
+the keyring and API-Core overlays and performs an isolated transaction with
+the complete six-artifact set. All binary and source RPMs are retained as CI
+artifacts for 14 days. These unsigned CI artifacts are review evidence, not
+published releases and not a substitute for the clean-environment live
+acceptance below.
 
 ## 4. Inspect and sign artifacts
 

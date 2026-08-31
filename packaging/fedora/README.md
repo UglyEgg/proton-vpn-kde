@@ -65,17 +65,24 @@ public API against Proton's exact SHA-256-pinned Fedora 44 Core 5.5.6 RPM.
 
 The dedicated `RPM Package` CI workflow performs the same source and binary RPM
 build for every pushed commit and pull request. It first builds and tests the
-provider-neutral keyring RPM from the pinned Proton source, then builds the
-client, validates both packages, and retains both source and binary artifacts
-for review. Proton VPN API Core is intentionally a runtime rather than build
-dependency of the client: the isolated client test suite does not import or
-modify the installed Core, while the finished package cannot be installed
-without compatible official Core and keyring packages.
+provider-neutral keyring RPM and the Plasma-compatible API-Core overlay from
+pinned Proton inputs, then builds the client, validates all three packages,
+and retains each source and binary artifact for review. Proton VPN API Core is
+still a runtime rather than build dependency of the client: the isolated
+client test suite does not import or modify the installed Core, while the
+finished Fedora package requires the explicit keyring and Protun interoperability
+capabilities supplied by the independently reviewable overlays.
 
 The keyring rebuild has its own manifest, patch hashes, `%check`, and
 instructions in [keyring-overlay](keyring-overlay/README.md). It is a separate
 RPM because the patched files remain Proton-owned code and should remain
 independently reviewable and replaceable by an upstream release.
+
+The API-Core rebuild follows the same boundary. Its signed vendor RPM,
+manifest, exact-path diff, behavior checks, patches, and packaging instructions
+are under [api-core-overlay](api-core-overlay/README.md). NetworkManager may
+materialize the unsaved Protun profile in root-only volatile `/run` storage;
+the profile is deleted on disconnect and does not survive reboot.
 
 ## Installed integration
 

@@ -70,8 +70,11 @@ contract.
   settings checks succeed.
 - The client must fail with bounded guidance when a required public API is
   absent; it must not guess at networking behavior.
-- Optional memory optimizations are detected by behavior and never gate VPN
-  functionality.
+- Optional string-sharing optimizations are detected by behavior and never
+  gate VPN functionality. The Fedora Core overlay's separate Protun
+  secret-ownership patch is a version-pinned Plasma interoperability fix and
+  must pass unsaved-profile, disconnect-cleanup, reconnect, and suspend/resume
+  acceptance before release.
 - Other distributions are community experiments until their packaging and
   lifecycle behavior have independent acceptance evidence.
 

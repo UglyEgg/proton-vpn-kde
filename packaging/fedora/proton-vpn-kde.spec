@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        28%{?dist}
+Release:        29%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -45,6 +45,7 @@ Requires:       python3-cryptography >= 45.0.1
 Requires:       python3-dbus-fast
 Requires:       python3-fido2
 Requires:       python3-proton-vpn-api-core >= 5.5.6
+Requires:       proton-vpn-api-core-plasma-protun-secret >= 1
 Requires:       proton-keyring-secret-service-provider-agnostic >= 1
 Requires:       qt6-qtdeclarative
 
@@ -52,10 +53,13 @@ Requires:       qt6-qtdeclarative
 Plasma VPN is an unofficial native Qt 6 and Kirigami frontend compatible with
 Proton VPN. It reuses Proton's official Python VPN core. VPN protocols,
 NetworkManager integration, kill-switch behavior, split tunneling, and session
-persistence remain owned by the official core. The frontend has no direct GTK
-or GNOME Keyring dependency and uses the Freedesktop Secret Service provider
-selected by the desktop session. The official API Core package may retain its
-own desktop integration dependencies.
+persistence remain owned by the official core. The separately packaged,
+version-pinned API-Core overlay changes only Protun's secret ownership inside
+its existing unsaved NetworkManager profile so Plasma does not require a
+missing Protun secret plugin. The frontend has no direct GTK or GNOME Keyring
+dependency and uses the Freedesktop Secret Service provider selected by the
+desktop session. The official API Core package may retain its own desktop
+integration dependencies.
 
 %prep
 %autosetup -n %{name}-%{version}
@@ -120,6 +124,12 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-29
+- Recover Protun reconnects without a Plasma NetworkManager secret plugin.
+- Clear stale account state when the backend stops and offer a bounded manual
+  restart when Secret Service session restoration does not complete.
+- Require and release the independently verified API-Core overlay.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-28
 - Finalize the public-alpha release metadata.
 - Run Fedora CI as an unprivileged builder and stage the complete client and

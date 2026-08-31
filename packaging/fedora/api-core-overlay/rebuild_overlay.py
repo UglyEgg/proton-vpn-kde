@@ -421,8 +421,22 @@ def verify_behavior(root: Path) -> None:
         raise OverlayError(f"Missing staged site-packages: {site_packages}")
     sys.path.insert(0, str(site_packages))
 
+    import gi  # noqa: PLC0415
+
+    gi.require_version("NM", "1.0")
+    from gi.repository import NM  # noqa: PLC0415
+
     from proton.vpn.core.cache_handler import CacheHandler  # noqa: PLC0415
     from proton.vpn.core.api import ProtonVPNAPI  # noqa: PLC0415
+    from proton.vpn.backend.networkmanager.protocol.protun.protun import (  # noqa: PLC0415
+        SYSTEM_OWNED_PRIVATE_KEY,
+        PRIVATE_KEY,
+        PRIVATE_KEY_FLAGS,
+        ProtunUDP,
+    )
+    from proton.vpn.backend.networkmanager.core.nmclient import (  # noqa: PLC0415
+        NMClient,
+    )
     from proton.vpn.session.servers.logicals import (  # noqa: PLC0415
         _deduplicate_server_strings,
         _server_string_object_hook,
@@ -486,6 +500,59 @@ def verify_behavior(root: Path) -> None:
                 raise OverlayError("Unexpected FIDO2 capability result")
     finally:
         ProtonVPNAPI.is_fido2_lib_available = deprecated_property
+
+    class CapturingConnection:
+        def add_setting(self, setting):
+            self.setting = setting
+
+    protocol = object.__new__(ProtunUDP)
+    protocol.connection = CapturingConnection()
+    protocol._vpnserver = SimpleNamespace(
+        server_name="fixture",
+        server_ip="192.0.2.1",
+        x25519pk="public-fixture",
+        wireguard_ports=SimpleNamespace(udp=[443]),
+    )
+    protocol._vpncredentials = SimpleNamespace(
+        pubkey_credentials=SimpleNamespace(wg_private_key="private-fixture")
+    )
+    protocol._set_vpn_settings()
+    vpn_setting = protocol.connection.setting
+    if vpn_setting.get_secret(PRIVATE_KEY) != "private-fixture":
+        raise OverlayError("Protun did not retain its activation-time private key")
+    expected_secret_flag = str(int(NM.SettingSecretFlags.NONE))
+    if SYSTEM_OWNED_PRIVATE_KEY != expected_secret_flag:
+        raise OverlayError("Protun's private-key constant is not system-owned")
+    if vpn_setting.get_data_item(PRIVATE_KEY_FLAGS) != expected_secret_flag:
+        raise OverlayError("Protun private key is not system-owned")
+
+    add_call = {}
+
+    class CapturingNMClient:
+        def add_connection_async(
+            self, *, connection, save_to_disk, cancellable, callback, user_data
+        ):
+            add_call.update(
+                connection=connection,
+                save_to_disk=save_to_disk,
+                cancellable=cancellable,
+                callback=callback,
+                user_data=user_data,
+            )
+
+    callback = object()
+    future = object()
+    nm_client = object.__new__(NMClient)
+    nm_client._nm_client = CapturingNMClient()
+    nm_client.create_nmcli_callback = lambda **_kwargs: (callback, future)
+    nm_client._assert_running_on_main_loop_thread = lambda: None
+    nm_client._run_on_main_loop_thread = lambda function: function()
+    if nm_client.add_connection_async(protocol.connection) is not future:
+        raise OverlayError("NetworkManager wrapper did not return its add future")
+    if add_call.get("connection") is not protocol.connection:
+        raise OverlayError("Protun did not add the generated VPN connection")
+    if add_call.get("save_to_disk") is not False:
+        raise OverlayError("Protun connection is not explicitly unsaved")
     print("Verified API Core overlay behavior")
 
 

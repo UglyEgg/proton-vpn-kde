@@ -23,6 +23,37 @@
 namespace
 {
 namespace BackendDbus = ProtonVpnKde::DBusContract::Backend;
+constexpr auto systemdService = "org.freedesktop.systemd1";
+constexpr auto systemdPath = "/org/freedesktop/systemd1";
+constexpr auto systemdManagerInterface = "org.freedesktop.systemd1.Manager";
+constexpr auto backendUnit = "proton-vpn-kde-backend.service";
+}
+
+void VpnController::restartBackend()
+{
+    if (m_ready) {
+        return;
+    }
+    m_message = tr("Restarting the Proton backend service…");
+    emit snapshotChanged();
+
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QString::fromLatin1(systemdService), QString::fromLatin1(systemdPath),
+        QString::fromLatin1(systemdManagerInterface),
+        QStringLiteral("RestartUnit"));
+    message.setArguments({QString::fromLatin1(backendUnit),
+                          QStringLiteral("replace")});
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 5000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this](QDBusPendingCallWatcher *finished) {
+        const QDBusPendingReply<QDBusObjectPath> reply = *finished;
+        finished->deleteLater();
+        if (reply.isError()) {
+            m_message = tr("Unable to restart the Proton backend service");
+            emit snapshotChanged();
+        }
+    });
 }
 
 void VpnController::connectBackendSignals()
@@ -95,11 +126,33 @@ void VpnController::onServiceUnregistered(const QString &)
     m_clientRegistration.serviceChanged();
     setBackendAvailable(false);
     m_ready = false;
+    m_startupCompatible = true;
+    m_loggedIn = false;
+    m_authState = QStringLiteral("signed_out");
+    m_accountName.clear();
+    m_planTitle.clear();
+    m_userTier = 0;
+    m_maxConnections = 0;
+    m_fido2Available = false;
+    m_killSwitch = 0;
     m_busy = false;
     const bool wasLocationsBusy = locationsBusy();
     m_locationsBusy = false;
     m_state = QStringLiteral("unavailable");
     m_errorCode.clear();
+    m_serverName.clear();
+    m_serverLocation.clear();
+    m_exitCountry.clear();
+    m_entryCountry.clear();
+    m_forwardedPort = 0;
+    m_secureCore = false;
+    m_tor = false;
+    m_p2p = false;
+    m_streaming = false;
+    m_smartRouting = false;
+    m_packetCaptureActive = false;
+    m_coreMemoryOptimized = false;
+    m_coreVersion.clear();
     if (!m_clientIdentityRejected) {
         m_message = tr("The Proton backend service stopped");
     }

@@ -306,6 +306,14 @@ SELinux; this tradeoff is documented in [Hardening](HARDENING.md).
   repository. It remains an unofficial downstream dependency until Proton
   accepts an equivalent change; stock Proton 0.2.3 must not be described as
   KeePassXC-compatible.
+- The Fedora API-Core overlay keeps Protun's transient private key in
+  NetworkManager's unsaved profile rather than a desktop secret agent. Fedora
+  may materialize that profile as a mode-0600 file under volatile `/run` while
+  the tunnel exists; live verification confirmed the `UNSAVED` flag and
+  deletion on disconnect. Root, NetworkManager, and disk-backed swap remain
+  outside the project's protection boundary. The exact vendor RPM, patch,
+  permitted path set, resulting hashes, and behavior are independently
+  verified so an equivalent upstream fix can replace the overlay.
 - `systemd-analyze security --offline=yes --user` rates both desktop services
   9.0, “UNSAFE,” largely because a functional desktop VPN adapter retains host
   networking, home-state, device, and D-Bus access. This heuristic is not a

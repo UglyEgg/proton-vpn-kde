@@ -58,6 +58,12 @@ if ! grep -Fxq 'python3-proton-vpn-api-core >= 5.5.6' <<<"$requires"; then
     exit 1
 fi
 if ! grep -Fxq \
+        'proton-vpn-api-core-plasma-protun-secret >= 1' \
+        <<<"$requires"; then
+    echo "RPM does not require the Plasma Protun secret capability" >&2
+    exit 1
+fi
+if ! grep -Fxq \
         'proton-keyring-secret-service-provider-agnostic >= 1' \
         <<<"$requires"; then
     echo "RPM does not require the provider-neutral Secret Service capability" >&2

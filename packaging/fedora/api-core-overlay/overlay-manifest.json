@@ -4,6 +4,7 @@
     "nevra": "python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64",
     "sourceRpm": "python3-proton-vpn-api-core-5.6.10-1.fc44.src.rpm",
     "rpmFilename": "python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64.rpm",
+    "rpmUrl": "https://repo.protonvpn.com/fedora-44-unstable/python3-proton-vpn-api-core/python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64.rpm",
     "rpmSha256": "6857951c37da0b56c353076d05d4de82c7f1e91786ff1effda12dfd80e2f3357",
     "headerSha256": "479b7981e7d38f7efa5531c78084ce0c4aed4dceec7b418e1df583712f2ea450",
     "payloadSha256": "b11ec29aa66461b47e7c119fbceee636e4f8bc704f589be2d7c352d074a4ae88",
@@ -11,11 +12,11 @@
   },
   "overlay": {
     "packageName": "python3-proton-vpn-api-core",
-    "nevra": "python3-proton-vpn-api-core-5.6.10-6.plasmavpn1.fc44.x86_64",
+    "nevra": "python3-proton-vpn-api-core-5.6.10-8.plasmavpn1.fc44.x86_64",
     "pythonCacheTag": "cpython-314",
     "representationOnly": false,
     "upstreamRepository": "https://github.com/ProtonVPN/python-proton-vpn-api-core.git",
-    "upstreamBaseTag": "v5.5.15",
+    "upstreamBaseTag": "v5.6.10",
     "patches": [
       {
         "file": "0001-share-repeated-server-endpoint-strings.patch",
@@ -34,6 +35,12 @@
         "sha256": "1489f5af318c96167b0a2850fedd6993600b14710089408c0c1d091df0df0365",
         "upstreamCommit": "f39782e411d629694eab174b4b04adc86765d7d8",
         "upstreamPatchSha256": "c9b9b47b7f50a2cb38f36986c2baa413b7a50b3813d85ef67a4518d2a646d07a"
+      },
+      {
+        "file": "0004-keep-protun-private-key-ephemeral.patch",
+        "sha256": "95cf092c97d5cc2e5005efcd4e96a88227ad88f5b21985d86dea306efed14cad",
+        "provenance": "local",
+        "rationale": "Keep the supplied key in the unsaved Protun profile instead of requiring a desktop secret agent"
       }
     ],
     "derivedBytecode": [
@@ -80,6 +87,17 @@
         "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/server_list_fetcher.cpython-314.opt-1.pyc",
         "optimization": 1,
         "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/server_list_fetcher.cpython-314.pyc"
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/protun.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/__pycache__/protun.cpython-314.pyc",
+        "optimization": 0
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/protun.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/__pycache__/protun.cpython-314.opt-1.pyc",
+        "optimization": 1,
+        "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/__pycache__/protun.cpython-314.pyc"
       }
     ],
     "modifiedFiles": [
@@ -142,6 +160,21 @@
         "path": "usr/lib64/python3.14/site-packages/proton/vpn/session/servers/__pycache__/server_list_fetcher.cpython-314.opt-1.pyc",
         "vendorSha256": "3271e1b2352d22860efcc6a1a1d272ee0f02a1eae71ad2bc7d3d40cdf5b434f3",
         "overlaySha256": "9f287437ed89c605c725c0750e0d7aadf69ff45e20eeba6adba7fcacd5820a26"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/protun.py",
+        "vendorSha256": "70876ff4db2ae79baa51dac9b29497180b6d785103e2313c5da1091adac4820c",
+        "overlaySha256": "eaee44cb5aff2756de96b6bc739be13776b2ab25878d4d86f8ca91723d8a6f35"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/__pycache__/protun.cpython-314.pyc",
+        "vendorSha256": "3f4121eaf9741a6b8c2072a77ba37bb1c74bb9dc963308073fc98cebbd1559bf",
+        "overlaySha256": "7413b3d739d0061b2f2064d78562e6298d6e1be3ad584809d873a29185e767f0"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/__pycache__/protun.cpython-314.opt-1.pyc",
+        "vendorSha256": "3f4121eaf9741a6b8c2072a77ba37bb1c74bb9dc963308073fc98cebbd1559bf",
+        "overlaySha256": "7413b3d739d0061b2f2064d78562e6298d6e1be3ad584809d873a29185e767f0"
       }
     ]
   }

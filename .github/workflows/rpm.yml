@@ -23,6 +23,7 @@ jobs:
     env:
       RPM_TOPDIR: ${{ github.workspace }}/rpm-build
       KEYRING_RPM_TOPDIR: ${{ github.workspace }}/keyring-rpm-build
+      API_CORE_RPM_TOPDIR: ${{ github.workspace }}/api-core-rpm-build
       RELEASE_ARTIFACT_DIR: ${{ github.workspace }}/release-artifacts
 
     steps:
@@ -57,6 +58,12 @@ jobs:
           runuser --user ci-builder -- \
             packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
               '' "$KEYRING_RPM_TOPDIR"
+
+      - name: Build Plasma-compatible API Core overlay
+        run: |
+          runuser --user ci-builder -- \
+            packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
+              '' "$API_CORE_RPM_TOPDIR"
 
       - name: Create source archive
         run: |
@@ -94,13 +101,25 @@ jobs:
           )
           [[ ${#keyring_rpms[@]} -eq 1 ]]
           [[ ${#keyring_source_rpms[@]} -eq 1 ]]
+          mapfile -t api_core_rpms < <(
+            find "$API_CORE_RPM_TOPDIR/RPMS" -type f \
+              -name 'python3-proton-vpn-api-core-*.x86_64.rpm' -print
+          )
+          mapfile -t api_core_source_rpms < <(
+            find "$API_CORE_RPM_TOPDIR/SRPMS" -type f \
+              -name 'python3-proton-vpn-api-core-*.src.rpm' -print
+          )
+          [[ ${#api_core_rpms[@]} -eq 1 ]]
+          [[ ${#api_core_source_rpms[@]} -eq 1 ]]
           scripts/check-rpm-artifact.sh "${binary_rpms[0]}"
           packaging/fedora/keyring-overlay/check_overlay_rpm.sh \
             "${keyring_rpms[0]}"
           rpm -qpi "${source_rpms[0]}"
           rpm -qpi "${keyring_source_rpms[0]}"
+          rpm -qpi "${api_core_source_rpms[0]}"
           rpm -Uvh --test --nodeps --ignoresize \
-            "${keyring_rpms[0]}" "${binary_rpms[0]}"
+            "${keyring_rpms[0]}" "${api_core_rpms[0]}" \
+            "${binary_rpms[0]}"
 
       - name: Stage release artifacts
         run: |
@@ -118,18 +137,30 @@ jobs:
             find "$KEYRING_RPM_TOPDIR/SRPMS" -type f \
               -name 'python3-proton-keyring-linux-*.src.rpm' -print
           )
+          mapfile -t api_core_rpms < <(
+            find "$API_CORE_RPM_TOPDIR/RPMS" -type f \
+              -name 'python3-proton-vpn-api-core-*.x86_64.rpm' -print
+          )
+          mapfile -t api_core_source_rpms < <(
+            find "$API_CORE_RPM_TOPDIR/SRPMS" -type f \
+              -name 'python3-proton-vpn-api-core-*.src.rpm' -print
+          )
           [[ ${#binary_rpms[@]} -eq 1 ]]
           [[ ${#source_rpms[@]} -eq 1 ]]
           [[ ${#keyring_rpms[@]} -eq 1 ]]
           [[ ${#keyring_source_rpms[@]} -eq 1 ]]
+          [[ ${#api_core_rpms[@]} -eq 1 ]]
+          [[ ${#api_core_source_rpms[@]} -eq 1 ]]
           install -d -m 0755 "$RELEASE_ARTIFACT_DIR"
           install -m 0644 \
             "${binary_rpms[0]}" \
             "${source_rpms[0]}" \
             "${keyring_rpms[0]}" \
             "${keyring_source_rpms[0]}" \
+            "${api_core_rpms[0]}" \
+            "${api_core_source_rpms[0]}" \
             "$RELEASE_ARTIFACT_DIR/"
-          [[ $(find "$RELEASE_ARTIFACT_DIR" -maxdepth 1 -type f -name '*.rpm' | wc -l) -eq 4 ]]
+          [[ $(find "$RELEASE_ARTIFACT_DIR" -maxdepth 1 -type f -name '*.rpm' | wc -l) -eq 6 ]]
 
       - name: Upload RPM artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
