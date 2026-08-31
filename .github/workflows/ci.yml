@@ -27,8 +27,8 @@ jobs:
           dnf install -y \
             ShellCheck cmake cpio curl dbus-daemon desktop-file-utils libxml2 rpm \
             extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
-            python3-coverage python3-cryptography python3-dbus-fast \
-            python3-mypy ruff \
+            procps-ng python3-coverage python3-cryptography python3-dbus-fast \
+            python3-mypy ripgrep ruff shadow-utils xorg-x11-server-Xvfb \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
             kf6-kglobalaccel-devel kf6-kcmutils-devel \
             kf6-knotifications-devel kf6-krunner-devel \
@@ -41,25 +41,34 @@ jobs:
       - name: Trust the container workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Prepare unprivileged builder
+        run: |
+          useradd --create-home ci-builder
+          chown -R ci-builder:ci-builder "$GITHUB_WORKSPACE"
+
       - name: Run static checks
-        run: scripts/check-static-analysis.sh
+        run: runuser --user ci-builder -- scripts/check-static-analysis.sh
 
       - name: Run Python type and coverage analysis
-        run: scripts/check-python-analysis.sh
+        run: runuser --user ci-builder -- scripts/check-python-analysis.sh
 
       - name: Verify minimum Proton Core contract
-        run: scripts/check-core-compatibility.sh
+        run: runuser --user ci-builder -- scripts/check-core-compatibility.sh
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
+        run: |
+          runuser --user ci-builder -- \
+            cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
 
       - name: Build
-        run: cmake --build build --parallel 2
+        run: runuser --user ci-builder -- cmake --build build --parallel 2
 
       - name: Test
         env:
           CTEST_OUTPUT_ON_FAILURE: "1"
-        run: ctest --test-dir build --output-on-failure --parallel 2
+        run: |
+          runuser --user ci-builder -- \
+            ctest --test-dir build --output-on-failure --parallel 2
 
   native-analysis:
     name: Clang analysis and sanitizers
@@ -73,7 +82,8 @@ jobs:
           dnf install -y \
             clang clang-tools-extra cmake compiler-rt dbus-daemon \
             extra-cmake-modules git ninja-build openssl-devel \
-            python3-cryptography python3-dbus-fast \
+            procps-ng python3-cryptography python3-dbus-fast ripgrep \
+            shadow-utils xorg-x11-server-Xvfb \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
             kf6-kglobalaccel-devel kf6-kcmutils-devel \
             kf6-knotifications-devel kf6-krunner-devel \
@@ -86,11 +96,16 @@ jobs:
       - name: Trust the container workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Prepare unprivileged builder
+        run: |
+          useradd --create-home ci-builder
+          chown -R ci-builder:ci-builder "$GITHUB_WORKSPACE"
+
       - name: Build and test with Clang sanitizers
-        run: scripts/check-native-sanitizers.sh
+        run: runuser --user ci-builder -- scripts/check-native-sanitizers.sh
 
       - name: Run Clang-Tidy
-        run: scripts/check-clang-tidy.sh
+        run: runuser --user ci-builder -- scripts/check-clang-tidy.sh
 
   python-minimum:
     name: Python 3.11 minimum dependencies

@@ -33,7 +33,8 @@ jobs:
             pyproject-rpm-macros python3-cryptography python3-dbus-fast \
             python3-coverage python3-devel python3-keyring python3-mypy \
             python3-proton-core python3-pytest python3-secretstorage \
-            python3-setuptools rpm-build \
+            python3-setuptools procps-ng ripgrep rpm-build shadow-utils \
+            xorg-x11-server-Xvfb \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
             kf6-kglobalaccel-devel kf6-kcmutils-devel \
             kf6-knotifications-devel kf6-krunner-devel \
@@ -46,32 +47,32 @@ jobs:
       - name: Trust the container workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Prepare unprivileged builder
+        run: |
+          useradd --create-home ci-builder
+          chown -R ci-builder:ci-builder "$GITHUB_WORKSPACE"
+
       - name: Build provider-neutral keyring overlay
         run: |
-          packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
-            '' "$KEYRING_RPM_TOPDIR"
+          runuser --user ci-builder -- \
+            packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
+              '' "$KEYRING_RPM_TOPDIR"
 
       - name: Create source archive
         run: |
-          name="$(sed -n 's/^Name:[[:space:]]*//p' packaging/fedora/proton-vpn-kde.spec | head -n 1)"
-          version="$(sed -n 's/^Version:[[:space:]]*//p' packaging/fedora/proton-vpn-kde.spec | head -n 1)"
-          mkdir -p "$RPM_TOPDIR"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS,TMP}
-          git archive \
-            --format=tar.gz \
-            --prefix="${name}-${version}/" \
-            --output="$RPM_TOPDIR/SOURCES/${name}-${version}.tar.gz" \
-            HEAD
-          cp packaging/fedora/proton-vpn-kde.spec "$RPM_TOPDIR/SPECS/"
+          runuser --user ci-builder -- \
+            packaging/fedora/prepare-rpmbuild-tree.sh "$RPM_TOPDIR"
 
       - name: Build source and binary RPMs
         env:
           TMPDIR: ${{ env.RPM_TOPDIR }}/TMP
         run: |
-          rpmbuild \
-            --define "_topdir $RPM_TOPDIR" \
-            --define "_tmppath $RPM_TOPDIR/TMP" \
-            --define "_smp_build_ncpus 2" \
-            -ba "$RPM_TOPDIR/SPECS/proton-vpn-kde.spec"
+          runuser --user ci-builder -- \
+            rpmbuild \
+              --define "_topdir $RPM_TOPDIR" \
+              --define "_tmppath $RPM_TOPDIR/TMP" \
+              --define "_smp_build_ncpus 2" \
+              -ba "$RPM_TOPDIR/SPECS/proton-vpn-kde.spec"
 
       - name: Inspect package artifacts
         run: |
