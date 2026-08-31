@@ -25,17 +25,6 @@ independent upstream contribution, not a hidden part of this client.
 - Complete translation coverage for Plasma-specific strings without guessing
   translations or obscuring their provenance.
 
-## Connection Inspector
-
-Add an on-demand Control Center page for richer connection details and bounded
-diagnostics. It should:
-
-- consume only existing non-sensitive backend state;
-- collect nothing while the page is closed;
-- avoid traffic inspection, history retention, remote telemetry, or new
-  networking ownership; and
-- keep the full Control Center out of the resident process.
-
 ## Optional Plasma widget
 
 Provide a Plasma 6 widget for status and common connection actions. It should

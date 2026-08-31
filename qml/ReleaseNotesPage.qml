@@ -24,6 +24,21 @@ Kirigami.ScrollablePage {
 
         Kirigami.Heading {
             level: 1
+            text: "0.12.0"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Inspect the current tunnel, server capabilities, protection settings, and local runtime from a new read-only Connection Inspector. The page is created only when opened, collects no traffic or history, and has no background timer. Backend client lifetime is now driven by D-Bus owner-loss events and a one-shot idle deadline instead of periodic polling. Proton Core continues to own all VPN networking behavior.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
             text: "0.11.3"
         }
 

@@ -4,8 +4,8 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.11.3
-Release:        1%{?dist}
+Version:        0.12.0
+Release:        0.1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -124,6 +124,12 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.1
+- Add an on-demand, read-only Connection Inspector using existing Core state.
+- Replace periodic backend ownership polling with D-Bus owner-loss events and
+  a one-shot idle deadline.
+- Begin the local 0.12.0 feature soak without changing Proton Core networking.
+
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.11.3-1
 - Recover Protun reconnects without a Plasma NetworkManager secret plugin.
 - Clear stale signed-in state when the backend stops and expose a bounded

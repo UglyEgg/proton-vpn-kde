@@ -20,6 +20,7 @@ Proton's official core.
 | Free-plan discovery | Free servers connect; paid rows remain upgrade-visible | Same accessibility model and ordering with native upgrade actions | Complete |
 | Search | Search countries, cities, and exact servers | Bounded global search through a compact scalar projection; live state stays in official Core objects | Complete |
 | Server metadata | Load, maintenance, P2P, streaming, Tor, Smart Routing, Secure Core | Native model roles and connection-detail presentation | Complete |
+| Connection inspection | Connection status and selected-server details in the main view | On-demand read-only page combining active server capabilities, effective protection settings, and local integration status without traffic collection or history | Superset |
 | Live refresh | Full topology and load-only updates | Separate Core callbacks; load changes update rows in place, and page requests made during backend startup are retained until readiness | Complete |
 | Connect cancellation | Connecting and failed states can be cancelled | Connecting cancellation bypasses the normal operation lock; failed state never reconnects accidentally | Complete |
 | Connection recovery | Retry nonfatal drops and react to network/session changes | Asyncio reconnector preserves server, protocol, and backend and observes network route and logind unlock | Complete |

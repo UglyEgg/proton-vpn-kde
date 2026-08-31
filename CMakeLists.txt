@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.11.3 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.12.0 LANGUAGES CXX)
 set(PROJECT_HOMEPAGE_URL "https://github.com/uglyegg/proton-vpn-kde")
 
 option(
@@ -195,6 +195,7 @@ qt_add_qml_module(proton-vpn-kde
         qml/Main.qml
         qml/AccountPage.qml
         qml/AboutPage.qml
+        qml/ConnectionInspectorPage.qml
         qml/CustomDnsPage.qml
         qml/CountryPage.qml
         qml/DetailRow.qml

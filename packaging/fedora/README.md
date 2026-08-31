@@ -29,12 +29,17 @@ an installed Python file outside package ownership.
 Create the source archive from the exact clean release tag:
 
 ```bash
+version="$(sed -n 's/^Version:[[:space:]]*//p' \
+    packaging/fedora/proton-vpn-kde.spec | head -n 1)"
 git archive \
     --format=tar.gz \
-    --prefix=proton-vpn-kde-0.11.3/ \
-    --output="${HOME}/rpmbuild/SOURCES/proton-vpn-kde-0.11.3.tar.gz" \
-    v0.11.3
+    --prefix="proton-vpn-kde-${version}/" \
+    --output="${HOME}/rpmbuild/SOURCES/proton-vpn-kde-${version}.tar.gz" \
+    "v${version}"
 ```
+
+For a local, untagged soak candidate, use the exact signed commit instead of
+`v${version}` and retain that commit identifier with the resulting artifacts.
 
 Build with the direct Plasma status-notifier integration:
 

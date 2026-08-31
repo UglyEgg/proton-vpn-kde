@@ -5,6 +5,9 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Add an on-demand Connection Inspector for live server capabilities,
+  protection configuration, and local runtime state using only existing
+  non-sensitive Core snapshots.
 - Replace the backend's repeating client-ownership poll with authoritative
   D-Bus owner-loss events and a one-shot idle deadline, eliminating periodic
   wakeups while preserving active tunnel and packet-capture supervision.

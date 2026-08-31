@@ -85,6 +85,11 @@ Kirigami.ApplicationWindow {
         showPage(locationsPageComponent)
     }
 
+    function showConnectionInspector() {
+        root.currentSection = "inspector"
+        showPage(connectionInspectorPageComponent)
+    }
+
     function showAccount() {
         root.currentSection = "account"
         showPage(accountPageComponent)
@@ -193,6 +198,8 @@ Kirigami.ApplicationWindow {
             root.showSettings()
         } else if (initialPageName === "locations") {
             root.showLocations()
+        } else if (initialPageName === "inspector") {
+            root.showConnectionInspector()
         } else if (initialPageName === "account") {
             root.showAccount()
         } else if (initialPageName === "sign-in") {
@@ -259,6 +266,11 @@ Kirigami.ApplicationWindow {
     Component {
         id: locationsPageComponent
         LocationsPage { }
+    }
+
+    Component {
+        id: connectionInspectorPageComponent
+        ConnectionInspectorPage { }
     }
 
     Component {
@@ -387,10 +399,14 @@ Kirigami.ApplicationWindow {
                 root.showSignIn()
                 break
             case 13:
+                console.info("diagnostics-smoke: Connection Inspector")
+                root.showConnectionInspector()
+                break
+            case 14:
                 console.info("diagnostics-smoke: Overview reload")
                 root.showOverview()
                 break
-            case 14:
+            case 15:
                 root.requestRunnerAction("fastest", "")
                 if (!mainDialogs.runnerActionVisible
                         || vpnController.state !== "disconnected") {
@@ -401,10 +417,10 @@ Kirigami.ApplicationWindow {
                 }
                 console.info("diagnostics-smoke: KRunner confirmation required")
                 break
-            case 15:
+            case 16:
                 mainDialogs.acceptRunnerAction()
                 break
-            case 16:
+            case 17:
                 if (vpnController.state !== "connected") {
                     return
                 }
@@ -416,10 +432,10 @@ Kirigami.ApplicationWindow {
                     return
                 }
                 break
-            case 17:
+            case 18:
                 mainDialogs.acceptRunnerAction()
                 break
-            case 18:
+            case 19:
                 if (vpnController.state !== "disconnected") {
                     return
                 }
@@ -632,6 +648,14 @@ Kirigami.ApplicationWindow {
                 checkable: true
                 checked: root.currentSection === "locations"
                 onTriggered: root.showLocations()
+            },
+            Kirigami.Action {
+                text: qsTr("Connection Inspector")
+                icon.name: "view-statistics"
+                enabled: vpnController.loggedIn
+                checkable: true
+                checked: root.currentSection === "inspector"
+                onTriggered: root.showConnectionInspector()
             },
             Kirigami.Action {
                 text: vpnController.loggedIn ? qsTr("Account") : qsTr("Sign in")

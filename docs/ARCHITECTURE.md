@@ -29,7 +29,7 @@ Its architecture follows five invariants:
 ┌───────────────────▼───────────────────┐
 │ proton-vpn-kde                        │
 │ on-demand C++/Qt/Kirigami process     │
-│ Control Center · settings · sign-in   │
+│ Control Center · inspector · settings │
 └───────────────────┬───────────────────┘
                     │ authenticated session D-Bus
 ┌───────────────────▼───────────────────┐
@@ -178,6 +178,14 @@ Settings use Core's public settings objects and official save/apply paths.
 Protocol and kill-switch changes require a disconnected tunnel. Paid features
 respect account access, and custom-DNS or split-tunneling conflicts are shown
 to the user rather than resolved by silently changing another setting.
+
+The Connection Inspector is a dynamically created Control Center page, not a
+resident service. It renders bounded, read-only connection, settings, and
+runtime state already exposed by the authenticated controller. Opening or
+explicitly refreshing the page requests current snapshots; closing it destroys
+the page. It has no timer, traffic access, history store, remote telemetry, or
+networking authority, and a source gate rejects background-collector types in
+the page.
 
 The IPv6 setting controls whether supported IPv6 traffic is carried inside the
 VPN tunnel. It does not disable Core's separate connection-scoped IPv6 leak

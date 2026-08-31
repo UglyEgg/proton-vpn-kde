@@ -22,6 +22,12 @@ if rg -n '(NumberAnimation|ColorAnimation|PropertyAnimation)\s*\{' "$qml_dir"; t
     exit 1
 fi
 
+if rg -n '(Timer|WorkerScript|WebSocket)\s*\{' \
+        "$qml_dir/ConnectionInspectorPage.qml"; then
+    echo "The on-demand Connection Inspector must not collect in the background" >&2
+    exit 1
+fi
+
 if ! rg -q 'root\.mirrored.*go-previous-symbolic.*go-next-symbolic' \
         "$qml_dir/PlasmaListItem.qml"; then
     echo "The shared navigation row must preserve RTL directionality" >&2
