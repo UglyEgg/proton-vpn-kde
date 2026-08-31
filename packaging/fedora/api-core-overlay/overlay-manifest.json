@@ -4,6 +4,7 @@
     "nevra": "python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64",
     "sourceRpm": "python3-proton-vpn-api-core-5.6.10-1.fc44.src.rpm",
     "rpmFilename": "python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64.rpm",
+    "rpmRepositoryUrl": "https://repo.protonvpn.com/fedora-44-unstable",
     "rpmUrl": "https://repo.protonvpn.com/fedora-44-unstable/python3-proton-vpn-api-core/python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64.rpm",
     "rpmSha256": "6857951c37da0b56c353076d05d4de82c7f1e91786ff1effda12dfd80e2f3357",
     "headerSha256": "479b7981e7d38f7efa5531c78084ce0c4aed4dceec7b418e1df583712f2ea450",

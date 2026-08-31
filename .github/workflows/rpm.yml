@@ -36,7 +36,7 @@ jobs:
             pyproject-rpm-macros python3-cryptography python3-dbus-fast \
             python3-coverage python3-devel python3-distro python3-fido2 \
             python3-gobject python3-jinja2 python3-keyring python3-mypy \
-            python3-packaging python3-proton-core python3-pytest \
+            python3-packaging python3-pytest \
             python3-pynacl python3-secretstorage python3-sentry-sdk \
             python3-setuptools procps-ng ripgrep rpm-build shadow-utils \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
@@ -47,6 +47,34 @@ jobs:
 
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install signed Proton Core build dependency
+        shell: bash
+        run: |
+          manifest=packaging/fedora/api-core-overlay/overlay-manifest.json
+          repository_url="$(python3 -c \
+            'import json,sys; print(json.load(open(sys.argv[1]))["vendor"]["rpmRepositoryUrl"])' \
+            "$manifest")"
+          signing_key_url="$(python3 -c \
+            'import json,sys; print(json.load(open(sys.argv[1]))["vendor"]["signingKey"]["url"])' \
+            "$manifest")"
+          signing_key_name="$(python3 -c \
+            'import json,sys; print(json.load(open(sys.argv[1]))["vendor"]["signingKey"]["filename"])' \
+            "$manifest")"
+          signing_key_sha256="$(python3 -c \
+            'import json,sys; print(json.load(open(sys.argv[1]))["vendor"]["signingKey"]["sha256"])' \
+            "$manifest")"
+          signing_key_path="/tmp/$signing_key_name"
+          curl --fail --location --silent --show-error \
+            --output "$signing_key_path" "$signing_key_url"
+          actual_signing_key_sha256="$(sha256sum "$signing_key_path" | cut -d ' ' -f 1)"
+          [[ "$actual_signing_key_sha256" == "$signing_key_sha256" ]]
+          rpmkeys --import "$signing_key_path"
+          dnf install -y \
+            --repofrompath="proton-build,$repository_url" \
+            --setopt=proton-build.gpgcheck=1 \
+            --setopt="proton-build.gpgkey=file://$signing_key_path" \
+            'python3-proton-core >= 0.5.0'
 
       - name: Trust the container workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -66,7 +94,8 @@ jobs:
         run: |
           runuser --user ci-builder -- \
             packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
-              '' "$API_CORE_RPM_TOPDIR"
+              '' "$API_CORE_RPM_TOPDIR" \
+              /tmp/protonvpn-fedora-44-public-key.asc
 
       - name: Create source archive
         run: |
