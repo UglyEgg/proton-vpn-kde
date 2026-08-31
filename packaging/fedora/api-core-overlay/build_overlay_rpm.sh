@@ -8,6 +8,7 @@ overlay_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 manifest="$overlay_dir/overlay-manifest.json"
 vendor_rpm="${1:-}"
 topdir="${2:-}"
+signing_key="${3:-}"
 
 vendor_rpm_url="$(python3 -c \
     'import json,sys; print(json.load(open(sys.argv[1]))["vendor"]["rpmUrl"])' \
@@ -17,6 +18,15 @@ vendor_rpm_name="$(python3 -c \
     "$manifest")"
 vendor_rpm_sha256="$(python3 -c \
     'import json,sys; print(json.load(open(sys.argv[1]))["vendor"]["rpmSha256"])' \
+    "$manifest")"
+signing_key_url="$(python3 -c \
+    'import json,sys; print(json.load(open(sys.argv[1]))["vendor"]["signingKey"]["url"])' \
+    "$manifest")"
+signing_key_name="$(python3 -c \
+    'import json,sys; print(json.load(open(sys.argv[1]))["vendor"]["signingKey"]["filename"])' \
+    "$manifest")"
+signing_key_sha256="$(python3 -c \
+    'import json,sys; print(json.load(open(sys.argv[1]))["vendor"]["signingKey"]["sha256"])' \
     "$manifest")"
 
 if [[ -z "$topdir" ]]; then
@@ -51,7 +61,25 @@ if [[ "$actual_vendor_rpm_sha256" != "$vendor_rpm_sha256" ]]; then
     exit 1
 fi
 
+if [[ -z "$signing_key" ]]; then
+    signing_key="$topdir/tmp/$signing_key_name"
+    curl --fail --location --silent --show-error \
+        --output "$signing_key" "$signing_key_url"
+elif [[ ! -f "$signing_key" ]]; then
+    echo "Vendor signing key does not exist: $signing_key" >&2
+    exit 1
+fi
+
+actual_signing_key_sha256="$(sha256sum "$signing_key" | cut -d ' ' -f 1)"
+if [[ "$actual_signing_key_sha256" != "$signing_key_sha256" ]]; then
+    echo "Vendor signing-key SHA-256 mismatch" >&2
+    echo "expected: $signing_key_sha256" >&2
+    echo "actual:   $actual_signing_key_sha256" >&2
+    exit 1
+fi
+
 install -m 0644 "$vendor_rpm" "$topdir/SOURCES/"
+install -m 0644 "$signing_key" "$topdir/SOURCES/"
 install -m 0644 "$manifest" "$topdir/SOURCES/"
 install -m 0755 "$overlay_dir/rebuild_overlay.py" "$topdir/SOURCES/"
 install -m 0644 "$overlay_dir/patches/"*.patch "$topdir/SOURCES/"
@@ -68,6 +96,7 @@ overlay_rpm="$topdir/RPMS/x86_64/python3-proton-vpn-api-core-5.6.10-8.plasmavpn1
 "$overlay_dir/rebuild_overlay.py" verify-rpm \
     --manifest "$overlay_dir/overlay-manifest.json" \
     --vendor-rpm "$vendor_rpm" \
+    --signing-key "$signing_key" \
     --overlay-rpm "$overlay_rpm"
 
 sha256sum "$overlay_rpm"

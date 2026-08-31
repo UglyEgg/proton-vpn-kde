@@ -15,6 +15,7 @@ Vendor:         Proton AG <opensource@proton.me>
 Source0:        python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64.rpm
 Source1:        overlay-manifest.json
 Source2:        rebuild_overlay.py
+Source3:        protonvpn-fedora-44-public-key.asc
 Patch0:         0001-share-repeated-server-endpoint-strings.patch
 Patch1:         0002-share-server-strings-during-cache-decoding.patch
 Patch2:         0003-avoid-deprecated-fido2-capability-query.patch
@@ -74,6 +75,7 @@ exactly match the checked-in manifest.
 %{python3} %{SOURCE2} prepare \
     --manifest %{SOURCE1} \
     --vendor-rpm %{SOURCE0} \
+    --signing-key %{SOURCE3} \
     --source-directory %{_sourcedir} \
     --baseline-root vendor-rootfs \
     --overlay-root overlay-rootfs

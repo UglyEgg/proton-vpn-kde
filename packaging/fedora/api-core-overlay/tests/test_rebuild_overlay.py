@@ -39,6 +39,28 @@ class OverlayBoundaryTests(unittest.TestCase):
         self.assertEqual("C", environment["LC_ALL"])
         self.assertEqual("UTC", environment["TZ"])
 
+    def test_rejects_an_unpinned_vendor_signing_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            signing_key = Path(directory) / "vendor.asc"
+            signing_key.write_bytes(b"pinned key")
+            manifest = {
+                "vendor": {
+                    "signingKey": {
+                        "filename": signing_key.name,
+                        "sha256": sha256(signing_key),
+                    }
+                }
+            }
+            rebuild_overlay._verify_vendor_signing_key(manifest, signing_key)
+
+            signing_key.write_bytes(b"different key")
+            with self.assertRaisesRegex(
+                rebuild_overlay.OverlayError, "signing-key SHA-256 mismatch"
+            ):
+                rebuild_overlay._verify_vendor_signing_key(
+                    manifest, signing_key
+                )
+
     def test_payload_copy_preserves_hardlinks(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

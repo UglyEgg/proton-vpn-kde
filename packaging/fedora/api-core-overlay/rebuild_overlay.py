@@ -43,6 +43,8 @@ def _load_manifest(path: Path) -> dict[str, Any]:
         raise OverlayError("Unsupported overlay manifest schema")
     if not isinstance(manifest.get("vendor"), dict):
         raise OverlayError("Overlay manifest has no vendor record")
+    if not isinstance(manifest["vendor"].get("signingKey"), dict):
+        raise OverlayError("Overlay manifest has no vendor signing-key record")
     if not isinstance(manifest.get("overlay"), dict):
         raise OverlayError("Overlay manifest has no overlay record")
     return manifest
@@ -107,7 +109,26 @@ def _rpm_fields(path: Path) -> dict[str, str]:
     )
 
 
-def verify_vendor_rpm(manifest: dict[str, Any], vendor_rpm: Path) -> None:
+def _verify_vendor_signing_key(
+    manifest: dict[str, Any], signing_key: Path
+) -> None:
+    expected = manifest["vendor"]["signingKey"]
+    if signing_key.name != expected["filename"]:
+        raise OverlayError(
+            f"Expected vendor signing key {expected['filename']}, "
+            f"got {signing_key.name}"
+        )
+    actual_sha256 = _sha256(signing_key)
+    if actual_sha256 != expected["sha256"]:
+        raise OverlayError(
+            "Vendor signing-key SHA-256 mismatch: "
+            f"expected {expected['sha256']}, got {actual_sha256}"
+        )
+
+
+def verify_vendor_rpm(
+    manifest: dict[str, Any], vendor_rpm: Path, signing_key: Path
+) -> None:
     vendor = manifest["vendor"]
     if vendor_rpm.name != vendor["rpmFilename"]:
         raise OverlayError(
@@ -134,7 +155,30 @@ def verify_vendor_rpm(manifest: dict[str, Any], vendor_rpm: Path) -> None:
                 f"expected {vendor[field]!r}, got {fields[field]!r}"
             )
 
-    _run(["rpmkeys", "--checksig", str(vendor_rpm)])
+    _verify_vendor_signing_key(manifest, signing_key)
+    with tempfile.TemporaryDirectory(
+        prefix="proton-vendor-rpmdb."
+    ) as directory:
+        rpm_database = Path(directory)
+        _run(["rpm", "--dbpath", str(rpm_database), "--initdb"])
+        _run(
+            [
+                "rpmkeys",
+                "--dbpath",
+                str(rpm_database),
+                "--import",
+                str(signing_key),
+            ]
+        )
+        _run(
+            [
+                "rpmkeys",
+                "--dbpath",
+                str(rpm_database),
+                "--checksig",
+                str(vendor_rpm),
+            ]
+        )
 
 
 def _extract_rpm(rpm_path: Path, destination: Path) -> None:
@@ -396,12 +440,13 @@ def verify_tree(
 def prepare_overlay(
     manifest_path: Path,
     vendor_rpm: Path,
+    signing_key: Path,
     source_directory: Path,
     baseline_root: Path,
     overlay_root: Path,
 ) -> None:
     manifest = _load_manifest(manifest_path)
-    verify_vendor_rpm(manifest, vendor_rpm)
+    verify_vendor_rpm(manifest, vendor_rpm, signing_key)
     patches = _verify_patch_files(manifest, source_directory)
     _extract_rpm(vendor_rpm, baseline_root)
     if overlay_root.exists():
@@ -560,10 +605,13 @@ def verify_behavior(root: Path) -> None:
 
 
 def verify_overlay_rpm(
-    manifest_path: Path, vendor_rpm: Path, overlay_rpm: Path
+    manifest_path: Path,
+    vendor_rpm: Path,
+    signing_key: Path,
+    overlay_rpm: Path,
 ) -> None:
     manifest = _load_manifest(manifest_path)
-    verify_vendor_rpm(manifest, vendor_rpm)
+    verify_vendor_rpm(manifest, vendor_rpm, signing_key)
     overlay_fields = _rpm_fields(overlay_rpm)
     if overlay_fields["nevra"] != manifest["overlay"]["nevra"]:
         raise OverlayError(
@@ -626,6 +674,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare = subparsers.add_parser("prepare")
     prepare.add_argument("--manifest", type=Path, required=True)
     prepare.add_argument("--vendor-rpm", type=Path, required=True)
+    prepare.add_argument("--signing-key", type=Path, required=True)
     prepare.add_argument("--source-directory", type=Path, required=True)
     prepare.add_argument("--baseline-root", type=Path, required=True)
     prepare.add_argument("--overlay-root", type=Path, required=True)
@@ -641,6 +690,7 @@ def _parser() -> argparse.ArgumentParser:
     rpm_parser = subparsers.add_parser("verify-rpm")
     rpm_parser.add_argument("--manifest", type=Path, required=True)
     rpm_parser.add_argument("--vendor-rpm", type=Path, required=True)
+    rpm_parser.add_argument("--signing-key", type=Path, required=True)
     rpm_parser.add_argument("--overlay-rpm", type=Path, required=True)
 
     installed = subparsers.add_parser("verify-installed")
@@ -655,6 +705,7 @@ def main() -> int:
             prepare_overlay(
                 arguments.manifest,
                 arguments.vendor_rpm,
+                arguments.signing_key,
                 arguments.source_directory,
                 arguments.baseline_root,
                 arguments.overlay_root,
@@ -672,6 +723,7 @@ def main() -> int:
             verify_overlay_rpm(
                 arguments.manifest,
                 arguments.vendor_rpm,
+                arguments.signing_key,
                 arguments.overlay_rpm,
             )
         elif arguments.command == "verify-installed":

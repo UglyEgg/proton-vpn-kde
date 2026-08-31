@@ -8,7 +8,13 @@
     "rpmSha256": "6857951c37da0b56c353076d05d4de82c7f1e91786ff1effda12dfd80e2f3357",
     "headerSha256": "479b7981e7d38f7efa5531c78084ce0c4aed4dceec7b418e1df583712f2ea450",
     "payloadSha256": "b11ec29aa66461b47e7c119fbceee636e4f8bc704f589be2d7c352d074a4ae88",
-    "rsaHeader": "RSA/SHA512, Wed Aug 26 08:57:18 2026, Key ID d84176f6844830d4"
+    "rsaHeader": "RSA/SHA512, Wed Aug 26 08:57:18 2026, Key ID d84176f6844830d4",
+    "signingKey": {
+      "filename": "protonvpn-fedora-44-public-key.asc",
+      "url": "https://repo.protonvpn.com/fedora-44-unstable/public_key.asc",
+      "sha256": "4e61dd53af2a1455eb8cb818d3b46bfc5c9a0b037d36e9074675d437ad00591b",
+      "fingerprint": "6929133BDE1CE1CFA9EDB286D84176F6844830D4"
+    }
   },
   "overlay": {
     "packageName": "python3-proton-vpn-api-core",
