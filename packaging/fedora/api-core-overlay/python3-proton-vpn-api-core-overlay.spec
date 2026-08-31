@@ -22,8 +22,18 @@ Patch2:         0003-avoid-deprecated-fido2-capability-query.patch
 Patch3:         0004-keep-protun-private-key-ephemeral.patch
 
 BuildRequires:  cpio
+BuildRequires:  NetworkManager-libnm
 BuildRequires:  patch
 BuildRequires:  python3
+BuildRequires:  python3-dbus-fast
+BuildRequires:  python3-distro
+BuildRequires:  python3-fido2
+BuildRequires:  python3-gobject
+BuildRequires:  python3-jinja2
+BuildRequires:  python3-packaging
+BuildRequires:  python3-proton-core >= 0.5.0
+BuildRequires:  python3-pynacl
+BuildRequires:  python3-sentry-sdk
 BuildRequires:  rpm
 
 Requires:       NetworkManager
