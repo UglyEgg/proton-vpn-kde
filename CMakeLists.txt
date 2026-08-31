@@ -88,6 +88,17 @@ function(proton_vpn_kde_enable_backend_identity target)
     )
 endfunction()
 
+set(PROTON_VPN_KDE_LOCATION_MODEL_SOURCES
+    src/CountryModel.cpp
+    src/LocationFilterProxyModel.cpp
+    src/LocationModelJson.cpp
+    src/LocationModelJson.h
+    src/LocationModels.h
+    src/LocationSearchModel.cpp
+    src/ServerGroupModel.cpp
+    src/ServerModel.cpp
+)
+
 qt_add_executable(proton-vpn-kde
     src/AgentControl.cpp
     src/AgentControl.h
@@ -111,8 +122,7 @@ qt_add_executable(proton-vpn-kde
     src/SplitTunnelingModel.cpp
     src/SplitTunnelingModel.h
     src/main.cpp
-    src/LocationModels.cpp
-    src/LocationModels.h
+    ${PROTON_VPN_KDE_LOCATION_MODEL_SOURCES}
     src/RunnerActionRequest.cpp
     src/RunnerActionRequest.h
     src/UpdateChannel.cpp
@@ -120,8 +130,10 @@ qt_add_executable(proton-vpn-kde
     src/VpnController.cpp
     src/VpnControllerActions.cpp
     src/VpnController.h
+    src/VpnControllerLifecycle.cpp
     src/VpnControllerLocations.cpp
     src/VpnControllerSettings.cpp
+    src/VpnControllerSnapshot.cpp
     src/VpnConnectionController.h
     src/VpnSettingsModel.cpp
     src/VpnSettingsModel.h
@@ -186,10 +198,15 @@ qt_add_qml_module(proton-vpn-kde
         qml/CustomDnsPage.qml
         qml/CountryPage.qml
         qml/DetailRow.qml
+        qml/FastestSettingsSection.qml
         qml/LocationsPage.qml
         qml/OverviewPage.qml
+        qml/MainDialogs.qml
         qml/PageHeader.qml
         qml/PlasmaListItem.qml
+        qml/PlasmaIntegrationSettingsSection.qml
+        qml/PrivacySettingsSection.qml
+        qml/ProtectionSettingsSection.qml
         qml/ReportIssuePage.qml
         qml/ReleaseNotesPage.qml
         qml/SectionCard.qml
@@ -197,7 +214,11 @@ qt_add_qml_module(proton-vpn-kde
         qml/ServersPage.qml
         qml/SettingsPage.qml
         qml/SignInPage.qml
+        qml/SplitTunnelingSettingsSection.qml
         qml/SplitTunnelingPage.qml
+        qml/CustomDnsSettingsSection.qml
+        qml/UpdateSettingsSection.qml
+        qml/VpnConnectionSettingsSection.qml
 )
 
 target_link_libraries(proton-vpn-kde PRIVATE
@@ -381,8 +402,7 @@ if(BUILD_TESTING)
         src/CustomDnsModel.h
         src/InstalledApplicationModel.cpp
         src/InstalledApplicationModel.h
-        src/LocationModels.cpp
-        src/LocationModels.h
+        ${PROTON_VPN_KDE_LOCATION_MODEL_SOURCES}
         src/SecretTransport.cpp
         src/SecretTransport.h
         src/SplitTunnelingModel.cpp
@@ -390,8 +410,10 @@ if(BUILD_TESTING)
         src/VpnController.cpp
         src/VpnControllerActions.cpp
         src/VpnController.h
+        src/VpnControllerLifecycle.cpp
         src/VpnControllerLocations.cpp
         src/VpnControllerSettings.cpp
+        src/VpnControllerSnapshot.cpp
         src/VpnConnectionController.h
         src/VpnSettingsModel.cpp
         src/VpnSettingsModel.h
@@ -446,8 +468,7 @@ if(BUILD_TESTING)
 
     qt_add_executable(location-model-tests
         tests/LocationModelsTest.cpp
-        src/LocationModels.cpp
-        src/LocationModels.h
+        ${PROTON_VPN_KDE_LOCATION_MODEL_SOURCES}
     )
     target_include_directories(location-model-tests PRIVATE src)
     target_link_libraries(location-model-tests PRIVATE Qt6::Core Qt6::Test)

@@ -6,20 +6,13 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import ExitStack
-from importlib.metadata import PackageNotFoundError, version
-import os
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any
 
-from . import __version__
 from .async_utils import run_in_daemon_thread
 from .demo_adapter import DemoCoreAdapter
 from .errors import UserVisibleRuntimeError, UserVisibleValueError
 from .controller import (
     CountryInfo,
-    CustomDnsServer,
     CustomDnsSettings,
     CustomDnsValue,
     LocationSearchInfo,
@@ -36,13 +29,47 @@ from .controller import (
     SupportReport,
     VpnSettings,
     VpnSnapshot,
-    normalize_server_features,
+)
+from .core_compatibility import (
+    core_memory_optimization_behavior as _core_memory_optimization_behavior,
+    core_memory_optimizations_active as _core_memory_optimizations_active,
+    core_package_version as _core_package_version,
+)
+from .core_servers import (
+    countries as core_countries,
+    country as core_country,
+    fastest_matching as core_fastest_matching,
+    server_group as core_server_group,
+    server_info as core_server_info,
+)
+from .core_settings import (
+    custom_dns_from_core as translate_custom_dns,
+    kill_switch_value as core_kill_switch_value,
+    mode_value as core_mode_value,
+    protocol_supports_split_tunneling as core_protocol_supports_split_tunneling,
+    split_tunneling_from_core as translate_split_tunneling,
+    vpn_settings_from_core as translate_vpn_settings,
+)
+from .core_snapshot import (
+    SnapshotContext,
+    snapshot_from_state as translate_snapshot,
+    state_name as core_state_name,
+)
+from .core_protocols import (
+    available_protocols as discover_protocols,
+    iter_available_protocols as iter_core_protocols,
+    protocol_supports_packet_capture as core_protocol_supports_packet_capture,
+)
+from .core_support import (
+    submit_nps_survey as submit_core_nps_survey,
+    submit_support_report as submit_core_support_report,
+    take_pending_nps_survey as take_core_nps_survey,
 )
 from .fido_interaction import FidoInteraction
 from .features import CRASH_REPORT_SUBMISSION_ENABLED
+from .packet_capture import PACKET_CAPTURE_MAX_SECONDS, PacketCaptureCoordinator
 from .reconnector import AsyncReconnector
 from .search_projection import ServerSearchProjection
-from .support import collect_support_logs
 
 
 __all__ = [
@@ -50,59 +77,6 @@ __all__ = [
     "ProtonCoreAdapter",
     "_core_memory_optimization_behavior",
 ]
-
-
-def _core_memory_optimization_behavior(logicals_module: Any) -> bool:
-    """Checks both string-sharing paths without touching live Core state."""
-    deduplicate = getattr(logicals_module, "_deduplicate_server_strings", None)
-    hook_factory = getattr(logicals_module, "_server_string_object_hook", None)
-    if not callable(deduplicate) or not callable(hook_factory):
-        return False
-
-    first = bytes("phase8-runtime-probe.example", "utf-8").decode("utf-8")
-    second = bytes("phase8-runtime-probe.example", "utf-8").decode("utf-8")
-    if first is second:
-        return False
-    decoded: list[dict[str, Any]] = [
-        {"Domain": first, "Servers": [{"Domain": second}]}
-    ]
-    try:
-        deduplicate(decoded)
-    except Exception:
-        return False
-    if decoded[0]["Domain"] is not decoded[0]["Servers"][0]["Domain"]:
-        return False
-
-    third = bytes("phase8-cache-probe.example", "utf-8").decode("utf-8")
-    fourth = bytes("phase8-cache-probe.example", "utf-8").decode("utf-8")
-    if third is fourth:
-        return False
-    try:
-        object_hook = hook_factory()
-        first_item = object_hook({"Domain": third})
-        second_item = object_hook({"Domain": fourth})
-    except Exception:
-        return False
-    return first_item["Domain"] is second_item["Domain"]
-
-
-def _core_memory_optimizations_active() -> bool:
-    try:
-        from proton.vpn.session.servers import logicals
-    except (ImportError, ModuleNotFoundError):
-        return False
-    return _core_memory_optimization_behavior(logicals)
-
-
-def _core_package_version() -> str:
-    try:
-        return version("proton-vpn-api-core")
-    except PackageNotFoundError:
-        return ""
-
-
-PACKET_CAPTURE_MAX_SECONDS = 15 * 60
-MAX_ACCEPTED_CORE_CAPTURE_BYTES = 512 * 1024 * 1024
 
 
 class ProtonCoreAdapter:
@@ -130,13 +104,11 @@ class ProtonCoreAdapter:
         self._auth_state = "signed_out"
         self._session_services_enabled = False
         self._fido_interaction: FidoInteraction | None = None
-        self._packet_capture_active = False
-        self._packet_capture_max_seconds = max(0.01, float(packet_capture_max_seconds))
         self._crash_report_submission_enabled = crash_report_submission_enabled
-        self._packet_capture_watchdog_task: asyncio.Task | None = None
-        self._packet_capture_generation = 0
-        self._packet_capture_connection: Any = None
-        self._packet_capture_stop_lock = asyncio.Lock()
+        self._packet_capture = PacketCaptureCoordinator(
+            packet_capture_max_seconds,
+            self._on_packet_capture_changed,
+        )
         self._kill_switch = 0
         self._startup_compatible = True
         self._server_list_generation = 0
@@ -218,28 +190,7 @@ class ProtonCoreAdapter:
 
     @staticmethod
     def _fastest_matching(server_list, servers, features: tuple[str, ...]):
-        from proton.vpn.session.servers import ServerFeatureEnum
-
-        normalized = normalize_server_features(features)
-        feature_flags = {
-            "p2p": ServerFeatureEnum.P2P,
-            "streaming": ServerFeatureEnum.STREAMING,
-            "tor": ServerFeatureEnum.TOR,
-            "secure-core": ServerFeatureEnum.SECURE_CORE,
-        }
-        requested = ServerFeatureEnum(0)
-        for feature in normalized:
-            requested |= feature_flags[feature]
-        available = server_list.get_available_servers(servers, server_list.user_tier)
-        matching = server_list.get_servers_with_features(
-            available,
-            request_features=requested,
-            exclude_features=ServerFeatureEnum(0),
-        )
-        logical_server = server_list.get_fastest_server(matching)
-        if logical_server is None:
-            raise UserVisibleRuntimeError("No server available in the current tier")
-        return logical_server
+        return core_fastest_matching(server_list, servers, features)
 
     async def get_countries(self) -> list[CountryInfo]:
         server_list = await self._get_server_list()
@@ -601,211 +552,38 @@ class ProtonCoreAdapter:
         await self._connect_logical(server_list.get_by_name(server_name))
 
     async def start_packet_capture(self, directory_path: str) -> None:
-        if self._packet_capture_active:
-            raise UserVisibleRuntimeError("Packet capture is already active")
-        if type(self._connector.current_state).__name__.lower() != "connected":
-            raise UserVisibleRuntimeError(
-                "Connect the VPN before starting packet capture"
-            )
-        connection = self._connector.current_connection
-        if connection is None or not self._connection_supports_packet_capture(
-            connection
-        ):
-            raise UserVisibleRuntimeError(
-                "The selected protocol does not support packet capture"
-            )
-        capture_settings = getattr(connection.settings, "packet_capture", None)
-        core_max_bytes = getattr(capture_settings, "max_bytes", None)
-        if (
-            capture_settings is None
-            or isinstance(core_max_bytes, bool)
-            or not isinstance(core_max_bytes, int)
-            or core_max_bytes <= 0
-            or core_max_bytes > MAX_ACCEPTED_CORE_CAPTURE_BYTES
-        ):
-            raise UserVisibleRuntimeError(
-                "The installed Proton Core does not expose a supported packet-capture byte limit"
-            )
-        path = Path(directory_path)
-        if not path.is_absolute():
-            raise UserVisibleValueError("Select a valid packet-capture folder")
-        try:
-            resolved = path.resolve(strict=True)
-        except OSError as error:
-            raise UserVisibleValueError(
-                "Select an existing packet-capture folder"
-            ) from error
-        if not resolved.is_dir() or not os.access(resolved, os.W_OK | os.X_OK):
-            raise UserVisibleValueError("Select a writable packet-capture folder")
-        try:
-            capture_settings.directory_path = str(resolved)
-            await connection.start_packet_capture()
-        except Exception:
-            raise UserVisibleRuntimeError(
-                "Proton could not start packet capture"
-            ) from None
-        self._packet_capture_generation += 1
-        generation = self._packet_capture_generation
-        self._packet_capture_active = True
-        self._packet_capture_connection = connection
-        self._cancel_packet_capture_watchdog()
-        self._packet_capture_watchdog_task = asyncio.create_task(
-            self._packet_capture_watchdog(generation, connection)
-        )
-        self._publish_snapshot()
+        await self._packet_capture.start(self._connector, directory_path)
 
     async def stop_packet_capture(self) -> None:
-        if not self._packet_capture_active:
-            self._cancel_packet_capture_watchdog()
-            return
-        generation = self._packet_capture_generation
-        connection = self._packet_capture_connection
-        await self._stop_packet_capture_generation(
-            generation,
-            connection,
-            attempts=1,
-            safety_limit=False,
-        )
-
-    async def _packet_capture_watchdog(self, generation: int, connection: Any) -> None:
-        try:
-            await asyncio.sleep(self._packet_capture_max_seconds)
-            await self._stop_packet_capture_generation(
-                generation,
-                connection,
-                attempts=3,
-                safety_limit=True,
-            )
-        except asyncio.CancelledError:
-            return
-
-    async def _stop_packet_capture_generation(
-        self,
-        generation: int,
-        connection: Any,
-        *,
-        attempts: int,
-        safety_limit: bool,
-    ) -> bool:
-        """Stop one capture generation exactly once across every caller."""
-        async with self._packet_capture_stop_lock:
-            if (
-                generation != self._packet_capture_generation
-                or not self._packet_capture_active
-                or connection is not self._packet_capture_connection
-            ):
-                return False
-
-            for attempt in range(attempts):
-                try:
-                    if connection is not None:
-                        await connection.stop_packet_capture()
-                    break
-                except Exception:
-                    if attempt + 1 < attempts:
-                        await asyncio.sleep(1.0)
-                        continue
-                    if safety_limit:
-                        self._status_message = "Packet capture reached its time limit but Proton Core could not stop it"
-                        self._publish_snapshot()
-                        return False
-                    raise UserVisibleRuntimeError(
-                        "Proton could not stop packet capture"
-                    ) from None
-
-            if (
-                generation != self._packet_capture_generation
-                or connection is not self._packet_capture_connection
-            ):
-                return False
-            self._finish_packet_capture_state()
-            if safety_limit:
-                self._status_message = (
-                    "Packet capture stopped at the 15-minute safety limit"
-                )
-            self._publish_snapshot()
-            return True
+        await self._packet_capture.stop()
 
     def _cancel_packet_capture_watchdog(self) -> None:
-        task = self._packet_capture_watchdog_task
-        self._packet_capture_watchdog_task = None
-        try:
-            current_task = asyncio.current_task()
-        except RuntimeError:
-            current_task = None
-        if task is not None and task is not current_task:
-            task.cancel()
+        self._packet_capture.cancel_watchdog()
 
     def _finish_packet_capture_state(self) -> None:
-        self._packet_capture_active = False
-        self._packet_capture_connection = None
-        self._packet_capture_generation += 1
-        self._cancel_packet_capture_watchdog()
+        self._packet_capture.finish()
+
+    @property
+    def _packet_capture_active(self) -> bool:
+        return self._packet_capture.active
+
+    @property
+    def _packet_capture_watchdog_task(self) -> asyncio.Task | None:
+        return self._packet_capture.watchdog_task
+
+    def _on_packet_capture_changed(self, message: str | None) -> None:
+        if message is not None:
+            self._status_message = message
+        self._publish_snapshot()
 
     async def submit_support_report(self, report: SupportReport) -> None:
-        from proton.vpn.session.dataclasses import BugReportForm
-
-        with TemporaryDirectory(prefix="proton-vpn-kde-support-") as directory:
-            log_paths = (
-                await asyncio.to_thread(collect_support_logs, Path(directory))
-                if report.include_logs
-                else []
-            )
-            with ExitStack() as attachments:
-                report_form = BugReportForm(
-                    username=report.username,
-                    email=report.email,
-                    title="Report from KDE Plasma app",
-                    description=report.description,
-                    client_version=__version__,
-                    client="KDE Plasma GUI",
-                    attachments=[
-                        attachments.enter_context(path.open("rb")) for path in log_paths
-                    ],
-                )
-                try:
-                    await self._api.submit_bug_report(report_form)
-                except Exception:
-                    raise UserVisibleRuntimeError(
-                        "Proton could not submit the issue report"
-                    ) from None
+        await submit_core_support_report(self._api, report)
 
     async def take_pending_nps_survey(self) -> bool:
-        try:
-            notifications = list(
-                self._api.refresher.notifications.get_nps_survey_notifications()
-            )
-        except AttributeError:
-            return False
-        while notifications:
-            survey = notifications.pop()
-            if not survey.seen and survey.is_active:
-                await asyncio.to_thread(
-                    self._api.set_notification_seen, survey.survey_id
-                )
-                return True
-        return False
+        return await take_core_nps_survey(self._api)
 
     async def submit_nps_survey(self, response: NpsSurveyResponse) -> None:
-        from proton.vpn.session.dataclasses import NPSSurveyResponse
-
-        response_type = (
-            NPSSurveyResponse.ResponseType.DISMISS
-            if response.dismissed
-            else NPSSurveyResponse.ResponseType.SUBMIT
-        )
-        try:
-            await self._api.submit_nps_response(
-                NPSSurveyResponse(
-                    user_score=response.score,
-                    user_comments=response.comments,
-                    response_type=response_type,
-                )
-            )
-        except Exception:
-            raise UserVisibleRuntimeError(
-                "Proton could not submit the survey response"
-            ) from None
+        await submit_core_nps_survey(self._api, response)
 
     async def _get_server_list(self):
         try:
@@ -815,55 +593,21 @@ class ProtonCoreAdapter:
 
     @staticmethod
     def _countries(server_list):
-        return server_list.group_by_country(
-            group_by_location=True,
-            include_free_servers=server_list.user_tier == 0,
-        )
+        return core_countries(server_list)
 
     def _country(self, server_list, country_code: str):
-        for country in self._countries(server_list):
-            if country.code.upper() == country_code:
-                return country
-        raise UserVisibleValueError(
-            "The selected Proton country is no longer available"
-        )
+        return core_country(server_list, country_code)
 
     def _server_group(
         self, server_list, country_code: str, group_kind: str, group_name: str
     ):
-        country = self._country(server_list, country_code)
-        if group_kind == "secure-core":
-            group = country.secure_core_group
-            if group is not None and group.name == group_name:
-                return group
-        elif group_kind == "location":
-            for location in country.locations:
-                if location.name == group_name:
-                    return location
-        raise UserVisibleValueError(
-            "The selected Proton server group is no longer available"
+        return core_server_group(
+            server_list, country_code, group_kind, group_name
         )
 
     @staticmethod
     def _server_info(server_list, server) -> ServerInfo:
-        from proton.vpn.session.servers import ServerFeatureEnum
-
-        available = list(
-            server_list.get_available_servers([server], server_list.user_tier)
-        )
-        return ServerInfo(
-            name=server.name,
-            location=server.location or "",
-            entry_country=server.entry_country.upper(),
-            load=server.load or 0,
-            accessible=bool(available),
-            under_maintenance=server.under_maintenance,
-            smart_routing=server.smart_routing,
-            secure_core=ServerFeatureEnum.SECURE_CORE in server.features,
-            tor=ServerFeatureEnum.TOR in server.features,
-            p2p=ServerFeatureEnum.P2P in server.features,
-            streaming=ServerFeatureEnum.STREAMING in server.features,
-        )
+        return core_server_info(server_list, server)
 
     async def _connect_logical(self, logical_server) -> None:
         try:
@@ -879,71 +623,28 @@ class ProtonCoreAdapter:
         disconnected = (
             type(self._connector.current_state).__name__.lower() == "disconnected"
         )
-        return VpnSettings(
-            protocol=settings.protocol,
+        return translate_vpn_settings(
+            settings,
             protocols=self._available_protocols(settings.protocol),
-            kill_switch=self._kill_switch,
-            net_shield=int(settings.features.netshield),
-            vpn_accelerator=bool(settings.features.vpn_accelerator),
-            moderate_nat=bool(settings.features.moderate_nat),
-            port_forwarding=bool(settings.features.port_forwarding),
-            ipv6=bool(settings.ipv6),
-            anonymous_crash_reports=bool(settings.anonymous_crash_reports),
-            paid_features_available=self._user_tier() >= 1,
-            protocol_editable=disconnected,
-            kill_switch_editable=disconnected,
-            split_tunneling_enabled=bool(settings.features.split_tunneling.enabled),
-            custom_dns_enabled=bool(settings.custom_dns.enabled),
+            user_tier=self._user_tier(),
+            disconnected=disconnected,
             packet_capture_supported=self._protocol_supports_packet_capture(
                 settings.protocol
             ),
         )
 
     def _split_tunneling_from_core(self, settings: Any) -> SplitTunnelingSettings:
-        split_tunneling = settings.features.split_tunneling
-        return SplitTunnelingSettings(
+        return translate_split_tunneling(
+            settings,
             available=bool(self._connector.is_split_tunneling_available),
-            paid_features_available=self._user_tier() >= 1,
-            enabled=bool(split_tunneling.enabled),
-            mode=self._mode_value(split_tunneling.mode),
-            exclude_app_paths=tuple(split_tunneling.exclude.app_paths),
-            include_app_paths=tuple(split_tunneling.include.app_paths),
-            exclude_ip_ranges=tuple(
-                str(ip_range) for ip_range in split_tunneling.exclude.ip_ranges
-            ),
-            include_ip_ranges=tuple(
-                str(ip_range) for ip_range in split_tunneling.include.ip_ranges
-            ),
+            user_tier=self._user_tier(),
         )
 
     def _custom_dns_from_core(self, settings: Any) -> CustomDnsSettings:
-        return CustomDnsSettings(
-            paid_features_available=self._user_tier() >= 1,
-            enabled=bool(settings.custom_dns.enabled),
-            servers=tuple(
-                CustomDnsServer(
-                    address=entry.ip.compressed,
-                    enabled=bool(entry.enabled),
-                )
-                for entry in settings.custom_dns.ip_list
-            ),
-        )
+        return translate_custom_dns(settings, user_tier=self._user_tier())
 
     def _available_protocols(self, current_protocol: str) -> tuple[ProtocolInfo, ...]:
-        protocols: list[ProtocolInfo] = []
-        seen: set[str] = set()
-        try:
-            for candidate in self._iter_available_protocols():
-                protocol_id = str(candidate.protocol)
-                if protocol_id in seen:
-                    continue
-                seen.add(protocol_id)
-                protocols.append(ProtocolInfo(protocol_id, str(candidate.ui_protocol)))
-        except (AttributeError, TypeError):
-            pass
-        if current_protocol not in seen:
-            protocols.append(ProtocolInfo(current_protocol, current_protocol))
-        return tuple(protocols)
+        return discover_protocols(self._api, self._connector, current_protocol)
 
     def _user_tier(self) -> int:
         if not self._logged_in:
@@ -952,39 +653,23 @@ class ProtonCoreAdapter:
 
     @staticmethod
     def _protocol_supports_split_tunneling(protocol: str) -> bool:
-        return protocol == "wireguard" or protocol.startswith("protun-")
+        return core_protocol_supports_split_tunneling(protocol)
 
     def _protocol_supports_packet_capture(self, protocol: str) -> bool:
-        try:
-            for candidate in self._iter_available_protocols():
-                if str(candidate.protocol) == protocol and bool(
-                    candidate.supports_packet_capture()
-                ):
-                    return True
-        except (AttributeError, TypeError):
-            pass
-        return False
+        return core_protocol_supports_packet_capture(
+            self._api, self._connector, protocol
+        )
 
     def _iter_available_protocols(self):
-        groups = ["generic"]
-        try:
-            if self._api.refresher.feature_flags.get("ProTunV1"):
-                groups.append("protun")
-        except (AttributeError, TypeError):
-            pass
-        for group in groups:
-            yield from self._connector.iter_available_protocols(group)
+        yield from iter_core_protocols(self._api, self._connector)
 
     @staticmethod
     def _connection_supports_packet_capture(connection: Any) -> bool:
-        try:
-            return bool(connection.supports_packet_capture())
-        except (AttributeError, TypeError):
-            return False
+        return PacketCaptureCoordinator.connection_supports_capture(connection)
 
     @staticmethod
     def _mode_value(mode: Any) -> str:
-        return str(getattr(mode, "value", mode))
+        return core_mode_value(mode)
 
     async def disconnect(self) -> None:
         await self._connector.disconnect()
@@ -1309,132 +994,26 @@ class ProtonCoreAdapter:
         )
 
     def _snapshot_from_state(self, state: Any) -> VpnSnapshot:
-        state_name = type(state).__name__.lower() if state else "unavailable"
-        allowed_states = {
-            "connected",
-            "connecting",
-            "disconnecting",
-            "disconnected",
-            "error",
-        }
-        if state_name not in allowed_states:
-            state_name = "error"
-        if state_name != "connected":
+        if core_state_name(state) != "connected":
             if self._packet_capture_active or self._packet_capture_watchdog_task:
                 self._finish_packet_capture_state()
-
-        error_code = ""
-        if state_name == "error":
-            event = getattr(getattr(state, "context", None), "event", None)
-            error_code = {
-                "TunnelSetupFailed": "tunnel_setup_failed",
-                "AuthDenied": "authentication_denied",
-                "Timeout": "timeout",
-                "DeviceDisconnected": "device_disconnected",
-                "MaximumSessionsReached": "maximum_sessions_reached",
-                "ExpiredCertificate": "certificate_expired",
-                "NotYetValidCertificate": "certificate_not_yet_valid",
-                "TwoFARequired": "two_factor_required",
-                "UnexpectedError": "unexpected_error",
-            }.get(type(event).__name__, "unexpected_error")
-
-        connection = self._connector.current_connection if self._connector else None
-        server_name = connection.server_name if connection else ""
-        logical_server = None
-        if server_name and self._logged_in:
-            try:
-                logical_server = self._api.refresher.server_list.get_by_name(
-                    server_name
-                )
-            except Exception:
-                logical_server = None
-        forwarded_port = 0
-        if state_name == "connected":
-            try:
-                candidate_port = state.forwarded_port
-                if type(candidate_port) is int and 0 < candidate_port <= 65535:
-                    forwarded_port = candidate_port
-            except Exception:
-                forwarded_port = 0
-        server_location = ""
-        exit_country = ""
-        entry_country = ""
-        secure_core = False
-        tor = False
-        p2p = False
-        streaming = False
-        smart_routing = False
-        if logical_server is not None:
-            from proton.vpn.session.servers import ServerFeatureEnum
-
-            server_location = logical_server.location or ""
-            exit_country = logical_server.exit_country.upper()
-            entry_country = logical_server.entry_country.upper()
-            secure_core = ServerFeatureEnum.SECURE_CORE in logical_server.features
-            tor = ServerFeatureEnum.TOR in logical_server.features
-            p2p = ServerFeatureEnum.P2P in logical_server.features
-            streaming = ServerFeatureEnum.STREAMING in logical_server.features
-            smart_routing = logical_server.smart_routing
-        account_name = ""
-        plan_title = ""
-        user_tier = 0
-        max_connections = 0
-        if self._logged_in:
-            account_name = self._api.account_name or ""
-            account = self._api.account_data
-            plan_title = account.plan_title or "Free"
-            user_tier = account.max_tier
-            max_connections = account.max_connections
-        return VpnSnapshot(
-            ready=True,
-            startup_compatible=self._startup_compatible,
-            logged_in=self._logged_in,
-            auth_state=self._auth_state,
-            account_name=account_name,
-            plan_title=plan_title,
-            user_tier=user_tier,
-            max_connections=max_connections,
-            fido2_available=(
-                not self._logged_in
-                and self._auth_state
-                in {
-                    "two_factor",
-                    "fido_waiting",
-                    "fido_touch",
-                    "fido_select",
-                    "fido_pin",
-                    "fido_error",
-                }
-                and bool(self._api.supports_fido2)
-            ),
-            reconnect_enabled=self._reconnection_enabled,
-            kill_switch=self._kill_switch,
-            state=state_name,
-            error_code=error_code,
-            server_name=server_name,
-            server_location=server_location,
-            exit_country=exit_country,
-            entry_country=entry_country,
-            forwarded_port=forwarded_port,
-            secure_core=secure_core,
-            tor=tor,
-            p2p=p2p,
-            streaming=streaming,
-            smart_routing=smart_routing,
-            packet_capture_active=self._packet_capture_active,
-            core_memory_optimized=self._core_memory_optimized,
-            core_version=self._core_version,
-            message=(
-                self._status_message
-                if self._logged_in
-                else self._status_message or "Sign in to Proton VPN to continue"
+        return translate_snapshot(
+            state,
+            SnapshotContext(
+                connector=self._connector,
+                api=self._api,
+                startup_compatible=self._startup_compatible,
+                logged_in=self._logged_in,
+                auth_state=self._auth_state,
+                reconnection_enabled=self._reconnection_enabled,
+                kill_switch=self._kill_switch,
+                packet_capture_active=self._packet_capture_active,
+                core_memory_optimized=self._core_memory_optimized,
+                core_version=self._core_version,
+                status_message=self._status_message,
             ),
         )
 
     @staticmethod
     def _kill_switch_value(settings: Any) -> int:
-        try:
-            value = int(settings.killswitch)
-        except (AttributeError, TypeError, ValueError):
-            return 0
-        return value if value in {0, 1, 2} else 0
+        return core_kill_switch_value(settings)

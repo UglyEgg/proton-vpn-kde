@@ -9,6 +9,13 @@ No changes yet.
 
 ## [0.11.2] - 2026-08-30
 
+- Decompose the official-Core adapter into focused compatibility, protocol,
+  server, settings, snapshot, support, and packet-capture modules while
+  preserving the established `ProtonCoreAdapter` API.
+- Keep the QML application window and Settings page focused on orchestration by
+  extracting dialogs and independent settings sections with explicit inputs.
+- Split native location models and controller lifecycle/snapshot handling into
+  cohesive implementation units without changing their QML-facing types.
 - Reactivate the backend after an unexpected service exit and explain when a
   Control Center left open across an RPM upgrade must be restarted.
 - Make tray shutdown explicit and wait for Proton Core to confirm a disconnect

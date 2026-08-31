@@ -62,6 +62,16 @@ Center and requires confirmation there.
 |User-interface preferences and pinned targets|KConfig|
 |VPN settings, custom DNS, and split-tunneling configuration|Official Core settings objects|
 
+The Python `ProtonCoreAdapter` remains the stable facade consumed by the
+backend controller. Provider-object translation, compatibility probes,
+protocol discovery, snapshot construction, support workflows, and the bounded
+packet-capture state machine live in focused modules behind that facade. The
+native `VpnController` similarly remains the single QML-facing type while its
+actions, location requests, settings, backend lifecycle, and snapshot handling
+are compiled as separate implementation units. QML pages own navigation and
+lifecycle; reusable dialogs and settings cards receive explicit controller or
+model inputs rather than reaching through implicit application state.
+
 ## Session D-Bus contract
 
 The adapter exports:
