@@ -8,7 +8,7 @@
     "rpmSha256": "6857951c37da0b56c353076d05d4de82c7f1e91786ff1effda12dfd80e2f3357",
     "headerSha256": "479b7981e7d38f7efa5531c78084ce0c4aed4dceec7b418e1df583712f2ea450",
     "payloadSha256": "b11ec29aa66461b47e7c119fbceee636e4f8bc704f589be2d7c352d074a4ae88",
-    "rsaHeader": "RSA/SHA512, Wed Aug 26 03:57:18 2026, Key ID d84176f6844830d4"
+    "rsaHeader": "RSA/SHA512, Wed Aug 26 08:57:18 2026, Key ID d84176f6844830d4"
   },
   "overlay": {
     "packageName": "python3-proton-vpn-api-core",

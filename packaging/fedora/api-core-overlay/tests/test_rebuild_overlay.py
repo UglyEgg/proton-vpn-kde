@@ -10,6 +10,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "rebuild_overlay.py"
@@ -25,6 +26,19 @@ def sha256(path: Path) -> str:
 
 
 class OverlayBoundaryTests(unittest.TestCase):
+    def test_external_provenance_queries_use_a_stable_locale_and_timezone(self):
+        completed = rebuild_overlay.subprocess.CompletedProcess(
+            ["true"], 0, stdout=b"", stderr=b""
+        )
+        with mock.patch.object(
+            rebuild_overlay.subprocess, "run", return_value=completed
+        ) as run:
+            rebuild_overlay._run(["true"])
+
+        environment = run.call_args.kwargs["env"]
+        self.assertEqual("C", environment["LC_ALL"])
+        self.assertEqual("UTC", environment["TZ"])
+
     def test_payload_copy_preserves_hardlinks(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

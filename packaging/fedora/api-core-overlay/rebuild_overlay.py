@@ -66,9 +66,12 @@ def _run(
     cwd: Path | None = None,
     input_data: bytes | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
+    environment = os.environ.copy()
+    environment.update({"LC_ALL": "C", "TZ": "UTC"})
     process = subprocess.run(
         arguments,
         cwd=cwd,
+        env=environment,
         input=input_data,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
