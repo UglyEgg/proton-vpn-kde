@@ -123,6 +123,8 @@ refreshers, connectors, or SSO sessions.
 
 The Control Center holds a lease while open. The resident agent observes
 without a lease and acquires one only while an explicit action is starting.
+Lease acquisition checks D-Bus ownership once; the existing authenticated
+`NameOwnerChanged` stream releases vanished clients without a polling timer.
 With no live lease, the backend exits after a short grace period only when Core
 reports a fully disconnected, idle state. Active tunnels and packet captures
 keep it alive. Closing the Control Center during an unanswered Secret Service

@@ -154,6 +154,8 @@ class VpnDbusService(ServiceInterface):
         self._secret_payloads = SecretPayloadReader()
         if authorizer is not None:
             authorizer.subscribe_revocation(self._secret_payloads.revoke_sender)
+            if lifetime is not None:
+                authorizer.subscribe_revocation(lifetime.unregister_client)
         controller.subscribe(self._on_snapshot)
         controller.subscribe_server_data(self._on_server_data)
         controller.subscribe_settings(self._on_settings)
@@ -174,6 +176,15 @@ class VpnDbusService(ServiceInterface):
             unique_name = current_request_sender()
         if self._lifetime is not None:
             await self._lifetime.register_client(unique_name)
+            if self._authorizer is not None:
+                try:
+                    self._authorizer.require_authorized_sender()
+                except PermissionError:
+                    # Owner loss can arrive while the asynchronous ownership
+                    # probe is in flight. Roll back a lease recorded after its
+                    # revocation callback already ran.
+                    self._lifetime.unregister_client(unique_name)
+                    raise
 
     @method(name=Method.UNREGISTER_CLIENT)
     @dbus_error_boundary()

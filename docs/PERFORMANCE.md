@@ -24,6 +24,12 @@ provider prompt and a vanished frontend releases it. The resident process
 therefore does not retain the substantially larger Python server model while
 disconnected.
 
+Backend lifetime is event-driven. Lease acquisition performs one D-Bus owner
+check, and the authenticated `NameOwnerChanged` stream releases a vanished
+frontend. Connected, busy, and packet-capture states wait for Core or client
+events without a repeating timer; only an exit-eligible idle backend arms its
+one-shot grace deadline.
+
 ## Search performance
 
 The native global-search benchmark uses Proton's existing local server cache.

@@ -45,10 +45,12 @@ class BackendLifetime:
     """Keep the backend alive only while it owns useful session state.
 
     Native frontends register their unique D-Bus names as leases. A vanished
-    frontend is detected even when it cannot unregister cleanly. With no live
-    frontend, the service exits only from the fully disconnected, idle state;
-    active tunnels and packet captures therefore remain supervised. The same
-    grace period also abandons an initialization whose activating frontend has
+    frontend is removed through the authorizer's D-Bus owner-loss event even
+    when it cannot unregister cleanly. Ownership is probed once when acquiring
+    a lease; no periodic wakeup is required afterward. With no live frontend,
+    the service exits only from the fully disconnected, idle state; active
+    tunnels and packet captures therefore remain supervised. The same grace
+    period also abandons an initialization whose activating frontend has
     disappeared while a desktop Secret Service prompt is still open.
     """
 
@@ -59,13 +61,11 @@ class BackendLifetime:
         owner_probe: NameOwnerProbe,
         *,
         idle_timeout: float = 10.0,
-        poll_interval: float = 2.0,
     ) -> None:
         self._controller = controller
         self._stopped = stopped
         self._owner_probe = owner_probe
         self._idle_timeout = max(0.0, idle_timeout)
-        self._poll_interval = max(0.01, poll_interval)
         self._clients: set[str] = set()
         self._changed = asyncio.Event()
         self._idle_since: float | None = None
@@ -85,13 +85,15 @@ class BackendLifetime:
 
     def unregister_client(self, unique_name: str) -> None:
         self._validate_unique_name(unique_name)
-        self._clients.discard(unique_name)
+        if unique_name not in self._clients:
+            return
+        self._clients.remove(unique_name)
         self._idle_since = None
         self._changed.set()
 
     async def run(self) -> None:
         while not self._stopped.is_set():
-            await self._prune_clients()
+            self._changed.clear()
             now = monotonic()
             if self._may_exit(self._controller.snapshot):
                 if self._idle_since is None:
@@ -100,28 +102,15 @@ class BackendLifetime:
                 if remaining <= 0:
                     self._stopped.set()
                     return
-                delay = min(self._poll_interval, remaining)
             else:
                 self._idle_since = None
-                delay = self._poll_interval
+                await self._changed.wait()
+                continue
 
-            self._changed.clear()
             try:
-                await asyncio.wait_for(self._changed.wait(), timeout=delay)
+                await asyncio.wait_for(self._changed.wait(), timeout=remaining)
             except TimeoutError:
                 pass
-
-    async def _prune_clients(self) -> None:
-        for client in tuple(self._clients):
-            try:
-                alive = await self._owner_probe(client)
-            except Exception:
-                # A transient bus failure must never terminate a service that
-                # may still be supervising a live VPN connection.
-                continue
-            if not alive:
-                self._clients.discard(client)
-                self._idle_since = None
 
     def _may_exit(self, snapshot: VpnSnapshot) -> bool:
         if self._clients:

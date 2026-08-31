@@ -59,9 +59,6 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
         idle_timeout=_seconds_from_environment(
             "PROTON_VPN_KDE_IDLE_TIMEOUT_SECONDS", 10.0
         ),
-        poll_interval=_seconds_from_environment(
-            "PROTON_VPN_KDE_CLIENT_POLL_SECONDS", 2.0
-        ),
     )
     authorizer = ClientAuthorizer(
         bus,

@@ -37,6 +37,32 @@ def make_service() -> tuple[VpnDbusService, Mock]:
 
 
 class VpnDbusServiceTests(unittest.IsolatedAsyncioTestCase):
+    def test_authorizer_revocation_releases_lifetime_lease(self):
+        controller = Mock()
+        lifetime = Mock()
+        authorizer = Mock()
+
+        VpnDbusService(controller, lifetime, authorizer)
+
+        authorizer.subscribe_revocation.assert_any_call(
+            lifetime.unregister_client
+        )
+
+    async def test_registration_rolls_back_owner_loss_during_probe(self):
+        controller = Mock()
+        lifetime = Mock()
+        lifetime.register_client = AsyncMock()
+        authorizer = Mock()
+        authorizer.authorize = AsyncMock()
+        authorizer.require_authorized_sender.side_effect = PermissionError
+        service = VpnDbusService(controller, lifetime, authorizer)
+
+        with self.assertRaises(DBusError):
+            await type(service).register_client.__wrapped__(service, ":direct.test")
+
+        lifetime.register_client.assert_awaited_once_with(":direct.test")
+        lifetime.unregister_client.assert_called_once_with(":direct.test")
+
     def test_every_exported_method_has_the_shared_error_boundary(self):
         exported = [
             member

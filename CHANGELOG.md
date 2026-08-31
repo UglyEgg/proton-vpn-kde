@@ -5,6 +5,10 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Replace the backend's repeating client-ownership poll with authoritative
+  D-Bus owner-loss events and a one-shot idle deadline, eliminating periodic
+  wakeups while preserving active tunnel and packet-capture supervision.
+
 ## [0.11.3] - 2026-08-31
 
 - Keep Protun's transient WireGuard key in its existing unsaved NetworkManager

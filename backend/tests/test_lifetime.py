@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 import unittest
+from unittest.mock import AsyncMock
 
 from dbus_fast.constants import RequestNameReply
 
@@ -44,7 +45,6 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
             stopped,
             owner_probe,
             idle_timeout=timeout,
-            poll_interval=0.005,
         )
         return lifetime, controller, stopped, owners
 
@@ -78,9 +78,12 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
         lifetime, _, stopped, owners = self.make_lifetime(state="starting", ready=False)
         owners.add(":1.42")
         await lifetime.register_client(":1.42")
+        task = asyncio.create_task(lifetime.run())
+        await asyncio.sleep(0.01)
         owners.clear()
+        lifetime.unregister_client(":1.42")
 
-        await asyncio.wait_for(lifetime.run(), timeout=0.2)
+        await asyncio.wait_for(task, timeout=0.2)
 
         self.assertTrue(stopped.is_set())
         self.assertEqual(frozenset(), lifetime.clients)
@@ -97,13 +100,16 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
 
-    async def test_vanished_frontend_is_pruned_before_exit(self):
+    async def test_owner_loss_releases_frontend_before_exit(self):
         lifetime, _, stopped, owners = self.make_lifetime()
         owners.add(":1.42")
         await lifetime.register_client(":1.42")
+        task = asyncio.create_task(lifetime.run())
+        await asyncio.sleep(0.01)
         owners.clear()
+        lifetime.unregister_client(":1.42")
 
-        await asyncio.wait_for(lifetime.run(), timeout=0.2)
+        await asyncio.wait_for(task, timeout=0.2)
 
         self.assertTrue(stopped.is_set())
         self.assertEqual(frozenset(), lifetime.clients)
@@ -113,6 +119,39 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
         task = asyncio.create_task(lifetime.run())
 
         await asyncio.sleep(0.04)
+
+        self.assertFalse(stopped.is_set())
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    async def test_connected_backend_does_not_poll_frontend_ownership(self):
+        owner_probe = AsyncMock(return_value=True)
+        controller = FakeController(VpnSnapshot(ready=True, state="connected"))
+        stopped = asyncio.Event()
+        lifetime = BackendLifetime(
+            controller,  # type: ignore[arg-type]
+            stopped,
+            owner_probe,
+            idle_timeout=0.02,
+        )
+        await lifetime.register_client(":1.42")
+        task = asyncio.create_task(lifetime.run())
+
+        await asyncio.sleep(0.04)
+
+        owner_probe.assert_awaited_once_with(":1.42")
+        self.assertFalse(stopped.is_set())
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    async def test_frontend_registration_cancels_pending_idle_exit(self):
+        lifetime, _, stopped, owners = self.make_lifetime(timeout=0.1)
+        task = asyncio.create_task(lifetime.run())
+        await asyncio.sleep(0.01)
+        owners.add(":1.42")
+
+        await lifetime.register_client(":1.42")
+        await asyncio.sleep(0.11)
 
         self.assertFalse(stopped.is_set())
         task.cancel()
