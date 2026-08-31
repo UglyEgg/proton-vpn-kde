@@ -25,6 +25,7 @@ BuildRequires:  cpio
 BuildRequires:  NetworkManager-libnm
 BuildRequires:  patch
 BuildRequires:  python3
+BuildRequires:  python3-devel
 BuildRequires:  python3-dbus-fast
 BuildRequires:  python3-distro
 BuildRequires:  python3-fido2
@@ -33,6 +34,7 @@ BuildRequires:  python3-jinja2
 BuildRequires:  python3-packaging
 BuildRequires:  python3-proton-core >= 0.5.0
 BuildRequires:  python3-pynacl
+BuildRequires:  python3-pyxdg
 BuildRequires:  python3-sentry-sdk
 BuildRequires:  rpm
 

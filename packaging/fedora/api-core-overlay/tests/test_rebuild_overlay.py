@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -26,6 +27,29 @@ def sha256(path: Path) -> str:
 
 
 class OverlayBoundaryTests(unittest.TestCase):
+    def test_behavior_verification_uses_a_private_runtime_directory(self):
+        observed = {}
+
+        def capture_runtime(_root):
+            runtime = Path(os.environ["XDG_RUNTIME_DIR"])
+            observed["path"] = runtime
+            observed["exists"] = runtime.is_dir()
+            observed["mode"] = runtime.stat().st_mode & 0o777
+
+        with mock.patch.dict(
+            os.environ, {"XDG_RUNTIME_DIR": "/run/user/unavailable"}
+        ), mock.patch.object(
+            rebuild_overlay, "_verify_behavior", side_effect=capture_runtime
+        ):
+            rebuild_overlay.verify_behavior(Path("overlay-root"))
+            self.assertEqual(
+                "/run/user/unavailable", os.environ["XDG_RUNTIME_DIR"]
+            )
+
+        self.assertTrue(observed["exists"])
+        self.assertEqual(0o700, observed["mode"])
+        self.assertFalse(observed["path"].exists())
+
     def test_external_provenance_queries_use_a_stable_locale_and_timezone(self):
         completed = rebuild_overlay.subprocess.CompletedProcess(
             ["true"], 0, stdout=b"", stderr=b""

@@ -36,7 +36,7 @@ jobs:
             pyproject-rpm-macros python3-cryptography python3-dbus-fast \
             python3-coverage python3-devel python3-distro python3-fido2 \
             python3-gobject python3-jinja2 python3-keyring python3-mypy \
-            python3-packaging python3-pytest \
+            python3-packaging python3-pytest python3-pyxdg \
             python3-pynacl python3-secretstorage python3-sentry-sdk \
             python3-setuptools procps-ng ripgrep rpm-build shadow-utils \
             kf6-kconfig-devel kf6-kcoreaddons-devel \

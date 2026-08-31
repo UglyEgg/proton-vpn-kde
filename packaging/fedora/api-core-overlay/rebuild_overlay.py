@@ -464,6 +464,22 @@ def prepare_overlay(
 
 
 def verify_behavior(root: Path) -> None:
+    """Verify the overlay without depending on a logged-in desktop session."""
+    previous_runtime = os.environ.get("XDG_RUNTIME_DIR")
+    with tempfile.TemporaryDirectory(
+        prefix="proton-api-overlay-runtime."
+    ) as runtime_directory:
+        os.environ["XDG_RUNTIME_DIR"] = runtime_directory
+        try:
+            _verify_behavior(root)
+        finally:
+            if previous_runtime is None:
+                os.environ.pop("XDG_RUNTIME_DIR", None)
+            else:
+                os.environ["XDG_RUNTIME_DIR"] = previous_runtime
+
+
+def _verify_behavior(root: Path) -> None:
     site_packages = root / "usr/lib64/python3.14/site-packages"
     if not site_packages.is_dir():
         raise OverlayError(f"Missing staged site-packages: {site_packages}")
@@ -626,7 +642,18 @@ def verify_overlay_rpm(
             _run(["rpm", "-qp", option, str(overlay_rpm)]).stdout.splitlines()
         )
         if overlay_values != vendor_values:
-            raise OverlayError(f"Overlay RPM metadata differs for {option}")
+            added = [
+                value.decode("utf-8", errors="replace")
+                for value in sorted(set(overlay_values) - set(vendor_values))
+            ]
+            removed = [
+                value.decode("utf-8", errors="replace")
+                for value in sorted(set(vendor_values) - set(overlay_values))
+            ]
+            raise OverlayError(
+                f"Overlay RPM metadata differs for {option}; "
+                f"added={added}, removed={removed}"
+            )
     vendor_scripts = _run(["rpm", "-qp", "--scripts", str(vendor_rpm)]).stdout
     overlay_scripts = _run(["rpm", "-qp", "--scripts", str(overlay_rpm)]).stdout
     if overlay_scripts != vendor_scripts:
