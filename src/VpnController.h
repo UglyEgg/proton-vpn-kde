@@ -5,6 +5,8 @@
 
 #include "ClientRegistrationState.h"
 #include "VpnConnectionController.h"
+
+#include <QDBusContext>
 #include "VpnSettingsModel.h"
 #include "SplitTunnelingModel.h"
 #include "CustomDnsModel.h"
@@ -26,7 +28,8 @@ class ServerModel;
 class InstalledApplicationModel;
 class GroupedNavigationTest;
 
-class VpnController final : public VpnConnectionController
+class VpnController final : public VpnConnectionController,
+                            protected QDBusContext
 {
     Q_OBJECT
     Q_PROPERTY(bool backendAvailable READ backendAvailable NOTIFY backendAvailableChanged)
@@ -218,6 +221,10 @@ private:
     void connectBackendSignals();
     void disconnectBackendSignals();
     void setBackendAvailable(bool available);
+    void stampBackendRequest(QDBusPendingCallWatcher *watcher) const;
+    [[nodiscard]] bool backendReplyIsCurrent(
+        const QDBusPendingCallWatcher *watcher) const;
+    [[nodiscard]] bool backendSignalIsCurrent() const;
     void applySnapshot(const QString &snapshotJson);
     void callOperation(const QString &method, const QVariantList &arguments = {});
     void callFastestOperation(const QStringList &features);

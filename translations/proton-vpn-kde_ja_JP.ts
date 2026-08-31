@@ -35,6 +35,41 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>接続エラー</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>オフ</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>標準</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>接続</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>プロトコル</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>キルスイッチ</translation>
+        </message>
+        <message>
+            <source>VPN Accelerator</source>
+            <translation>VPN アクセラレーター</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>スプリットトンネル</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -81,6 +116,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>アカウント</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>サインイン</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>設定</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>更新情報</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>問題を報告</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>アプリについて</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>接続エラー：セッション数の制限に達しました</translation>
@@ -157,30 +219,6 @@ Update your system time and try to connect again.</source>
             <source>Close</source>
             <translation>閉じる</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>アカウント</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>サインイン</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>設定</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>更新情報</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>問題を報告</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>アプリについて</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -218,6 +256,13 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Sign in</source>
             <translation>サインイン</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>オフ</translation>
         </message>
     </context>
     <context>
@@ -262,22 +307,6 @@ Update your system time and try to connect again.</source>
             <source>Settings</source>
             <translation>設定</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>オフ</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>標準</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>スプリットトンネル</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>ベータ版アクセス</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -308,6 +337,31 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Security key</source>
             <translation>セキュリティキー</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>スプリットトンネル</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>ベータ版アクセス</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>オフ</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>標準</translation>
         </message>
     </context>
     <context>

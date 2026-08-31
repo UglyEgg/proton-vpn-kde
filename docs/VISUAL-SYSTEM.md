@@ -51,6 +51,8 @@ allowance until its output is reviewed.
 For visual review, run `scripts/capture-qml-page.sh` inside an isolated session
 bus with a page name and PNG path. The capture option starts the safe demo
 adapter, skips normal Control Center and resident-agent registration, and quits
-after one frame is saved. The special `overview-connected` page asks only the
-deterministic demo adapter to enter its simulated connected state. Capture mode
-cannot create or alter a real VPN connection.
+after one frame is saved. Adding the `-connected` suffix to a page name asks
+only the deterministic demo adapter to enter its simulated connected state
+before rendering (for example, `overview-connected` or
+`inspector-connected`). Capture mode cannot create or alter a real VPN
+connection.

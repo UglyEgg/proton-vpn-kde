@@ -39,6 +39,7 @@ void VpnController::loadCountries()
         QString::fromLatin1(BackendDbus::Method::getCountries));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    stampBackendRequest(watcher);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleCountriesReply);
 }
@@ -75,6 +76,7 @@ void VpnController::searchLocations(const QString &query)
     message << normalizedQuery;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    stampBackendRequest(watcher);
     watcher->setProperty("query", normalizedQuery);
     watcher->setProperty("generation", QVariant::fromValue(generation));
     connect(watcher, &QDBusPendingCallWatcher::finished,
@@ -147,6 +149,7 @@ void VpnController::requestServerGroups(const QString &countryCode,
     message << countryCode;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    stampBackendRequest(watcher);
     watcher->setProperty("countryCode", countryCode);
     watcher->setProperty("retryCount", retryCount);
     connect(watcher, &QDBusPendingCallWatcher::finished,
@@ -259,6 +262,7 @@ void VpnController::requestGroupServers(const QString &countryCode,
     message << countryCode << groupKind << groupName;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    stampBackendRequest(watcher);
     watcher->setProperty("countryCode", countryCode);
     watcher->setProperty("groupKind", groupKind);
     watcher->setProperty("groupName", groupName);
@@ -381,6 +385,7 @@ void VpnController::requestServerLoads()
     message << m_currentServerCountry;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    stampBackendRequest(watcher);
     watcher->setProperty("countryCode", m_currentServerCountry);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleServerLoadsReply);
@@ -421,8 +426,12 @@ void VpnController::setLocationsBusy(bool busy)
 
 void VpnController::handleCountriesReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
+    if (!current) {
+        return;
+    }
     setLocationsBusy(false);
     if (reply.isError()) {
         m_message = tr("Unable to load countries");
@@ -442,11 +451,13 @@ void VpnController::handleCountriesReply(QDBusPendingCallWatcher *watcher)
 }
 void VpnController::handleLocationSearchReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
     const QString requestedQuery = watcher->property("query").toString();
     const quint64 generation = watcher->property("generation").toULongLong();
     watcher->deleteLater();
-    if (generation != m_locationSearchGeneration
+    if (!current
+        || generation != m_locationSearchGeneration
         || requestedQuery != m_locationSearchQuery) {
         return;
     }
@@ -469,10 +480,14 @@ void VpnController::handleLocationSearchReply(QDBusPendingCallWatcher *watcher)
 
 void VpnController::handleServerGroupsReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
     const QString requestedCountry = watcher->property("countryCode").toString();
     const int retryCount = watcher->property("retryCount").toInt();
     watcher->deleteLater();
+    if (!current) {
+        return;
+    }
     if (requestedCountry != m_currentServerCountry) {
         setLocationsBusy(false);
         dispatchPendingLocationRefreshes();
@@ -506,6 +521,7 @@ void VpnController::handleServerGroupsReply(QDBusPendingCallWatcher *watcher)
 
 void VpnController::handleServersReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
     const QString requestedCountry = watcher->property("countryCode").toString();
     const QString requestedKind = watcher->property("groupKind").toString();
@@ -514,6 +530,9 @@ void VpnController::handleServersReply(QDBusPendingCallWatcher *watcher)
         watcher->property("requestGeneration").toULongLong();
     const int retryCount = watcher->property("retryCount").toInt();
     watcher->deleteLater();
+    if (!current) {
+        return;
+    }
     if (requestedCountry != m_currentServerCountry
         || requestedKind != m_currentServerGroupKind
         || requestedName != m_currentServerGroupName
@@ -554,9 +573,13 @@ void VpnController::handleServersReply(QDBusPendingCallWatcher *watcher)
 
 void VpnController::handleServerLoadsReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
     const QString requestedCountry = watcher->property("countryCode").toString();
     watcher->deleteLater();
+    if (!current) {
+        return;
+    }
     setLocationsBusy(false);
     if (requestedCountry != m_currentServerCountry) {
         dispatchPendingLocationRefreshes();

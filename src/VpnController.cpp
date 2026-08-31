@@ -20,6 +20,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTimer>
+#include <QVariant>
 
 #ifndef PROTON_VPN_KDE_SUPPORT_REPORT_SUBMISSION_ENABLED
 #define PROTON_VPN_KDE_SUPPORT_REPORT_SUBMISSION_ENABLED 0
@@ -201,6 +202,30 @@ SplitTunnelingModel *VpnController::splitTunneling() const
 }
 CustomDnsModel *VpnController::customDns() const { return m_customDns; }
 
+void VpnController::stampBackendRequest(
+    QDBusPendingCallWatcher *watcher) const
+{
+    watcher->setProperty("backendGeneration",
+                         QVariant::fromValue<qulonglong>(m_backendGeneration));
+    watcher->setProperty("backendDestination", m_backendDestination);
+}
+
+bool VpnController::backendReplyIsCurrent(
+    const QDBusPendingCallWatcher *watcher) const
+{
+    return watcher
+        && watcher->property("backendGeneration").toULongLong()
+            == m_backendGeneration
+        && watcher->property("backendDestination").toString()
+            == m_backendDestination;
+}
+
+bool VpnController::backendSignalIsCurrent() const
+{
+    return !calledFromDBus()
+        || QDBusContext::message().service() == m_backendDestination;
+}
+
 void VpnController::refresh()
 {
     if (m_backendDestination.isEmpty() || m_snapshotRefreshPending) {
@@ -215,9 +240,7 @@ void VpnController::refresh()
         QString::fromLatin1(BackendDbus::Method::getSnapshot));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
-    watcher->setProperty("backendGeneration",
-                         QVariant::fromValue<qulonglong>(m_backendGeneration));
-    watcher->setProperty("backendDestination", m_backendDestination);
+    stampBackendRequest(watcher);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSnapshotReply);
 }
@@ -265,6 +288,7 @@ void VpnController::loadPendingNpsSurvey()
         QString::fromLatin1(BackendDbus::Method::getPendingNpsSurvey));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 10000), this);
+    stampBackendRequest(watcher);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handlePendingNpsSurveyReply);
 }
@@ -272,9 +296,10 @@ void VpnController::loadPendingNpsSurvey()
 void VpnController::handlePendingNpsSurveyReply(
     QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
-    if (reply.isError() || !m_loggedIn) {
+    if (!current || reply.isError() || !m_loggedIn) {
         return;
     }
     QJsonParseError parseError;

@@ -7,6 +7,7 @@
 #include <QDBusContext>
 #include <QDBusConnectionInterface>
 #include <QDBusError>
+#include <QDBusMessage>
 #include <QtTest>
 #include <memory>
 
@@ -32,11 +33,15 @@ public:
     int groupCalls = 0;
     int disconnectCalls = 0;
     bool failReconnection = false;
+    bool delayNextSnapshot = false;
+    bool delayNextRegistration = false;
     QString state = QStringLiteral("disconnected");
     QString lastTarget;
     QStringList lastFeatures;
     QString lastGroupKind;
     QString lastGroupName;
+    QDBusMessage delayedSnapshotMessage;
+    QDBusMessage delayedRegistrationMessage;
 
     void resetCounters()
     {
@@ -59,7 +64,15 @@ public:
 
 public slots:
     void AuthorizeClient(const QString &) { ++authorizationCalls; }
-    void RegisterClient(const QString &) { ++registrationCalls; }
+    void RegisterClient(const QString &)
+    {
+        ++registrationCalls;
+        if (delayNextRegistration) {
+            delayNextRegistration = false;
+            setDelayedReply(true);
+            delayedRegistrationMessage = message();
+        }
+    }
     void UnregisterClient(const QString &) { ++unregistrationCalls; }
     void SetReconnectionEnabled(bool)
     {
@@ -70,8 +83,14 @@ public slots:
         }
     }
 
-    QString GetSnapshot() const
+    QString GetSnapshot()
     {
+        if (delayNextSnapshot) {
+            delayNextSnapshot = false;
+            setDelayedReply(true);
+            delayedSnapshotMessage = message();
+            return {};
+        }
         return QStringLiteral(R"json({
             "schemaVersion":1,
             "ready":true,
@@ -124,6 +143,7 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void failedReconnectionPolicyBlocksQueuedConnect();
+    void staleSnapshotCannotClearReplacementAction();
     void observesLeaseFreeAndUsesTransientActionLeases();
 
 private:
@@ -187,6 +207,69 @@ void AgentVpnClientTest::failedReconnectionPolicyBlocksQueuedConnect()
     m_backend.failReconnection = false;
     client.connectTarget(QStringLiteral("FASTEST"));
     QTRY_COMPARE_WITH_TIMEOUT(m_backend.fastestCalls, 1, 2000);
+}
+
+void AgentVpnClientTest::staleSnapshotCannotClearReplacementAction()
+{
+    m_backend.failReconnection = false;
+    m_backend.resetCounters();
+    m_backend.delayedSnapshotMessage = {};
+    AgentVpnClient client;
+    QTRY_VERIFY_WITH_TIMEOUT(client.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.loggedIn(), 2000);
+
+    m_backend.delayNextSnapshot = true;
+    client.connectTarget(QStringLiteral("FASTEST"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedSnapshotMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+
+    QVERIFY(m_backendBus->unregisterService(
+        QString::fromLatin1(kBackendService)));
+    QTRY_VERIFY_WITH_TIMEOUT(!client.backendAvailable(), 2000);
+
+    constexpr auto replacementConnectionName =
+        "agent-client-test-replacement-backend";
+    AgentBackend replacement;
+    QDBusConnection replacementBus = QDBusConnection::connectToBus(
+        QDBusConnection::SessionBus,
+        QString::fromLatin1(replacementConnectionName));
+    QVERIFY(replacementBus.isConnected());
+    QVERIFY(replacementBus.registerObject(
+        QString::fromLatin1(kBackendPath), &replacement,
+        QDBusConnection::ExportAllSlots | QDBusConnection::ExportAllSignals));
+    qputenv("PROTON_VPN_KDE_TEST_BACKEND_OWNER",
+            replacementBus.baseService().toUtf8());
+    QVERIFY(replacementBus.registerService(
+        QString::fromLatin1(kBackendService)));
+    QTRY_VERIFY_WITH_TIMEOUT(client.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+
+    replacement.delayNextRegistration = true;
+    client.connectTarget(QStringLiteral("CH"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        replacement.delayedRegistrationMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedSnapshotMessage.createErrorReply(
+            QStringLiteral("org.freedesktop.DBus.Error.NoReply"),
+            QStringLiteral("old backend reply"))));
+    QVERIFY(replacementBus.send(
+        replacement.delayedRegistrationMessage.createReply()));
+    QTRY_COMPARE_WITH_TIMEOUT(replacement.countryCalls, 1, 2000);
+    QVERIFY(client.backendAvailable());
+    QVERIFY(client.ready());
+
+    QVERIFY(replacementBus.unregisterService(
+        QString::fromLatin1(kBackendService)));
+    replacementBus.unregisterObject(QString::fromLatin1(kBackendPath));
+    QDBusConnection::disconnectFromBus(
+        QString::fromLatin1(replacementConnectionName));
+    qputenv("PROTON_VPN_KDE_TEST_BACKEND_OWNER",
+            m_backendBus->baseService().toUtf8());
+    QVERIFY(m_backendBus->registerService(QString::fromLatin1(kBackendService)));
 }
 
 void AgentVpnClientTest::observesLeaseFreeAndUsesTransientActionLeases()

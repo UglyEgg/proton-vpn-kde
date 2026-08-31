@@ -31,6 +31,33 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Erro de conexão</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Desativada</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Padrão</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Conexão</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Protocolo</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Tunelamento dividido</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -77,6 +104,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Conta</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Iniciar sessão</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Configurações</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Notas de lançamento</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Reportar um problema</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>Sobre</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Erro de conexão: limite de sessões atingido</translation>
@@ -157,30 +211,6 @@ Atualize a hora do sistema e tente se conectar novamente.</translation>
             <source>Close</source>
             <translation>Fechar</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Conta</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Iniciar sessão</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Configurações</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Notas de lançamento</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Reportar um problema</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>Sobre</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -221,6 +251,13 @@ Atualize a hora do sistema e tente se conectar novamente.</translation>
         </message>
     </context>
     <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Desativada</translation>
+        </message>
+    </context>
+    <context>
         <name>ReleaseNotesPage</name>
         <message>
             <source>Release notes</source>
@@ -255,22 +292,6 @@ Atualize a hora do sistema e tente se conectar novamente.</translation>
             <source>Settings</source>
             <translation>Configurações</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Desativada</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Padrão</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Tunelamento dividido</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Acesso beta</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -301,6 +322,31 @@ Atualize a hora do sistema e tente se conectar novamente.</translation>
         <message>
             <source>Security key</source>
             <translation>Chave de segurança</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Tunelamento dividido</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Acesso beta</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Desativada</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Padrão</translation>
         </message>
     </context>
     <context>

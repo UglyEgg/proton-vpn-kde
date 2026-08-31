@@ -12,7 +12,7 @@ The unreleased `0.12.0` branch adds event-driven backend lifetime and an
 on-demand Connection Inspector. Its first six-part isolated review battery
 found three release-blocking lifecycle races. Those defects have been
 remediated with focused regressions, and the source currently passes 36 of 36
-CTest targets including 137 backend tests. **The `0.12.0` candidate remains
+CTest targets including 138 backend tests. **The `0.12.0` candidate remains
 explicitly not release-ready until six fresh isolated reviewers pass the
 remediated snapshot and the result is recorded below.**
 
@@ -81,7 +81,15 @@ generation, keeps retry cancellation live through every readiness await,
 requires the resident agent to apply the current recovery policy before a
 connection action, coalesces Inspector snapshot refreshes, cleans partial
 logind initialization, and reuses the authorizer's owner verification for
-frontend lifetime registration. Focused regressions cover each release blocker.
+frontend lifetime registration. A later fresh Hostile pass identified a broader
+owner-replacement class: delayed generic frontend replies were not all bound to
+their originating backend. Every asynchronous Control Center and resident-agent
+reply now carries both the authenticated unique destination and backend
+generation, and backend signals are accepted only from that current unique
+owner. Two service-replacement regressions prove an old owner cannot disable
+its healthy successor or clear its queued action. Readiness-probe
+exceptions also remain inside the bounded retry lifecycle. Focused regressions
+cover every release blocker found to date.
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -233,7 +241,7 @@ The current remediated tree passed:
 - 36 of 36 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 137 backend Python tests;
+- 138 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

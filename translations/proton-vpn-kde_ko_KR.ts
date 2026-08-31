@@ -28,6 +28,37 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>연결 오류</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>끔</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>표준</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>연결</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>프로토콜</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>킬 스위치</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>분할 터널링</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -74,6 +105,29 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>계정</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>로그인</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>설정</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>릴리즈 노트</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>문제 제보하기</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>연결 오류: 세션 제한 도달</translation>
@@ -154,26 +208,6 @@ Update your system time and try to connect again.</source>
             <source>Close</source>
             <translation>닫기</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>계정</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>로그인</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>설정</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>릴리즈 노트</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>문제 제보하기</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -211,6 +245,13 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Sign in</source>
             <translation>로그인</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>끔</translation>
         </message>
     </context>
     <context>
@@ -255,22 +296,6 @@ Update your system time and try to connect again.</source>
             <source>Settings</source>
             <translation>설정</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>끔</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>표준</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>분할 터널링</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>베타 참여</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -301,6 +326,31 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Security key</source>
             <translation>보안 키</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>분할 터널링</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>베타 참여</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>끔</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>표준</translation>
         </message>
     </context>
     <context>

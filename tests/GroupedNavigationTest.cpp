@@ -9,6 +9,7 @@
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusContext>
+#include <QDBusMessage>
 #include <QtTest>
 #include <memory>
 
@@ -31,6 +32,7 @@ public:
     int emptyGroupResponses = 0;
     int emptyServerResponses = 0;
     bool rejectRegistration = false;
+    bool delayLogout = false;
     bool ready = true;
     bool loggedIn = true;
     QString lastCountry;
@@ -38,6 +40,7 @@ public:
     QString lastGroupName;
     QStringList lastCapabilities;
     QStringList browseCallOrder;
+    QDBusMessage delayedLogoutMessage;
 
     void publishSession(bool sessionReady, bool sessionLoggedIn)
     {
@@ -67,6 +70,15 @@ public slots:
 
     void SetReconnectionEnabled(bool)
     {
+    }
+
+    void Logout()
+    {
+        if (!delayLogout) {
+            return;
+        }
+        setDelayedReply(true);
+        delayedLogoutMessage = message();
     }
 
     QString GetSnapshot() const
@@ -198,6 +210,7 @@ private slots:
     void rejectsAnUnpinnedBackendOwner();
     void explainsRejectedClientIdentityWithoutRetrying();
     void clearsCachedSessionWhenBackendStops();
+    void ignoresOperationReplyFromReplacedBackend();
     void queuesInitialBrowserLoadUntilBackendIsReady();
     void loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint();
     void retriesTransientEmptyServerGroupResponses();
@@ -241,6 +254,63 @@ void GroupedNavigationTest::cleanupTestCase()
     qunsetenv("PROTON_VPN_KDE_TEST_BACKEND_OWNER");
     QDBusConnection::disconnectFromBus(
         QStringLiteral("grouped-navigation-test-backend"));
+}
+
+void GroupedNavigationTest::ignoresOperationReplyFromReplacedBackend()
+{
+    m_backend.delayLogout = true;
+    m_backend.delayedLogoutMessage = {};
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+
+    controller.logout();
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedLogoutMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+
+    QVERIFY(m_backendBus->unregisterService(
+        QString::fromLatin1(kBackendService)));
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.backendAvailable(), 2000);
+
+    constexpr auto replacementConnectionName =
+        "grouped-navigation-replacement-backend";
+    GroupedNavigationBackend replacement;
+    QDBusConnection replacementBus = QDBusConnection::connectToBus(
+        QDBusConnection::SessionBus,
+        QString::fromLatin1(replacementConnectionName));
+    QVERIFY(replacementBus.isConnected());
+    QVERIFY(replacementBus.registerObject(
+        QString::fromLatin1(kBackendPath), &replacement,
+        QDBusConnection::ExportAllSlots | QDBusConnection::ExportAllSignals));
+    qputenv("PROTON_VPN_KDE_TEST_BACKEND_OWNER",
+            replacementBus.baseService().toUtf8());
+    QVERIFY(replacementBus.registerService(
+        QString::fromLatin1(kBackendService)));
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    const QString replacementMessage = controller.message();
+
+    const QDBusMessage delayedError =
+        m_backend.delayedLogoutMessage.createErrorReply(
+            QStringLiteral("org.freedesktop.DBus.Error.NoReply"),
+            QStringLiteral("old backend reply"));
+    QVERIFY(m_backendBus->send(delayedError));
+    QTest::qWait(100);
+    QVERIFY(controller.backendAvailable());
+    QVERIFY(controller.ready());
+    QCOMPARE(controller.message(), replacementMessage);
+
+    QVERIFY(replacementBus.unregisterService(
+        QString::fromLatin1(kBackendService)));
+    replacementBus.unregisterObject(QString::fromLatin1(kBackendPath));
+    QDBusConnection::disconnectFromBus(
+        QString::fromLatin1(replacementConnectionName));
+    qputenv("PROTON_VPN_KDE_TEST_BACKEND_OWNER",
+            m_backendBus->baseService().toUtf8());
+    QVERIFY(m_backendBus->registerService(QString::fromLatin1(kBackendService)));
+    m_backend.delayLogout = false;
 }
 
 void GroupedNavigationTest::rejectsAnUnpinnedBackendOwner()

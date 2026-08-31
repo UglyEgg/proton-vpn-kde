@@ -31,6 +31,29 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Eroare conexiune</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Oprit</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Conexiune</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>Întrerupător de conexiune</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Divizare trafic</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -77,6 +100,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Cont</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Conectare</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Setări</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Note de lansare</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Raportare problemă</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>Despre</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Eroare conexiune: s-a atins limita de sesiuni</translation>
@@ -161,30 +211,6 @@ Actualizați ora sistemului și încercați să vă reconectați.</translation>
             <source>Close</source>
             <translation>Închidere</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Cont</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Conectare</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Setări</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Note de lansare</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Raportare problemă</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>Despre</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -225,6 +251,13 @@ Actualizați ora sistemului și încercați să vă reconectați.</translation>
         </message>
     </context>
     <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Oprit</translation>
+        </message>
+    </context>
+    <context>
         <name>ReleaseNotesPage</name>
         <message>
             <source>Release notes</source>
@@ -259,18 +292,6 @@ Actualizați ora sistemului și încercați să vă reconectați.</translation>
             <source>Settings</source>
             <translation>Setări</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Oprit</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Divizare trafic</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Acces la beta</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -301,6 +322,27 @@ Actualizați ora sistemului și încercați să vă reconectați.</translation>
         <message>
             <source>Security key</source>
             <translation>Cheie de securitate</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Divizare trafic</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Acces la beta</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Oprit</translation>
         </message>
     </context>
     <context>

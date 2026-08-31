@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.1%{?dist}
+Release:        0.2%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -124,6 +124,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.2
+- Bind asynchronous frontend replies to the authenticated backend generation.
+- Keep readiness-probe failures retryable and add backend-replacement tests.
+- Refresh exact shared translations and candidate review evidence.
+
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.1
 - Add an on-demand, read-only Connection Inspector using existing Core state.
 - Replace periodic backend ownership polling with D-Bus owner-loss events and

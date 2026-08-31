@@ -205,7 +205,18 @@ class AsyncReconnector:
         if not self._retry_is_current(generation):
             return False
 
-        if not await self._network_probe():
+        try:
+            network_available = await self._network_probe()
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            if not self._retry_is_current(generation):
+                return False
+            logger.error("Network readiness probe failed (%s)", type(error).__name__)
+            self._retry_counter += 1
+            self._status_callback("Waiting for network connectivity…")
+            return True
+        if not network_available:
             if not self._retry_is_current(generation):
                 return False
             self._retry_counter += 1
@@ -214,7 +225,18 @@ class AsyncReconnector:
         if not self._retry_is_current(generation):
             return False
 
-        if not await self._session_probe.is_unlocked():
+        try:
+            session_unlocked = await self._session_probe.is_unlocked()
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            if not self._retry_is_current(generation):
+                return False
+            logger.error("Session readiness probe failed (%s)", type(error).__name__)
+            self._retry_counter += 1
+            self._status_callback("Waiting for the Plasma session to unlock…")
+            return True
+        if not session_unlocked:
             if not self._retry_is_current(generation):
                 return False
             self._retry_counter += 1

@@ -17,11 +17,17 @@
 
 void VpnController::onSnapshotChanged(const QString &snapshotJson)
 {
+    if (!backendSignalIsCurrent()) {
+        return;
+    }
     applySnapshot(snapshotJson);
 }
 
 void VpnController::onServerDataChanged(bool topologyChanged)
 {
+    if (!backendSignalIsCurrent()) {
+        return;
+    }
     const bool wasLocationsBusy = locationsBusy();
     if (topologyChanged) {
         m_countryRefreshPending = true;
@@ -44,7 +50,7 @@ void VpnController::onServerDataChanged(bool topologyChanged)
 
 void VpnController::onSettingsChanged(const QString &settingsJson)
 {
-    if (!m_loggedIn) {
+    if (!backendSignalIsCurrent() || !m_loggedIn) {
         return;
     }
     QString errorMessage;
@@ -56,7 +62,7 @@ void VpnController::onSettingsChanged(const QString &settingsJson)
 
 void VpnController::onSplitTunnelingChanged(const QString &settingsJson)
 {
-    if (!m_loggedIn) {
+    if (!backendSignalIsCurrent() || !m_loggedIn) {
         return;
     }
     QString errorMessage;
@@ -68,7 +74,7 @@ void VpnController::onSplitTunnelingChanged(const QString &settingsJson)
 
 void VpnController::onCustomDnsChanged(const QString &settingsJson)
 {
-    if (!m_loggedIn) {
+    if (!backendSignalIsCurrent() || !m_loggedIn) {
         return;
     }
     QString errorMessage;
@@ -185,12 +191,10 @@ void VpnController::applySnapshot(const QString &snapshotJson)
 
 void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
 {
-    const auto generation = watcher->property("backendGeneration").toULongLong();
-    const QString destination = watcher->property("backendDestination").toString();
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
-    if (generation != m_backendGeneration
-        || destination != m_backendDestination) {
+    if (!current) {
         return;
     }
     m_snapshotRefreshPending = false;
@@ -207,8 +211,12 @@ void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
 
 void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
+    if (!current) {
+        return;
+    }
     if (reply.isError()) {
         m_busy = false;
         const auto failure = ProtonVpnKde::classifyBackendCallFailure(
@@ -230,8 +238,12 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
 
 void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
+    if (!current) {
+        return;
+    }
     if (reply.isError()) {
         const auto failure = ProtonVpnKde::classifyBackendCallFailure(
             reply.error().type(), reply.error().name());

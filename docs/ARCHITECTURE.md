@@ -142,6 +142,14 @@ client-identity rejection is not retried: it fails closed with restart and
 reinstall guidance, which covers an executable left running across an RPM
 replacement without turning the backend into a restart loop.
 
+Every asynchronous Control Center and resident-agent request records both the
+authenticated backend's unique destination and its local owner generation.
+Replies that complete after owner replacement are discarded before they can
+change availability, busy state, messages, models, or queued actions. Backend
+signals are accepted only from the currently authenticated unique owner. This
+extends owner pinning across the complete asynchronous result path rather than
+only the method-call destination.
+
 ## Authentication and account state
 
 The adapter calls Proton's public API facade for password login, TOTP and

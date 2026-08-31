@@ -74,6 +74,13 @@ writable, or mixed-trust drop-ins and unsafe loader or Python-path variables
 fail closed. Calls and signals then use the verified unique name so ownership
 replacement cannot retarget an in-flight operation.
 
+Each asynchronous frontend request is additionally stamped with the verified
+unique destination and the frontend's current owner generation. Completion
+handlers discard replies from any superseded generation before mutating local
+state, and D-Bus signal handlers reject senders other than the current verified
+owner. Service-replacement regressions exercise both the Control Center and the
+resident agent.
+
 At the backend ingress boundary, the actual D-Bus sender is captured before
 method dispatch. Mutations require a sender whose process is one of the
 root-owned native client executables. Claims in method arguments never replace

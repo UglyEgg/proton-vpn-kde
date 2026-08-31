@@ -24,6 +24,37 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Ошибка подключения</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Выключен</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Стандартное</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Подключение</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Протокол</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>Kill Switch</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Раздельное туннелирование</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -70,6 +101,29 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Аккаунт</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Войти</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Настройки</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Примечания к выпуску</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Сообщить о проблеме</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Ошибка подключения: достигнут лимит сеансов</translation>
@@ -146,26 +200,6 @@ Update your system time and try to connect again.</source>
             <source>Close</source>
             <translation>Закрыть</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Аккаунт</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Войти</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Настройки</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Примечания к выпуску</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Сообщить о проблеме</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -203,6 +237,13 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Sign in</source>
             <translation>Войти</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Выключен</translation>
         </message>
     </context>
     <context>
@@ -247,22 +288,6 @@ Update your system time and try to connect again.</source>
             <source>Settings</source>
             <translation>Настройки</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Выключен</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Стандартное</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Раздельное туннелирование</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Бета-доступ</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -293,6 +318,31 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Security key</source>
             <translation>Ключ безопасности</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Раздельное туннелирование</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Бета-доступ</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Выключен</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Стандартное</translation>
         </message>
     </context>
     <context>

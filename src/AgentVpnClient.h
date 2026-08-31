@@ -5,6 +5,7 @@
 
 #include "VpnConnectionController.h"
 
+#include <QDBusContext>
 #include <QString>
 #include <QStringList>
 #include <QtTypes>
@@ -13,7 +14,8 @@
 class QDBusPendingCallWatcher;
 class QDBusServiceWatcher;
 
-class AgentVpnClient final : public VpnConnectionController
+class AgentVpnClient final : public VpnConnectionController,
+                             protected QDBusContext
 {
     Q_OBJECT
 
@@ -54,6 +56,10 @@ private slots:
 
 private:
     void setBackendAvailable(bool available);
+    void stampBackendRequest(QDBusPendingCallWatcher *watcher) const;
+    [[nodiscard]] bool backendReplyIsCurrent(
+        const QDBusPendingCallWatcher *watcher) const;
+    [[nodiscard]] bool backendSignalIsCurrent() const;
     void connectBackendSignals();
     void disconnectBackendSignals();
     void authorizeClient();

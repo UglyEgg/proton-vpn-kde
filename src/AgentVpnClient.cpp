@@ -247,6 +247,9 @@ void AgentVpnClient::onServiceUnregistered(const QString &)
 
 void AgentVpnClient::onSnapshotChanged(const QString &snapshotJson)
 {
+    if (!backendSignalIsCurrent()) {
+        return;
+    }
     applySnapshot(snapshotJson);
 }
 
@@ -258,6 +261,30 @@ void AgentVpnClient::setBackendAvailable(bool available)
     m_backendAvailable = available;
     emit backendAvailableChanged();
     emit snapshotChanged();
+}
+
+void AgentVpnClient::stampBackendRequest(
+    QDBusPendingCallWatcher *watcher) const
+{
+    watcher->setProperty("backendGeneration",
+                         QVariant::fromValue<qulonglong>(m_serviceGeneration));
+    watcher->setProperty("backendDestination", m_backendDestination);
+}
+
+bool AgentVpnClient::backendReplyIsCurrent(
+    const QDBusPendingCallWatcher *watcher) const
+{
+    return watcher
+        && watcher->property("backendGeneration").toULongLong()
+            == m_serviceGeneration
+        && watcher->property("backendDestination").toString()
+            == m_backendDestination;
+}
+
+bool AgentVpnClient::backendSignalIsCurrent() const
+{
+    return !calledFromDBus()
+        || QDBusContext::message().service() == m_backendDestination;
 }
 
 void AgentVpnClient::connectBackendSignals()
@@ -293,18 +320,20 @@ void AgentVpnClient::authorizeClient()
     }
     m_authorizationPending = true;
     const quint64 generation = m_serviceGeneration;
+    const QString destination = m_backendDestination;
     QDBusMessage message = QDBusMessage::createMethodCall(
-        m_backendDestination, QString::fromLatin1(BackendDbus::objectPath),
+        destination, QString::fromLatin1(BackendDbus::objectPath),
         QString::fromLatin1(BackendDbus::interfaceName),
         QString::fromLatin1(BackendDbus::Method::authorizeClient));
     message << uniqueName;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this, generation](QDBusPendingCallWatcher *finished) {
+            [this, destination, generation](QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<> reply = *finished;
         finished->deleteLater();
-        if (generation != m_serviceGeneration) {
+        if (generation != m_serviceGeneration
+            || destination != m_backendDestination) {
             return;
         }
         m_authorizationPending = false;
@@ -341,6 +370,7 @@ void AgentVpnClient::requestSnapshot(bool allowActivation)
         QString::fromLatin1(BackendDbus::Method::getSnapshot));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
+    stampBackendRequest(watcher);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &AgentVpnClient::handleSnapshotReply);
 }
@@ -438,8 +468,9 @@ void AgentVpnClient::acquireTransientLease()
     }
     m_transientLeasePending = true;
     const quint64 generation = m_serviceGeneration;
+    const QString destination = m_backendDestination;
     QDBusMessage message = QDBusMessage::createMethodCall(
-        m_backendDestination,
+        destination,
         QString::fromLatin1(BackendDbus::objectPath),
         QString::fromLatin1(BackendDbus::interfaceName),
         QString::fromLatin1(BackendDbus::Method::registerClient));
@@ -447,10 +478,11 @@ void AgentVpnClient::acquireTransientLease()
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this, generation](QDBusPendingCallWatcher *finished) {
+            [this, destination, generation](QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<> reply = *finished;
         finished->deleteLater();
-        if (generation != m_serviceGeneration) {
+        if (generation != m_serviceGeneration
+            || destination != m_backendDestination) {
             return;
         }
         m_transientLeasePending = false;
@@ -583,14 +615,19 @@ void AgentVpnClient::callOperation(const QString &method,
     message.setArguments(arguments);
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
+    stampBackendRequest(watcher);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &AgentVpnClient::handleOperationReply);
 }
 
 void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
+    if (!current) {
+        return;
+    }
     if (reply.isError()) {
         m_busy = false;
         m_message = fixedCallFailureMessage(reply.error());
@@ -613,8 +650,12 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
 
 void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
+    if (!current) {
+        return;
+    }
     if (reply.isError()) {
         m_busy = false;
         m_message = fixedCallFailureMessage(reply.error());

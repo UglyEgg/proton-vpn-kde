@@ -45,11 +45,12 @@ void VpnController::restartBackend()
                           QStringLiteral("replace")});
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
+    const quint64 backendGeneration = m_backendGeneration;
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this](QDBusPendingCallWatcher *finished) {
+            [this, backendGeneration](QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<QDBusObjectPath> reply = *finished;
         finished->deleteLater();
-        if (reply.isError()) {
+        if (backendGeneration == m_backendGeneration && reply.isError()) {
             m_message = tr("Unable to restart the Proton backend service");
             emit snapshotChanged();
         }
@@ -220,6 +221,7 @@ void VpnController::registerClient()
     message.setArguments({uniqueName});
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
+    stampBackendRequest(watcher);
     watcher->setProperty("registrationGeneration",
                          QVariant::fromValue<qulonglong>(*generation));
     connect(watcher, &QDBusPendingCallWatcher::finished,
@@ -260,9 +262,13 @@ void VpnController::setBackendAvailable(bool available)
 
 void VpnController::handleRegisterClientReply(QDBusPendingCallWatcher *watcher)
 {
+    const bool currentBackend = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<> reply = *watcher;
     const auto generation = watcher->property("registrationGeneration").toULongLong();
     watcher->deleteLater();
+    if (!currentBackend) {
+        return;
+    }
     const auto completion = m_clientRegistration.complete(generation, !reply.isError());
     if (completion == ProtonVpnKde::ClientRegistrationState::Completion::Stale) {
         return;

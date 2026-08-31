@@ -31,6 +31,37 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Błąd połączenia</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Wyłączony</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standardowe</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Połączenie</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Protokół</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>Kill Switch</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Split Tunneling</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -77,6 +108,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Konto</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Zaloguj się</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Ustawienia</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Lista zmian</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Zgłoś problem</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>O aplikacji</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Błąd połączenia: osiągnięto limit sesji</translation>
@@ -157,30 +215,6 @@ Zaktualizuj czas systemowy i spróbuj połączyć się ponownie.</translation>
             <source>Close</source>
             <translation>Zamknij</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Konto</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Zaloguj się</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Ustawienia</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Lista zmian</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Zgłoś problem</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>O aplikacji</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -218,6 +252,13 @@ Zaktualizuj czas systemowy i spróbuj połączyć się ponownie.</translation>
         <message>
             <source>Sign in</source>
             <translation>Zaloguj się</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Wyłączony</translation>
         </message>
     </context>
     <context>
@@ -262,22 +303,6 @@ Zaktualizuj czas systemowy i spróbuj połączyć się ponownie.</translation>
             <source>Settings</source>
             <translation>Ustawienia</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Wyłączony</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Standardowe</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Split Tunneling</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Dostęp beta</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -308,6 +333,31 @@ Zaktualizuj czas systemowy i spróbuj połączyć się ponownie.</translation>
         <message>
             <source>Security key</source>
             <translation>Klucz bezpieczeństwa</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Split Tunneling</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Dostęp beta</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Wyłączony</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standardowe</translation>
         </message>
     </context>
     <context>

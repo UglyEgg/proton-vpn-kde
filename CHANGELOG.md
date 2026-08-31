@@ -19,6 +19,11 @@ All notable user-visible changes are recorded here. The project follows
 - Coalesce repeated Inspector refreshes, reload its lazily owned settings on an
   explicit refresh, and reuse the backend authorization owner check when
   acquiring a frontend lifetime lease.
+- Bind every asynchronous Control Center and resident-agent reply to the exact
+  authenticated backend generation, preventing delayed replies from a replaced
+  service from corrupting its healthy successor.
+- Keep transient network and session readiness-probe failures retryable instead
+  of leaving drop recovery enabled but inert.
 
 ## [0.11.3] - 2026-08-31
 

@@ -171,14 +171,19 @@ void VpnController::submitSupportReport(const QString &username,
     keyRequest << QString::fromLatin1(BackendDbus::Method::submitSupportReport);
     auto *keyWatcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(keyRequest, 5000), this);
+    stampBackendRequest(keyWatcher);
     connect(keyWatcher, &QDBusPendingCallWatcher::finished, this,
             [this, fields, backendDestination, backendGeneration](
                 QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<QString> keyReply = *finished;
+        const bool current = backendReplyIsCurrent(finished);
         finished->deleteLater();
-        if (keyReply.isError()
+        if (!current
             || backendGeneration != m_backendGeneration
             || backendDestination != m_backendDestination) {
+            return;
+        }
+        if (keyReply.isError()) {
             emit supportReportFinished(
                 false, tr("Unable to protect the issue report"));
             return;
@@ -203,10 +208,15 @@ void VpnController::submitSupportReport(const QString &username,
         reportRequest << QVariant::fromValue(descriptor);
         auto *reportWatcher = new QDBusPendingCallWatcher(
             QDBusConnection::sessionBus().asyncCall(reportRequest, 120000), this);
+        stampBackendRequest(reportWatcher);
         connect(reportWatcher, &QDBusPendingCallWatcher::finished, this,
                 [this](QDBusPendingCallWatcher *reportFinished) {
             const QDBusPendingReply<> reportReply = *reportFinished;
+            const bool current = backendReplyIsCurrent(reportFinished);
             reportFinished->deleteLater();
+            if (!current) {
+                return;
+            }
             if (reportReply.isError()) {
                 refresh();
                 emit supportReportFinished(
@@ -393,6 +403,7 @@ void VpnController::callOperation(const QString &method,
     message.setArguments(arguments);
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
+    stampBackendRequest(watcher);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleOperationReply);
 }
@@ -440,14 +451,19 @@ void VpnController::callSecretOperation(const QString &method,
     keyRequest << method;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(keyRequest, 5000), this);
+    stampBackendRequest(watcher);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
             [this, method, fields, updateBusy, backendDestination,
              backendGeneration](QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<QString> reply = *finished;
+        const bool current = backendReplyIsCurrent(finished);
         finished->deleteLater();
-        if (reply.isError()
+        if (!current
             || backendGeneration != m_backendGeneration
             || backendDestination != m_backendDestination) {
+            return;
+        }
+        if (reply.isError()) {
             if (updateBusy) {
                 m_busy = false;
             }
@@ -476,6 +492,7 @@ void VpnController::callSecretOperation(const QString &method,
         request << QVariant::fromValue(descriptor);
         auto *operationWatcher = new QDBusPendingCallWatcher(
             QDBusConnection::sessionBus().asyncCall(request, 120000), this);
+        stampBackendRequest(operationWatcher);
         connect(operationWatcher, &QDBusPendingCallWatcher::finished, this,
                 updateBusy ? &VpnController::handleOperationReply
                            : &VpnController::handleControlOperationReply);
@@ -496,6 +513,7 @@ void VpnController::callControlOperation(const QString &method,
     message.setArguments(arguments);
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
+    stampBackendRequest(watcher);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleControlOperationReply);
 }

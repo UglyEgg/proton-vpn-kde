@@ -63,6 +63,16 @@ Kirigami.ScrollablePage {
         return enabled ? qsTr("Enabled") : qsTr("Disabled")
     }
 
+    function modelValue(model, loadedValue) {
+        if (model.loaded) {
+            return loadedValue
+        }
+        if (model.busy) {
+            return qsTr("Loading…")
+        }
+        return model.message.length > 0 ? model.message : qsTr("Unavailable")
+    }
+
     function protocolLabel() {
         for (let index = 0;
              index < page.vpnSettings.protocolOptions.length; ++index) {
@@ -172,8 +182,7 @@ Kirigami.ScrollablePage {
 
             DetailRow {
                 label: qsTr("Protocol")
-                value: page.vpnSettings.loaded
-                       ? page.protocolLabel() : qsTr("Loading…")
+                value: page.modelValue(page.vpnSettings, page.protocolLabel())
             }
 
             DetailRow {
@@ -235,50 +244,49 @@ Kirigami.ScrollablePage {
 
             DetailRow {
                 label: qsTr("Kill switch")
-                value: page.vpnSettings.loaded
-                       ? page.killSwitchLabel(page.vpnSettings.killSwitch)
-                       : qsTr("Loading…")
+                value: page.modelValue(
+                    page.vpnSettings,
+                    page.killSwitchLabel(page.vpnSettings.killSwitch))
             }
 
             DetailRow {
                 label: qsTr("NetShield")
-                value: page.vpnSettings.loaded
-                       ? page.netShieldLabel(page.vpnSettings.netShield)
-                       : qsTr("Loading…")
+                value: page.modelValue(
+                    page.vpnSettings,
+                    page.netShieldLabel(page.vpnSettings.netShield))
             }
 
             DetailRow {
                 label: qsTr("IPv6 tunnel")
-                value: page.vpnSettings.loaded
-                       ? page.enabledLabel(page.vpnSettings.ipv6)
-                       : qsTr("Loading…")
+                value: page.modelValue(
+                    page.vpnSettings,
+                    page.enabledLabel(page.vpnSettings.ipv6))
             }
 
             DetailRow {
                 label: qsTr("VPN Accelerator")
-                value: page.vpnSettings.loaded
-                       ? page.enabledLabel(page.vpnSettings.vpnAccelerator)
-                       : qsTr("Loading…")
+                value: page.modelValue(
+                    page.vpnSettings,
+                    page.enabledLabel(page.vpnSettings.vpnAccelerator))
             }
 
             DetailRow {
                 label: qsTr("NAT mode")
-                value: page.vpnSettings.loaded
-                       ? (page.vpnSettings.moderateNat
-                          ? qsTr("Moderate") : qsTr("Strict"))
-                       : qsTr("Loading…")
+                value: page.modelValue(
+                    page.vpnSettings,
+                    page.vpnSettings.moderateNat
+                        ? qsTr("Moderate") : qsTr("Strict"))
             }
 
             DetailRow {
                 label: qsTr("DNS")
-                value: page.dnsSettings.busy
-                       ? qsTr("Loading…") : page.dnsLabel()
+                value: page.modelValue(page.dnsSettings, page.dnsLabel())
             }
 
             DetailRow {
                 label: qsTr("Split tunneling")
-                value: page.splitSettings.busy
-                       ? qsTr("Loading…") : page.splitTunnelingLabel()
+                value: page.modelValue(
+                    page.splitSettings, page.splitTunnelingLabel())
             }
 
             DetailRow {

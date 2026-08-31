@@ -35,6 +35,37 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Bağlantı sorunu</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Kapalı</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standart</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Bağlantı</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>İletişim kuralı</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>Bağlantı kesici</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Ayrılmış tünelleme</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -81,6 +112,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Hesap</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Oturum aç</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Ayarlar</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Sürüm notları</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Sorun bildireceğim</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>Hakkında</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Bağlantı hatası: Oturum sayısı sınırına ulaşıldı</translation>
@@ -167,30 +225,6 @@ Sistem saatinizi güncelleyin ve yeniden bağlanmayı deneyin.</translation>
             <source>Close</source>
             <translation>Kapat</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Hesap</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Oturum aç</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Ayarlar</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Sürüm notları</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Sorun bildireceğim</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>Hakkında</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -228,6 +262,13 @@ Sistem saatinizi güncelleyin ve yeniden bağlanmayı deneyin.</translation>
         <message>
             <source>Sign in</source>
             <translation>Oturum aç</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Kapalı</translation>
         </message>
     </context>
     <context>
@@ -272,22 +313,6 @@ Sistem saatinizi güncelleyin ve yeniden bağlanmayı deneyin.</translation>
             <source>Settings</source>
             <translation>Ayarlar</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Kapalı</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Standart</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Ayrılmış tünelleme</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Beta erişimi</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -318,6 +343,31 @@ Sistem saatinizi güncelleyin ve yeniden bağlanmayı deneyin.</translation>
         <message>
             <source>Security key</source>
             <translation>Güvenlik anahtarı</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Ayrılmış tünelleme</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Beta erişimi</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Kapalı</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standart</translation>
         </message>
     </context>
     <context>

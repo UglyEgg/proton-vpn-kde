@@ -128,6 +128,26 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Waiting for network connectivity…", messages)
         await reconnector.disable()
 
+    async def test_network_probe_failure_remains_retryable(self):
+        network_probe = AsyncMock(side_effect=[OSError("route failed"), True])
+        reconnector, connector, _, messages = self.make_reconnector(
+            network_probe=network_probe
+        )
+
+        with self.assertLogs(
+            "proton_vpn_kde_backend.reconnector", level="ERROR"
+        ) as captured:
+            reconnector.enable()
+            await self.let_tasks_run()
+
+        self.assertTrue(reconnector.enabled)
+        self.assertGreaterEqual(network_probe.await_count, 2)
+        connector.connect.assert_awaited_once()
+        self.assertIn("Waiting for network connectivity…", messages)
+        self.assertIn("OSError", "\n".join(captured.output))
+        self.assertNotIn("route failed", "\n".join(captured.output))
+        await reconnector.disable()
+
     async def test_waits_for_previous_connection_then_retries(self):
         reconnector, connector, _, messages = self.make_reconnector(
             delay_factory=lambda _attempt: 0
