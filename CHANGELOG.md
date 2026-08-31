@@ -11,6 +11,14 @@ All notable user-visible changes are recorded here. The project follows
 - Replace the backend's repeating client-ownership poll with authoritative
   D-Bus owner-loss events and a one-shot idle deadline, eliminating periodic
   wakeups while preserving active tunnel and packet-capture supervision.
+- Scope asynchronous settings and protection snapshots to the active account
+  session so replies completed after sign-out cannot repopulate cleared state.
+- Keep reconnect work cancellable through network and session readiness
+  checks, and require the resident agent to apply the current recovery policy
+  successfully before it dispatches a connection request.
+- Coalesce repeated Inspector refreshes, reload its lazily owned settings on an
+  explicit refresh, and reuse the backend authorization owner check when
+  acquiring a frontend lifetime lease.
 
 ## [0.11.3] - 2026-08-31
 

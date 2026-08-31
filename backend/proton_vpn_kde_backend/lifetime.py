@@ -79,6 +79,11 @@ class BackendLifetime:
         self._validate_unique_name(unique_name)
         if not await self._owner_probe(unique_name):
             raise UserVisibleValueError("The frontend D-Bus name has no owner")
+        self.register_authorized_client(unique_name)
+
+    def register_authorized_client(self, unique_name: str) -> None:
+        """Add a lease whose owner was verified by the ingress authorizer."""
+        self._validate_unique_name(unique_name)
         self._clients.add(unique_name)
         self._idle_since = None
         self._changed.set()

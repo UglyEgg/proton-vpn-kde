@@ -30,7 +30,7 @@ Kirigami.ScrollablePage {
         Controls.Label {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: qsTr("Inspect the current tunnel, server capabilities, protection settings, and local runtime from a new read-only Connection Inspector. The page is created only when opened, collects no traffic or history, and has no background timer. Backend client lifetime is now driven by D-Bus owner-loss events and a one-shot idle deadline instead of periodic polling. Proton Core continues to own all VPN networking behavior.")
+            text: qsTr("Inspect the current tunnel, server capabilities, protection settings, and local runtime from a new read-only Connection Inspector. The page is created only when opened, collects no traffic or history, and has no background timer. Backend client lifetime is now driven by D-Bus owner-loss events and a one-shot idle deadline instead of periodic polling. Account changes cannot publish stale Inspector settings, repeated refreshes are coalesced, and reconnect work remains cancellable while the network or session becomes ready. The resident agent now requires the current recovery policy to be accepted before it starts a connection. Proton Core continues to own all VPN networking behavior.")
         }
 
         Kirigami.Separator {

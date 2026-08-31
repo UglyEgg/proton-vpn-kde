@@ -181,11 +181,14 @@ to the user rather than resolved by silently changing another setting.
 
 The Connection Inspector is a dynamically created Control Center page, not a
 resident service. It renders bounded, read-only connection, settings, and
-runtime state already exposed by the authenticated controller. Opening or
-explicitly refreshing the page requests current snapshots; closing it destroys
-the page. It has no timer, traffic access, history store, remote telemetry, or
-networking authority, and a source gate rejects background-collector types in
-the page.
+runtime state already exposed by the authenticated controller. Opening it uses
+the current connection snapshot and lazily loads its settings models; an
+explicit refresh coalesces the connection request and reloads all three
+Inspector-owned models. Settings replies carry the active account-session
+generation, so a response completed after sign-out or account replacement is
+discarded instead of repopulating cleared state. Closing the page destroys it.
+It has no timer, traffic access, history store, remote telemetry, or networking
+authority, and a source gate rejects background-collector types in the page.
 
 The IPv6 setting controls whether supported IPv6 traffic is carried inside the
 VPN tunnel. It does not disable Core's separate connection-scoped IPv6 leak
@@ -211,6 +214,13 @@ processes. Tray shutdown distinguishes leaving the Core-managed tunnel active
 from disconnecting it: the latter waits for a fully disconnected, idle Core
 snapshot before the agent exits and keeps supervision alive if confirmation
 times out.
+
+Drop-recovery retries retain a cancellation generation through every network,
+session, and previous-connection readiness await. Disabling recovery or
+resetting the session invalidates that generation before another connection
+can be dispatched. The resident agent likewise treats the recovery preference
+as applied only after the current backend owner acknowledges it; a failed or
+stale policy reply cannot release a queued connection action.
 
 KRunner recognizes only explicit VPN prefixes and validated connection targets.
 It addresses the Control Center activation service, never the backend. A modal

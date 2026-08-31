@@ -32,18 +32,26 @@ one-shot grace deadline.
 
 The Connection Inspector adds no resident process or backend collector. Its
 QML page is created only when selected in the already-running Control Center,
-uses existing bounded snapshots, and requests fresh state only on page entry
-or explicit refresh. A static UI gate rejects timers and worker or socket
-collectors in that page.
+uses the controller's existing bounded connection snapshot, and loads its
+cold settings models only when first opened. Explicit refreshes are coalesced
+while one snapshot request is in flight and reload all three Inspector-owned
+settings models. A static UI gate rejects timers and worker or socket collectors
+in that page.
 
 A same-host differential measurement compared the exact committed
-event-driven baseline with the uncommitted 0.12.0 Inspector candidate. The
+event-driven baseline (`75ffc5e`) with the committed 0.12.0 Inspector candidate
+(`659ce23`). The
 baseline measured 88,858 KiB combined PSS. Three candidate runs measured
 87,967, 88,084, and 88,640 KiB, so no resident-memory increase was detected
 within run-to-run sharing variance. The compiled Control Center grew by
 342,944 bytes on disk. This comparison isolates the dormant page more fairly
 than comparing absolute PSS with an older package measurement made under
 different host page-sharing conditions.
+
+The differential measurement covers the dormant Inspector. A same-process
+open-and-close retention measurement remains a pre-release performance gate;
+until it is recorded, the project makes no claim that opening the page has zero
+retained allocator or QML-cache cost.
 
 ## Search performance
 

@@ -28,9 +28,9 @@ It is not a new VPN implementation. Proton's installed Core continues to own pro
 
 ## See it
 
-| Connected overview | Server browser | Native settings |
-| :---: | :---: | :---: |
-| [![Connected overview](docs/images/overview.png)](docs/images/overview.png) | [![Capability-aware server browser](docs/images/locations.png)](docs/images/locations.png) | [![Native Plasma settings](docs/images/settings.png)](docs/images/settings.png) |
+| Connected overview | Server browser | Connection Inspector | Native settings |
+| :---: | :---: | :---: | :---: |
+| [![Connected overview](docs/images/overview.png)](docs/images/overview.png) | [![Capability-aware server browser](docs/images/locations.png)](docs/images/locations.png) | [![Read-only Connection Inspector](docs/images/inspector.png)](docs/images/inspector.png) | [![Native Plasma settings](docs/images/settings.png)](docs/images/settings.png) |
 
 The screenshots use the deterministic demo backend. The connection is simulated; no Proton account, NetworkManager state, or real VPN tunnel was used.
 

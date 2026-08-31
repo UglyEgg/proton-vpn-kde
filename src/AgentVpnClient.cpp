@@ -118,7 +118,11 @@ void AgentVpnClient::setReconnectionEnabled(bool enabled)
     if (m_reconnectionEnabled == enabled && m_reconnectionApplied) {
         return;
     }
+    if (m_reconnectionEnabled != enabled) {
+        ++m_reconnectionRequestGeneration;
+    }
     m_reconnectionEnabled = enabled;
+    m_reconnectionApplied = false;
     if (m_backendAvailable) {
         applyReconnectionPreference();
     }
@@ -178,6 +182,9 @@ void AgentVpnClient::connectGroup(const QString &countryCode,
         return;
     }
     acquireTransientLease();
+    if (!m_reconnectionApplied) {
+        applyReconnectionPreference();
+    }
     dispatchPendingConnection();
 }
 
@@ -212,6 +219,7 @@ void AgentVpnClient::onServiceRegistered(const QString &)
     connectBackendSignals();
     setBackendAvailable(false);
     m_reconnectionApplied = false;
+    m_reconnectionPending = false;
     authorizeClient();
 }
 
@@ -225,6 +233,7 @@ void AgentVpnClient::onServiceUnregistered(const QString &)
     m_loggedIn = false;
     m_busy = false;
     m_reconnectionApplied = false;
+    m_reconnectionPending = false;
     m_authorizationPending = false;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
@@ -374,12 +383,16 @@ void AgentVpnClient::applySnapshot(const QString &snapshotJson)
 
 void AgentVpnClient::applyReconnectionPreference()
 {
-    if (!m_backendAvailable) {
+    if (!m_backendAvailable || m_reconnectionPending) {
         return;
     }
     m_reconnectionApplied = false;
+    m_reconnectionPending = true;
+    const quint64 generation = m_serviceGeneration;
+    const quint64 requestGeneration = m_reconnectionRequestGeneration;
+    const QString destination = m_backendDestination;
     QDBusMessage message = QDBusMessage::createMethodCall(
-        m_backendDestination,
+        destination,
         QString::fromLatin1(BackendDbus::objectPath),
         QString::fromLatin1(BackendDbus::interfaceName),
         QString::fromLatin1(BackendDbus::Method::setReconnectionEnabled));
@@ -387,14 +400,28 @@ void AgentVpnClient::applyReconnectionPreference()
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this](QDBusPendingCallWatcher *finished) {
+            [this, destination, generation,
+             requestGeneration](QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<> reply = *finished;
         finished->deleteLater();
-        m_reconnectionApplied = true;
-        if (reply.isError()) {
-            m_message = fixedCallFailureMessage(reply.error());
-            emit snapshotChanged();
+        if (generation != m_serviceGeneration
+            || destination != m_backendDestination) {
+            return;
         }
+        m_reconnectionPending = false;
+        if (requestGeneration != m_reconnectionRequestGeneration) {
+            applyReconnectionPreference();
+            return;
+        }
+        if (reply.isError()) {
+            m_reconnectionApplied = false;
+            m_message = fixedCallFailureMessage(reply.error());
+            clearPendingConnection();
+            releaseTransientLease();
+            emit snapshotChanged();
+            return;
+        }
+        m_reconnectionApplied = true;
         dispatchPendingConnection();
     });
 }
@@ -481,6 +508,9 @@ void AgentVpnClient::queueConnection(const QString &target, bool interactive,
         return;
     }
     acquireTransientLease();
+    if (!m_reconnectionApplied) {
+        applyReconnectionPreference();
+    }
     dispatchPendingConnection();
 }
 

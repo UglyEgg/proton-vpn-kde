@@ -38,6 +38,32 @@ class LoginRecordingAdapter(DemoCoreAdapter):
         await super().login(username, password)
 
 
+class BlockingSettingsAdapter(DemoCoreAdapter):
+    def __init__(self, method_name: str):
+        super().__init__()
+        self.method_name = method_name
+        self.read_started = asyncio.Event()
+        self.release_read = asyncio.Event()
+
+    async def _wait_if_selected(self, method_name: str) -> None:
+        if self.method_name != method_name:
+            return
+        self.read_started.set()
+        await self.release_read.wait()
+
+    async def get_settings(self):
+        await self._wait_if_selected("settings")
+        return await super().get_settings()
+
+    async def get_split_tunneling(self):
+        await self._wait_if_selected("split")
+        return await super().get_split_tunneling()
+
+    async def get_custom_dns(self):
+        await self._wait_if_selected("dns")
+        return await super().get_custom_dns()
+
+
 class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.controller = BackendController(DemoCoreAdapter())
@@ -277,6 +303,29 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"vpnAccelerator":false', updated)
         self.assertEqual(2, events[-1].net_shield)
         self.assertFalse(events[-1].vpn_accelerator)
+
+    async def test_late_settings_reads_are_rejected_after_logout(self):
+        cases = (
+            ("settings", "get_settings_json", "subscribe_settings"),
+            ("split", "get_split_tunneling_json", "subscribe_split_tunneling"),
+            ("dns", "get_custom_dns_json", "subscribe_custom_dns"),
+        )
+        for method_name, read_name, subscribe_name in cases:
+            with self.subTest(method_name=method_name):
+                adapter = BlockingSettingsAdapter(method_name)
+                controller = BackendController(adapter)
+                publications = []
+                getattr(controller, subscribe_name)(publications.append)
+                self.assertTrue(await controller.start())
+
+                read_task = asyncio.create_task(getattr(controller, read_name)())
+                await adapter.read_started.wait()
+                await controller.logout()
+                adapter.release_read.set()
+
+                with self.assertRaisesRegex(RuntimeError, "session changed"):
+                    await read_task
+                self.assertEqual([], publications)
 
     async def test_unofficial_build_rejects_crash_reporting_enable(self):
         with self.assertRaisesRegex(RuntimeError, "unofficial community build"):

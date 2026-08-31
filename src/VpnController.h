@@ -41,6 +41,7 @@ class VpnController final : public VpnConnectionController
     Q_PROPERTY(bool fido2Available READ fido2Available NOTIFY snapshotChanged)
     Q_PROPERTY(int killSwitch READ killSwitch NOTIFY snapshotChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY snapshotChanged)
+    Q_PROPERTY(bool snapshotRefreshPending READ snapshotRefreshPending NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool locationSearchBusy READ locationSearchBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool npsSurveyAvailable READ npsSurveyAvailable NOTIFY npsSurveyChanged)
@@ -89,6 +90,7 @@ public:
     [[nodiscard]] bool fido2Available() const;
     [[nodiscard]] int killSwitch() const override;
     [[nodiscard]] bool busy() const override;
+    [[nodiscard]] bool snapshotRefreshPending() const;
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] bool locationSearchBusy() const;
     [[nodiscard]] bool npsSurveyAvailable() const;
@@ -273,6 +275,8 @@ private:
     bool m_backendAvailable = false;
     QString m_backendDestination;
     quint64 m_backendGeneration = 0;
+    quint64 m_sessionGeneration = 0;
+    bool m_snapshotRefreshPending = false;
     ProtonVpnKde::ClientRegistrationState m_clientRegistration;
     unsigned int m_clientRegistrationRetryCount = 0;
     bool m_clientIdentityRejected = false;

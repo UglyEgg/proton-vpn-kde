@@ -15,8 +15,7 @@ Kirigami.ScrollablePage {
     property var dnsSettings: vpnController.customDns
     readonly property bool connected: vpnController.state === "connected"
 
-    function refreshInspector() {
-        vpnController.refresh()
+    function ensureInspectorModels() {
         if (!vpnController.loggedIn) {
             return
         }
@@ -27,6 +26,22 @@ Kirigami.ScrollablePage {
             vpnController.loadSplitTunneling()
         }
         if (!page.dnsSettings.loaded && !page.dnsSettings.busy) {
+            vpnController.loadCustomDns()
+        }
+    }
+
+    function refreshInspector() {
+        vpnController.refresh()
+        if (!vpnController.loggedIn) {
+            return
+        }
+        if (!page.vpnSettings.busy) {
+            vpnController.loadSettings()
+        }
+        if (!page.splitSettings.busy) {
+            vpnController.loadSplitTunneling()
+        }
+        if (!page.dnsSettings.busy) {
             vpnController.loadCustomDns()
         }
     }
@@ -98,7 +113,7 @@ Kirigami.ScrollablePage {
                .arg(page.splitSettings.selectedAppPaths.length)
     }
 
-    Component.onCompleted: page.refreshInspector()
+    Component.onCompleted: page.ensureInspectorModels()
 
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
@@ -314,6 +329,7 @@ Kirigami.ScrollablePage {
                     icon.name: "view-refresh"
                     enabled: vpnController.backendAvailable
                              && !vpnController.busy
+                             && !vpnController.snapshotRefreshPending
                     onClicked: page.refreshInspector()
                 }
             }

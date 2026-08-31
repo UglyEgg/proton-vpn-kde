@@ -169,6 +169,7 @@ class BackendController:
         self._split_tunneling_listeners: list[SplitTunnelingCallback] = []
         self._custom_dns_listeners: list[CustomDnsCallback] = []
         self._operation_lock = asyncio.Lock()
+        self._session_epoch = 0
 
     @property
     def snapshot(self) -> VpnSnapshot:
@@ -274,8 +275,9 @@ class BackendController:
         )
 
     async def get_settings_json(self) -> str:
-        self._require_session()
+        session_epoch = self._current_session_epoch()
         settings = await self._adapter.get_settings()
+        self._require_current_session(session_epoch)
         self._publish_settings(settings)
         return settings.to_json()
 
@@ -327,8 +329,9 @@ class BackendController:
         return settings.to_json()
 
     async def get_split_tunneling_json(self) -> str:
-        self._require_session()
+        session_epoch = self._current_session_epoch()
         settings = await self._adapter.get_split_tunneling()
+        self._require_current_session(session_epoch)
         self._publish_split_tunneling(settings)
         return settings.to_json()
 
@@ -359,8 +362,9 @@ class BackendController:
         return split_tunneling.to_json()
 
     async def get_custom_dns_json(self) -> str:
-        self._require_session()
+        session_epoch = self._current_session_epoch()
         settings = await self._adapter.get_custom_dns()
+        self._require_current_session(session_epoch)
         self._publish_custom_dns(settings)
         return settings.to_json()
 
@@ -596,6 +600,14 @@ class BackendController:
         if not self._snapshot.logged_in:
             raise UserVisibleRuntimeError("A Proton account session is required")
 
+    def _current_session_epoch(self) -> int:
+        self._require_session()
+        return self._session_epoch
+
+    def _require_current_session(self, session_epoch: int) -> None:
+        if session_epoch != self._session_epoch or not self._snapshot.logged_in:
+            raise UserVisibleRuntimeError("The Proton account session changed")
+
     def _require_ready(self) -> None:
         if not self._snapshot.ready:
             raise UserVisibleRuntimeError("The Proton backend is not ready")
@@ -650,6 +662,8 @@ class BackendController:
                 self._publish(replace(self._snapshot, busy=False))
 
     def _on_adapter_snapshot(self, snapshot: VpnSnapshot) -> None:
+        if snapshot.logged_in != self._snapshot.logged_in:
+            self._session_epoch += 1
         self._publish(replace(snapshot, busy=self._snapshot.busy))
 
     def _on_adapter_server_data(self, topology_changed: bool) -> None:

@@ -44,6 +44,9 @@ void VpnController::onServerDataChanged(bool topologyChanged)
 
 void VpnController::onSettingsChanged(const QString &settingsJson)
 {
+    if (!m_loggedIn) {
+        return;
+    }
     QString errorMessage;
     if (!m_settings->applyJson(settingsJson, &errorMessage)) {
         m_settings->setBusy(false);
@@ -53,6 +56,9 @@ void VpnController::onSettingsChanged(const QString &settingsJson)
 
 void VpnController::onSplitTunnelingChanged(const QString &settingsJson)
 {
+    if (!m_loggedIn) {
+        return;
+    }
     QString errorMessage;
     if (!m_splitTunneling->applyJson(settingsJson, &errorMessage)) {
         m_splitTunneling->setBusy(false);
@@ -62,6 +68,9 @@ void VpnController::onSplitTunnelingChanged(const QString &settingsJson)
 
 void VpnController::onCustomDnsChanged(const QString &settingsJson)
 {
+    if (!m_loggedIn) {
+        return;
+    }
     QString errorMessage;
     if (!m_customDns->applyJson(settingsJson, &errorMessage)) {
         m_customDns->setBusy(false);
@@ -94,6 +103,9 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_startupCompatible = snapshot.value(
         QStringLiteral("startupCompatible")).toBool(true);
     m_loggedIn = snapshot.value(QStringLiteral("loggedIn")).toBool();
+    if (wasLoggedIn != m_loggedIn) {
+        ++m_sessionGeneration;
+    }
     m_authState = snapshot.value(QStringLiteral("authState")).toString(
         m_loggedIn ? QStringLiteral("signed_in") : QStringLiteral("signed_out"));
     m_accountName = snapshot.value(QStringLiteral("accountName")).toString();
@@ -173,14 +185,22 @@ void VpnController::applySnapshot(const QString &snapshotJson)
 
 void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
 {
+    const auto generation = watcher->property("backendGeneration").toULongLong();
+    const QString destination = watcher->property("backendDestination").toString();
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
+    if (generation != m_backendGeneration
+        || destination != m_backendDestination) {
+        return;
+    }
+    m_snapshotRefreshPending = false;
     if (reply.isError()) {
         setBackendAvailable(false);
         m_message = tr("Unable to read backend state");
         emit snapshotChanged();
         return;
     }
+    emit snapshotChanged();
     setBackendAvailable(true);
     applySnapshot(reply.value());
 }

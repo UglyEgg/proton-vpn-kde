@@ -175,7 +175,10 @@ class VpnDbusService(ServiceInterface):
             await self._authorizer.authorize(unique_name)
             unique_name = current_request_sender()
         if self._lifetime is not None:
-            await self._lifetime.register_client(unique_name)
+            if self._authorizer is not None:
+                self._lifetime.register_authorized_client(unique_name)
+            else:
+                await self._lifetime.register_client(unique_name)
             if self._authorizer is not None:
                 try:
                     self._authorizer.require_authorized_sender()

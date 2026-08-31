@@ -48,10 +48,9 @@ class VpnDbusServiceTests(unittest.IsolatedAsyncioTestCase):
             lifetime.unregister_client
         )
 
-    async def test_registration_rolls_back_owner_loss_during_probe(self):
+    async def test_registration_rolls_back_owner_loss_after_authorization(self):
         controller = Mock()
         lifetime = Mock()
-        lifetime.register_client = AsyncMock()
         authorizer = Mock()
         authorizer.authorize = AsyncMock()
         authorizer.require_authorized_sender.side_effect = PermissionError
@@ -60,7 +59,7 @@ class VpnDbusServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(DBusError):
             await type(service).register_client.__wrapped__(service, ":direct.test")
 
-        lifetime.register_client.assert_awaited_once_with(":direct.test")
+        lifetime.register_authorized_client.assert_called_once_with(":direct.test")
         lifetime.unregister_client.assert_called_once_with(":direct.test")
 
     def test_every_exported_method_has_the_shared_error_boundary(self):

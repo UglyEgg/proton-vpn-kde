@@ -100,6 +100,20 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
 
+    async def test_authorized_registration_does_not_repeat_owner_probe(self):
+        owner_probe = AsyncMock(return_value=True)
+        controller = FakeController(VpnSnapshot(ready=True, state="disconnected"))
+        lifetime = BackendLifetime(
+            controller,  # type: ignore[arg-type]
+            asyncio.Event(),
+            owner_probe,
+        )
+
+        lifetime.register_authorized_client(":1.42")
+
+        owner_probe.assert_not_awaited()
+        self.assertEqual(frozenset({":1.42"}), lifetime.clients)
+
     async def test_owner_loss_releases_frontend_before_exit(self):
         lifetime, _, stopped, owners = self.make_lifetime()
         owners.add(":1.42")

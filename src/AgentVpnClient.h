@@ -80,9 +80,11 @@ private:
     bool m_busy = false;
     bool m_reconnectionEnabled = true;
     bool m_reconnectionApplied = false;
+    bool m_reconnectionPending = false;
     bool m_transientLeasePending = false;
     bool m_transientLeaseActive = false;
     quint64 m_serviceGeneration = 0;
+    quint64 m_reconnectionRequestGeneration = 0;
     int m_killSwitch = 0;
     int m_forwardedPort = 0;
     QString m_state = QStringLiteral("disconnected");

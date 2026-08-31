@@ -70,26 +70,34 @@ class LogindSessionProbe:
         from dbus_fast.aio import MessageBus
         from dbus_fast.constants import BusType
 
-        self._bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-        manager_path = "/org/freedesktop/login1"
-        manager_intro = await self._bus.introspect(
-            "org.freedesktop.login1", manager_path
-        )
-        manager_object = self._bus.get_proxy_object(
-            "org.freedesktop.login1", manager_path, manager_intro
-        )
-        manager = manager_object.get_interface("org.freedesktop.login1.Manager")
-        session_path = await manager.call_get_session_by_pid(os.getpid())
+        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        try:
+            manager_path = "/org/freedesktop/login1"
+            manager_intro = await bus.introspect(
+                "org.freedesktop.login1", manager_path
+            )
+            manager_object = bus.get_proxy_object(
+                "org.freedesktop.login1", manager_path, manager_intro
+            )
+            manager: Any = manager_object.get_interface(
+                "org.freedesktop.login1.Manager"
+            )
+            session_path = await manager.call_get_session_by_pid(os.getpid())
 
-        session_intro = await self._bus.introspect(
-            "org.freedesktop.login1", session_path
-        )
-        session_object = self._bus.get_proxy_object(
-            "org.freedesktop.login1", session_path, session_intro
-        )
-        self._properties = session_object.get_interface(
-            "org.freedesktop.DBus.Properties"
-        )
+            session_intro = await bus.introspect(
+                "org.freedesktop.login1", session_path
+            )
+            session_object = bus.get_proxy_object(
+                "org.freedesktop.login1", session_path, session_intro
+            )
+            properties = session_object.get_interface(
+                "org.freedesktop.DBus.Properties"
+            )
+        except Exception:
+            bus.disconnect()
+            raise
+        self._bus = bus
+        self._properties = properties
 
 
 class AsyncReconnector:
@@ -119,6 +127,7 @@ class AsyncReconnector:
         self._delay_factory = delay_factory or self._retry_delay
         self._retry_task: asyncio.Task | None = None
         self._retry_counter = 0
+        self._retry_generation = 0
         self._enabled = False
 
     @property
@@ -173,53 +182,86 @@ class AsyncReconnector:
             return False
         delay = self._delay_factory(self._retry_counter)
         self._status_callback(f"Reconnecting in {delay:.1f} seconds…")
-        self._retry_task = asyncio.create_task(self._retry_after(delay))
+        generation = self._retry_generation
+        self._retry_task = asyncio.create_task(
+            self._retry_after(delay, generation)
+        )
         return True
 
-    async def _retry_after(self, delay: float) -> None:
+    async def _retry_after(self, delay: float, generation: int) -> None:
+        retry = False
         try:
             await asyncio.sleep(delay)
+            retry = await self._attempt_retry(generation)
         except asyncio.CancelledError:
             return
+        finally:
+            if self._retry_task is asyncio.current_task():
+                self._retry_task = None
+        if retry and self._retry_is_current(generation):
+            self._schedule_retry()
 
-        self._retry_task = None
-        if type(self._connector.current_state).__name__ != "Error":
-            self._reset()
-            return
+    async def _attempt_retry(self, generation: int) -> bool:
+        if not self._retry_is_current(generation):
+            return False
+
         if not await self._network_probe():
+            if not self._retry_is_current(generation):
+                return False
             self._retry_counter += 1
             self._status_callback("Waiting for network connectivity…")
-            self._schedule_retry()
-            return
+            return True
+        if not self._retry_is_current(generation):
+            return False
+
         if not await self._session_probe.is_unlocked():
+            if not self._retry_is_current(generation):
+                return False
             self._retry_counter += 1
             self._status_callback("Waiting for the Plasma session to unlock…")
-            self._schedule_retry()
-            return
+            return True
+        if not self._retry_is_current(generation):
+            return False
 
         connection = self._connector.current_connection
         if not connection:
             self._retry_counter += 1
             self._status_callback("Waiting for the previous VPN connection…")
-            self._schedule_retry()
-            return
+            return True
 
         try:
-            logical_server = self._refresher.server_list.get_by_id(connection.server_id)
+            logical_server = self._refresher.server_list.get_by_id(
+                connection.server_id
+            )
             vpn_server = self._connector.get_vpn_server(
                 logical_server, self._refresher.client_config
             )
+            if not self._retry_is_current(generation):
+                return False
             self._retry_counter += 1
             self._status_callback("Reconnecting…")
             await self._connector.connect(
                 vpn_server, connection.protocol, connection.backend
             )
+        except asyncio.CancelledError:
+            raise
         except Exception as error:
+            if not self._retry_is_current(generation):
+                return False
             logger.error("VPN reconnection failed (%s)", type(error).__name__)
             self._status_callback("Reconnection failed")
-            self._schedule_retry()
+            return True
+        return False
+
+    def _retry_is_current(self, generation: int) -> bool:
+        return (
+            self._enabled
+            and generation == self._retry_generation
+            and type(self._connector.current_state).__name__ == "Error"
+        )
 
     def _reset(self) -> None:
+        self._retry_generation += 1
         current_task = asyncio.current_task()
         if self._retry_task and self._retry_task is not current_task:
             self._retry_task.cancel()

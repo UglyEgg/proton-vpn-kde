@@ -126,6 +126,10 @@ int VpnController::maxConnections() const { return m_maxConnections; }
 bool VpnController::fido2Available() const { return m_fido2Available; }
 int VpnController::killSwitch() const { return m_killSwitch; }
 bool VpnController::busy() const { return m_busy; }
+bool VpnController::snapshotRefreshPending() const
+{
+    return m_snapshotRefreshPending;
+}
 bool VpnController::locationsBusy() const
 {
     return m_locationsBusy || m_countryRefreshPending
@@ -199,9 +203,11 @@ CustomDnsModel *VpnController::customDns() const { return m_customDns; }
 
 void VpnController::refresh()
 {
-    if (m_backendDestination.isEmpty()) {
+    if (m_backendDestination.isEmpty() || m_snapshotRefreshPending) {
         return;
     }
+    m_snapshotRefreshPending = true;
+    emit snapshotChanged();
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
         QString::fromLatin1(BackendDbus::objectPath),
@@ -209,6 +215,9 @@ void VpnController::refresh()
         QString::fromLatin1(BackendDbus::Method::getSnapshot));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
+    watcher->setProperty("backendGeneration",
+                         QVariant::fromValue<qulonglong>(m_backendGeneration));
+    watcher->setProperty("backendDestination", m_backendDestination);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSnapshotReply);
 }

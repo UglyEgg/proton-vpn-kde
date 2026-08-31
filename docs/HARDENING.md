@@ -81,6 +81,17 @@ the sender identity. Authorization and pending secret keys are revoked when
 the sender's unique name vanishes. Build-tree tests use an exact-owner pin that
 is ignored by installed root-owned executables.
 
+Successful authorization already verifies that the caller's unique D-Bus name
+is still owned. Frontend lifetime registration reuses that verified result
+instead of issuing a second asynchronous owner probe, then checks authorization
+again and rolls the lease back if owner loss raced registration. The fallback
+authorizer-free demo/test path retains its independent ownership probe.
+
+Read-only settings and protection replies are also scoped to the active account
+session. A logout or account transition advances the session generation and
+rejects late replies, preventing an old session from repopulating cleared
+frontend state even though the underlying methods do not mutate Core.
+
 Executable identity is appropriate for isolated project processes such as the
 Control Center and agent. It is not sufficient for a shared in-process plugin
 host, so `/usr/bin/krunner` is not a trusted backend client. The plugin sends

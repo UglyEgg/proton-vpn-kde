@@ -44,7 +44,7 @@ owner_reply="$(gdbus call --session \
 backend_owner="${owner_reply#*\'}"
 backend_owner="${backend_owner%%\'*}"
 
-if [[ "$page_name" == "overview-connected" ]]; then
+if [[ "$page_name" == *"-connected" ]]; then
     gdbus call --session \
         --dest quest.entropy.PlasmaVPN.Backend \
         --object-path /quest/entropy/PlasmaVPN/Backend \
@@ -64,7 +64,7 @@ if [[ "$page_name" == "overview-connected" ]]; then
         echo "Demo backend did not reach the connected state" >&2
         exit 1
     fi
-    page_name="overview"
+    page_name="${page_name%-connected}"
 fi
 
 env \

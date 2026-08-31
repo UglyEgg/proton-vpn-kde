@@ -152,6 +152,28 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         connector.connect.assert_awaited_once()
         await reconnector.disable()
 
+    async def test_disable_during_network_probe_cancels_pending_reconnect(self):
+        probe_started = asyncio.Event()
+        release_probe = asyncio.Event()
+
+        async def blocking_network_probe():
+            probe_started.set()
+            await release_probe.wait()
+            return True
+
+        reconnector, connector, _, _ = self.make_reconnector(
+            network_probe=blocking_network_probe
+        )
+
+        reconnector.enable()
+        await probe_started.wait()
+        await reconnector.disable()
+        release_probe.set()
+        await self.let_tasks_run()
+
+        self.assertFalse(reconnector.enabled)
+        connector.connect.assert_not_awaited()
+
     async def test_reconnection_exception_text_is_not_published_or_logged(self):
         reconnector, connector, _, messages = self.make_reconnector()
         sentinel = "credential=must-not-reach-snapshot /workspace/private.py"

@@ -1,24 +1,31 @@
 # Security and engineering assessment — 2026-08-30, refreshed 2026-08-31
 
-## Current release posture
+## Current assessment posture
 
-**No finding from either assessment remains open in the current 0.11.3 release
-candidate.** The original review found seven issues: one high, four medium, and
-two low severity. All seven were corrected, their original failure modes no
-longer reproduce in focused tests, and the 2026-08-31 release re-review found no
-new reportable issue.
+The public `0.11.3` baseline has no open finding from the assessments recorded
+in this document. The original review found seven issues: one high, four
+medium, and two low severity. All seven were corrected, their original failure
+modes no longer reproduce in focused tests, and the 2026-08-31 `0.11.3`
+re-review found no new reportable issue.
 
-The current source passes 36 of 36 native, QML, activation, packaging, and
-integration tests plus 130 backend tests. It also passes Mypy, Ruff,
-Clang-Tidy across all 34 production translation units, and the complete native
-test suite under address, leak, and undefined-behavior sanitizers. The most
-recent installed Fedora package, `0.11.2-29.fc44`, contains the 0.11.3 hotfix
-code and passed host-level RPM verification, normal Plasma D-Bus activation,
-KeePassXC session restoration, VPN connection and disconnection, and deliberate
-backend restart while the NetworkManager tunnel remained connected. Earlier
-`0.11.2-24.fc44` acceptance covered KeePassXC authentication and deliberate
-backend-service recovery; `0.11.2-8.fc44` acceptance covered unauthorized-call
-rejection and confirmation-gated KRunner requests.
+The unreleased `0.12.0` branch adds event-driven backend lifetime and an
+on-demand Connection Inspector. Its first six-part isolated review battery
+found three release-blocking lifecycle races. Those defects have been
+remediated with focused regressions, and the source currently passes 36 of 36
+CTest targets including 137 backend tests. **The `0.12.0` candidate remains
+explicitly not release-ready until six fresh isolated reviewers pass the
+remediated snapshot and the result is recorded below.**
+
+The public `0.11.3` source passed Mypy, Ruff, Clang-Tidy across all 34
+production translation units, and the complete native test suite under address,
+leak, and undefined-behavior sanitizers. The most recent installed Fedora
+package, `0.11.2-29.fc44`, contains the 0.11.3 hotfix code and passed host-level
+RPM verification, normal Plasma D-Bus activation, KeePassXC session restoration,
+VPN connection and disconnection, and deliberate backend restart while the
+NetworkManager tunnel remained connected. Earlier `0.11.2-24.fc44` acceptance
+covered KeePassXC authentication and deliberate backend-service recovery;
+`0.11.2-8.fc44` acceptance covered unauthorized-call rejection and
+confirmation-gated KRunner requests.
 
 The exact local `0.11.3-1.fc44` client RPM/SRPM and both pinned overlay
 RPM/SRPM pairs were subsequently built from committed release metadata. They
@@ -33,15 +40,51 @@ attestation, certification, or warranty of security.
 
 ## How to read this document
 
-- **Current release posture**, **Current controls**, **Verification**, and
-  **Residual risk** describe the current release candidate.
-- **Closed findings** is the authoritative status table. Every listed finding
-  is closed.
-- **Historical finding record** describes conditions observed in earlier
-  snapshots. Those descriptions are retained for traceability and must not be
-  read as current vulnerabilities.
+- **Current assessment posture** and **0.12.0 isolated review gate** describe
+  the unreleased branch and make its release decision explicit.
+- **Current controls**, **Verification**, and **Residual risk** describe the
+  source controls shared by the public baseline and current branch; versioned
+  package evidence is labeled separately.
+- **Historical finding record** is the authoritative status record for the
+  original seven security findings. Every listed finding is closed; the
+  retained descriptions concern earlier snapshots and must not be read as
+  current vulnerabilities.
 - Snapshot identifiers document what was reviewed; they are preserved in their
   tool-generated form and are not release signatures.
+
+## 0.12.0 isolated review gate
+
+Six reviewers inspect Hostile, Subtractive, Entropy, Error-Class,
+HPC/Performance, and Hardening/Security concerns independently. Reviewers do
+not receive another reviewer's findings or perform multiple legs sequentially.
+
+The first `0.12.0` battery was sealed against runtime commit `659ce23` and
+returned:
+
+| Review | Initial result | Release-relevant outcome |
+| --- | --- | --- |
+| Hostile | Fail | Late settings reads could cross logout; an agent connection could proceed without a current accepted recovery policy. |
+| Subtractive | Pass | No release blocker; identified small duplicate checks and presentation helpers. |
+| Entropy | Pass | No release blocker; identified documentation and duplicated-label drift. |
+| Error-Class | Fail | A retry could outlive cancellation while waiting for network or session readiness. |
+| HPC/Performance | Pass | No release blocker; requested refresh coalescing and stronger Inspector retention evidence. |
+| Hardening/Security | Pass | No reportable vulnerability; a separate validator classified the unprivileged ephemeral pull-request overlay build as informational under its current authority. |
+
+A formal standard security scan of the 282 tracked files at `659ce23`
+(`c22625ca-b71e-4198-b443-c1d29e1c5d19`) also completed all configured surfaces
+with zero reportable findings. That scan predates the lifecycle remediations;
+the fresh Hardening/Security leg below must therefore review the remediated
+snapshot before this gate can close.
+
+The remediation scopes asynchronous settings replies to an account-session
+generation, keeps retry cancellation live through every readiness await,
+requires the resident agent to apply the current recovery policy before a
+connection action, coalesces Inspector snapshot refreshes, cleans partial
+logind initialization, and reuses the authorizer's owner verification for
+frontend lifetime registration. Focused regressions cover each release blocker.
+
+**Final result:** pending six fresh isolated reviews of the remediated snapshot.
+This pending line is a release gate, not an open vulnerability claim.
 
 ## Scope
 
@@ -190,7 +233,7 @@ The current remediated tree passed:
 - 36 of 36 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 130 backend Python tests;
+- 137 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;
@@ -275,7 +318,7 @@ These tests found no material regression from the reconnect or security
 controls. They are not live connected-session measurements; full methodology
 is in [Performance](PERFORMANCE.md).
 
-## Holistic review result
+## Public 0.11.3 holistic review result
 
 The complete Hostile, Subtractive, Entropy, Error-Class, HPC/Performance, and
 Hardening/Security battery was repeated on 2026-08-31 for the 0.11.3 release
@@ -316,7 +359,7 @@ exact source archive; assessment digests are not release signatures.
 Public failures use a bounded, stable vocabulary. The review checked resource
 and state postconditions in addition to exception types, including stale
 signed-in state after backend loss and the bounded manual service retry. No
-current release-blocking error-class defect remained.
+public-baseline release-blocking error-class defect remained.
 
 ### HPC and performance
 
@@ -381,8 +424,8 @@ systemd heuristic score remain documented in [Hardening](HARDENING.md).
 
 ## 2026-08-31 release re-review record
 
-This record describes the current no-findings re-review. It is separate from
-the historical finding record below.
+This record describes the public `0.11.3` no-findings re-review. It is separate
+from the unreleased `0.12.0` gate above and the historical finding record below.
 
 | Field | Release re-review |
 | --- | --- |
@@ -406,7 +449,8 @@ maintainer-directed, AI-assisted assessment rather than an independent audit.
 ## Historical finding record — all closed
 
 This section records what the assessment found before remediation. Every entry
-below is closed in the current release candidate.
+below is closed in the public `0.11.3` baseline and remains covered by current
+regression tests.
 
 ### PV-SEC-001 — Substituted backend identity
 

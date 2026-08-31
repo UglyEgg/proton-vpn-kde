@@ -127,7 +127,11 @@ void VpnController::onServiceUnregistered(const QString &)
     setBackendAvailable(false);
     m_ready = false;
     m_startupCompatible = true;
+    if (m_loggedIn) {
+        ++m_sessionGeneration;
+    }
     m_loggedIn = false;
+    m_snapshotRefreshPending = false;
     m_authState = QStringLiteral("signed_out");
     m_accountName.clear();
     m_planTitle.clear();

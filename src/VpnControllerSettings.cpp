@@ -40,6 +40,8 @@ void VpnController::loadSettings()
         QString::fromLatin1(BackendDbus::Method::getSettings));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 10000), this);
+    watcher->setProperty("sessionGeneration",
+                         QVariant::fromValue<qulonglong>(m_sessionGeneration));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSettingsReply);
 }
@@ -108,6 +110,8 @@ void VpnController::updateSetting(const QString &name, const QVariant &value)
     message << patchJson;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    watcher->setProperty("sessionGeneration",
+                         QVariant::fromValue<qulonglong>(m_sessionGeneration));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSettingsReply);
 }
@@ -127,6 +131,8 @@ void VpnController::loadSplitTunneling()
         QString::fromLatin1(BackendDbus::Method::getSplitTunneling));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 10000), this);
+    watcher->setProperty("sessionGeneration",
+                         QVariant::fromValue<qulonglong>(m_sessionGeneration));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSplitTunnelingReply);
 }
@@ -198,6 +204,8 @@ void VpnController::updateSplitTunneling(const QString &name,
     message << patchJson;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    watcher->setProperty("sessionGeneration",
+                         QVariant::fromValue<qulonglong>(m_sessionGeneration));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSplitTunnelingReply);
 }
@@ -307,6 +315,8 @@ void VpnController::loadCustomDns()
         QString::fromLatin1(BackendDbus::Method::getCustomDns));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 10000), this);
+    watcher->setProperty("sessionGeneration",
+                         QVariant::fromValue<qulonglong>(m_sessionGeneration));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleCustomDnsReply);
 }
@@ -369,6 +379,8 @@ void VpnController::updateCustomDns(const QString &name,
     message << patchJson;
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 30000), this);
+    watcher->setProperty("sessionGeneration",
+                         QVariant::fromValue<qulonglong>(m_sessionGeneration));
     watcher->setProperty("changedWhileConnected",
                          m_state == QStringLiteral("connected")
                              || m_state == QStringLiteral("connecting"));
@@ -424,8 +436,13 @@ QString VpnController::applicationName(const QString &executable) const
 
 void VpnController::handleSettingsReply(QDBusPendingCallWatcher *watcher)
 {
+    const auto sessionGeneration = watcher->property(
+        "sessionGeneration").toULongLong();
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
+    if (sessionGeneration != m_sessionGeneration || !m_loggedIn) {
+        return;
+    }
     m_settings->setBusy(false);
     if (reply.isError()) {
         if (reply.error().name()
@@ -450,8 +467,13 @@ void VpnController::handleSettingsReply(QDBusPendingCallWatcher *watcher)
 void VpnController::handleSplitTunnelingReply(
     QDBusPendingCallWatcher *watcher)
 {
+    const auto sessionGeneration = watcher->property(
+        "sessionGeneration").toULongLong();
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
+    if (sessionGeneration != m_sessionGeneration || !m_loggedIn) {
+        return;
+    }
     m_splitTunneling->setBusy(false);
     if (reply.isError()) {
         if (reply.error().name()
@@ -477,10 +499,15 @@ void VpnController::handleSplitTunnelingReply(
 
 void VpnController::handleCustomDnsReply(QDBusPendingCallWatcher *watcher)
 {
+    const auto sessionGeneration = watcher->property(
+        "sessionGeneration").toULongLong();
     const bool changedWhileConnected = watcher->property(
         "changedWhileConnected").toBool();
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
+    if (sessionGeneration != m_sessionGeneration || !m_loggedIn) {
+        return;
+    }
     m_customDns->setBusy(false);
     if (reply.isError()) {
         if (reply.error().name()

@@ -4,7 +4,9 @@
 #include "AgentVpnClient.h"
 
 #include <QDBusConnection>
+#include <QDBusContext>
 #include <QDBusConnectionInterface>
+#include <QDBusError>
 #include <QtTest>
 #include <memory>
 
@@ -13,7 +15,7 @@ namespace
 constexpr auto kBackendService = "quest.entropy.PlasmaVPN.Backend";
 constexpr auto kBackendPath = "/quest/entropy/PlasmaVPN/Backend";
 
-class AgentBackend final : public QObject
+class AgentBackend final : public QObject, protected QDBusContext
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "quest.entropy.PlasmaVPN.Backend1")
@@ -29,17 +31,44 @@ public:
     int serverCalls = 0;
     int groupCalls = 0;
     int disconnectCalls = 0;
+    bool failReconnection = false;
     QString state = QStringLiteral("disconnected");
     QString lastTarget;
     QStringList lastFeatures;
     QString lastGroupKind;
     QString lastGroupName;
 
+    void resetCounters()
+    {
+        authorizationCalls = 0;
+        registrationCalls = 0;
+        unregistrationCalls = 0;
+        reconnectCalls = 0;
+        fastestCalls = 0;
+        filteredFastestCalls = 0;
+        countryCalls = 0;
+        serverCalls = 0;
+        groupCalls = 0;
+        disconnectCalls = 0;
+        state = QStringLiteral("disconnected");
+        lastTarget.clear();
+        lastFeatures.clear();
+        lastGroupKind.clear();
+        lastGroupName.clear();
+    }
+
 public slots:
     void AuthorizeClient(const QString &) { ++authorizationCalls; }
     void RegisterClient(const QString &) { ++registrationCalls; }
     void UnregisterClient(const QString &) { ++unregistrationCalls; }
-    void SetReconnectionEnabled(bool) { ++reconnectCalls; }
+    void SetReconnectionEnabled(bool)
+    {
+        ++reconnectCalls;
+        if (failReconnection) {
+            sendErrorReply(QDBusError::Failed,
+                           QStringLiteral("reconnection policy failed"));
+        }
+    }
 
     QString GetSnapshot() const
     {
@@ -94,6 +123,7 @@ class AgentVpnClientTest final : public QObject
 private slots:
     void initTestCase();
     void cleanupTestCase();
+    void failedReconnectionPolicyBlocksQueuedConnect();
     void observesLeaseFreeAndUsesTransientActionLeases();
 
 private:
@@ -132,8 +162,37 @@ void AgentVpnClientTest::cleanupTestCase()
         QStringLiteral("agent-client-test-backend"));
 }
 
+void AgentVpnClientTest::failedReconnectionPolicyBlocksQueuedConnect()
+{
+    m_backend.failReconnection = true;
+    const int reconnectBaseline = m_backend.reconnectCalls;
+    const int registrationBaseline = m_backend.registrationCalls;
+    const int unregistrationBaseline = m_backend.unregistrationCalls;
+    AgentVpnClient client;
+    QTRY_VERIFY_WITH_TIMEOUT(client.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.loggedIn(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        m_backend.reconnectCalls > reconnectBaseline, 2000);
+
+    client.connectTarget(QStringLiteral("FASTEST"));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        m_backend.reconnectCalls > reconnectBaseline + 1, 2000);
+    QTest::qWait(50);
+    QCOMPARE(m_backend.fastestCalls, 0);
+    QCOMPARE(m_backend.registrationCalls, registrationBaseline + 1);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.unregistrationCalls, unregistrationBaseline + 1, 2000);
+
+    m_backend.failReconnection = false;
+    client.connectTarget(QStringLiteral("FASTEST"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.fastestCalls, 1, 2000);
+}
+
 void AgentVpnClientTest::observesLeaseFreeAndUsesTransientActionLeases()
 {
+    m_backend.failReconnection = false;
+    m_backend.resetCounters();
     AgentVpnClient client;
     QTRY_VERIFY_WITH_TIMEOUT(client.backendAvailable(), 2000);
     QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
