@@ -43,6 +43,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
+      - name: Trust the container workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Build provider-neutral keyring overlay
         run: |
           packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
