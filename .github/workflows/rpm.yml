@@ -23,6 +23,7 @@ jobs:
     env:
       RPM_TOPDIR: ${{ github.workspace }}/rpm-build
       KEYRING_RPM_TOPDIR: ${{ github.workspace }}/keyring-rpm-build
+      RELEASE_ARTIFACT_DIR: ${{ github.workspace }}/release-artifacts
 
     steps:
       - name: Install RPM build dependencies
@@ -101,15 +102,40 @@ jobs:
           rpm -Uvh --test --nodeps --ignoresize \
             "${keyring_rpms[0]}" "${binary_rpms[0]}"
 
+      - name: Stage release artifacts
+        run: |
+          mapfile -t binary_rpms < <(
+            find "$RPM_TOPDIR/RPMS" -type f -name 'proton-vpn-kde-[0-9]*.rpm' -print
+          )
+          mapfile -t source_rpms < <(
+            find "$RPM_TOPDIR/SRPMS" -type f -name 'proton-vpn-kde-*.src.rpm' -print
+          )
+          mapfile -t keyring_rpms < <(
+            find "$KEYRING_RPM_TOPDIR/RPMS" -type f \
+              -name 'python3-proton-keyring-linux-*.noarch.rpm' -print
+          )
+          mapfile -t keyring_source_rpms < <(
+            find "$KEYRING_RPM_TOPDIR/SRPMS" -type f \
+              -name 'python3-proton-keyring-linux-*.src.rpm' -print
+          )
+          [[ ${#binary_rpms[@]} -eq 1 ]]
+          [[ ${#source_rpms[@]} -eq 1 ]]
+          [[ ${#keyring_rpms[@]} -eq 1 ]]
+          [[ ${#keyring_source_rpms[@]} -eq 1 ]]
+          install -d -m 0755 "$RELEASE_ARTIFACT_DIR"
+          install -m 0644 \
+            "${binary_rpms[0]}" \
+            "${source_rpms[0]}" \
+            "${keyring_rpms[0]}" \
+            "${keyring_source_rpms[0]}" \
+            "$RELEASE_ARTIFACT_DIR/"
+          [[ $(find "$RELEASE_ARTIFACT_DIR" -maxdepth 1 -type f -name '*.rpm' | wc -l) -eq 4 ]]
+
       - name: Upload RPM artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: proton-vpn-kde-fedora-44
-          path: |
-            ${{ env.RPM_TOPDIR }}/RPMS/**/*.rpm
-            ${{ env.RPM_TOPDIR }}/SRPMS/*.rpm
-            ${{ env.KEYRING_RPM_TOPDIR }}/RPMS/**/*.rpm
-            ${{ env.KEYRING_RPM_TOPDIR }}/SRPMS/*.rpm
+          path: ${{ env.RELEASE_ARTIFACT_DIR }}
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
