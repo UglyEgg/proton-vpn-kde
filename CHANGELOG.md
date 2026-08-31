@@ -16,6 +16,8 @@ No changes yet.
   extracting dialogs and independent settings sections with explicit inputs.
 - Split native location models and controller lifecycle/snapshot handling into
   cohesive implementation units without changing their QML-facing types.
+- Add a reproducible, isolated demo-stack PSS measurement and refresh the
+  search benchmark after the maintainability decomposition.
 - Reactivate the backend after an unexpected service exit and explain when a
   Control Center left open across an RPM upgrade must be restarted.
 - Make tray shutdown explicit and wait for Proton Core to confirm a disconnect
@@ -32,8 +34,8 @@ No changes yet.
   orchestration while retaining the existing Python import surface.
 - Isolate the deterministic demo adapter from the official Core adapter while
   preserving the established adapter import facade.
-- Reconcile the public documentation with the final installed `0.11.2-24`
-  acceptance evidence and remove stale development-milestone wording.
+- Reconcile the public documentation with the installed `0.11.2-26`
+  acceptance evidence and repository-built provider-neutral keyring package.
 - Keep Clang-Tidy focused on project source regardless of build-directory name
   by excluding Qt-generated `_autogen` headers explicitly.
 - Add a reproducible Fedora rebuild of Proton's keyring adapter with the

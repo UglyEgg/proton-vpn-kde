@@ -9,12 +9,13 @@ longer reproduce in focused tests.
 
 The current source passes 36 of 36 native, QML, activation, packaging, and
 integration tests plus 130 backend tests. The most recent locally built Fedora
-package, `0.11.2-24.fc44`, passed its complete `%check` and artifact-policy
-battery, installed cleanly, authenticated through KeePassXC, and recovered its
-Control Center lease and signed-in state after a deliberately stopped backend
-service was automatically reactivated. Earlier `0.11.2-8.fc44` acceptance also
-covered unauthorized-call rejection, confirmation-gated KRunner requests, and
-live VPN connection and disconnection.
+package, `0.11.2-26.fc44`, passed its complete `%check` and artifact-policy
+battery, installed cleanly, passed host-level RPM verification, launched
+through its normal Plasma D-Bus activation path, and completed maintainer
+acceptance of the intended client workflows. Earlier `0.11.2-24.fc44`
+acceptance covered KeePassXC authentication and deliberate backend-service
+recovery; `0.11.2-8.fc44` acceptance covered unauthorized-call rejection,
+confirmation-gated KRunner requests, and live VPN connection and disconnection.
 
 The final public artifact must still be rebuilt from the exact clean release
 commit, complete the full packaged acceptance checklist, and be signed. The
@@ -33,8 +34,8 @@ attestation, certification, or warranty of security.
 - **Historical finding record** describes conditions observed in earlier
   snapshots. Those descriptions are retained for traceability and must not be
   read as current vulnerabilities.
-- Snapshot identifiers document what was reviewed; they are not release
-  signatures.
+- Snapshot identifiers document what was reviewed; they are preserved in their
+  tool-generated form and are not release signatures.
 
 ## Scope
 
@@ -201,34 +202,40 @@ and KRunner cannot call the backend directly.
 
 ### Packaged Fedora acceptance
 
-The locally built `proton-vpn-kde-0.11.2-24.fc44.x86_64` package passed:
+The locally built `proton-vpn-kde-0.11.2-26.fc44.x86_64` package passed:
 
 - all 130 backend tests and all 36 CTest tests during RPM `%check`;
 - RPM payload, dependency, root ownership, mode, systemd, D-Bus activation,
   community-reporting gate, digest, and transaction inspection;
-- backend activation with KeePassXC owning `org.freedesktop.secrets` and
-  `python3-proton-keyring-linux-0.2.3-4.codex1` installed;
-- ready, signed-in, disconnected startup without the official desktop client;
+- installation and host-level RPM verification with the repository-built
+  `python3-proton-keyring-linux-0.2.3-4.plasmavpn1` package installed;
+- normal D-Bus activation of the Control Center, backend, and resident agent;
   and
-- automatic backend reactivation, Control Center and agent reauthorization,
-  lease restoration beyond the disconnected idle timeout, and return to a
-  ready, signed-in, disconnected state after a deliberate service stop.
+- maintainer acceptance of the intended client behavior after the internal
+  adapter, QML, location-model, and controller decomposition.
+
+The earlier `0.11.2-24.fc44` package authenticated with KeePassXC owning
+`org.freedesktop.secrets`, reached ready signed-in disconnected state without
+the official desktop client, and verified automatic backend reactivation,
+client reauthorization, lease restoration, and return to ready state after a
+deliberate service stop.
 
 The earlier `0.11.2-8.fc44` security-remediation package additionally passed an
 unauthorized `UpdateSettings` rejection and confirmation-gated KRunner
 connection and disconnection, with NetworkManager returning to a disconnected
 state. Those earlier observations remain historical evidence; they are not
-represented as a fresh `-24` connection test.
+represented as a fresh `-26` connection test.
 
-This was scoped acceptance of the security remediation, not a substitute for
-the complete exact-release checklist in [Releasing](RELEASING.md).
+This remains release-candidate evidence, not a substitute for signing the exact
+tagged artifacts and completing the publication steps in
+[Releasing](RELEASING.md).
 
 ### Performance regression check
 
-An isolated disconnected demo stack measured 25.2 MiB backend PSS, 4.5 MiB
-resident-agent PSS, and 52.9 MiB Control Center PSS: 82.5 MiB combined. The
+An isolated disconnected demo stack measured 21.9 MiB backend PSS, 5.5 MiB
+resident-agent PSS, and 53.8 MiB Control Center PSS: 81.2 MiB combined. The
 current server-search projection retained about 2.63 MiB of traced allocation,
-and measured query medians remained between 0.215 ms and 6.766 ms. These tests
+and measured query medians remained between 0.207 ms and 5.283 ms. These tests
 found no material regression from the security controls. They are not live
 connected-session measurements; full methodology is in
 [Performance](PERFORMANCE.md).
@@ -415,7 +422,7 @@ prove that KRunner cannot authenticate to or call the backend directly.
 
 The working tree contained a coherent uncommitted release-candidate change set,
 so the base revision alone does not identify either assessed snapshot. The
-later KRunner correction and packaged `0.11.2-8` and `0.11.2-24` acceptance
-occurred after the sealed re-audit snapshot and are identified by current
-source, tests, and package evidence rather than by rewriting that historical
-digest.
+later KRunner correction and packaged acceptance for `0.11.2-8`, `0.11.2-24`,
+and `0.11.2-26` occurred after the sealed re-audit snapshot and are identified
+by current source, tests, and package evidence rather than by rewriting that
+historical digest.

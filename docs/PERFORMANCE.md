@@ -68,28 +68,28 @@ stack settled at:
 
 | Process | PSS | RSS |
 | --- | ---: | ---: |
-| Python backend | 25,797 KiB | 34,180 KiB |
-| Resident Plasma agent | 4,559 KiB | 32,448 KiB |
-| Control Center | 54,139 KiB | 107,724 KiB |
-| **Combined** | **84,495 KiB (82.5 MiB)** | Not additive for shared pages |
+| Python backend | 22,410 KiB | 34,196 KiB |
+| Resident Plasma agent | 5,646 KiB | 32,768 KiB |
+| Control Center | 55,096 KiB | 111,492 KiB |
+| **Combined** | **83,152 KiB (81.2 MiB)** | Not additive for shared pages |
 
 This is below the earlier 86.0 MiB post-remediation result and the 90.6 MiB
 pre-remediation source result. It is an isolated disconnected/demo measurement,
 not a claim about a live connected Core session.
 
-The current cache was 24,342,679 bytes, with 18,138 logical servers and 200
-locations. Projection construction plus its first query took 121.415 ms. The
-projection retained 2,629,663 bytes of traced allocation and peaked at
-5,267,624 bytes while building.
+The current cache was 24,342,965 bytes, with 18,138 logical servers and 200
+locations. Projection construction plus its first query took 114.788 ms. The
+projection retained 2,629,039 bytes of traced allocation and peaked at
+5,267,088 bytes while building.
 
 | Query | Median | p95 | Maximum |
 | --- | ---: | ---: | ---: |
-| `ch` | 1.294 ms | 2.280 ms | 2.742 ms |
-| `zur` | 0.780 ms | 2.131 ms | 2.554 ms |
-| `us-` | 0.410 ms | 0.844 ms | 0.967 ms |
-| `#1` | 0.215 ms | 0.320 ms | 0.348 ms |
-| `a` | 6.766 ms | 7.856 ms | 9.195 ms |
-| no match | 0.343 ms | 0.793 ms | 1.178 ms |
+| `ch` | 1.197 ms | 1.441 ms | 1.788 ms |
+| `zur` | 0.762 ms | 1.066 ms | 3.036 ms |
+| `us-` | 0.415 ms | 0.573 ms | 0.590 ms |
+| `#1` | 0.207 ms | 0.223 ms | 0.343 ms |
+| `a` | 5.283 ms | 5.721 ms | 7.975 ms |
+| no match | 0.268 ms | 0.481 ms | 0.959 ms |
 
 Each row used 50 iterations against the existing local cache. A separate
 visual-startup timing attempt was discarded because the isolated session lacked
@@ -106,3 +106,16 @@ PYTHONPATH=backend /usr/bin/python3 scripts/benchmark-search.py --iterations 50
 
 The report includes only cache size, aggregate counts, timing, allocation, and
 result counts. It does not print server names, cache contents, or account data.
+
+Measure the disconnected demo processes from an existing build:
+
+```bash
+scripts/measure-demo-memory.sh build
+```
+
+The script starts the deterministic backend, resident agent, and Control Center
+on an isolated session bus with temporary configuration and an offscreen Qt
+platform. It samples `/proc` after a five-second settling period, then removes
+the isolated processes and state. PSS varies with the allocator, Qt/KDE package
+versions, and the host page cache; it is a regression measurement rather than a
+fixed product requirement.
