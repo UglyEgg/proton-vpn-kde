@@ -54,7 +54,7 @@ KRunner actions, and VPN connection and disconnection.
 | Proton VPN API Core | 5.6.10 |
 | Proton keyring adapter | 0.2.3-4.plasmavpn1 repository rebuild |
 | Proton VPN daemon | 0.13.8 |
-| Plasma client | 0.11.2 (`0.11.2-26.fc44` release candidate) |
+| Plasma client | 0.11.2 (live acceptance package: `0.11.2-26.fc44`) |
 
 Downstream package release suffixes are not part of the runtime compatibility
 contract.
@@ -75,6 +75,6 @@ contract.
 - Other distributions are community experiments until their packaging and
   lifecycle behavior have independent acceptance evidence.
 
-The final public artifact must repeat the release procedure from its exact
-clean, tagged source. Version bounds describe tested compatibility, not a
-security-support promise for Proton's service or packages.
+Every public artifact must repeat the release procedure from its exact clean,
+tagged source. Version bounds describe tested compatibility, not a security-
+support promise for Proton's service or packages.

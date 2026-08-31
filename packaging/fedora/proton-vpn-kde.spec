@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.11.2
-Release:        27%{?dist}
+Release:        28%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -120,6 +120,12 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-28
+- Finalize the public-alpha release metadata.
+- Run Fedora CI as an unprivileged builder and stage the complete client and
+  provider-neutral keyring binary/source artifact set.
+- Make QML smoke tests independent of X11 and legacy GitHub Actions runtimes.
+
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-27
 - Refresh exact release-candidate acceptance and performance evidence.
 - Add a reproducible isolated demo-stack memory measurement.

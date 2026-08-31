@@ -60,7 +60,7 @@ An exact comparison with the previous implementation produced identical result
 fields and ordering for 12 representative location, exact-server, feature,
 broad, punctuation, and no-match queries.
 
-## Current 0.11.2 release-candidate measurement
+## Current 0.11.2 release measurement
 
 The public-release battery repeated the measurements after the authorization,
 diagnostic-bound, and capture-lifecycle hardening. An isolated offscreen demo

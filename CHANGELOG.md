@@ -9,6 +9,11 @@ No changes yet.
 
 ## [0.11.2] - 2026-08-30
 
+- Run Fedora CI and RPM builds as an unprivileged builder and retain the exact
+  client and provider-neutral keyring binary/source package set from one
+  verified release-artifact directory.
+- Run GUI smoke tests through the offscreen software backend with an explicit
+  UTF-8 locale and pin GitHub Actions to their Node 24-based releases.
 - Decompose the official-Core adapter into focused compatibility, protocol,
   server, settings, snapshot, support, and packet-capture modules while
   preserving the established `ProtonCoreAdapter` API.

@@ -72,7 +72,7 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 ## Engineering posture
 
-| Evidence | Current 0.11.2 release candidate |
+| Evidence | Current 0.11.2 release evidence |
 | --- | --- |
 | Automated verification | 36/36 CTest tests, including 130 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and a measured 75% backend branch-coverage floor |
 | Integration verification | QML diagnostics, D-Bus activation, staged installation, KRunner, and System Settings |

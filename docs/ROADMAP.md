@@ -9,23 +9,10 @@ protocols, NetworkManager integration, kill switch, IPv6 leak protection,
 split tunneling, server selection, and session persistence. A Core change is an
 independent upstream contribution, not a hidden part of this client.
 
-## First public alpha
-
-- Build the provider-neutral Proton keyring source and binary RPMs from their
-  pinned manifest, verify the declared capability, and publish them beside the
-  client until an equivalent upstream package is accepted and verified.
-- Build the source RPM and binary RPM from the exact clean release commit with
-  `%check` enabled.
-- Repeat the packaged Fedora 44 acceptance checklist, including installation,
-  KeePassXC session access, server browsing, settings, connect/disconnect,
-  KRunner confirmation, resident-agent lifetime, and clean shutdown.
-- Verify artifact ownership, dependencies, hardening, checksums, and signatures;
-  then publish the source RPM beside the binary RPM.
-- Publish the repository with its unofficial status and support boundary
-  prominent, then send Proton a concise engineering introduction.
-
 ## Post-release stabilization
 
+- Send Proton a concise engineering introduction after the public tag and
+  signed Fedora artifacts are available for review.
 - Triage public-alpha reports against the documented support boundary and add
   regression coverage before changing behavior.
 - Keep the compatibility matrix current as Proton Core, Fedora, Qt, and KDE
