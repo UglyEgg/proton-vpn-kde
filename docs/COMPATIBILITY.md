@@ -43,10 +43,14 @@ claim that stock Proton 0.2.3 supports KeePassXC correctly.
 
 ## Last verified installed stack
 
-On 2026-08-30 the source and packaged trust-boundary checks used the following
+On 2026-08-31 the source and packaged trust-boundary checks used the following
 stack. Live acceptance covered D-Bus and systemd activation, KeePassXC Secret
 Service integration, rejection of an unauthorized mutation, confirmation-gated
-KRunner actions, and VPN connection and disconnection.
+KRunner actions, VPN connection and disconnection, and deliberate backend
+restart while the NetworkManager tunnel remained connected. A subsequent live
+suspend/resume cycle produced one expected connection timeout while the wired
+link reacquired DHCP, then recreated the Protun profile without requesting a
+secret and restored the IPv4, IPv6, DNS, and kill-switch state automatically.
 
 | Component | Verified version |
 | --- | --- |
@@ -54,10 +58,16 @@ KRunner actions, and VPN connection and disconnection.
 | Proton VPN API Core | 5.6.10 |
 | Proton keyring adapter | 0.2.3-4.plasmavpn1 repository rebuild |
 | Proton VPN daemon | 0.13.8 |
-| Plasma client | 0.11.2 (live acceptance package: `0.11.2-26.fc44`) |
+| Plasma client | `0.11.2-29.fc44` (0.11.3 hotfix code) |
 
 Downstream package release suffixes are not part of the runtime compatibility
 contract.
+
+Separately, the exact `0.11.3-1.fc44` client binary and source RPMs were built
+from committed release metadata and passed their complete `%check`, artifact
+policy, combined-overlay transaction, and ELF-hardening inspections. They were
+not installed during this battery; the installed `0.11.2-29.fc44` package is
+the live acceptance evidence.
 
 ## Compatibility policy
 
@@ -70,8 +80,11 @@ contract.
   settings checks succeed.
 - The client must fail with bounded guidance when a required public API is
   absent; it must not guess at networking behavior.
-- Optional memory optimizations are detected by behavior and never gate VPN
-  functionality.
+- Optional string-sharing optimizations are detected by behavior and never
+  gate VPN functionality. The Fedora Core overlay's separate Protun
+  secret-ownership patch is a version-pinned Plasma interoperability fix and
+  must pass unsaved-profile, disconnect-cleanup, reconnect, and suspend/resume
+  acceptance before release.
 - Other distributions are community experiments until their packaging and
   lifecycle behavior have independent acceptance evidence.
 

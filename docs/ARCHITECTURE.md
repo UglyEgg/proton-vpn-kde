@@ -224,5 +224,8 @@ the KCM, agent, and Control Center.
 - Closing the Control Center never disconnects an active tunnel.
 - KRunner and other shared plugin hosts are not trusted backend clients.
 - The GUI never issues direct NetworkManager mutations.
-- Optional representation-only Core memory optimizations never gate VPN or
-  account behavior.
+- Optional Core string-sharing optimizations never gate VPN or account
+  behavior. The separately verified Fedora Core overlay also changes Protun's
+  transient-key ownership inside its existing unsaved NetworkManager profile;
+  that Plasma interoperability behavior is version-pinned and tested rather
+  than described as representation-only.

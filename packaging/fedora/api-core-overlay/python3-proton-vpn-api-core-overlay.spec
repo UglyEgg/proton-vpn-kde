@@ -7,7 +7,7 @@
 
 Name:           python3-proton-vpn-api-core
 Version:        5.6.10
-Release:        6.plasmavpn1%{?dist}
+Release:        8.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
@@ -15,13 +15,27 @@ Vendor:         Proton AG <opensource@proton.me>
 Source0:        python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64.rpm
 Source1:        overlay-manifest.json
 Source2:        rebuild_overlay.py
+Source3:        protonvpn-fedora-44-public-key.asc
 Patch0:         0001-share-repeated-server-endpoint-strings.patch
 Patch1:         0002-share-server-strings-during-cache-decoding.patch
 Patch2:         0003-avoid-deprecated-fido2-capability-query.patch
+Patch3:         0004-keep-protun-private-key-ephemeral.patch
 
 BuildRequires:  cpio
+BuildRequires:  NetworkManager-libnm
 BuildRequires:  patch
 BuildRequires:  python3
+BuildRequires:  python3-devel
+BuildRequires:  python3-dbus-fast
+BuildRequires:  python3-distro
+BuildRequires:  python3-fido2
+BuildRequires:  python3-gobject
+BuildRequires:  python3-jinja2
+BuildRequires:  python3-packaging
+BuildRequires:  python3-proton-core >= 0.5.0
+BuildRequires:  python3-pynacl
+BuildRequires:  python3-pyxdg
+BuildRequires:  python3-sentry-sdk
 BuildRequires:  rpm
 
 Requires:       NetworkManager
@@ -43,6 +57,7 @@ Provides:       python-proton-vpn-api-core = %{version}-%{release}
 Provides:       python3.14-proton-vpn-api-core = %{version}-%{release}
 Provides:       python3.14dist(proton-vpn-api-core) = %{version}
 Provides:       python3dist(proton-vpn-api-core) = %{version}
+Provides:       proton-vpn-api-core-plasma-protun-secret = 1
 
 Conflicts:      proton-vpn-cli < 1.0.1~rc1
 Conflicts:      proton-vpn-gtk-app < 4.17.1~rc10
@@ -59,16 +74,20 @@ Obsoletes:      python3-proton-vpn-network-manager
 Obsoletes:      python3-proton-vpn-session
 
 %description
-Proton's signed Fedora 5.6.10 API Core payload with two narrowly verified
-representation-only patches that share repeated immutable server strings and
-one diagnostic-hygiene patch that avoids a deprecated FIDO2 capability query.
-The build fails unless the vendor RPM, patch hashes, changed path set, and
-resulting installed-file hashes exactly match the checked-in manifest.
+Proton's signed Fedora 5.6.10 API Core payload with narrowly verified memory,
+diagnostic-hygiene, and Plasma interoperability patches. The Protun WireGuard
+private key remains an unsaved per-connection secret rather than being
+delegated to a desktop keyring. NetworkManager holds it only for the lifetime
+of the unsaved connection, including root-only volatile runtime storage when
+NetworkManager materializes the profile under /run. The build fails unless the
+vendor RPM, patch hashes, changed path set, and resulting installed-file hashes
+exactly match the checked-in manifest.
 
 %prep
 %{python3} %{SOURCE2} prepare \
     --manifest %{SOURCE1} \
     --vendor-rpm %{SOURCE0} \
+    --signing-key %{SOURCE3} \
     --source-directory %{_sourcedir} \
     --baseline-root vendor-rootfs \
     --overlay-root overlay-rootfs
@@ -123,6 +142,11 @@ fi
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-8.plasmavpn1
+- Keep Protun's key system-owned inside its unsaved NetworkManager profile.
+- Pass the supplied key directly without requiring a desktop secret agent.
+- Retain the existing connection-scoped, volatile profile lifecycle.
+
 * Sat Aug 29 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-6.plasmavpn1
 - Reconstruct the overlay from Proton's exact signed Fedora payload.
 - Verify the vendor, patch, path-set, and resulting installed-file hashes.

@@ -43,6 +43,8 @@ def _load_manifest(path: Path) -> dict[str, Any]:
         raise OverlayError("Unsupported overlay manifest schema")
     if not isinstance(manifest.get("vendor"), dict):
         raise OverlayError("Overlay manifest has no vendor record")
+    if not isinstance(manifest["vendor"].get("signingKey"), dict):
+        raise OverlayError("Overlay manifest has no vendor signing-key record")
     if not isinstance(manifest.get("overlay"), dict):
         raise OverlayError("Overlay manifest has no overlay record")
     return manifest
@@ -66,9 +68,12 @@ def _run(
     cwd: Path | None = None,
     input_data: bytes | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
+    environment = os.environ.copy()
+    environment.update({"LC_ALL": "C", "TZ": "UTC"})
     process = subprocess.run(
         arguments,
         cwd=cwd,
+        env=environment,
         input=input_data,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -104,7 +109,26 @@ def _rpm_fields(path: Path) -> dict[str, str]:
     )
 
 
-def verify_vendor_rpm(manifest: dict[str, Any], vendor_rpm: Path) -> None:
+def _verify_vendor_signing_key(
+    manifest: dict[str, Any], signing_key: Path
+) -> None:
+    expected = manifest["vendor"]["signingKey"]
+    if signing_key.name != expected["filename"]:
+        raise OverlayError(
+            f"Expected vendor signing key {expected['filename']}, "
+            f"got {signing_key.name}"
+        )
+    actual_sha256 = _sha256(signing_key)
+    if actual_sha256 != expected["sha256"]:
+        raise OverlayError(
+            "Vendor signing-key SHA-256 mismatch: "
+            f"expected {expected['sha256']}, got {actual_sha256}"
+        )
+
+
+def verify_vendor_rpm(
+    manifest: dict[str, Any], vendor_rpm: Path, signing_key: Path
+) -> None:
     vendor = manifest["vendor"]
     if vendor_rpm.name != vendor["rpmFilename"]:
         raise OverlayError(
@@ -131,7 +155,30 @@ def verify_vendor_rpm(manifest: dict[str, Any], vendor_rpm: Path) -> None:
                 f"expected {vendor[field]!r}, got {fields[field]!r}"
             )
 
-    _run(["rpmkeys", "--checksig", str(vendor_rpm)])
+    _verify_vendor_signing_key(manifest, signing_key)
+    with tempfile.TemporaryDirectory(
+        prefix="proton-vendor-rpmdb."
+    ) as directory:
+        rpm_database = Path(directory)
+        _run(["rpm", "--dbpath", str(rpm_database), "--initdb"])
+        _run(
+            [
+                "rpmkeys",
+                "--dbpath",
+                str(rpm_database),
+                "--import",
+                str(signing_key),
+            ]
+        )
+        _run(
+            [
+                "rpmkeys",
+                "--dbpath",
+                str(rpm_database),
+                "--checksig",
+                str(vendor_rpm),
+            ]
+        )
 
 
 def _extract_rpm(rpm_path: Path, destination: Path) -> None:
@@ -393,12 +440,13 @@ def verify_tree(
 def prepare_overlay(
     manifest_path: Path,
     vendor_rpm: Path,
+    signing_key: Path,
     source_directory: Path,
     baseline_root: Path,
     overlay_root: Path,
 ) -> None:
     manifest = _load_manifest(manifest_path)
-    verify_vendor_rpm(manifest, vendor_rpm)
+    verify_vendor_rpm(manifest, vendor_rpm, signing_key)
     patches = _verify_patch_files(manifest, source_directory)
     _extract_rpm(vendor_rpm, baseline_root)
     if overlay_root.exists():
@@ -416,13 +464,43 @@ def prepare_overlay(
 
 
 def verify_behavior(root: Path) -> None:
+    """Verify the overlay without depending on a logged-in desktop session."""
+    previous_runtime = os.environ.get("XDG_RUNTIME_DIR")
+    with tempfile.TemporaryDirectory(
+        prefix="proton-api-overlay-runtime."
+    ) as runtime_directory:
+        os.environ["XDG_RUNTIME_DIR"] = runtime_directory
+        try:
+            _verify_behavior(root)
+        finally:
+            if previous_runtime is None:
+                os.environ.pop("XDG_RUNTIME_DIR", None)
+            else:
+                os.environ["XDG_RUNTIME_DIR"] = previous_runtime
+
+
+def _verify_behavior(root: Path) -> None:
     site_packages = root / "usr/lib64/python3.14/site-packages"
     if not site_packages.is_dir():
         raise OverlayError(f"Missing staged site-packages: {site_packages}")
     sys.path.insert(0, str(site_packages))
 
+    import gi  # noqa: PLC0415
+
+    gi.require_version("NM", "1.0")
+    from gi.repository import NM  # noqa: PLC0415
+
     from proton.vpn.core.cache_handler import CacheHandler  # noqa: PLC0415
     from proton.vpn.core.api import ProtonVPNAPI  # noqa: PLC0415
+    from proton.vpn.backend.networkmanager.protocol.protun.protun import (  # noqa: PLC0415
+        SYSTEM_OWNED_PRIVATE_KEY,
+        PRIVATE_KEY,
+        PRIVATE_KEY_FLAGS,
+        ProtunUDP,
+    )
+    from proton.vpn.backend.networkmanager.core.nmclient import (  # noqa: PLC0415
+        NMClient,
+    )
     from proton.vpn.session.servers.logicals import (  # noqa: PLC0415
         _deduplicate_server_strings,
         _server_string_object_hook,
@@ -486,14 +564,70 @@ def verify_behavior(root: Path) -> None:
                 raise OverlayError("Unexpected FIDO2 capability result")
     finally:
         ProtonVPNAPI.is_fido2_lib_available = deprecated_property
+
+    class CapturingConnection:
+        def add_setting(self, setting):
+            self.setting = setting
+
+    protocol = object.__new__(ProtunUDP)
+    protocol.connection = CapturingConnection()
+    protocol._vpnserver = SimpleNamespace(
+        server_name="fixture",
+        server_ip="192.0.2.1",
+        x25519pk="public-fixture",
+        wireguard_ports=SimpleNamespace(udp=[443]),
+    )
+    protocol._vpncredentials = SimpleNamespace(
+        pubkey_credentials=SimpleNamespace(wg_private_key="private-fixture")
+    )
+    protocol._set_vpn_settings()
+    vpn_setting = protocol.connection.setting
+    if vpn_setting.get_secret(PRIVATE_KEY) != "private-fixture":
+        raise OverlayError("Protun did not retain its activation-time private key")
+    expected_secret_flag = str(int(NM.SettingSecretFlags.NONE))
+    if SYSTEM_OWNED_PRIVATE_KEY != expected_secret_flag:
+        raise OverlayError("Protun's private-key constant is not system-owned")
+    if vpn_setting.get_data_item(PRIVATE_KEY_FLAGS) != expected_secret_flag:
+        raise OverlayError("Protun private key is not system-owned")
+
+    add_call = {}
+
+    class CapturingNMClient:
+        def add_connection_async(
+            self, *, connection, save_to_disk, cancellable, callback, user_data
+        ):
+            add_call.update(
+                connection=connection,
+                save_to_disk=save_to_disk,
+                cancellable=cancellable,
+                callback=callback,
+                user_data=user_data,
+            )
+
+    callback = object()
+    future = object()
+    nm_client = object.__new__(NMClient)
+    nm_client._nm_client = CapturingNMClient()
+    nm_client.create_nmcli_callback = lambda **_kwargs: (callback, future)
+    nm_client._assert_running_on_main_loop_thread = lambda: None
+    nm_client._run_on_main_loop_thread = lambda function: function()
+    if nm_client.add_connection_async(protocol.connection) is not future:
+        raise OverlayError("NetworkManager wrapper did not return its add future")
+    if add_call.get("connection") is not protocol.connection:
+        raise OverlayError("Protun did not add the generated VPN connection")
+    if add_call.get("save_to_disk") is not False:
+        raise OverlayError("Protun connection is not explicitly unsaved")
     print("Verified API Core overlay behavior")
 
 
 def verify_overlay_rpm(
-    manifest_path: Path, vendor_rpm: Path, overlay_rpm: Path
+    manifest_path: Path,
+    vendor_rpm: Path,
+    signing_key: Path,
+    overlay_rpm: Path,
 ) -> None:
     manifest = _load_manifest(manifest_path)
-    verify_vendor_rpm(manifest, vendor_rpm)
+    verify_vendor_rpm(manifest, vendor_rpm, signing_key)
     overlay_fields = _rpm_fields(overlay_rpm)
     if overlay_fields["nevra"] != manifest["overlay"]["nevra"]:
         raise OverlayError(
@@ -508,7 +642,18 @@ def verify_overlay_rpm(
             _run(["rpm", "-qp", option, str(overlay_rpm)]).stdout.splitlines()
         )
         if overlay_values != vendor_values:
-            raise OverlayError(f"Overlay RPM metadata differs for {option}")
+            added = [
+                value.decode("utf-8", errors="replace")
+                for value in sorted(set(overlay_values) - set(vendor_values))
+            ]
+            removed = [
+                value.decode("utf-8", errors="replace")
+                for value in sorted(set(vendor_values) - set(overlay_values))
+            ]
+            raise OverlayError(
+                f"Overlay RPM metadata differs for {option}; "
+                f"added={added}, removed={removed}"
+            )
     vendor_scripts = _run(["rpm", "-qp", "--scripts", str(vendor_rpm)]).stdout
     overlay_scripts = _run(["rpm", "-qp", "--scripts", str(overlay_rpm)]).stdout
     if overlay_scripts != vendor_scripts:
@@ -556,6 +701,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare = subparsers.add_parser("prepare")
     prepare.add_argument("--manifest", type=Path, required=True)
     prepare.add_argument("--vendor-rpm", type=Path, required=True)
+    prepare.add_argument("--signing-key", type=Path, required=True)
     prepare.add_argument("--source-directory", type=Path, required=True)
     prepare.add_argument("--baseline-root", type=Path, required=True)
     prepare.add_argument("--overlay-root", type=Path, required=True)
@@ -571,6 +717,7 @@ def _parser() -> argparse.ArgumentParser:
     rpm_parser = subparsers.add_parser("verify-rpm")
     rpm_parser.add_argument("--manifest", type=Path, required=True)
     rpm_parser.add_argument("--vendor-rpm", type=Path, required=True)
+    rpm_parser.add_argument("--signing-key", type=Path, required=True)
     rpm_parser.add_argument("--overlay-rpm", type=Path, required=True)
 
     installed = subparsers.add_parser("verify-installed")
@@ -585,6 +732,7 @@ def main() -> int:
             prepare_overlay(
                 arguments.manifest,
                 arguments.vendor_rpm,
+                arguments.signing_key,
                 arguments.source_directory,
                 arguments.baseline_root,
                 arguments.overlay_root,
@@ -602,6 +750,7 @@ def main() -> int:
             verify_overlay_rpm(
                 arguments.manifest,
                 arguments.vendor_rpm,
+                arguments.signing_key,
                 arguments.overlay_rpm,
             )
         elif arguments.command == "verify-installed":

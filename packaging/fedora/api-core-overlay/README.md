@@ -8,22 +8,35 @@ combine payload files from any other package.
 The first two applied patches share repeated immutable server strings. The
 third stops `supports_fido2` from calling API Core's own deprecated capability
 property while preserving its availability-and-registered-key truth table.
-They do not replace Proton's server wrappers, networking, protocol
-implementations, NetworkManager integration, kill switch, split tunneling,
-authentication, or native helpers.
+The fourth marks Protun's ephemeral WireGuard private key as system-owned
+instead of `AGENT_OWNED`. Proton already creates this NetworkManager profile
+with `save_to_disk=False`; NetworkManager therefore keeps the supplied key in
+the unsaved connection instead of asking a desktop secret agent to return it.
+On Fedora, NetworkManager may materialize that unsaved profile in its root-only
+volatile `/run/NetworkManager/system-connections` directory. The profile is
+removed on disconnect and cannot survive a reboot, but this is privileged
+runtime storage rather than a process-memory-only claim. The change removes
+the desktop-keyring copy and the requirement for a GNOME- or Plasma-specific
+NetworkManager secret agent. It does not change the key, protocol, server,
+routing, kill switch, split tunneling, account authentication, or native
+helper.
 
 `overlay-manifest.json` pins:
 
 - the vendor NEVRA, source RPM name, complete-RPM SHA-256, header SHA-256,
-  payload SHA-256, and signing-key identity;
-- all three runtime patch hashes and their upstream commit provenance;
+  payload SHA-256, signing-key fingerprint, official key URL, and complete
+  signing-key SHA-256;
+- all four runtime patch hashes and their provenance;
 - every permitted changed installed path;
-- the before/after SHA-256 for four Python sources and their eight derived
+- the before/after SHA-256 for five Python sources and their ten derived
   bytecode files.
 
 `rebuild_overlay.py` extracts the pinned RPM without installing it, applies
-both patches with zero fuzz, deterministically regenerates only the affected
-bytecode, and compares the complete vendor and overlay trees. A path addition,
+all patches with zero fuzz, deterministically regenerates only the affected
+bytecode, and compares the complete vendor and overlay trees. It imports the
+pinned signing key into a temporary unprivileged RPM database solely to verify
+the vendor RPM, so a clean builder does not depend on a preconfigured system
+keyring. A path addition,
 removal, mode or hardlink change, unrecorded content change, stale patch, wrong
 Python version, or unexpected output hash fails the build. The completed RPM
 must also retain Proton's exact dependency, conflict, obsolete, and package
@@ -38,9 +51,9 @@ packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
 
 The resulting SRPM contains the signed vendor RPM, manifest, verifier, and
 patches. The binary RPM contains the same payload paths as Proton's RPM, with
-only the twelve manifest-listed file hashes changed.
+only the fifteen manifest-listed file hashes changed.
 
 The direct `NetworkManager-openvpn-gnome` dependency is deliberately retained
 because it belongs to Proton's current Core package contract. Removing it may
 be reasonable, but requires separate OpenVPN runtime evidence and is not part
-of this representation-only overlay.
+of this overlay.

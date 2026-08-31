@@ -60,36 +60,37 @@ An exact comparison with the previous implementation produced identical result
 fields and ordering for 12 representative location, exact-server, feature,
 broad, punctuation, and no-match queries.
 
-## Current 0.11.2 release measurement
+## Current 0.11.3 release measurement
 
-The public-release battery repeated the measurements after the authorization,
-diagnostic-bound, and capture-lifecycle hardening. An isolated offscreen demo
-stack settled at:
+The 0.11.3 release battery repeated the measurements after the Protun reconnect
+and stale-backend-state recovery work. An isolated offscreen demo stack settled
+at:
 
 | Process | PSS | RSS |
 | --- | ---: | ---: |
-| Python backend | 22,410 KiB | 34,196 KiB |
-| Resident Plasma agent | 5,646 KiB | 32,768 KiB |
-| Control Center | 55,096 KiB | 111,492 KiB |
-| **Combined** | **83,152 KiB (81.2 MiB)** | Not additive for shared pages |
+| Python backend | 22,041 KiB | 34,364 KiB |
+| Resident Plasma agent | 4,833 KiB | 32,588 KiB |
+| Control Center | 51,492 KiB | 112,324 KiB |
+| **Combined** | **78,366 KiB (76.5 MiB)** | Not additive for shared pages |
 
-This is below the earlier 86.0 MiB post-remediation result and the 90.6 MiB
-pre-remediation source result. It is an isolated disconnected/demo measurement,
-not a claim about a live connected Core session.
+This is below the 81.2 MiB 0.11.2 release result, the earlier 86.0 MiB
+post-remediation result, and the 90.6 MiB pre-remediation source result. It is
+an isolated disconnected/demo measurement, not a claim about a live connected
+Core session.
 
-The current cache was 24,342,965 bytes, with 18,138 logical servers and 200
-locations. Projection construction plus its first query took 114.788 ms. The
-projection retained 2,629,039 bytes of traced allocation and peaked at
-5,267,088 bytes while building.
+The current cache was 24,342,666 bytes, with 18,138 logical servers and 200
+locations. Projection construction plus its first query took 116.743 ms. The
+projection retained 2,629,679 bytes of traced allocation and peaked at
+5,267,584 bytes while building.
 
 | Query | Median | p95 | Maximum |
 | --- | ---: | ---: | ---: |
-| `ch` | 1.197 ms | 1.441 ms | 1.788 ms |
-| `zur` | 0.762 ms | 1.066 ms | 3.036 ms |
-| `us-` | 0.415 ms | 0.573 ms | 0.590 ms |
-| `#1` | 0.207 ms | 0.223 ms | 0.343 ms |
-| `a` | 5.283 ms | 5.721 ms | 7.975 ms |
-| no match | 0.268 ms | 0.481 ms | 0.959 ms |
+| `ch` | 1.217 ms | 1.511 ms | 2.228 ms |
+| `zur` | 0.749 ms | 1.143 ms | 2.856 ms |
+| `us-` | 0.409 ms | 0.696 ms | 0.891 ms |
+| `#1` | 0.205 ms | 0.229 ms | 0.308 ms |
+| `a` | 5.667 ms | 6.418 ms | 6.931 ms |
+| no match | 0.273 ms | 0.487 ms | 1.189 ms |
 
 Each row used 50 iterations against the existing local cache. A separate
 visual-startup timing attempt was discarded because the isolated session lacked

@@ -1,25 +1,31 @@
-# Security and engineering assessment — 2026-08-30
+# Security and engineering assessment — 2026-08-30, refreshed 2026-08-31
 
 ## Current release posture
 
-**No finding from this assessment remains open in the current 0.11.2 release
-candidate.** The review found seven issues in total: one high, four medium, and
-two low severity. All seven were corrected and their original failure modes no
-longer reproduce in focused tests.
+**No finding from either assessment remains open in the current 0.11.3 release
+candidate.** The original review found seven issues: one high, four medium, and
+two low severity. All seven were corrected, their original failure modes no
+longer reproduce in focused tests, and the 2026-08-31 release re-review found no
+new reportable issue.
 
 The current source passes 36 of 36 native, QML, activation, packaging, and
-integration tests plus 130 backend tests. The most recent locally built Fedora
-package, `0.11.2-26.fc44`, passed its complete `%check` and artifact-policy
-battery, installed cleanly, passed host-level RPM verification, launched
-through its normal Plasma D-Bus activation path, and completed maintainer
-acceptance of the intended client workflows. Earlier `0.11.2-24.fc44`
-acceptance covered KeePassXC authentication and deliberate backend-service
-recovery; `0.11.2-8.fc44` acceptance covered unauthorized-call rejection,
-confirmation-gated KRunner requests, and live VPN connection and disconnection.
+integration tests plus 130 backend tests. It also passes Mypy, Ruff,
+Clang-Tidy across all 34 production translation units, and the complete native
+test suite under address, leak, and undefined-behavior sanitizers. The most
+recent installed Fedora package, `0.11.2-29.fc44`, contains the 0.11.3 hotfix
+code and passed host-level RPM verification, normal Plasma D-Bus activation,
+KeePassXC session restoration, VPN connection and disconnection, and deliberate
+backend restart while the NetworkManager tunnel remained connected. Earlier
+`0.11.2-24.fc44` acceptance covered KeePassXC authentication and deliberate
+backend-service recovery; `0.11.2-8.fc44` acceptance covered unauthorized-call
+rejection and confirmation-gated KRunner requests.
 
-The final public artifact must still be rebuilt from the exact clean release
-commit, complete the full packaged acceptance checklist, and be signed. The
-local acceptance RPM was not a signed release artifact.
+The exact local `0.11.3-1.fc44` client RPM/SRPM and both pinned overlay
+RPM/SRPM pairs were subsequently built from committed release metadata. They
+passed their complete package tests, artifact policies, combined replacement
+transaction, and native-binary hardening inspection. The final public artifact
+must still be rebuilt from the final clean audited commit and signed; none of
+these local acceptance packages is a signed release artifact.
 
 This was a maintainer-directed, AI-assisted assessment conducted in the style
 of a third-party review. It is not an independent audit, penetration-test
@@ -202,6 +208,35 @@ and KRunner cannot call the backend directly.
 
 ### Packaged Fedora acceptance
 
+The exact local `proton-vpn-kde-0.11.3-1.fc44.x86_64` package candidate passed:
+
+- all 130 backend tests, Mypy, 78% measured branch coverage, and all 36 CTest
+  tests during RPM `%check`;
+- RPM payload, dependency, root ownership, mode, systemd, D-Bus activation,
+  community-reporting gate, digest, and source-package inspection;
+- independent keyring and API-Core overlay RPM/SRPM builds and policy checks;
+- a combined three-package replacement transaction; and
+- inspection of all four native ELF files for PIE/shared-object relocation,
+  non-executable stacks, GNU RELRO, and immediate binding.
+
+The installed `proton-vpn-kde-0.11.2-29.fc44.x86_64` hotfix package added the
+0.11.3 reconnect changes. With the independently verified API-Core and keyring
+overlays installed, it passed RPM verification, normal D-Bus activation,
+KeePassXC authorization, connection and disconnection, and a deliberate backend
+restart while the tunnel remained connected. NetworkManager reported that no
+additional Protun secrets were required; the client reauthenticated the new
+backend owner and returned to ready signed-in state without replacing the live
+tunnel.
+
+The same installed stack later crossed a real suspend/resume cycle. Core
+reported one timeout while Ethernet reacquired DHCP, deleted the stale profile,
+then created exactly one replacement profile. Protun reported that no secrets
+were needed and established the tunnel in the same second. The final state had
+one Proton VPN profile, one `proton0` tunnel, one kill-switch profile, Proton
+DNS scoped to the tunnel, and IPv4/IPv6 policy routes with unreachable
+fallbacks. A later liveness probe recovered immediately without duplicating or
+replacing the tunnel.
+
 The locally built `proton-vpn-kde-0.11.2-26.fc44.x86_64` package passed:
 
 - all 130 backend tests and all 36 CTest tests during RPM `%check`;
@@ -232,23 +267,29 @@ tagged artifacts and completing the publication steps in
 
 ### Performance regression check
 
-An isolated disconnected demo stack measured 21.9 MiB backend PSS, 5.5 MiB
-resident-agent PSS, and 53.8 MiB Control Center PSS: 81.2 MiB combined. The
-current server-search projection retained about 2.63 MiB of traced allocation,
-and measured query medians remained between 0.207 ms and 5.283 ms. These tests
-found no material regression from the security controls. They are not live
-connected-session measurements; full methodology is in
-[Performance](PERFORMANCE.md).
+An isolated disconnected 0.11.3 demo stack measured 21.5 MiB backend PSS,
+4.7 MiB resident-agent PSS, and 50.3 MiB Control Center PSS: 76.5 MiB combined.
+The current server-search projection retained about 2.63 MiB of traced
+allocation, and measured query medians remained between 0.205 ms and 5.667 ms.
+These tests found no material regression from the reconnect or security
+controls. They are not live connected-session measurements; full methodology
+is in [Performance](PERFORMANCE.md).
 
 ## Holistic review result
+
+The complete Hostile, Subtractive, Entropy, Error-Class, HPC/Performance, and
+Hardening/Security battery was repeated on 2026-08-31 for the 0.11.3 release
+candidate. It produced no new open finding.
 
 ### Hostile
 
 Malformed signatures, unexpected descriptors, unauthorized senders, false
 sender claims, secret replay and tampering, oversized inputs, settings
 allowlists, rollback failures, capture stop races, support limits, and service
-lifetime transitions were exercised. No open release-blocking hostile-input
-defect remained after remediation.
+lifetime and owner-generation transitions were exercised. The new reconnect
+path was also checked across a sleeping network, absent Protun secret agent,
+backend replacement, and a still-active NetworkManager tunnel. No open
+release-blocking hostile-input defect remained after remediation.
 
 ### Subtractive
 
@@ -256,34 +297,46 @@ The client builds without optional direct status-notifier integration, runs
 tests without official Core through the demo adapter, and keeps support and
 crash submission removable through synchronized build capabilities. No
 duplicate VPN protocol, NetworkManager, kill-switch, split-tunneling,
-server-construction, or session-persistence implementation was found.
+server-construction, or session-persistence implementation was found. The
+reconnect correction remains a four-line behavior patch inside the existing
+official Protun profile construction; it does not add a community secret agent
+or alternative connection path.
 
 ### Entropy and drift
 
 Release metadata, documentation links, static-analysis policy, ignored debris,
-and generated inputs are mechanically checked. The final tag must still be
-created from a clean, reviewed tree and its exact source archive; assessment
-digests are not release signatures.
+generated D-Bus contracts, overlay manifests, patch hashes, permitted payload
+paths, and resulting file hashes are mechanically checked. No tracked build
+output, local package, credential, diagnostic, or machine-specific artifact was
+found. The final tag must still be created from a clean, reviewed tree and its
+exact source archive; assessment digests are not release signatures.
 
 ### Error class
 
 Public failures use a bounded, stable vocabulary. The review checked resource
-and state postconditions in addition to exception types. No current
-release-blocking error-class defect remained.
+and state postconditions in addition to exception types, including stale
+signed-in state after backend loss and the bounded manual service retry. No
+current release-blocking error-class defect remained.
 
 ### HPC and performance
 
 Authorization state, D-Bus checks, support bounds, and capture lifecycle state
-remain bounded. Source measurements found no material disconnected memory or
-search-latency regression. Connected official Core memory remains dependent on
-server data, imported backends, and live NetworkManager state.
+remain bounded. The complete native suite passed under address, leak, and
+undefined-behavior sanitizers, and all production C++ translation units passed
+Clang-Tidy. The isolated 0.11.3 stack measured 76.5 MiB combined PSS, while
+search medians remained from 0.205 ms through 5.667 ms. Connected official Core
+memory remains dependent on server data, imported backends, and live
+NetworkManager state.
 
 ### Hardening and security
 
 The current controls preserve the most important same-session trust boundary
-without taking networking ownership from Core. The services intentionally omit
-mount-namespace controls that prevent required peer verification under Fedora
-SELinux; this tradeoff is documented in [Hardening](HARDENING.md).
+without taking networking ownership from Core. The 2026-08-31 standard audit
+reviewed eight security surfaces and found no new reportable issue. Installed
+Fedora binaries retain PIE, non-executable stacks, GNU RELRO, and immediate
+binding. The services intentionally omit mount-namespace controls that prevent
+required peer verification under Fedora SELinux; this tradeoff and the 9.0
+systemd heuristic score remain documented in [Hardening](HARDENING.md).
 
 ## Residual risk and follow-up
 
@@ -306,6 +359,14 @@ SELinux; this tradeoff is documented in [Hardening](HARDENING.md).
   repository. It remains an unofficial downstream dependency until Proton
   accepts an equivalent change; stock Proton 0.2.3 must not be described as
   KeePassXC-compatible.
+- The Fedora API-Core overlay keeps Protun's transient private key in
+  NetworkManager's unsaved profile rather than a desktop secret agent. Fedora
+  may materialize that profile as a mode-0600 file under volatile `/run` while
+  the tunnel exists; live verification confirmed the `UNSAVED` flag and
+  deletion on disconnect. Root, NetworkManager, and disk-backed swap remain
+  outside the project's protection boundary. The exact vendor RPM, patch,
+  permitted path set, resulting hashes, and behavior are independently
+  verified so an equivalent upstream fix can replace the overlay.
 - `systemd-analyze security --offline=yes --user` rates both desktop services
   9.0, “UNSAFE,” largely because a functional desktop VPN adapter retains host
   networking, home-state, device, and D-Bus access. This heuristic is not a
@@ -317,6 +378,30 @@ SELinux; this tradeoff is documented in [Hardening](HARDENING.md).
 - Every published release must repeat the full clean-tree package and live
   acceptance battery. Passing this assessment does not validate a later Core,
   Fedora, Qt, KDE Frameworks, or package revision automatically.
+
+## 2026-08-31 release re-review record
+
+This record describes the current no-findings re-review. It is separate from
+the historical finding record below.
+
+| Field | Release re-review |
+| --- | --- |
+| Date | 2026-08-31 |
+| Project version | 0.11.3 release candidate |
+| Reviewed runtime revision | `1242f2ad8095715a016ddca9a8f2aeba9508126c` |
+| Working-tree snapshot | `codex-security-snapshot/v1:sha256:7f0eda03c458b5aec9598a5e3cd366762a3c7bb12ee7663de773b024f1fc1441` |
+| Canonical scan ID | `f1444f01-a3d0-4199-83c9-4a37c5f3b6c5` |
+| Source inventory | 281 files |
+| Reviewed surfaces | 8 of 8 complete |
+| Result | No candidate or reportable finding; no deferred surface |
+| Package evidence | `0.11.3-1.fc44` candidate built from release-metadata commit `6be0e9d` |
+
+The source scan was sealed against the runtime hotfix revision. The subsequent
+commit changed release metadata and documentation, not runtime code; its exact
+package candidate supplied the package evidence above. Independent delegated
+reviewers were unavailable under the active review policy, so one reviewer
+performed sequential architecture and full-surface passes. This is therefore a
+maintainer-directed, AI-assisted assessment rather than an independent audit.
 
 ## Historical finding record — all closed
 

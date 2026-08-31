@@ -20,10 +20,11 @@ executable and environment of each D-Bus peer before accepting a mutation.
 Support-report temporary files remain mode-restricted and bounded by the
 application's explicit cleanup lifecycle.
 
-The 0.11.2 release-battery inspection confirmed that the installed Fedora
-binaries are PIE, have non-executable stacks, GNU RELRO, and immediate binding.
-The release evidence is the installed RPM payload; a generic CMake build does
-not automatically inherit Fedora's compiler and linker hardening policy.
+The 0.11.3 release-battery inspection confirmed that all four ELF files in the
+exact locally built `proton-vpn-kde-0.11.3-1.fc44` RPM are position-independent
+executables or shared objects with non-executable stacks, GNU RELRO, and
+immediate binding. A generic CMake build does not automatically inherit
+Fedora's compiler and linker hardening policy.
 
 ## Deliberately excluded controls
 

@@ -122,6 +122,7 @@ public:
     [[nodiscard]] CustomDnsModel *customDns() const;
 
     Q_INVOKABLE void refresh();
+    Q_INVOKABLE void restartBackend();
     Q_INVOKABLE void activatePrimaryAction() override;
     Q_INVOKABLE void disconnect() override;
     Q_INVOKABLE void copyForwardedPort();

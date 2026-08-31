@@ -72,14 +72,14 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 ## Engineering posture
 
-| Evidence | Current 0.11.2 release evidence |
+| Evidence | Current 0.11.3 release evidence |
 | --- | --- |
 | Automated verification | 36/36 CTest tests, including 130 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and a measured 75% backend branch-coverage floor |
 | Integration verification | QML diagnostics, D-Bus activation, staged installation, KRunner, and System Settings |
-| Package verification | Fedora source and binary RPM build, artifact policy checks, and an isolated transaction test |
-| Security assessment | All seven findings closed; no finding from the assessment remains open |
-| Disconnected demo footprint | 81.2 MiB combined PSS across backend, agent, and Control Center; the resident agent measured 5.5 MiB PSS |
-| Server search | 0.207–5.283 ms measured median across representative queries against an 18,138-server cache |
+| Package verification | Exact 0.11.3-1 client and pinned overlay binary/source RPM builds, artifact-policy checks, and a combined transaction test |
+| Security assessment | All seven historical findings closed; the eight-surface 2026-08-31 re-review found no new reportable issue |
+| Disconnected demo footprint | 76.5 MiB combined PSS across backend, agent, and Control Center; the resident agent measured 4.7 MiB PSS |
+| Server search | 0.205–5.667 ms measured median across representative queries against an 18,138-server cache |
 
 These are scoped engineering measurements, not certification. The project has completed a maintainer-directed, AI-assisted security assessment, but it has not received an independent security audit or penetration test. Read the [security assessment](docs/SECURITY-AUDIT-2026-08-30.md) and [performance methodology](docs/PERFORMANCE.md) for the evidence and limits.
 
@@ -89,6 +89,8 @@ The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and Pro
 
 > [!NOTE]
 > Verified KeePassXC support uses the separately packaged, provider-neutral Proton keyring rebuild recorded in [Compatibility](docs/COMPATIBILITY.md). The source, patches, tests, manifest, and Fedora spec are included under [`packaging/fedora/keyring-overlay`](packaging/fedora/keyring-overlay/); release CI builds its binary and source RPMs beside the client. The client RPM requires that explicit capability instead of silently replacing an installed Python file.
+>
+> Reliable Protun reconnects on Plasma also use the independently reviewable API-Core overlay under [`packaging/fedora/api-core-overlay`](packaging/fedora/api-core-overlay/). It reconstructs Proton's exact signed Fedora payload, verifies every changed path and hash, and keeps the transient tunnel key in Core's existing unsaved NetworkManager profile instead of relying on a missing Plasma Protun secret plugin. Release CI ships that overlay's binary and source RPMs as part of the required artifact set.
 
 ## Evaluate or contribute
 

@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 from pathlib import Path
 import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "rebuild_overlay.py"
@@ -25,6 +27,64 @@ def sha256(path: Path) -> str:
 
 
 class OverlayBoundaryTests(unittest.TestCase):
+    def test_behavior_verification_uses_a_private_runtime_directory(self):
+        observed = {}
+
+        def capture_runtime(_root):
+            runtime = Path(os.environ["XDG_RUNTIME_DIR"])
+            observed["path"] = runtime
+            observed["exists"] = runtime.is_dir()
+            observed["mode"] = runtime.stat().st_mode & 0o777
+
+        with mock.patch.dict(
+            os.environ, {"XDG_RUNTIME_DIR": "/run/user/unavailable"}
+        ), mock.patch.object(
+            rebuild_overlay, "_verify_behavior", side_effect=capture_runtime
+        ):
+            rebuild_overlay.verify_behavior(Path("overlay-root"))
+            self.assertEqual(
+                "/run/user/unavailable", os.environ["XDG_RUNTIME_DIR"]
+            )
+
+        self.assertTrue(observed["exists"])
+        self.assertEqual(0o700, observed["mode"])
+        self.assertFalse(observed["path"].exists())
+
+    def test_external_provenance_queries_use_a_stable_locale_and_timezone(self):
+        completed = rebuild_overlay.subprocess.CompletedProcess(
+            ["true"], 0, stdout=b"", stderr=b""
+        )
+        with mock.patch.object(
+            rebuild_overlay.subprocess, "run", return_value=completed
+        ) as run:
+            rebuild_overlay._run(["true"])
+
+        environment = run.call_args.kwargs["env"]
+        self.assertEqual("C", environment["LC_ALL"])
+        self.assertEqual("UTC", environment["TZ"])
+
+    def test_rejects_an_unpinned_vendor_signing_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            signing_key = Path(directory) / "vendor.asc"
+            signing_key.write_bytes(b"pinned key")
+            manifest = {
+                "vendor": {
+                    "signingKey": {
+                        "filename": signing_key.name,
+                        "sha256": sha256(signing_key),
+                    }
+                }
+            }
+            rebuild_overlay._verify_vendor_signing_key(manifest, signing_key)
+
+            signing_key.write_bytes(b"different key")
+            with self.assertRaisesRegex(
+                rebuild_overlay.OverlayError, "signing-key SHA-256 mismatch"
+            ):
+                rebuild_overlay._verify_vendor_signing_key(
+                    manifest, signing_key
+                )
+
     def test_payload_copy_preserves_hardlinks(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -197,6 +197,7 @@ private slots:
     void cleanupTestCase();
     void rejectsAnUnpinnedBackendOwner();
     void explainsRejectedClientIdentityWithoutRetrying();
+    void clearsCachedSessionWhenBackendStops();
     void queuesInitialBrowserLoadUntilBackendIsReady();
     void loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint();
     void retriesTransientEmptyServerGroupResponses();
@@ -275,6 +276,24 @@ void GroupedNavigationTest::explainsRejectedClientIdentityWithoutRetrying()
         QCOMPARE(m_backend.registrationCalls, registrationsBefore + 1);
     }
     m_backend.rejectRegistration = false;
+}
+
+void GroupedNavigationTest::clearsCachedSessionWhenBackendStops()
+{
+    VpnController controller(nullptr, false);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+    QCOMPARE(controller.authState(), QStringLiteral("signed_in"));
+
+    controller.onServiceUnregistered(QString::fromLatin1(kBackendService));
+
+    QVERIFY(!controller.backendAvailable());
+    QVERIFY(!controller.ready());
+    QVERIFY(!controller.loggedIn());
+    QCOMPARE(controller.authState(), QStringLiteral("signed_out"));
+    QCOMPARE(controller.state(), QStringLiteral("unavailable"));
 }
 
 void GroupedNavigationTest::loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint()
