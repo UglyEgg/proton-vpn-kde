@@ -41,7 +41,7 @@ jobs:
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-linguist
 
       - name: Check out source
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Trust the container workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -102,7 +102,7 @@ jobs:
             "${keyring_rpms[0]}" "${binary_rpms[0]}"
 
       - name: Upload RPM artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: proton-vpn-kde-fedora-44
           path: |
