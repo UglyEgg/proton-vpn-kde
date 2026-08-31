@@ -4,8 +4,8 @@
 %bcond_without kstatusnotifier
 
 Name:           proton-vpn-kde
-Version:        0.11.2
-Release:        29%{?dist}
+Version:        0.11.3
+Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -124,6 +124,12 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.11.3-1
+- Recover Protun reconnects without a Plasma NetworkManager secret plugin.
+- Clear stale signed-in state when the backend stops and expose a bounded
+  manual service retry when session restoration stalls.
+- Build and require the independently verified API-Core overlay.
+
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.11.2-29
 - Recover Protun reconnects without a Plasma NetworkManager secret plugin.
 - Clear stale account state when the backend stops and offer a bounded manual

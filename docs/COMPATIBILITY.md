@@ -43,10 +43,11 @@ claim that stock Proton 0.2.3 supports KeePassXC correctly.
 
 ## Last verified installed stack
 
-On 2026-08-30 the source and packaged trust-boundary checks used the following
+On 2026-08-31 the source and packaged trust-boundary checks used the following
 stack. Live acceptance covered D-Bus and systemd activation, KeePassXC Secret
 Service integration, rejection of an unauthorized mutation, confirmation-gated
-KRunner actions, and VPN connection and disconnection.
+KRunner actions, VPN connection and disconnection, and deliberate backend
+restart while the NetworkManager tunnel remained connected.
 
 | Component | Verified version |
 | --- | --- |
@@ -54,7 +55,7 @@ KRunner actions, and VPN connection and disconnection.
 | Proton VPN API Core | 5.6.10 |
 | Proton keyring adapter | 0.2.3-4.plasmavpn1 repository rebuild |
 | Proton VPN daemon | 0.13.8 |
-| Plasma client | 0.11.2 (live acceptance package: `0.11.2-26.fc44`) |
+| Plasma client | 0.11.3 source (hotfix acceptance package: `0.11.2-29.fc44`) |
 
 Downstream package release suffixes are not part of the runtime compatibility
 contract.

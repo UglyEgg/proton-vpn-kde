@@ -24,6 +24,21 @@ Kirigami.ScrollablePage {
 
         Kirigami.Heading {
             level: 1
+            text: "0.11.3"
+        }
+
+        Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: qsTr("Restore reliable Plasma reconnects without depending on a missing Protun secret-agent plugin. When the Proton backend stops, the Control Center now clears stale account and tunnel state instead of continuing to appear signed in. If desktop Secret Service session restoration stalls, Sign in presents an explicit service retry rather than leaving an inert screen.")
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+        }
+
+        Kirigami.Heading {
+            level: 2
             text: "0.11.2"
         }
 

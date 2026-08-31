@@ -31,9 +31,9 @@ Create the source archive from the exact clean release tag:
 ```bash
 git archive \
     --format=tar.gz \
-    --prefix=proton-vpn-kde-0.11.2/ \
-    --output="${HOME}/rpmbuild/SOURCES/proton-vpn-kde-0.11.2.tar.gz" \
-    v0.11.2
+    --prefix=proton-vpn-kde-0.11.3/ \
+    --output="${HOME}/rpmbuild/SOURCES/proton-vpn-kde-0.11.3.tar.gz" \
+    v0.11.3
 ```
 
 Build with the direct Plasma status-notifier integration:

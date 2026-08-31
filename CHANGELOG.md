@@ -5,6 +5,8 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-08-31
+
 - Keep Protun's transient WireGuard key in its existing unsaved NetworkManager
   profile so Plasma reconnects do not depend on a missing Protun secret-agent
   plugin.
