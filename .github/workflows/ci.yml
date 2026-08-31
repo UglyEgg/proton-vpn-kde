@@ -28,7 +28,7 @@ jobs:
             ShellCheck cmake cpio curl dbus-daemon desktop-file-utils libxml2 rpm \
             extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
             procps-ng python3-coverage python3-cryptography python3-dbus-fast \
-            python3-mypy ripgrep ruff shadow-utils xorg-x11-server-Xvfb \
+            python3-mypy ripgrep ruff shadow-utils \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
             kf6-kglobalaccel-devel kf6-kcmutils-devel \
             kf6-knotifications-devel kf6-krunner-devel \
@@ -83,7 +83,7 @@ jobs:
             clang clang-tools-extra cmake compiler-rt dbus-daemon \
             extra-cmake-modules git ninja-build openssl-devel \
             procps-ng python3-cryptography python3-dbus-fast ripgrep \
-            shadow-utils xorg-x11-server-Xvfb \
+            shadow-utils \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
             kf6-kglobalaccel-devel kf6-kcmutils-devel \
             kf6-knotifications-devel kf6-krunner-devel \

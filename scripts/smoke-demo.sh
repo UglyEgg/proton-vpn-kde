@@ -7,17 +7,12 @@ set -euo pipefail
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 build_dir="${PROTON_KDE_BUILD_DIR:-$project_dir/build}"
 backend_pid=""
-frontend_pid=""
 app_pid=""
 
 cleanup() {
     if [[ -n "$app_pid" ]]; then
         kill "$app_pid" 2>/dev/null || true
         wait "$app_pid" 2>/dev/null || true
-    fi
-    if [[ -n "$frontend_pid" ]]; then
-        kill "$frontend_pid" 2>/dev/null || true
-        wait "$frontend_pid" 2>/dev/null || true
     fi
     if [[ -n "$backend_pid" ]]; then
         kill "$backend_pid" 2>/dev/null || true
@@ -61,25 +56,18 @@ if [[ "$backend_introspection" == *"GetServers("* ]]; then
     exit 1
 fi
 
-xvfb-run -a env \
+env \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    QT_QPA_PLATFORM=offscreen \
+    QT_QUICK_BACKEND=software \
+    QT_QPA_PLATFORMTHEME=generic \
+    QT_ACCESSIBILITY=0 \
     PROTON_VPN_KDE_TEST_BACKEND_OWNER="$backend_owner" \
     "$build_dir/proton-vpn-kde" &
-frontend_pid=$!
+app_pid=$!
 
-for _ in {1..100}; do
-    app_pid="$(pgrep -P "$frontend_pid" -x proton-vpn-kde || true)"
-    if [[ -n "$app_pid" ]]; then
-        break
-    fi
-    sleep 0.05
-done
-
-if [[ -z "$app_pid" ]]; then
-    echo "Frontend did not start" >&2
-    exit 1
-fi
-
-sleep 0.25
+sleep 0.5
 if ! kill -0 "$app_pid" 2>/dev/null; then
     echo "Frontend exited while loading QML" >&2
     exit 1

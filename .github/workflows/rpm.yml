@@ -34,7 +34,6 @@ jobs:
             python3-coverage python3-devel python3-keyring python3-mypy \
             python3-proton-core python3-pytest python3-secretstorage \
             python3-setuptools procps-ng ripgrep rpm-build shadow-utils \
-            xorg-x11-server-Xvfb \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
             kf6-kglobalaccel-devel kf6-kcmutils-devel \
             kf6-knotifications-devel kf6-krunner-devel \

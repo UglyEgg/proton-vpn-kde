@@ -59,6 +59,8 @@ backend_owner="${backend_owner%%\'*}"
 
 frontend_log="$staging_dir/frontend.log"
 if ! env \
+        LANG=C.UTF-8 \
+        LC_ALL=C.UTF-8 \
         QT_QPA_PLATFORM=offscreen \
         QT_QUICK_BACKEND=software \
         QT_QPA_PLATFORMTHEME=generic \
