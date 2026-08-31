@@ -20,9 +20,12 @@ backend restart while the NetworkManager tunnel remained connected. Earlier
 backend-service recovery; `0.11.2-8.fc44` acceptance covered unauthorized-call
 rejection and confirmation-gated KRunner requests.
 
-The final public artifact must still be rebuilt from the exact clean 0.11.3
-release commit, complete the full packaged acceptance checklist, and be signed.
-The local acceptance RPM was not a signed release artifact.
+The exact local `0.11.3-1.fc44` client RPM/SRPM and both pinned overlay
+RPM/SRPM pairs were subsequently built from committed release metadata. They
+passed their complete package tests, artifact policies, combined replacement
+transaction, and native-binary hardening inspection. The final public artifact
+must still be rebuilt from the final clean audited commit and signed; none of
+these local acceptance packages is a signed release artifact.
 
 This was a maintainer-directed, AI-assisted assessment conducted in the style
 of a third-party review. It is not an independent audit, penetration-test
@@ -205,6 +208,17 @@ and KRunner cannot call the backend directly.
 
 ### Packaged Fedora acceptance
 
+The exact local `proton-vpn-kde-0.11.3-1.fc44.x86_64` package candidate passed:
+
+- all 130 backend tests, Mypy, 78% measured branch coverage, and all 36 CTest
+  tests during RPM `%check`;
+- RPM payload, dependency, root ownership, mode, systemd, D-Bus activation,
+  community-reporting gate, digest, and source-package inspection;
+- independent keyring and API-Core overlay RPM/SRPM builds and policy checks;
+- a combined three-package replacement transaction; and
+- inspection of all four native ELF files for PIE/shared-object relocation,
+  non-executable stacks, GNU RELRO, and immediate binding.
+
 The installed `proton-vpn-kde-0.11.2-29.fc44.x86_64` hotfix package added the
 0.11.3 reconnect changes. With the independently verified API-Core and keyring
 overlays installed, it passed RPM verification, normal D-Bus activation,
@@ -213,6 +227,15 @@ restart while the tunnel remained connected. NetworkManager reported that no
 additional Protun secrets were required; the client reauthenticated the new
 backend owner and returned to ready signed-in state without replacing the live
 tunnel.
+
+The same installed stack later crossed a real suspend/resume cycle. Core
+reported one timeout while Ethernet reacquired DHCP, deleted the stale profile,
+then created exactly one replacement profile. Protun reported that no secrets
+were needed and established the tunnel in the same second. The final state had
+one Proton VPN profile, one `proton0` tunnel, one kill-switch profile, Proton
+DNS scoped to the tunnel, and IPv4/IPv6 policy routes with unreachable
+fallbacks. A later liveness probe recovered immediately without duplicating or
+replacing the tunnel.
 
 The locally built `proton-vpn-kde-0.11.2-26.fc44.x86_64` package passed:
 
@@ -355,6 +378,30 @@ systemd heuristic score remain documented in [Hardening](HARDENING.md).
 - Every published release must repeat the full clean-tree package and live
   acceptance battery. Passing this assessment does not validate a later Core,
   Fedora, Qt, KDE Frameworks, or package revision automatically.
+
+## 2026-08-31 release re-review record
+
+This record describes the current no-findings re-review. It is separate from
+the historical finding record below.
+
+| Field | Release re-review |
+| --- | --- |
+| Date | 2026-08-31 |
+| Project version | 0.11.3 release candidate |
+| Reviewed runtime revision | `1242f2ad8095715a016ddca9a8f2aeba9508126c` |
+| Working-tree snapshot | `codex-security-snapshot/v1:sha256:7f0eda03c458b5aec9598a5e3cd366762a3c7bb12ee7663de773b024f1fc1441` |
+| Canonical scan ID | `f1444f01-a3d0-4199-83c9-4a37c5f3b6c5` |
+| Source inventory | 281 files |
+| Reviewed surfaces | 8 of 8 complete |
+| Result | No candidate or reportable finding; no deferred surface |
+| Package evidence | `0.11.3-1.fc44` candidate built from release-metadata commit `6be0e9d` |
+
+The source scan was sealed against the runtime hotfix revision. The subsequent
+commit changed release metadata and documentation, not runtime code; its exact
+package candidate supplied the package evidence above. Independent delegated
+reviewers were unavailable under the active review policy, so one reviewer
+performed sequential architecture and full-surface passes. This is therefore a
+maintainer-directed, AI-assisted assessment rather than an independent audit.
 
 ## Historical finding record — all closed
 

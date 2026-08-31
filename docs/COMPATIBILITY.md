@@ -47,7 +47,10 @@ On 2026-08-31 the source and packaged trust-boundary checks used the following
 stack. Live acceptance covered D-Bus and systemd activation, KeePassXC Secret
 Service integration, rejection of an unauthorized mutation, confirmation-gated
 KRunner actions, VPN connection and disconnection, and deliberate backend
-restart while the NetworkManager tunnel remained connected.
+restart while the NetworkManager tunnel remained connected. A subsequent live
+suspend/resume cycle produced one expected connection timeout while the wired
+link reacquired DHCP, then recreated the Protun profile without requesting a
+secret and restored the IPv4, IPv6, DNS, and kill-switch state automatically.
 
 | Component | Verified version |
 | --- | --- |
@@ -55,10 +58,16 @@ restart while the NetworkManager tunnel remained connected.
 | Proton VPN API Core | 5.6.10 |
 | Proton keyring adapter | 0.2.3-4.plasmavpn1 repository rebuild |
 | Proton VPN daemon | 0.13.8 |
-| Plasma client | 0.11.3 source (hotfix acceptance package: `0.11.2-29.fc44`) |
+| Plasma client | `0.11.2-29.fc44` (0.11.3 hotfix code) |
 
 Downstream package release suffixes are not part of the runtime compatibility
 contract.
+
+Separately, the exact `0.11.3-1.fc44` client binary and source RPMs were built
+from committed release metadata and passed their complete `%check`, artifact
+policy, combined-overlay transaction, and ELF-hardening inspections. They were
+not installed during this battery; the installed `0.11.2-29.fc44` package is
+the live acceptance evidence.
 
 ## Compatibility policy
 
