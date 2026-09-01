@@ -47,38 +47,37 @@ is not a claim that stock Proton 0.2.3 supports KeePassXC correctly.
 
 ## Last verified installed stack
 
-On 2026-08-31 the source and packaged trust-boundary checks used the following
-stack. Live acceptance covered D-Bus and systemd activation, KeePassXC Secret
-Service integration, rejection of an unauthorized mutation, confirmation-gated
-KRunner actions, VPN connection and disconnection, and deliberate backend
-restart while the NetworkManager tunnel remained connected. A subsequent live
-suspend/resume cycle produced one expected connection timeout while the wired
-link reacquired DHCP, then recreated the Protun profile without requesting a
-secret and restored the IPv4, IPv6, DNS, and kill-switch state automatically.
+On 2026-08-31 the accepted `0.12.0` runtime revision `d2e7a74` used the following
+stack. The keyring and client packages were installed together while an existing
+VPN tunnel remained connected. The resident agent restarted, the backend
+selected the already-running KeePassXC Secret Service provider, and both
+services remained active with zero restarts or warning-level journal entries.
+The Control Center, Connection Inspector, and normal navigation passed
+maintainer acceptance. NetworkManager retained the same Proton profile,
+`proton0` tunnel, and leak-protection connection throughout the package
+transaction.
 
 | Component | Verified version |
 | --- | --- |
 | Fedora | 44 |
-| Proton VPN API Core | 5.6.10 |
-| Proton keyring adapter | 0.2.3-4.plasmavpn1 repository rebuild |
+| Proton VPN API Core | 5.6.10-8.plasmavpn1 repository rebuild |
+| Proton keyring adapter | 0.2.3-7.plasmavpn1 repository rebuild |
 | Proton VPN daemon | 0.13.8 |
-| Plasma client | `0.11.2-29.fc44` (0.11.3 hotfix code) |
+| Plasma client | 0.12.0-0.4.fc44 local candidate |
 
 Downstream package release suffixes are not part of the runtime compatibility
 contract.
 
-Separately, the exact `0.11.3-1.fc44` client binary and source RPMs were built
-from committed release metadata and passed their complete `%check`, artifact
-policy, combined-overlay transaction, and ELF-hardening inspections. They were
-not installed during this battery; the installed `0.11.2-29.fc44` package is
-the live acceptance evidence.
+Earlier `0.11.3` package, reconnect, and suspend/resume evidence remains recorded
+in the security assessment. It is historical evidence rather than the current
+installed compatibility baseline.
 
 ## Compatibility policy
 
 - A new Proton Core version must pass demo tests, backend tests, the packaged
   `%check` battery, and disconnected live startup before it is listed here.
 - A new keyring adapter must pass alias, activation, locked-collection,
-  connection-reuse, provider identity/owner replacement, KeePassXC
+  connection-reuse, same-user selection/owner replacement, KeePassXC
   read/write/delete, and absent-entry tests before it replaces the downstream
   version listed above.
 - Connection testing follows only after startup, account, server-list, and

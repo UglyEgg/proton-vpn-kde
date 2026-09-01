@@ -319,9 +319,9 @@ The current remediated tree passed:
 The current keyring overlay rebuilt from Proton's pinned 0.2.3 archive, applied
 all three manifest-hashed patches without fuzz, passed 29 of 29 focused tests in
 RPM `%check`, and produced one binary and one source RPM. Its artifact check
-verified both the provider-neutral and owner-pinned capabilities. Live KeePassXC
-acceptance of this corrected revision remains required before the final gate can
-close.
+verified both the provider-neutral and owner-pinned capabilities. The corrected
+package subsequently selected the already-running KeePassXC provider and
+restored the live Proton session without a restart loop or warning.
 
 The focused harnesses show that the seven original failures no longer
 reproduce: substituted owners are rejected, unauthorized mutations do not
@@ -331,6 +331,26 @@ stay within their budgets, captures cannot bypass Core's cap or the watchdog,
 and KRunner cannot call the backend directly.
 
 ### Packaged Fedora acceptance
+
+The accepted `0.12.0` runtime revision `d2e7a74` produced the exact local
+`proton-vpn-kde-0.12.0-0.4.fc44` client RPM/SRPM and
+`python3-proton-keyring-linux-0.2.3-7.plasmavpn1.fc44` overlay RPM/SRPM. The
+client package passed all 142 backend tests, Mypy, 79% measured branch coverage,
+all 36 CTest targets, artifact policy, and a combined replacement transaction.
+The keyring package applied all patches without fuzz, passed 29 focused tests,
+and exposed the provider-neutral and owner-pinned capabilities. The accepted
+binary SHA-256 digests were `22358efa087ac4c7f94d7c0a1149939a514b4b18ca7f6b3ad4846649d74f75d8`
+for the client and `a598c8412bfdcef5948c912bc43fddf58faa78c1bd88402b52bca193f0c32265`
+for the keyring overlay.
+
+Both packages were installed in one transaction. Host verification found their
+payloads root-owned and unmodified, the resident agent and backend active with
+zero restarts and no warning-level journal entries, and KeePassXC still owning
+`org.freedesktop.secrets` as the same session user. Maintainer acceptance covered
+the Control Center, Connection Inspector, and normal navigation. The pre-existing
+Proton VPN profile, `proton0` tunnel, and leak-protection connection remained
+active throughout installation and backend startup. This proves compatibility
+with the intended live stack; it does not close the six-reviewer or soak gates.
 
 The exact local `proton-vpn-kde-0.11.3-1.fc44.x86_64` package candidate passed:
 

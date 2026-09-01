@@ -54,11 +54,13 @@ PSS and private resident memory because PSS can change when another process
 starts or stops sharing the same Qt pages. Three runs retained 580, 580, and
 576 KiB of private memory after the first close, which is normal one-time QML
 and allocator warming. The second close changed private memory by -60, -76,
-and -56 KiB from the first-close sample. No per-open retained growth was
-observed. The corresponding second-cycle PSS changes were -109, -168, and -57
-KiB. These figures do not claim that allocator caches return to the cold
-baseline; they demonstrate that repeated use does not accumulate another
-page-sized allocation.
+and -56 KiB from the first-close sample. The exact accepted runtime revision
+`d2e7a74` repeated the 576 KiB first-cycle and -60 KiB second-cycle results. No
+per-open retained growth was observed. The earlier corresponding second-cycle
+PSS changes were -109, -168, and -57 KiB; the exact revision measured -60 KiB.
+These figures do not claim that allocator caches return to the cold baseline;
+they demonstrate that repeated use does not accumulate another page-sized
+allocation.
 
 ## Search performance
 
@@ -98,14 +100,14 @@ broad, punctuation, and no-match queries.
 
 ## Current unreleased 0.12.0 candidate measurement
 
-Three isolated disconnected/demo runs of the remediated working tree measured
-80,197, 80,293, and 80,101 KiB combined PSS, for a median of 80,197 KiB (78.3
-MiB). The median components were 23,606 KiB for the Python backend, 5,204 KiB
-for the resident agent, and 51,394 KiB for the Control Center. These absolute
-figures were collected after the security and failure-mode remediations but
-before the final candidate commit; the exact committed candidate must repeat
-the measurement. They are not substituted for the alternating baseline
-comparison above because host page sharing differs between runs.
+Three isolated disconnected/demo runs of the exact accepted runtime revision
+`d2e7a74` measured 83,114, 82,629, and 82,754 KiB combined PSS, for a median of
+82,754 KiB (80.8 MiB). The median components were 21,570 KiB for the Python
+backend, 5,542 KiB for the resident agent, and 55,599 KiB for the Control
+Center. This is 2.5 MiB above the earlier absolute pre-final median but remains
+within the cross-run page-sharing variation demonstrated by the stronger
+alternating comparison above; no runtime implementation changed between those
+measurements. These absolute figures do not replace that differential result.
 
 ## Current 0.11.3 release measurement
 
