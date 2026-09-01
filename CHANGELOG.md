@@ -109,6 +109,8 @@ All notable user-visible changes are recorded here. The project follows
 - Reapply kill-switch state after a partially persisted Core settings failure.
 - Remove the Control Center's public D-Bus shutdown method, authorize the
   agent's retained shutdown path, and explicitly allowlist exported slots.
+- Publish the backend's D-Bus name only after authorization and object export
+  are ready, preventing startup races from stranding automatic connection.
 
 ## [0.11.3] - 2026-08-31
 

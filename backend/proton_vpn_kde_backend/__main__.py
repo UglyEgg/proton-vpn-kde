@@ -53,11 +53,6 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
         bus_type=BusType.SESSION,
         negotiate_unix_fd=True,
     ).connect()
-    reply = await bus.request_name(BUS_NAME, NameFlag.DO_NOT_QUEUE)
-    if not _owns_bus_name(reply):
-        bus.disconnect()
-        return 0
-
     adapter = (
         DemoCoreAdapter(logged_in=not demo_logged_out) if demo else ProtonCoreAdapter()
     )
@@ -79,6 +74,16 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
     bus.add_message_handler(authorizer.message_handler)
     service = VpnDbusService(controller, lifetime, authorizer)
     bus.export(OBJECT_PATH, service)
+    # Publish the well-known name only after the authorization ingress and
+    # exported object are ready. Frontends react to NameOwnerChanged
+    # immediately and must never observe a half-published service.
+    reply = await bus.request_name(BUS_NAME, NameFlag.DO_NOT_QUEUE)
+    if not _owns_bus_name(reply):
+        bus.unexport(OBJECT_PATH, service)
+        bus.remove_message_handler(authorizer.message_handler)
+        await authorizer.uninstall()
+        bus.disconnect()
+        return 0
 
     loop = asyncio.get_running_loop()
     for sig in (unix_signal.SIGINT, unix_signal.SIGTERM):

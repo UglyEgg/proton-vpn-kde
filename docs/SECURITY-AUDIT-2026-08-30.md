@@ -246,6 +246,16 @@ slots. Isolated activation coverage proves an arbitrary shutdown caller fails
 while both processes remain alive. The complete gate must restart on the
 resulting exact commit.
 
+The gate at `4b36979` passed HPC/Performance review, then failed Error-Class
+review. The backend acquired its public D-Bus name before awaiting authorization
+setup and exporting `Backend1`. The agent could observe that intermediate state,
+make its one authorization attempt too early, and leave a queued automatic
+connection stranded after the backend became ready. Every result from that gate
+is discarded. Backend startup now installs authorization handling and exports
+the service object before publishing the well-known name. A deterministic
+ordering regression covers the publication boundary. The complete gate must
+restart on the resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -265,6 +275,7 @@ resulting exact commit.
 | PV-012-015 | Medium | A non-returning Core capture-stop reply could retain startup and block backend shutdown before the watchdog was armed | **Remediated with pre-armed watchdog and bounded stop attempts; final independent verification pending** |
 | PV-012-016 | Medium | A rejected Core capture-directory assignment could leave a false active state with no watchdog and block retries | **Remediated by configuring before lifecycle reservation; final independent verification pending** |
 | PV-012-017 | Low | Public frontend D-Bus `Quit` methods allowed arbitrary session peers to terminate the agent or Control Center | **Remediated by removing Control Center shutdown, authorizing agent shutdown, and explicitly allowlisting exported slots; final independent verification pending** |
+| PV-012-018 | Medium | The backend published its D-Bus name before authorization and object export were ready, allowing the agent's one startup authorization attempt to fail permanently | **Remediated by publishing the well-known name only after ingress authorization and object export are ready; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
