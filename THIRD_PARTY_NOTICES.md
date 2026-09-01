@@ -31,8 +31,13 @@ imported. See `translations/README.md` for the reproducible import process.
 Files under `packaging/fedora/api-core-overlay/patches/` are source patches for
 the separately packaged GPL-licensed Proton VPN API Core. The overlay build
 records the exact accepted upstream package version and patch digests. The
-overlay is optional and does not replace or redistribute the complete upstream
-source repository.
+Fedora client package requires this independently reviewable overlay because it
+supplies the Protun secret-handling capability used by the Plasma release. Its
+source RPM reconstructs Proton's signed binary payload with the recorded
+patches; it does not claim to be an official Proton build or redistribute the
+complete upstream source repository. Proton AG remains identified as the
+upstream author, while the rebuilt RPM identifies Plasma VPN contributors as
+its downstream vendor.
 
 ## Proton keyring overlay patches
 

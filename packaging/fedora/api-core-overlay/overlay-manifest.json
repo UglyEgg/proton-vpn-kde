@@ -19,7 +19,8 @@
   },
   "overlay": {
     "packageName": "python3-proton-vpn-api-core",
-    "nevra": "python3-proton-vpn-api-core-5.6.10-9.plasmavpn1.fc44.x86_64",
+    "nevra": "python3-proton-vpn-api-core-5.6.10-10.plasmavpn1.fc44.x86_64",
+    "downstreamVendor": "Plasma VPN contributors",
     "capability": "proton-vpn-api-core-plasma-protun-secret = 1",
     "capabilityPatch": "0004-keep-protun-private-key-ephemeral.patch",
     "pythonCacheTag": "cpython-314",

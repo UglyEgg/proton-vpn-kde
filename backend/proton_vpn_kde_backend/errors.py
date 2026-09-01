@@ -16,3 +16,12 @@ class UserVisibleValueError(UserVisibleError, ValueError):
 
 class UserVisibleRuntimeError(UserVisibleError, RuntimeError):
     """A backend state error with a safe, actionable message."""
+
+
+def bounded_user_message(error: UserVisibleError, fallback: str) -> str:
+    """Return only bounded, printable text explicitly marked safe for users."""
+
+    message = str(error).strip()
+    if not message or len(message) > 256 or not message.isprintable():
+        return fallback
+    return message

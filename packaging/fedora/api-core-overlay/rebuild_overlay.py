@@ -645,6 +645,19 @@ def verify_overlay_rpm(
             f"Overlay RPM NEVRA mismatch: expected {manifest['overlay']['nevra']}, "
             f"got {overlay_fields['nevra']}"
         )
+    downstream_vendor = manifest["overlay"].get("downstreamVendor")
+    if not isinstance(downstream_vendor, str) or not downstream_vendor:
+        raise OverlayError("Overlay manifest has no downstream vendor")
+    actual_vendor = _run(
+        ["rpm", "-qp", "--qf", "%{VENDOR}", str(overlay_rpm)]
+    ).stdout.decode("utf-8", errors="strict")
+    if actual_vendor != downstream_vendor:
+        raise OverlayError(
+            "Overlay RPM downstream vendor mismatch: "
+            f"expected {downstream_vendor!r}, got {actual_vendor!r}"
+        )
+    if "Proton AG" in actual_vendor:
+        raise OverlayError("Unofficial overlay RPM claims Proton AG as its vendor")
     capability = manifest["overlay"].get("capability")
     if not isinstance(capability, str) or not capability:
         raise OverlayError("Overlay manifest has no required capability")

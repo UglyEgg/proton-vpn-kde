@@ -102,5 +102,28 @@ overlay_rpm="$topdir/RPMS/x86_64/$overlay_nevra.rpm"
     --signing-key "$signing_key" \
     --overlay-rpm "$overlay_rpm"
 
-sha256sum "$overlay_rpm"
-echo "$overlay_rpm"
+mapfile -t source_rpms < <(
+    find "$topdir/SRPMS" -type f \
+        -name 'python3-proton-vpn-api-core-*.src.rpm' -print
+)
+if [[ ${#source_rpms[@]} -ne 1 ]]; then
+    echo "Expected one source API Core overlay RPM" >&2
+    exit 1
+fi
+source_checks=(
+    "$vendor_rpm_name=$(realpath "$vendor_rpm")"
+    "overlay-manifest.json=$manifest"
+    "rebuild_overlay.py=$overlay_dir/rebuild_overlay.py"
+    "$signing_key_name=$(realpath "$signing_key")"
+)
+for patch_path in "$overlay_dir"/patches/*.patch; do
+    source_checks+=("$(basename "$patch_path")=$patch_path")
+done
+bash "$overlay_dir/../../../scripts/check-source-rpm-content.sh" \
+    "$overlay_rpm" \
+    "${source_rpms[0]}" \
+    "$overlay_dir/python3-proton-vpn-api-core-overlay.spec" \
+    "${source_checks[@]}"
+
+sha256sum "$overlay_rpm" "${source_rpms[0]}"
+printf '%s\n%s\n' "$overlay_rpm" "${source_rpms[0]}"

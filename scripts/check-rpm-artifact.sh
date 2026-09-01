@@ -11,6 +11,7 @@ fi
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 package_path="$(realpath "$1")"
+expected_commit="$(git -C "$project_dir" rev-parse --verify HEAD)"
 
 if [[ ! -f "$package_path" ]]; then
     echo "RPM does not exist: $package_path" >&2
@@ -70,6 +71,7 @@ required_paths=(
     /usr/share/dbus-1/services/quest.entropy.PlasmaVPN.Backend.service
     /usr/share/icons/hicolor/scalable/apps/plasma-vpn.svg
     /usr/share/doc/proton-vpn-kde/docs/images/overview.png
+    /usr/share/doc/proton-vpn-kde/SOURCE_COMMIT
 )
 
 for required_path in "${required_paths[@]}"; do
@@ -141,11 +143,31 @@ trap 'rm -rf "$extract_dir"' EXIT
 (
     cd "$extract_dir"
     rpm2cpio "$package_path" | cpio -id --quiet \
-        ./usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py
+        ./usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py \
+        ./usr/share/doc/proton-vpn-kde/SOURCE_COMMIT
 )
 feature_file="$extract_dir/usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py"
 grep -Fxq 'SUPPORT_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
 grep -Fxq 'CRASH_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
+grep -Fxq "$expected_commit" \
+    "$extract_dir/usr/share/doc/proton-vpn-kde/SOURCE_COMMIT"
+
+if [[ $# -eq 2 ]]; then
+    source_extract_dir="$extract_dir/source-rpm"
+    mkdir -p "$source_extract_dir"
+    (
+        cd "$source_extract_dir"
+        rpm2cpio "$source_package_path" | cpio -id --quiet
+    )
+    source_archive="$source_extract_dir/proton-vpn-kde-$(rpmspec -q \
+        --qf '%{VERSION}' "$spec_path").tar.gz"
+    archive_commit="$(tar -xOzf "$source_archive" \
+        "proton-vpn-kde-$(rpmspec -q --qf '%{VERSION}' "$spec_path")/.source-commit")"
+    if [[ "$archive_commit" != "$expected_commit" ]]; then
+        echo "Source RPM was not built from commit $expected_commit" >&2
+        exit 1
+    fi
+fi
 
 rpmkeys --checksig "$package_path"
 if [[ $# -eq 2 ]]; then

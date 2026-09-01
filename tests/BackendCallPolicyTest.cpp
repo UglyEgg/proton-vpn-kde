@@ -21,6 +21,10 @@ private slots:
 
 void BackendCallPolicyTest::classifiesBackendFailures()
 {
+    QVERIFY(ProtonVpnKde::isTransientSameOwnerFailure(QDBusError::Timeout));
+    QVERIFY(ProtonVpnKde::isTransientSameOwnerFailure(QDBusError::NoReply));
+    QVERIFY(!ProtonVpnKde::isTransientSameOwnerFailure(
+        QDBusError::ServiceUnknown));
     QCOMPARE(
         ProtonVpnKde::classifyBackendCallFailure(
             QDBusError::ServiceUnknown, QStringView()),
@@ -39,6 +43,13 @@ void BackendCallPolicyTest::classifiesBackendFailures()
         ProtonVpnKde::classifyBackendCallFailure(
             QDBusError::Other, u"quest.entropy.PlasmaVPN.Error.OperationFailed"),
         BackendCallFailure::Rejected);
+    QVERIFY(ProtonVpnKde::isSafeBackendAuthoredMessage(
+        u"quest.entropy.PlasmaVPN.Error.OperationFailed",
+        u"Sign-out failed and the Proton session could not be restored"));
+    QVERIFY(!ProtonVpnKde::isSafeBackendAuthoredMessage(
+        u"org.freedesktop.DBus.Error.Failed", u"private implementation detail"));
+    QVERIFY(!ProtonVpnKde::isSafeBackendAuthoredMessage(
+        u"quest.entropy.PlasmaVPN.Error.OperationFailed", u"line one\nline two"));
 }
 
 void BackendCallPolicyTest::registersOnlyAfterSuccessfulReply()

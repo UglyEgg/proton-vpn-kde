@@ -687,7 +687,7 @@ class ProtonCoreAdapter:
         try:
             result = await self._api.login(username, password)
         except Exception as error:
-            self._handle_authentication_error(error)
+            await self._reconcile_authentication_failure(error)
             return
 
         if not result.authenticated:
@@ -710,7 +710,9 @@ class ProtonCoreAdapter:
         try:
             result = await self._api.submit_2fa_code(code)
         except Exception as error:
-            self._handle_authentication_error(error, fallback_state="two_factor")
+            await self._reconcile_authentication_failure(
+                error, fallback_state="two_factor"
+            )
             return
         if not result.success:
             self._auth_state = "two_factor"
@@ -724,9 +726,36 @@ class ProtonCoreAdapter:
         try:
             await self._api.logout()
         except Exception:
-            # A partially authenticated session may have no server-side session
-            # left to revoke. Locally it must still return to signed-out state.
-            pass
+            core_logged_in = await self._core_logged_in_after_failure()
+            if core_logged_in is False:
+                await self._set_signed_out("Sign-in cancelled")
+                return
+            if core_logged_in is True:
+                self._logged_in = True
+                try:
+                    await self._enable_session_services()
+                except Exception:
+                    self._auth_state = "signed_in_degraded"
+                    self._status_message = (
+                        "Sign-in could not be cancelled; the Proton session is "
+                        "still active but its services could not be restored"
+                    )
+                else:
+                    self._auth_state = "signed_in"
+                    self._status_message = (
+                        "Sign-in could not be cancelled; the Proton session is "
+                        "still active"
+                    )
+                self._publish_snapshot()
+                raise UserVisibleRuntimeError(self._status_message) from None
+            self._logged_in = False
+            self._auth_state = "authentication_unknown"
+            self._status_message = (
+                "Proton could not confirm whether sign-in was cancelled; "
+                "restart the backend before trying again"
+            )
+            self._publish_snapshot()
+            raise UserVisibleRuntimeError(self._status_message) from None
         await self._set_signed_out("Sign-in cancelled")
 
     async def begin_fido2(self) -> None:
@@ -759,7 +788,11 @@ class ProtonCoreAdapter:
                     "two_factor", "Security-key authentication cancelled"
                 )
             else:
-                self._handle_fido2_error(error)
+                await self._reconcile_authentication_failure(
+                    error,
+                    fallback_state="fido_error",
+                    fido_error=True,
+                )
             return
         finally:
             self._fido_interaction = None
@@ -796,14 +829,14 @@ class ProtonCoreAdapter:
                 await self._reconnector.disable()
             self._session_services_enabled = False
             await self._api.logout()
-        except (Exception, asyncio.CancelledError) as error:
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
             core_logged_in = await self._core_logged_in_after_failure()
             if core_logged_in is False:
                 await self._set_signed_out(
                     "Signed out; Proton could not complete some local cleanup"
                 )
-                if isinstance(error, asyncio.CancelledError):
-                    raise
                 raise UserVisibleRuntimeError(
                     "Signed out, but Proton could not complete some local cleanup"
                 ) from None
@@ -814,13 +847,17 @@ class ProtonCoreAdapter:
                 try:
                     if zero_kill_switch_persisted:
                         await self._save_settings(settings)
-                except (Exception, asyncio.CancelledError):
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
                     rollback_failed = True
             session_recovery_failed = False
             if self._logged_in:
                 try:
                     await self._enable_session_services()
-                except (Exception, asyncio.CancelledError):
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
                     session_recovery_failed = True
             if rollback_failed:
                 raise UserVisibleRuntimeError(
@@ -830,8 +867,6 @@ class ProtonCoreAdapter:
                 raise UserVisibleRuntimeError(
                     "Sign-out failed and the Proton session could not be restored"
                 ) from None
-            if isinstance(error, asyncio.CancelledError):
-                raise
             error_name = type(error).__name__
             if error_name in {"ProtonAPINotReachable", "ProtonAPINotAvailable"}:
                 raise UserVisibleRuntimeError(
@@ -855,7 +890,7 @@ class ProtonCoreAdapter:
         self._reconnection_enabled = enabled
         if not self._reconnector:
             return
-        if enabled:
+        if enabled and self._logged_in and self._session_services_enabled:
             self._reconnector.enable()
         else:
             await self._reconnector.disable()
@@ -915,11 +950,15 @@ class ProtonCoreAdapter:
     async def _complete_login(self) -> None:
         try:
             await self._enable_session_services()
-        except (Exception, asyncio.CancelledError) as service_error:
+        except asyncio.CancelledError:
+            raise
+        except Exception:
             cleanup_error: BaseException | None = None
             try:
                 await self._api.logout()
-            except (Exception, asyncio.CancelledError) as error:
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
                 cleanup_error = error
 
             core_logged_in = await self._core_logged_in_after_failure()
@@ -936,8 +975,6 @@ class ProtonCoreAdapter:
                 )
                 self._publish_snapshot()
 
-            if isinstance(service_error, asyncio.CancelledError):
-                raise
             if cleanup_error is not None and core_logged_in is not False:
                 raise UserVisibleRuntimeError(
                     "Sign-in completed, but session services failed and the "
@@ -979,6 +1016,8 @@ class ProtonCoreAdapter:
     async def _set_signed_out(
         self, message: str, auth_state: str = "signed_out"
     ) -> None:
+        if self._reconnector:
+            await self._reconnector.disable()
         self._logged_in = False
         self._auth_state = auth_state
         self._status_message = message
@@ -997,8 +1036,56 @@ class ProtonCoreAdapter:
 
         try:
             return bool(await run_in_daemon_thread(self._api.is_user_logged_in))
-        except (Exception, asyncio.CancelledError):
+        except asyncio.CancelledError:
+            raise
+        except Exception:
             return None
+
+    async def _reconcile_authentication_failure(
+        self,
+        error: Exception,
+        *,
+        fallback_state: str = "signed_out",
+        fido_error: bool = False,
+    ) -> None:
+        """Publish authentication state derived from Core, never an assumption."""
+
+        core_logged_in = await self._core_logged_in_after_failure()
+        if core_logged_in is False:
+            if fido_error:
+                self._handle_fido2_error(error)
+            else:
+                self._handle_authentication_error(error, fallback_state)
+            return
+        if core_logged_in is True:
+            self._logged_in = True
+            try:
+                await self._enable_session_services()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                self._auth_state = "signed_in_degraded"
+                self._status_message = (
+                    "Authentication completed, but Proton session services "
+                    "could not start"
+                )
+                self._publish_snapshot()
+                raise UserVisibleRuntimeError(self._status_message) from None
+            self._auth_state = "signed_in"
+            self._status_message = (
+                "Signed in; Proton reported an incomplete authentication response"
+            )
+            self._publish_snapshot()
+            return
+
+        self._logged_in = False
+        self._auth_state = "authentication_unknown"
+        self._status_message = (
+            "Proton could not confirm whether authentication completed; "
+            "restart the backend before trying again"
+        )
+        self._publish_snapshot()
+        raise UserVisibleRuntimeError(self._status_message) from None
 
     async def _raise_session_error(self, error: Exception):
         if type(error).__name__ != "ProtonAPIAuthenticationNeeded":

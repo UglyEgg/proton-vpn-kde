@@ -16,7 +16,8 @@ Kirigami.ScrollablePage {
 
     readonly property bool preparingSignIn: !vpnController.ready
     readonly property bool credentialsVisible: preparingSignIn || [
-        "signed_out", "signing_in", "human_verification", "expired"
+        "signed_out", "signing_in", "human_verification", "expired",
+        "authentication_unknown"
     ].includes(vpnController.authState)
     readonly property bool twoFactorVisible: [
         "two_factor", "fido_error"

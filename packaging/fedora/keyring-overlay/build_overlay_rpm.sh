@@ -115,6 +115,18 @@ if [[ ${#binary_rpms[@]} -ne 1 || ${#source_rpms[@]} -ne 1 ]]; then
 fi
 
 "$overlay_dir/check_overlay_rpm.sh" "${binary_rpms[0]}"
-rpm -qpi "${source_rpms[0]}" >/dev/null
+source_checks=(
+    "$archive_name=$(realpath "$archive")"
+    "overlay-manifest.json=$manifest"
+    "keyring-overlay-README.md=$overlay_dir/README.md"
+)
+for patch_path in "$overlay_dir"/patches/*.patch; do
+    source_checks+=("$(basename "$patch_path")=$patch_path")
+done
+bash "$overlay_dir/../../../scripts/check-source-rpm-content.sh" \
+    "${binary_rpms[0]}" \
+    "${source_rpms[0]}" \
+    "$overlay_dir/python3-proton-keyring-linux.spec" \
+    "${source_checks[@]}"
 sha256sum "${binary_rpms[0]}" "${source_rpms[0]}"
 printf '%s\n%s\n' "${binary_rpms[0]}" "${source_rpms[0]}"

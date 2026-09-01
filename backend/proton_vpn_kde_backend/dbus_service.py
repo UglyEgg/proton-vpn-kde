@@ -35,7 +35,11 @@ from .client_authorization import (
     UNAUTHORIZED_MESSAGE,
     current_request_sender,
 )
-from .errors import UserVisibleError, UserVisibleRuntimeError
+from .errors import (
+    UserVisibleError,
+    UserVisibleRuntimeError,
+    bounded_user_message,
+)
 from .features import SUPPORT_REPORT_SUBMISSION_ENABLED
 from .secret_payload import SecretPayloadReader, close_descriptor
 from .lifetime import BackendLifetime
@@ -67,13 +71,6 @@ SECRET_OPERATIONS = SECRET_DESCRIPTOR_METHODS
 Result = TypeVar("Result")
 
 
-def _bounded_user_message(error: UserVisibleError, fallback: str) -> str:
-    message = str(error).strip()
-    if not message or len(message) > 256 or not message.isprintable():
-        return fallback
-    return message
-
-
 def dbus_error_boundary(
     error_name: str = OPERATION_FAILED_ERROR,
     fallback_message: str = OPERATION_FAILED_MESSAGE,
@@ -97,7 +94,7 @@ def dbus_error_boundary(
                 except UserVisibleError as error:
                     raise DBusError(
                         error_name,
-                        _bounded_user_message(error, fallback_message),
+                        bounded_user_message(error, fallback_message),
                     ) from None
                 except Exception as error:
                     logger.error(
@@ -124,7 +121,7 @@ def dbus_error_boundary(
             except UserVisibleError as error:
                 raise DBusError(
                     error_name,
-                    _bounded_user_message(error, fallback_message),
+                    bounded_user_message(error, fallback_message),
                 ) from None
             except Exception as error:
                 logger.error(

@@ -16,6 +16,7 @@ from proton_vpn_kde_backend.controller import (
     split_tunneling_patch_from_json,
     validate_support_report,
 )
+from proton_vpn_kde_backend.errors import UserVisibleRuntimeError
 
 
 class FailingDemoAdapter(DemoCoreAdapter):
@@ -26,6 +27,23 @@ class FailingDemoAdapter(DemoCoreAdapter):
 class FailingInitializationAdapter(DemoCoreAdapter):
     async def initialize(self, callback, server_data_callback=None):
         raise RuntimeError("credential=must-not-reach-log")
+
+
+class UserVisibleFailingAdapter(DemoCoreAdapter):
+    async def connect_fastest(self) -> None:
+        raise UserVisibleRuntimeError(
+            "Sign-out failed and the Proton session could not be restored"
+        )
+
+
+class CancellableOperationAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__()
+        self.started = asyncio.Event()
+
+    async def connect_fastest(self) -> None:
+        self.started.set()
+        await asyncio.Future()
 
 
 class LoginRecordingAdapter(DemoCoreAdapter):
@@ -571,6 +589,33 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             controller.snapshot.message,
         )
         self.assertNotIn("must-not-reach-snapshot", controller.snapshot.to_json())
+
+    async def test_bounded_user_visible_operation_message_is_published(self):
+        controller = BackendController(UserVisibleFailingAdapter())
+        await controller.start()
+
+        with self.assertRaisesRegex(RuntimeError, "session could not be restored"):
+            await controller.connect_fastest()
+
+        self.assertEqual(
+            "Sign-out failed and the Proton session could not be restored",
+            controller.snapshot.message,
+        )
+        self.assertFalse(controller.snapshot.busy)
+
+    async def test_cancelled_operation_always_clears_busy_state(self):
+        adapter = CancellableOperationAdapter()
+        controller = BackendController(adapter)
+        await controller.start()
+        operation = asyncio.create_task(controller.connect_fastest())
+        await adapter.started.wait()
+        self.assertTrue(controller.snapshot.busy)
+
+        operation.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await operation
+
+        self.assertFalse(controller.snapshot.busy)
 
 
 if __name__ == "__main__":

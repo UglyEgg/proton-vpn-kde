@@ -208,9 +208,8 @@ void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
     m_snapshotRefreshPending = false;
     if (reply.isError()) {
         const auto errorType = reply.error().type();
-        const bool transientSameOwnerFailure = errorType == QDBusError::NoReply
-            || errorType == QDBusError::Timeout
-            || errorType == QDBusError::NoNetwork;
+        const bool transientSameOwnerFailure =
+            ProtonVpnKde::isTransientSameOwnerFailure(errorType);
         if (!transientSameOwnerFailure
             && ProtonVpnKde::classifyBackendCallFailure(
                    errorType, reply.error().name())
@@ -239,6 +238,13 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
     }
     if (reply.isError()) {
         m_busy = false;
+        if (ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type())) {
+            m_message = tr(
+                "The VPN operation is still completing; refreshing its state");
+            emit snapshotChanged();
+            scheduleSnapshotRefreshRetry();
+            return;
+        }
         const auto failure = ProtonVpnKde::classifyBackendCallFailure(
             reply.error().type(), reply.error().name());
         if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
@@ -247,6 +253,9 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
         } else if (failure
                    == ProtonVpnKde::BackendCallFailure::InvalidSecretPayload) {
             m_message = tr("Protected authentication data was rejected; try again");
+        } else if (ProtonVpnKde::isSafeBackendAuthoredMessage(
+                       reply.error().name(), reply.error().message())) {
+            m_message = reply.error().message();
         } else {
             m_message = tr("The VPN operation could not be completed");
         }
@@ -265,6 +274,13 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
         return;
     }
     if (reply.isError()) {
+        if (ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type())) {
+            m_message = tr(
+                "The VPN operation is still completing; refreshing its state");
+            emit snapshotChanged();
+            scheduleSnapshotRefreshRetry();
+            return;
+        }
         const auto failure = ProtonVpnKde::classifyBackendCallFailure(
             reply.error().type(), reply.error().name());
         if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
@@ -273,6 +289,9 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
         } else if (failure
                    == ProtonVpnKde::BackendCallFailure::InvalidSecretPayload) {
             m_message = tr("Protected authentication data was rejected; try again");
+        } else if (ProtonVpnKde::isSafeBackendAuthoredMessage(
+                       reply.error().name(), reply.error().message())) {
+            m_message = reply.error().message();
         } else {
             m_message = tr("The VPN operation could not be completed");
         }

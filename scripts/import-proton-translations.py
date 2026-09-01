@@ -63,6 +63,26 @@ def validate_provenance(locale_dir: Path, provenance_path: Path) -> None:
         )
 
 
+def validate_output_provenance(output_dir: Path, provenance_path: Path) -> None:
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    expected_outputs = provenance.get("outputSha256")
+    if not isinstance(expected_outputs, dict) or not expected_outputs:
+        raise ValueError("Translation output provenance is incomplete")
+    output_files = sorted(output_dir.glob("proton-vpn-kde_*.ts"))
+    actual_names = {path.name for path in output_files}
+    expected_names = set(expected_outputs)
+    if actual_names != expected_names:
+        raise ValueError(
+            "Generated translation set differs from pinned provenance: "
+            f"missing={sorted(expected_names - actual_names)}, "
+            f"extra={sorted(actual_names - expected_names)}"
+        )
+    for path in output_files:
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != expected_outputs[path.name]:
+            raise ValueError(f"Generated translation digest mismatch: {path.name}")
+
+
 def qt_tool(name: str) -> str:
     found = shutil.which(name)
     if found:
@@ -166,7 +186,13 @@ def main() -> int:
     parser.add_argument(
         "official_locale_dir",
         type=Path,
+        nargs="?",
         help="directory containing Proton VPN GTK .po catalogs",
+    )
+    parser.add_argument(
+        "--check-outputs",
+        action="store_true",
+        help="verify committed Qt catalogs without importing",
     )
     parser.add_argument(
         "--source-root", type=Path, default=Path(__file__).resolve().parents[1]
@@ -182,13 +208,19 @@ def main() -> int:
     args = parser.parse_args()
 
     source_root = args.source_root.resolve()
-    locale_dir = args.official_locale_dir.resolve()
     output_dir = (
         args.output_dir
         if args.output_dir.is_absolute()
         else source_root / args.output_dir
     )
     provenance_path = args.provenance or source_root / "translations/provenance.json"
+    if args.check_outputs:
+        validate_output_provenance(output_dir, provenance_path.resolve())
+        print("Generated translation catalogs match pinned provenance")
+        return 0
+    if args.official_locale_dir is None:
+        parser.error("official_locale_dir is required unless --check-outputs is used")
+    locale_dir = args.official_locale_dir.resolve()
     validate_provenance(locale_dir, provenance_path.resolve())
     po_files = sorted(locale_dir.glob("*.po"))
     if not po_files:
@@ -232,6 +264,7 @@ def main() -> int:
                 template, translated_messages(converted), language, output
             )
             print(f"{language}: imported {count} exact shared strings -> {output}")
+    validate_output_provenance(output_dir, provenance_path.resolve())
     return 0
 
 

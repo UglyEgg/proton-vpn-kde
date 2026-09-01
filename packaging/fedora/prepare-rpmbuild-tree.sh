@@ -13,6 +13,11 @@ if [[ ! -f "$spec_file" ]]; then
     exit 1
 fi
 
+if [[ -e "$topdir" ]] && find "$topdir" -mindepth 1 -print -quit | grep -q .; then
+    echo "RPM output directory must be empty: $topdir" >&2
+    exit 1
+fi
+
 name="$(sed -n 's/^Name:[[:space:]]*//p' "$spec_file" | head -n 1)"
 version="$(sed -n 's/^Version:[[:space:]]*//p' "$spec_file" | head -n 1)"
 if [[ -z "$name" || -z "$version" ]]; then
@@ -21,9 +26,21 @@ if [[ -z "$name" || -z "$version" ]]; then
 fi
 
 mkdir -p "$topdir"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS,TMP}
+source_commit="$(git -C "$project_dir" rev-parse --verify HEAD)"
+archive_dir="$(mktemp -d)"
+trap 'rm -rf "$archive_dir"' EXIT
+archive_tar="$archive_dir/${name}-${version}.tar"
 git -C "$project_dir" archive \
-    --format=tar.gz \
+    --format=tar \
     --prefix="${name}-${version}/" \
-    --output="$topdir/SOURCES/${name}-${version}.tar.gz" \
+    --output="$archive_tar" \
     HEAD
+mkdir -p "$archive_dir/${name}-${version}"
+printf '%s\n' "$source_commit" \
+    >"$archive_dir/${name}-${version}/.source-commit"
+tar --append --file "$archive_tar" --directory "$archive_dir" \
+    "${name}-${version}/.source-commit"
+gzip --no-name --stdout "$archive_tar" \
+    >"$topdir/SOURCES/${name}-${version}.tar.gz"
 install -m 0644 "$spec_file" "$topdir/SPECS/"
+printf 'Prepared %s from commit %s\n' "$name" "$source_commit"

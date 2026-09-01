@@ -55,6 +55,15 @@ All notable user-visible changes are recorded here. The project follows
 - Bind translation imports and all three Fedora package identities,
   capabilities, source packages, and dependency resolution to machine-checked
   manifests and exact artifact metadata.
+- Reconcile late login, two-factor, security-key, and cancellation failures
+  with Proton Core before publishing account state, and serialize reconnect
+  preference changes with sign-out.
+- Treat a long-running same-owner operation as completion-unknown instead of
+  declaring the backend dead; refresh the authoritative snapshot and preserve
+  bounded recovery guidance across the D-Bus boundary.
+- Bind the complete Fedora binary/source artifact set and generated translation
+  catalogs to the exact reviewed commit, and identify the modified API-Core RPM
+  with its community downstream vendor.
 
 ## [0.11.3] - 2026-08-31
 

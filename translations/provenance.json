@@ -27,5 +27,31 @@
     "zh_MY.po": "9ebbcc1ebbd9ae2e77089a685b75ddda4aae60578ccaf1255e74a3e5d3f8dcd5",
     "zh_SG.po": "9ebbcc1ebbd9ae2e77089a685b75ddda4aae60578ccaf1255e74a3e5d3f8dcd5",
     "zh_TW.po": "25a916c320da962c77a1f0ecd81f2c84a829c1ce4e1b85d62a139b4a27325179"
+  },
+  "outputSha256": {
+    "proton-vpn-kde_be_BY.ts": "cbb3a8688b7f4d56298a54564115ffe61a14ad5a40188cdba0f3ee908d7572d5",
+    "proton-vpn-kde_ca_ES.ts": "2fa57f75243d872360d091cafb384cfa20f5291e09553f6d7929fbf84439bdd1",
+    "proton-vpn-kde_cs_CZ.ts": "071b21afdaef51eee20052414fb7e556a84aee01f1828a264aabe269cb21cb62",
+    "proton-vpn-kde_de_DE.ts": "6a7afbdea9581e3366caf591f03cb87f34084a02e9447ef3bf3451e28f5b1f1b",
+    "proton-vpn-kde_el_GR.ts": "ab52d4af834965810b5b2fa8383200870f2676898e70fdc4b82bb456c97a8a38",
+    "proton-vpn-kde_es_ES.ts": "e886ca0201025d3d5a2bb3db1437db5e6fddbbe193ca42d33e45c591d5f63d34",
+    "proton-vpn-kde_es_LA.ts": "d54f58de4cac00bdf7e2245eebfa1cb9710ac5683e57ea78496b3d4cef38c933",
+    "proton-vpn-kde_fr_FR.ts": "02ff7d3c21ad4a940063925784215d844b241f3f3f6f1835ed1ddacd9d02964c",
+    "proton-vpn-kde_it_IT.ts": "c008d77abe1d304f0a65407f114eeed96e12feef9e5d2a8a19e3337711cdc68f",
+    "proton-vpn-kde_ja_JP.ts": "c827e138fea2f1a3c5a69220e22db04669f0b19ecc4b4ef1d9b293e3995f4488",
+    "proton-vpn-kde_ko_KR.ts": "cf6d6e8267fa891adc1bfcfbee8de005deb2b8933610d46fd1b007526bae88e5",
+    "proton-vpn-kde_nl_NL.ts": "b1719447e18788effc7a86f16b1d629635ef4164a895a27e9395e092b336f955",
+    "proton-vpn-kde_pl_PL.ts": "228724e889f89fa362bc617b300c2cff49e5d7ce655d98ae84afff8505277887",
+    "proton-vpn-kde_pt_BR.ts": "4dbfdf2315d4a9fa00aa8d9c6efe43c628ed430484558b942dbc428dd45a1d43",
+    "proton-vpn-kde_ro_RO.ts": "5a222c8a0be1a509e6f7e72b41a0c30926ef7cf1c06fbf68fc551ca283f05139",
+    "proton-vpn-kde_ru_RU.ts": "07422b0fbf2d993a352710c8a640f36594962da63da065ad2108fc767fda4064",
+    "proton-vpn-kde_sl_SI.ts": "f0b738270c2a4246de00ed5c36ab390626675ad69afe75b540a13802859bbbca",
+    "proton-vpn-kde_tr_TR.ts": "685c0906aefc492715e952590deaee2c99441ba680d4ba826b442144b4bbe41f",
+    "proton-vpn-kde_zh_CN.ts": "de4f7837dd5169a46af7107d98ad771cb62b28237da77f4cdacd9b0bd1c2ea9e",
+    "proton-vpn-kde_zh_HK.ts": "9a7fc308712dc3eb058c3ba7ade7a6f330a2a0ec8c358240c75bf076c8fcfc06",
+    "proton-vpn-kde_zh_MO.ts": "bdef7c7d0ffee22bea0d22ae3c0c735c24b9b905939f4ddfb8738ea609fe1dea",
+    "proton-vpn-kde_zh_MY.ts": "a382e262b03377ec2c4da1b0a5b68ff59c5b1a4c1d88c459873d5e9187613c97",
+    "proton-vpn-kde_zh_SG.ts": "48267de701a49e78afa7c309b572ba759c2db5ea42b606cbc8a30826bac03081",
+    "proton-vpn-kde_zh_TW.ts": "995bdf922ffccce4566d28aeece5f5470204baac2572a29ad3bc8ee9bae65484"
   }
 }

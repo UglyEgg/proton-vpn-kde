@@ -12,7 +12,12 @@ import json
 import logging
 from typing import Callable, Protocol
 
-from .errors import UserVisibleRuntimeError, UserVisibleValueError
+from .errors import (
+    UserVisibleError,
+    UserVisibleRuntimeError,
+    UserVisibleValueError,
+    bounded_user_message,
+)
 from .features import CRASH_REPORT_SUBMISSION_ENABLED
 from .models import (
     SUPPORTED_SERVER_FEATURES,
@@ -320,6 +325,20 @@ class BackendController:
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
                 settings = await self._adapter.update_settings(patch)
+            except asyncio.CancelledError:
+                self._publish(replace(self._snapshot, busy=False))
+                raise
+            except UserVisibleError as error:
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=False,
+                        message=bounded_user_message(
+                            error, "The VPN settings could not be updated"
+                        ),
+                    )
+                )
+                raise
             except Exception:
                 self._publish(
                     replace(
@@ -352,6 +371,21 @@ class BackendController:
             try:
                 split_tunneling = await self._adapter.update_split_tunneling(patch)
                 settings = await self._adapter.get_settings()
+            except asyncio.CancelledError:
+                self._publish(replace(self._snapshot, busy=False))
+                raise
+            except UserVisibleError as error:
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=False,
+                        message=bounded_user_message(
+                            error,
+                            "The split-tunneling settings could not be updated",
+                        ),
+                    )
+                )
+                raise
             except Exception:
                 self._publish(
                     replace(
@@ -385,6 +419,20 @@ class BackendController:
             try:
                 custom_dns = await self._adapter.update_custom_dns(patch)
                 settings = await self._adapter.get_settings()
+            except asyncio.CancelledError:
+                self._publish(replace(self._snapshot, busy=False))
+                raise
+            except UserVisibleError as error:
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=False,
+                        message=bounded_user_message(
+                            error, "The custom-DNS settings could not be updated"
+                        ),
+                    )
+                )
+                raise
             except Exception:
                 self._publish(
                     replace(
@@ -508,6 +556,20 @@ class BackendController:
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
                 await self._adapter.submit_support_report(report)
+            except asyncio.CancelledError:
+                self._publish(replace(self._snapshot, busy=False))
+                raise
+            except UserVisibleError as error:
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=False,
+                        message=bounded_user_message(
+                            error, "The issue report could not be submitted"
+                        ),
+                    )
+                )
+                raise
             except Exception:
                 self._publish(
                     replace(
@@ -595,7 +657,11 @@ class BackendController:
         await self._run_operation(self._adapter.disconnect)
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
-        await self._adapter.set_reconnection_enabled(enabled)
+        # Preference updates arrive from both desktop processes. Serialize them
+        # with logout/session expiry so a late update cannot re-enable the live
+        # reconnector after the account has been signed out.
+        async with self._operation_lock:
+            await self._adapter.set_reconnection_enabled(enabled)
 
     async def close(self) -> None:
         await self._adapter.close()
@@ -654,6 +720,20 @@ class BackendController:
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
                 await operation()
+            except asyncio.CancelledError:
+                self._publish(replace(self._snapshot, busy=False))
+                raise
+            except UserVisibleError as error:
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=False,
+                        message=bounded_user_message(
+                            error, "The VPN operation could not be completed"
+                        ),
+                    )
+                )
+                raise
             except Exception:
                 self._publish(
                     replace(

@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.5%{?dist}
+Release:        0.6%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -66,6 +66,7 @@ package may retain its own desktop integration dependencies.
 
 %prep
 %autosetup -n %{name}-%{version}
+cp -p .source-commit SOURCE_COMMIT
 
 %build
 %cmake \
@@ -103,7 +104,7 @@ desktop-file-validate \
 %defattr(-,root,root,-)
 %license LICENSE COPYING.md
 %doc README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md SUPPORT.md
-%doc THIRD_PARTY_NOTICES.md docs
+%doc THIRD_PARTY_NOTICES.md docs SOURCE_COMMIT
 %{_bindir}/proton-vpn-kde
 %{_bindir}/proton-vpn-kde-agent
 %{_bindir}/proton-vpn-kde-backend
@@ -127,6 +128,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.6
+- Reconcile late authentication, cancellation, and logout/reconnect races.
+- Recover same-owner operation timeouts without declaring the backend dead.
+- Bind binary/source artifacts and translations to exact reviewed inputs.
+
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.5
 - Reconcile partial authentication and logout failures with persisted Core state.
 - Require the runtime iproute command used by reconnect readiness probes.

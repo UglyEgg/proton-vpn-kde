@@ -494,6 +494,50 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             "Proton could not complete authentication", snapshots[-1].message
         )
 
+    async def test_late_login_error_reconciles_core_authenticated_state(self):
+        api, _ = self.make_api(logged_in=False)
+        api.login.side_effect = RuntimeError("late session-data failure")
+        api.is_user_logged_in.side_effect = [False, True]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        await adapter.login("test-user", "not-recorded")
+
+        self.assertTrue(adapter._logged_in)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertIn("incomplete authentication response", snapshots[-1].message)
+        api.refresher.enable.assert_awaited_once_with()
+
+    async def test_unknown_late_login_state_is_not_published_as_signed_out(self):
+        api, _ = self.make_api(logged_in=False)
+        api.login.side_effect = RuntimeError("late session-data failure")
+        api.is_user_logged_in.side_effect = [False, RuntimeError("store unavailable")]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "could not confirm"):
+            await adapter.login("test-user", "not-recorded")
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("authentication_unknown", snapshots[-1].auth_state)
+
+    async def test_cancel_login_failure_preserves_confirmed_core_session(self):
+        api, _ = self.make_api(logged_in=False)
+        api.logout.side_effect = RuntimeError("logout failed")
+        api.is_user_logged_in.side_effect = [False, True]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "still active"):
+            await adapter.cancel_login()
+
+        self.assertTrue(adapter._logged_in)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        api.refresher.enable.assert_awaited_once_with()
+
     async def test_security_key_flow_uses_official_api(self):
         api, _ = self.make_api(logged_in=False)
         api.supports_fido2 = True
@@ -604,6 +648,41 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, api.save_settings.await_count)
         api.logout.assert_not_awaited()
         self.assertTrue(adapter._logged_in)
+
+    async def test_logout_cannot_race_reconnector_reenable(self):
+        api, _ = self.make_api()
+        logout_started = asyncio.Event()
+        release_logout = asyncio.Event()
+
+        async def blocked_logout():
+            logout_started.set()
+            await release_logout.wait()
+
+        api.logout.side_effect = blocked_logout
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        logout_task = asyncio.create_task(adapter.logout())
+        await logout_started.wait()
+
+        await adapter.set_reconnection_enabled(True)
+        self.assertFalse(adapter._reconnector.enabled)
+        release_logout.set()
+        await logout_task
+
+        self.assertFalse(adapter._logged_in)
+        self.assertFalse(adapter._reconnector.enabled)
+
+    async def test_core_state_probe_propagates_cancellation(self):
+        api, _ = self.make_api(logged_in=False)
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with patch(
+            "proton_vpn_kde_backend.adapters.run_in_daemon_thread",
+            AsyncMock(side_effect=asyncio.CancelledError()),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await adapter._core_logged_in_after_failure()
 
     async def test_expired_api_session_returns_to_sign_in_state(self):
         api, _ = self.make_api()
