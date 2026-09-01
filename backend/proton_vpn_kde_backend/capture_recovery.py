@@ -28,6 +28,19 @@ class PacketCaptureRecoveryJournal:
     def __init__(self, path: Path | None = None) -> None:
         self._path = path or self.default_path()
 
+    def exists(self) -> bool:
+        """Return whether any recovery entry requires startup retention."""
+        try:
+            os.lstat(self._path)
+        except FileNotFoundError:
+            return False
+        except OSError:
+            # Uncertainty must retain initialization. The authoritative load
+            # in recover() will then either validate the entry or fail startup
+            # nonzero so systemd can retry it.
+            return True
+        return True
+
     @staticmethod
     def default_path() -> Path:
         runtime_value = os.environ.get("XDG_RUNTIME_DIR", "")

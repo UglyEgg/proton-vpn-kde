@@ -142,6 +142,10 @@ class ProtonCoreAdapter:
         self._core_memory_optimized = False
         self._core_version = ""
 
+    def has_pending_startup_recovery(self) -> bool:
+        """Keep initialization alive while durable capture recovery is pending."""
+        return self._packet_capture.has_pending_recovery()
+
     async def initialize(
         self,
         callback: SnapshotCallback,

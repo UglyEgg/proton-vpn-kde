@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.23%{?dist}
+Release:        0.24%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -133,6 +133,9 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.24
+- Prevent idle startup from abandoning packet-capture recovery.
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.23
 - Preserve unconfirmed packet-capture supervision across backend replacement.
 - Retry bounded Core stop calls until capture completion is confirmed.

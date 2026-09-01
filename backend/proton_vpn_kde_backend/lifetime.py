@@ -121,7 +121,10 @@ class BackendLifetime:
         if self._clients:
             return False
         if not snapshot.ready:
-            return snapshot.state == "starting"
+            return (
+                snapshot.state == "starting"
+                and not self._controller.has_pending_startup_recovery()
+            )
         return (
             snapshot.state == "disconnected"
             and not snapshot.busy

@@ -103,6 +103,8 @@ All notable user-visible changes are recorded here. The project follows
   across backend replacement, retry an unconfirmed stop before the replacement
   reports ready, and continue bounded stop attempts after the deadline until
   Core confirms completion.
+- Retain backend initialization while a durable packet-capture recovery entry
+  exists so the ordinary no-client idle deadline cannot orphan recovery.
 - Keep capture setup inactive and retryable when Core rejects the selected
   destination before it receives a start request.
 - Teach Git that unified-diff context markers are patch syntax while retaining

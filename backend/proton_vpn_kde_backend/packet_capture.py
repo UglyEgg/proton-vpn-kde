@@ -49,6 +49,10 @@ class PacketCaptureCoordinator:
         self._deadline: float | None = None
         self._stop_lock = asyncio.Lock()
 
+    def has_pending_recovery(self) -> bool:
+        """Return whether startup owns a durable capture-recovery record."""
+        return self._journal.exists()
+
     async def recover(self, connector: Any) -> None:
         """Reacquire and supervise an unconfirmed capture from an older process."""
         deadline = self._journal.load_deadline()

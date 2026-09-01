@@ -238,9 +238,12 @@ atomically replaced recovery record in the private desktop runtime directory
 preserves the original deadline across backend replacement. The replacement
 reacquires Core and retries an unconfirmed stop before publishing readiness;
 if no active connection can be reacquired, startup fails for bounded systemd
-retry rather than discarding capture ownership. Deadline retries continue until
-Core confirms completion. The adapter does not inspect, rename, upload, or
-rewrite PCAP data.
+retry rather than discarding capture ownership. Any recovery-directory entry
+also retains initialization against the ordinary no-client idle deadline until
+startup clears or validates it; malformed state therefore fails startup rather
+than being abandoned by a clean idle exit. Deadline retries continue until Core
+confirms completion. The adapter does not inspect, rename, upload, or rewrite
+PCAP data.
 
 Direct support submission and anonymous crash reporting to Proton are disabled
 in community builds through synchronized build, frontend, and backend gates.

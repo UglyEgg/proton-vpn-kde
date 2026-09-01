@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import replace
 import unittest
 from unittest.mock import AsyncMock
@@ -18,10 +19,14 @@ from proton_vpn_kde_backend.lifetime import BackendLifetime
 class FakeController:
     def __init__(self, snapshot: VpnSnapshot):
         self.snapshot = snapshot
-        self._listeners = []
+        self._listeners: list[Callable[[VpnSnapshot], None]] = []
+        self.pending_startup_recovery = False
 
     def subscribe(self, callback):
         self._listeners.append(callback)
+
+    def has_pending_startup_recovery(self):
+        return self.pending_startup_recovery
 
     def publish(self, **changes):
         self.snapshot = replace(self.snapshot, **changes)
@@ -60,6 +65,21 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
 
         await asyncio.wait_for(lifetime.run(), timeout=0.2)
 
+        self.assertTrue(stopped.is_set())
+
+    async def test_capture_recovery_retains_abandoned_startup(self):
+        lifetime, controller, stopped, _ = self.make_lifetime(
+            state="starting", ready=False
+        )
+        controller.pending_startup_recovery = True
+        task = asyncio.create_task(lifetime.run())
+
+        await asyncio.sleep(0.04)
+
+        self.assertFalse(stopped.is_set())
+        controller.pending_startup_recovery = False
+        controller.publish(state="starting")
+        await asyncio.wait_for(task, timeout=0.2)
         self.assertTrue(stopped.is_set())
 
     async def test_live_frontend_protects_startup_prompt(self):

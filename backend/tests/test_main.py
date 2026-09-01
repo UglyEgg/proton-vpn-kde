@@ -3,13 +3,19 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
 import os
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
 from dbus_fast.constants import RequestNameReply
 
 from proton_vpn_kde_backend import __main__ as backend_main
+from proton_vpn_kde_backend.capture_recovery import PacketCaptureRecoveryJournal
+from proton_vpn_kde_backend.controller import VpnSnapshot
 
 
 class BackendMainTests(unittest.TestCase):
@@ -107,6 +113,123 @@ class BackendPublicationTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(events.index("install-authorizer"), publication)
         self.assertLess(events.index("add-handler"), publication)
         self.assertLess(events.index("export"), publication)
+
+    async def test_capture_recovery_cannot_be_cancelled_by_idle_startup(self):
+        start_entered = asyncio.Event()
+        release_start = asyncio.Event()
+        start_cancelled = asyncio.Event()
+
+        class FakeBus:
+            async def connect(self):
+                return self
+
+            async def request_name(self, *_args):
+                return RequestNameReply.PRIMARY_OWNER
+
+            def add_message_handler(self, _handler):
+                pass
+
+            def remove_message_handler(self, _handler):
+                pass
+
+            def export(self, _path, _service):
+                pass
+
+            def unexport(self, _path, _service):
+                pass
+
+            async def release_name(self, _name):
+                pass
+
+            def disconnect(self):
+                pass
+
+        class FakeAuthorizer:
+            message_handler = object()
+
+            async def install(self):
+                pass
+
+            async def uninstall(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as runtime_directory:
+            runtime_path = Path(runtime_directory)
+            runtime_path.chmod(0o700)
+            with patch.dict(os.environ, {"XDG_RUNTIME_DIR": runtime_directory}):
+                journal = PacketCaptureRecoveryJournal()
+                journal.store_deadline(100.0)
+
+                class FakeController:
+                    def __init__(self):
+                        self.snapshot = VpnSnapshot()
+                        self._listeners: list[
+                            Callable[[VpnSnapshot], None]
+                        ] = []
+
+                    def subscribe(self, callback):
+                        self._listeners.append(callback)
+
+                    def has_pending_startup_recovery(self):
+                        return journal.exists()
+
+                    async def start(self):
+                        start_entered.set()
+                        try:
+                            await release_start.wait()
+                        except asyncio.CancelledError:
+                            start_cancelled.set()
+                            raise
+                        journal.clear()
+                        self.snapshot = VpnSnapshot(
+                            ready=True,
+                            state="disconnected",
+                        )
+                        for callback in self._listeners:
+                            callback(self.snapshot)
+                        return True
+
+                    async def close(self):
+                        pass
+
+                controller = FakeController()
+                with (
+                    patch.object(
+                        backend_main, "MessageBus", return_value=FakeBus()
+                    ),
+                    patch.object(
+                        backend_main, "DemoCoreAdapter", return_value=object()
+                    ),
+                    patch.object(
+                        backend_main,
+                        "BackendController",
+                        return_value=controller,
+                    ),
+                    patch.object(
+                        backend_main,
+                        "ClientAuthorizer",
+                        return_value=FakeAuthorizer(),
+                    ),
+                    patch.object(
+                        backend_main, "VpnDbusService", return_value=object()
+                    ),
+                    patch.object(
+                        backend_main, "_idle_timeout_seconds", return_value=0.01
+                    ),
+                ):
+                    run_task = asyncio.create_task(backend_main.run(demo=True))
+                    await asyncio.wait_for(start_entered.wait(), timeout=0.2)
+                    await asyncio.sleep(0.04)
+                    self.assertFalse(run_task.done())
+                    self.assertFalse(start_cancelled.is_set())
+                    release_start.set()
+                    self.assertEqual(
+                        0,
+                        await asyncio.wait_for(run_task, timeout=0.2),
+                    )
+
+                self.assertFalse(journal.exists())
+                self.assertFalse(start_cancelled.is_set())
 
 
 if __name__ == "__main__":

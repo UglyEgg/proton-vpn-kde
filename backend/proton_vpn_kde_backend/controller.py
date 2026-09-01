@@ -109,6 +109,7 @@ class CoreAdapter(Protocol):
         callback: SnapshotCallback,
         server_data_callback: ServerDataCallback | None = None,
     ) -> VpnSnapshot: ...
+    def has_pending_startup_recovery(self) -> bool: ...
     async def get_countries(self) -> list[CountryInfo]: ...
     async def get_server_groups(self, country_code: str) -> list[ServerGroupInfo]: ...
     async def get_group_servers(
@@ -191,6 +192,9 @@ class BackendController:
     @property
     def snapshot(self) -> VpnSnapshot:
         return self._snapshot
+
+    def has_pending_startup_recovery(self) -> bool:
+        return self._adapter.has_pending_startup_recovery()
 
     def subscribe(self, callback: SnapshotCallback) -> None:
         self._listeners.append(callback)

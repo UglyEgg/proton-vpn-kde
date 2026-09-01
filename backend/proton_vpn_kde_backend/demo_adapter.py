@@ -78,6 +78,10 @@ class DemoCoreAdapter:
         self.last_nps_response: NpsSurveyResponse | None = None
         self._snapshot = self._build_snapshot(message="Safe demo backend")
 
+    @staticmethod
+    def has_pending_startup_recovery() -> bool:
+        return False
+
     async def initialize(
         self,
         callback: SnapshotCallback,

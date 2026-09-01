@@ -27,8 +27,10 @@ class PacketCaptureRecoveryJournalTests(unittest.TestCase):
         self._runtime_directory.cleanup()
 
     def test_round_trip_is_private_atomic_and_clearable(self):
+        self.assertFalse(self.journal.exists())
         self.journal.store_deadline(1234.5)
 
+        self.assertTrue(self.journal.exists())
         self.assertEqual(1234.5, self.journal.load_deadline())
         self.assertEqual(0o600, stat.S_IMODE(self.recovery_path.stat().st_mode))
         self.assertEqual(
@@ -37,10 +39,12 @@ class PacketCaptureRecoveryJournalTests(unittest.TestCase):
         )
 
         self.journal.clear()
+        self.assertFalse(self.journal.exists())
         self.assertIsNone(self.journal.load_deadline())
 
     def test_invalid_or_permissive_record_is_rejected(self):
         self.recovery_path.write_text('{"version":1}', encoding="utf-8")
+        self.assertTrue(self.journal.exists())
         with self.assertRaisesRegex(RuntimeError, "recovery state is invalid"):
             self.journal.load_deadline()
 

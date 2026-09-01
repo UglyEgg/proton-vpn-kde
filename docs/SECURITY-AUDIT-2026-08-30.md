@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 208 backend tests at 81% measured branch
+translation units under Clang-Tidy, 210 backend tests at 81% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -320,6 +320,18 @@ pre-start persistence, unconfirmed shutdown, successful replacement recovery,
 missing-connection fail-closed behavior, and post-deadline retries. The complete
 six-review gate must restart on the resulting exact commit.
 
+The next exact candidate at `a4983be` passed the same source and two-build
+package gate. Its first fresh review wave found that a pre-readiness recovery
+whose bounded Core stop calls exceeded the ordinary ten-second idle deadline
+could still be canceled into a clean exit. Because `Restart=on-failure` would
+not replace that process, the durable record could remain without a live
+supervisor. Every result from that wave is discarded. Startup lifetime now
+treats any recovery entry as retained work until initialization clears or
+validates it, while a genuine initialization failure still exits nonzero for
+systemd retry. Focused tests combine the real journal with no frontend lease and
+a delayed initialization. The complete six-review gate must restart on the new
+exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -347,6 +359,7 @@ six-review gate must restart on the resulting exact commit.
 | PV-012-023 | Medium | Owner loss during an asynchronous identity probe could be processed before authorization, allowing the dead client to be added afterward and retain an idle backend | **Remediated with a bounded pending-authorization owner-loss marker; final independent verification pending** |
 | PV-012-024 | Medium | Session expiry during a settings write or compensation could be overwritten with a restart-only settings-unavailable state | **Remediated by preserving the authoritative expired-session state and deferring persisted-settings reconciliation to the next sign-in; final independent verification pending** |
 | PV-012-025 | Medium | Backend shutdown could discard the only watchdog after an unconfirmed packet-capture stop, leaving a replacement unable to enforce the original deadline | **Remediated with an atomic runtime recovery record, pre-readiness Core reacquisition, and continuing deadline retries; final independent verification pending** |
+| PV-012-026 | Medium | The no-client startup idle deadline could cancel a hanging capture-recovery stop and exit cleanly, leaving the durable record without a scheduled supervisor | **Remediated by retaining initialization while any recovery entry exists and preserving nonzero failure retry; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -531,7 +544,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 202 backend Python tests;
+- 210 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;
