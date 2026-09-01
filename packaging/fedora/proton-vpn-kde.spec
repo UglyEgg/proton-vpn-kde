@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.19%{?dist}
+Release:        0.20%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -77,6 +77,7 @@ cp -p .source-commit SOURCE_COMMIT
     -DCMAKE_INSTALL_LIBEXECDIR=%{_libexecdir} \
     -DKDE_INSTALL_LIBEXECDIR=%{_libexecdir} \
     -DKDE_INSTALL_SBINDIR=%{_sbindir} \
+    -DPROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR=%{_datadir}/proton-vpn-kde/translations \
     -DPROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION=OFF \
     -DPROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION=OFF \
 %if %{without kstatusnotifier}
@@ -132,6 +133,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.20
+- Keep build-tree paths out of installed translation lookup metadata.
+- Compare clean package rebuilds under one normalized RPM build path.
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.19
 - Normalize RPM header build time and host metadata.
 - Compare complete output sets from two independent package builds.

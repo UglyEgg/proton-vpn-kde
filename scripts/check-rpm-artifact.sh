@@ -151,11 +151,15 @@ trap 'rm -rf "$extract_dir"' EXIT
 (
     cd "$extract_dir"
     rpm2cpio "$package_path" | cpio -id --quiet \
+        ./usr/bin/proton-vpn-kde \
+        ./usr/bin/proton-vpn-kde-agent \
         ./usr/lib/systemd/user/proton-vpn-kde-agent.service \
         ./usr/lib/systemd/user/proton-vpn-kde-backend.service \
         ./usr/lib/systemd/user/proton-vpn-kde-control-center.service \
         ./usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py \
         ./usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/unsafe_environment.txt \
+        ./usr/lib64/qt6/plugins/kf6/krunner/proton-vpn-kde-runner.so \
+        ./usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_proton_vpn_kde.so \
         ./usr/share/applications/proton-vpn-kde.desktop \
         ./usr/share/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service \
         ./usr/share/doc/proton-vpn-kde/SOURCE_COMMIT
@@ -180,6 +184,27 @@ grep -Fqx 'SystemdService=proton-vpn-kde-control-center.service' \
     "$extract_dir/usr/share/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service"
 grep -Fxq "$expected_commit" \
     "$extract_dir/usr/share/doc/proton-vpn-kde/SOURCE_COMMIT"
+
+translation_targets=(
+    usr/bin/proton-vpn-kde
+    usr/bin/proton-vpn-kde-agent
+    usr/lib64/qt6/plugins/kf6/krunner/proton-vpn-kde-runner.so
+    usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_proton_vpn_kde.so
+)
+for translation_target in "${translation_targets[@]}"; do
+    mapfile -t absolute_translation_paths < <(
+        strings -a -e l "$extract_dir/$translation_target" \
+            | grep -E '^/.*/translations$' \
+            | sort -u
+    )
+    if [[ ${#absolute_translation_paths[@]} -ne 1 \
+            || "${absolute_translation_paths[0]}" \
+                != '/usr/share/proton-vpn-kde/translations' ]]; then
+        echo "Unexpected compiled translation path in $translation_target" >&2
+        printf '%s\n' "${absolute_translation_paths[@]}" >&2
+        exit 1
+    fi
+done
 
 if [[ $# -eq 2 ]]; then
     source_extract_dir="$extract_dir/source-rpm"

@@ -23,7 +23,7 @@ mapfile -t second_artifacts < <(
 
 if [[ ${#first_artifacts[@]} -eq 0 \
         || "${first_artifacts[*]}" != "${second_artifacts[*]}" ]]; then
-    echo "Independent builds did not produce the same RPM output set" >&2
+    echo "Clean rebuilds did not produce the same RPM output set" >&2
     exit 1
 fi
 
@@ -36,4 +36,4 @@ for relative_path in "${first_artifacts[@]}"; do
     fi
 done
 
-echo "RPM output set is byte-reproducible (${#first_artifacts[@]} artifacts)"
+echo "Normalized-path RPM output set is byte-reproducible (${#first_artifacts[@]} artifacts)"

@@ -23,6 +23,7 @@ jobs:
     env:
       RPM_TOPDIR: ${{ github.workspace }}/rpm-build
       RPM_REPRO_TOPDIR: ${{ github.workspace }}/rpm-repro-build
+      RPM_REPRO_WORKDIR: /tmp/proton-vpn-kde-rpmbuild
       KEYRING_RPM_TOPDIR: ${{ github.workspace }}/keyring-rpm-build
       API_CORE_RPM_TOPDIR: ${{ github.workspace }}/api-core-rpm-build
       RELEASE_ARTIFACT_DIR: ${{ github.workspace }}/release-artifacts
@@ -84,6 +85,8 @@ jobs:
         run: |
           useradd --create-home ci-builder
           chown -R ci-builder:ci-builder "$GITHUB_WORKSPACE"
+          install -d -m 0755 -o ci-builder -g ci-builder \
+            "$RPM_REPRO_WORKDIR/BUILD" "$RPM_REPRO_WORKDIR/TMP"
 
       - name: Build provider-neutral keyring overlay
         run: |
@@ -105,25 +108,29 @@ jobs:
 
       - name: Build source and binary RPMs
         env:
-          TMPDIR: ${{ env.RPM_TOPDIR }}/TMP
+          TMPDIR: ${{ env.RPM_REPRO_WORKDIR }}/TMP
         run: |
           runuser --user ci-builder -- \
             rpmbuild \
               --define "_topdir $RPM_TOPDIR" \
-              --define "_tmppath $RPM_TOPDIR/TMP" \
+              --define "_builddir $RPM_REPRO_WORKDIR/BUILD" \
+              --define "_sourcedir $RPM_TOPDIR/SOURCES" \
+              --define "_tmppath $RPM_REPRO_WORKDIR/TMP" \
               --define "_smp_build_ncpus 2" \
               -ba "$RPM_TOPDIR/SPECS/proton-vpn-kde.spec"
 
       - name: Verify package reproducibility
         env:
-          TMPDIR: ${{ env.RPM_REPRO_TOPDIR }}/TMP
+          TMPDIR: ${{ env.RPM_REPRO_WORKDIR }}/TMP
         run: |
           runuser --user ci-builder -- \
             packaging/fedora/prepare-rpmbuild-tree.sh "$RPM_REPRO_TOPDIR"
           runuser --user ci-builder -- \
             rpmbuild \
               --define "_topdir $RPM_REPRO_TOPDIR" \
-              --define "_tmppath $RPM_REPRO_TOPDIR/TMP" \
+              --define "_builddir $RPM_REPRO_WORKDIR/BUILD" \
+              --define "_sourcedir $RPM_TOPDIR/SOURCES" \
+              --define "_tmppath $RPM_REPRO_WORKDIR/TMP" \
               --define "_smp_build_ncpus 2" \
               -ba "$RPM_REPRO_TOPDIR/SPECS/proton-vpn-kde.spec"
           scripts/check-rpm-reproducibility.sh \

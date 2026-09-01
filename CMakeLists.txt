@@ -105,6 +105,10 @@ file(GLOB PROTON_VPN_KDE_TS_FILES CONFIGURE_DEPENDS
 )
 set(PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR
     "${CMAKE_CURRENT_BINARY_DIR}/translations")
+set(PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR
+    "${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}"
+    CACHE PATH
+    "Translation directory compiled into runtime targets")
 qt_add_lrelease(
     LRELEASE_TARGET proton-vpn-kde-translations
     TS_FILES ${PROTON_VPN_KDE_TS_FILES}
@@ -115,7 +119,7 @@ qt_add_lrelease(
 
 function(proton_vpn_kde_enable_translations target)
     target_compile_definitions(${target} PRIVATE
-        PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR="${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}"
+        PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR="${PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR}"
     )
     add_dependencies(${target} proton-vpn-kde-translations)
 endfunction()
@@ -804,7 +808,7 @@ if(BUILD_TESTING)
         Qt6::Test
     )
     target_compile_definitions(installed-translation-loader-tests PRIVATE
-        PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR="/nonexistent"
+        PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR="/nonexistent"
     )
     add_dependencies(installed-translation-loader-tests
         installed-translation-test-data)

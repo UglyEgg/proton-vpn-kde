@@ -78,6 +78,8 @@ All notable user-visible changes are recorded here. The project follows
   declaring the local backend unresponsive.
 - Generate source archives through one commit-stamping release path with
   normalized metadata and a two-build reproducibility gate.
+- Keep local build-tree translation paths out of installed native artifacts,
+  and compare every RPM from two clean builds under a normalized build path.
 - Remove native-loader, OpenSSL-provider, GIO/GI, Python, Qt-plugin, and QML
   search overrides before backend and Core imports, with one generated contract
   shared by systemd, the launcher, both authorization directions, and package

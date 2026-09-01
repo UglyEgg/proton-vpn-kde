@@ -98,7 +98,8 @@ pushed commit and pull request. It inspects the main package's identity,
 dependency boundary, required payload, ownership, permissions, community
 reporting feature gates, digest, and transaction validity; it also verifies
 the keyring and API-Core overlays, rebuilds the complete client RPM/SRPM output
-set in a second clean top directory, requires byte-identical results, and
+set in a second clean top directory under the same normalized RPM build path,
+requires byte-identical results, and
 performs an isolated transaction with the complete six-artifact set. All binary and source RPMs are retained as CI
 artifacts for 14 days. These unsigned CI artifacts are review evidence, not
 published releases and not a substitute for the clean-environment live

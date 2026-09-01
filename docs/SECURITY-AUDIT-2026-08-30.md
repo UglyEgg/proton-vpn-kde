@@ -265,6 +265,15 @@ time from the source-date epoch and uses a fixed non-routable build host, while
 CI compares the complete output sets from two clean package builds byte for
 byte. The complete gate must restart on the resulting exact commit.
 
+The gate at `3e58e63` did not enter isolated review. Its local package proof
+found that installed native targets retained the build-tree translation path
+and that RPM source headers necessarily retained expanded top-directory paths.
+The package build now compiles the installed translation directory into
+production targets and runs both clean builds under one normalized RPM build
+and source path while retaining separate output trees. The byte comparison
+still covers the complete binary, debug, debug-source, and source RPM set. The
+complete gate must start on the resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
