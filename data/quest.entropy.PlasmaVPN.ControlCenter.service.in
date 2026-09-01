@@ -4,3 +4,4 @@
 [D-BUS Service]
 Name=quest.entropy.PlasmaVPN.ControlCenter
 Exec=@CMAKE_INSTALL_FULL_BINDIR@/proton-vpn-kde --show
+SystemdService=proton-vpn-kde-control-center.service

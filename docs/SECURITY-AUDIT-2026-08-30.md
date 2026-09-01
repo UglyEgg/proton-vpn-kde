@@ -17,7 +17,7 @@ reported path has a focused response in the current working tree. **The
 isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
-The current source verification passed Mypy, Ruff, all 34 production
+The current source verification passed Mypy, Ruff, all 35 production
 translation units under Clang-Tidy, 174 backend tests at 79% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
@@ -159,6 +159,17 @@ production idle deadline ignore the demo-only environment override. Because
 this changed runtime code, every six-review result for `42afa2f` is discarded;
 the next exact commit restarts the complete gate.
 
+The restarted exact-commit gate at `b1f010d` found that direct Control Center
+D-Bus activation did not cross the new pre-loader systemd boundary. It also
+found that the Plasma System Settings module and the agent's last-resort
+launches could still select project executables through inherited `PATH`.
+Those results are discarded because the remediation adds a dedicated Control
+Center systemd user service carrying the shared environment policy, uses one
+compile-time installed-path module for the KCM and agent fallbacks, and makes
+the desktop entry absolute. Staged-install, package, native hostile-`PATH`, and
+missing-helper regressions cover the corrected launch boundaries. The complete
+six-review gate must restart again on the resulting exact clean commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -171,6 +182,8 @@ the next exact commit restarts the complete gate.
 | PV-012-008 | Medium | D-BusMenu tray activation could invoke the authorized resident controller directly | **Remediated; final independent verification pending** |
 | PV-012-009 | High | Inherited OpenSSL and GIO/GI environment overrides could load native code in the backend | **Remediated within the documented threat boundary; final independent verification pending** |
 | PV-012-010 | Medium | Inherited `PATH` could select an attacker-written `ip` executable for the reconnect probe | **Remediated with a fixed packaged path; final independent verification pending** |
+| PV-012-011 | High | Direct Control Center D-Bus activation could load inherited native-loader overrides before Qt startup | **Remediated with a sanitized systemd activation unit; final independent verification pending** |
+| PV-012-012 | Medium | KCM and agent fallback launches could select project executables through inherited `PATH` | **Remediated with configured absolute paths; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -310,12 +323,14 @@ Core, and one lock serializes manual, watchdog, disconnect, and shutdown stops.
 
 ### Privilege and Core boundary
 
-The backend and agent are unprivileged user services. Fedora packages use
-absolute executable paths, `NoNewPrivileges`, an isolated Python launcher, and
-one generated policy for dynamic-loader, OpenSSL-provider, GIO/GI, Python,
-Qt-plugin, and QML environment cleanup. The launcher repeats the cleanup before
-backend and Core imports. Packaged native binaries were verified as PIE with
-non-executable stacks, GNU RELRO, and immediate binding.
+The backend, agent, and Control Center are unprivileged user services. Fedora
+packages use absolute executable paths, `NoNewPrivileges`, an isolated Python
+launcher, and one generated policy for dynamic-loader, OpenSSL-provider,
+GIO/GI, Python, Qt-plugin, and QML environment cleanup. D-Bus activation of all
+three processes crosses those systemd units before application imports, and
+the launcher repeats the cleanup before backend and Core imports. Packaged
+native binaries were verified as PIE with non-executable stacks, GNU RELRO,
+and immediate binding.
 
 Package-channel changes use Polkit, absolute executables, and fixed arguments;
 no shell or user-selected package name reaches DNF. Community code does not

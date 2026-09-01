@@ -90,6 +90,13 @@ authorization definitions are generated from those files. Static analysis
 rejects stale generated output, and a backend test compares the Python service's
 live signatures with Backend1 before a contract change can merge.
 
+Fedora D-Bus activation routes all three packaged processes through dedicated
+systemd user services. Their root-owned executable paths are fixed at build
+time, and the Control Center, agent, and backend remove the same native-loader
+and runtime search overrides before their entry points load application code.
+The desktop file and community-owned fallback launches also use configured
+absolute paths rather than the inherited desktop executable search order.
+
 The version-one contract groups operations into:
 
 - non-sensitive snapshots and server browsing;

@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[Unit]
+Description=Control Center for the Plasma VPN community client
+
+[Service]
+Type=dbus
+BusName=quest.entropy.PlasmaVPN.ControlCenter
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/proton-vpn-kde --show
+NoNewPrivileges=true
+# The Control Center authenticates the backend through procfs, so it retains
+# the same host mount namespace as the resident agent.
+UnsetEnvironment=@PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_SYSTEMD@

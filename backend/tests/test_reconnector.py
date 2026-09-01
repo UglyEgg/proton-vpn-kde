@@ -11,7 +11,6 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from proton_vpn_kde_backend.reconnector import (
-    IP_COMMAND,
     AsyncReconnector,
     LogindSessionProbe,
     network_route_available,
@@ -37,17 +36,12 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.dict(os.environ, {"PATH": "/tmp/attacker"}),
             patch(
-                "proton_vpn_kde_backend.reconnector.os.access",
-                return_value=True,
-            ) as access,
-            patch(
                 "proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
                 new=AsyncMock(return_value=process),
             ) as create_process,
         ):
             self.assertTrue(await network_route_available())
 
-        access.assert_called_once_with(IP_COMMAND, os.X_OK)
         create_process.assert_awaited_once_with(
             "/usr/bin/ip",
             "route",
@@ -58,19 +52,20 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_network_probe_fails_when_packaged_ip_is_unavailable(self):
-        with (
-            patch(
-                "proton_vpn_kde_backend.reconnector.os.access",
-                return_value=False,
-            ),
-            patch(
-                "proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
-                new=AsyncMock(),
-            ) as create_process,
-        ):
+        with patch(
+            "proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
+            new=AsyncMock(side_effect=FileNotFoundError),
+        ) as create_process:
             self.assertFalse(await network_route_available())
 
-        create_process.assert_not_awaited()
+        create_process.assert_awaited_once_with(
+            "/usr/bin/ip",
+            "route",
+            "get",
+            "192.0.2.1",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
 
     def make_reconnector(
         self,

@@ -24,16 +24,17 @@ IP_COMMAND = "/usr/bin/ip"
 
 async def network_route_available() -> bool:
     """Match Proton's route-based connectivity check without GLib polling."""
-    if not os.access(IP_COMMAND, os.X_OK):
+    try:
+        process = await asyncio.create_subprocess_exec(
+            IP_COMMAND,
+            "route",
+            "get",
+            "192.0.2.1",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+    except OSError:
         return False
-    process = await asyncio.create_subprocess_exec(
-        IP_COMMAND,
-        "route",
-        "get",
-        "192.0.2.1",
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
     return await process.wait() == 0
 
 

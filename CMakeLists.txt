@@ -129,6 +129,14 @@ function(proton_vpn_kde_enable_backend_identity target)
     )
 endfunction()
 
+function(proton_vpn_kde_enable_installed_executable_paths target)
+    target_compile_definitions(${target} PRIVATE
+        PROTON_VPN_KDE_CONTROL_CENTER_EXECUTABLE_PATH="${CMAKE_INSTALL_FULL_BINDIR}/proton-vpn-kde"
+        PROTON_VPN_KDE_AGENT_EXECUTABLE_PATH="${CMAKE_INSTALL_FULL_BINDIR}/proton-vpn-kde-agent"
+        PROTON_VPN_KDE_SYSTEM_SETTINGS_EXECUTABLE_PATH="${CMAKE_INSTALL_FULL_BINDIR}/systemsettings"
+    )
+endfunction()
+
 set(PROTON_VPN_KDE_LOCATION_MODEL_SOURCES
     src/CountryModel.cpp
     src/LocationFilterProxyModel.cpp
@@ -156,6 +164,8 @@ qt_add_executable(proton-vpn-kde
     src/ConnectionAction.h
     src/InstalledApplicationModel.cpp
     src/InstalledApplicationModel.h
+    src/InstalledExecutablePaths.cpp
+    src/InstalledExecutablePaths.h
     src/SecretTransport.cpp
     src/SecretTransport.h
     src/TranslationLoader.cpp
@@ -181,6 +191,7 @@ qt_add_executable(proton-vpn-kde
 )
 proton_vpn_kde_enable_translations(proton-vpn-kde)
 proton_vpn_kde_enable_backend_identity(proton-vpn-kde)
+proton_vpn_kde_enable_installed_executable_paths(proton-vpn-kde)
 
 qt_add_executable(proton-vpn-kde-agent
     src/AgentControl.cpp
@@ -197,6 +208,8 @@ qt_add_executable(proton-vpn-kde-agent
     src/BackendIdentity.cpp
     src/BackendIdentity.h
     src/ConnectionAction.h
+    src/InstalledExecutablePaths.cpp
+    src/InstalledExecutablePaths.h
     src/NotificationIntegration.cpp
     src/NotificationIntegration.h
     src/RunnerActionRequest.cpp
@@ -212,6 +225,7 @@ qt_add_executable(proton-vpn-kde-agent
 )
 proton_vpn_kde_enable_translations(proton-vpn-kde-agent)
 proton_vpn_kde_enable_backend_identity(proton-vpn-kde-agent)
+proton_vpn_kde_enable_installed_executable_paths(proton-vpn-kde-agent)
 
 qt_add_resources(proton-vpn-kde "plasma-vpn-app-icon"
     PREFIX "/"
@@ -632,6 +646,8 @@ if(BUILD_TESTING)
         tests/ControlCenterControlTest.cpp
         src/AgentControl.cpp
         src/AgentControl.h
+        src/InstalledExecutablePaths.cpp
+        src/InstalledExecutablePaths.h
         src/RunnerActionRequest.cpp
         src/RunnerActionRequest.h
     )
@@ -645,6 +661,8 @@ if(BUILD_TESTING)
     target_compile_options(control-center-control-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
+    proton_vpn_kde_enable_installed_executable_paths(
+        control-center-control-tests)
     add_test(NAME control-center-control-tests COMMAND control-center-control-tests)
 
     qt_add_executable(krunner-plugin-tests
@@ -983,8 +1001,18 @@ configure_file(
     @ONLY
 )
 configure_file(
+    data/proton-vpn-kde-control-center.service.in
+    ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-control-center.service
+    @ONLY
+)
+configure_file(
     data/proton-vpn-kde-agent.service.in
     ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-agent.service
+    @ONLY
+)
+configure_file(
+    data/proton-vpn-kde.desktop.in
+    ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde.desktop
     @ONLY
 )
 if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBEXECDIR}")
@@ -1041,7 +1069,10 @@ install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/_build_features.py
     DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/proton-vpn-kde/proton_vpn_kde_backend
 )
-install(FILES data/proton-vpn-kde.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
 install(
     FILES
         data/plasma-vpn.svg
@@ -1069,6 +1100,10 @@ install(
 install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/quest.entropy.PlasmaVPN.ControlCenter.service
     DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
+)
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-control-center.service
+    DESTINATION ${KDE_INSTALL_SYSTEMDUSERUNITDIR}
 )
 install(
     DIRECTORY data/dbus/

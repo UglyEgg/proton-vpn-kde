@@ -10,7 +10,6 @@ from time import monotonic
 import unittest
 
 from proton_vpn_kde_backend.support import (
-    JOURNALCTL_COMMAND,
     TRUNCATION_MARKER,
     _JOURNAL_SOURCES,
     collect_support_logs,
@@ -25,7 +24,7 @@ class SupportLogTests(unittest.TestCase):
     def test_production_sources_are_fixed_to_one_day_and_known_units(self):
         self.assertEqual(3, len(_JOURNAL_SOURCES))
         for _filename, command in _JOURNAL_SOURCES:
-            self.assertEqual(JOURNALCTL_COMMAND, command[0])
+            self.assertEqual("/usr/bin/journalctl", command[0])
             self.assertIn("--since=-1d", command)
             self.assertIn("--no-pager", command)
 

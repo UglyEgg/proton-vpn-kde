@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.8%{?dist}
+Release:        0.9%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -92,13 +92,13 @@ desktop-file-validate \
     %{buildroot}%{_datadir}/applications/proton-vpn-kde.desktop
 
 %post
-%systemd_user_post proton-vpn-kde-backend.service proton-vpn-kde-agent.service
+%systemd_user_post proton-vpn-kde-backend.service proton-vpn-kde-agent.service proton-vpn-kde-control-center.service
 
 %preun
-%systemd_user_preun proton-vpn-kde-backend.service proton-vpn-kde-agent.service
+%systemd_user_preun proton-vpn-kde-backend.service proton-vpn-kde-agent.service proton-vpn-kde-control-center.service
 
 %posttrans
-%systemd_user_posttrans_with_restart proton-vpn-kde-backend.service proton-vpn-kde-agent.service
+%systemd_user_posttrans_with_restart proton-vpn-kde-backend.service proton-vpn-kde-agent.service proton-vpn-kde-control-center.service
 
 %files
 %defattr(-,root,root,-)
@@ -126,8 +126,14 @@ desktop-file-validate \
 %{_qt6_plugindir}/plasma/kcms/systemsettings/kcm_proton_vpn_kde.so
 %{_userunitdir}/proton-vpn-kde-backend.service
 %{_userunitdir}/proton-vpn-kde-agent.service
+%{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.9
+- Sanitize the Control Center environment before D-Bus activation.
+- Pin System Settings, Control Center, and resident-agent launch paths.
+- Remove the route-probe executable preflight race.
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.8
 - Pin project-owned helper commands to their packaged Fedora paths.
 - Ignore the demo-only idle-timeout override in production backend mode.

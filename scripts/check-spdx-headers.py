@@ -20,7 +20,7 @@ def is_project_source(path: Path) -> bool:
     name = relative.name
     if name == "CMakeLists.txt" or relative.as_posix() == ".clang-tidy":
         return True
-    if name.endswith((".service.in", ".conf", ".conf.in")):
+    if name.endswith((".desktop.in", ".service.in", ".conf", ".conf.in")):
         return True
     return path.suffix in {
         ".cpp",

@@ -67,6 +67,8 @@ The following properties are part of the project's security contract:
 - packaged user services and the backend launcher must remove the shared
   native-loader and runtime search-path override set before community or Proton
   code is imported;
+- D-Bus activation of the packaged Control Center must cross its sanitized
+  systemd user-service boundary before Qt or community code is loaded;
 - project-owned subprocesses must use fixed packaged executable paths rather
   than select commands through the inherited desktop `PATH`;
 - the downstream keyring adapter must require the desktop-selected Secret

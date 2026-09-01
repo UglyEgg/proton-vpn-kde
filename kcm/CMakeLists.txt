@@ -11,6 +11,8 @@ kcmutils_add_qml_kcm(kcm_proton_vpn_kde
         ProtonVpnKcm.h
         ../src/AppSettings.cpp
         ../src/AppSettings.h
+        ../src/InstalledExecutablePaths.cpp
+        ../src/InstalledExecutablePaths.h
         ../src/TranslationLoader.cpp
         ../src/TranslationLoader.h
 )
@@ -26,6 +28,7 @@ target_link_libraries(kcm_proton_vpn_kde PRIVATE
     KF6::KCMUtilsQuick
 )
 proton_vpn_kde_enable_translations(kcm_proton_vpn_kde)
+proton_vpn_kde_enable_installed_executable_paths(kcm_proton_vpn_kde)
 target_compile_options(kcm_proton_vpn_kde PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
 )

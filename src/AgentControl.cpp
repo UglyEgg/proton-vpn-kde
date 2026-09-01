@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "AgentControl.h"
+#include "InstalledExecutablePaths.h"
 #include "RunnerActionRequest.h"
 
 #include <QCoreApplication>
@@ -10,8 +11,6 @@
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
-#include <QDir>
-#include <QFileInfo>
 #include <QProcess>
 #include <QWindow>
 
@@ -19,12 +18,6 @@ namespace
 {
 namespace AgentDbus = ProtonVpnKde::DBusContract::Agent;
 namespace ControlCenterDbus = ProtonVpnKde::DBusContract::ControlCenter;
-
-QString siblingExecutable(const QString &name)
-{
-    const QString candidate = QDir(QCoreApplication::applicationDirPath()).filePath(name);
-    return QFileInfo(candidate).isExecutable() ? candidate : name;
-}
 
 QDBusMessage agentCall(const QString &method)
 {
@@ -185,7 +178,7 @@ void ProtonVpnKde::setAgentEnabled(bool enabled)
             return;
         }
         QProcess::startDetached(
-            siblingExecutable(QStringLiteral("proton-vpn-kde-agent")));
+            ProtonVpnKde::agentExecutablePath());
     });
 }
 
@@ -206,7 +199,7 @@ void ProtonVpnKde::requestControlCenter(bool settings)
             return;
         }
         QProcess::startDetached(
-            siblingExecutable(QStringLiteral("proton-vpn-kde")),
+            ProtonVpnKde::controlCenterExecutablePath(),
             {settings ? QStringLiteral("--settings")
                       : QStringLiteral("--show")});
     });

@@ -86,6 +86,9 @@ All notable user-visible changes are recorded here. The project follows
 - Invoke the packaged `ip` and `journalctl` tools by absolute path instead of
   inheriting executable selection from the desktop environment, and reserve the
   adjustable backend idle deadline for explicit demo/test mode.
+- Route Control Center D-Bus activation through its own environment-sanitized
+  systemd user service, and pin desktop, System Settings, resident-agent, and
+  Control Center fallback launches to configured absolute executable paths.
 
 ## [0.11.3] - 2026-08-31
 

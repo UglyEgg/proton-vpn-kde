@@ -2,9 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "AgentControl.h"
+#include "InstalledExecutablePaths.h"
 
+#include <QFile>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTest>
+#include <QTemporaryDir>
 
 class ControlCenterControlTest final : public QObject
 {
@@ -15,6 +19,7 @@ private slots:
     void acceptsOnlyValidatedRunnerActions();
     void rejectsBroadBackendAuthority_data();
     void rejectsBroadBackendAuthority();
+    void installedLaunchPathsIgnoreHostilePath();
 };
 
 void ControlCenterControlTest::acceptsOnlyValidatedRunnerActions_data()
@@ -72,6 +77,34 @@ void ControlCenterControlTest::rejectsBroadBackendAuthority()
 
     QVERIFY(!control.RequestRunnerAction(action, argument));
     QCOMPARE(spy.count(), 0);
+}
+
+void ControlCenterControlTest::installedLaunchPathsIgnoreHostilePath()
+{
+    const QByteArray originalPath = qgetenv("PATH");
+    QTemporaryDir hostileDirectory;
+    QVERIFY(hostileDirectory.isValid());
+    const QString hostileExecutable = hostileDirectory.filePath(
+        QStringLiteral("proton-vpn-kde"));
+    QFile shim(hostileExecutable);
+    QVERIFY(shim.open(QIODevice::WriteOnly));
+    QCOMPARE(shim.write("#!/usr/bin/bash\nexit 0\n"), 23);
+    shim.close();
+    QVERIFY(shim.setPermissions(QFileDevice::ReadOwner
+                                | QFileDevice::WriteOwner
+                                | QFileDevice::ExeOwner));
+    QVERIFY(qputenv("PATH", hostileDirectory.path().toUtf8()));
+
+    QCOMPARE(ProtonVpnKde::controlCenterExecutablePath(),
+             QStringLiteral("/usr/bin/proton-vpn-kde"));
+    QCOMPARE(ProtonVpnKde::agentExecutablePath(),
+             QStringLiteral("/usr/bin/proton-vpn-kde-agent"));
+    QCOMPARE(ProtonVpnKde::systemSettingsExecutablePath(),
+             QStringLiteral("/usr/bin/systemsettings"));
+    QCOMPARE(QStandardPaths::findExecutable(QStringLiteral("proton-vpn-kde")),
+             hostileExecutable);
+
+    QVERIFY(qputenv("PATH", originalPath));
 }
 
 QTEST_GUILESS_MAIN(ControlCenterControlTest)

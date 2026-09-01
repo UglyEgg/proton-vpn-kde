@@ -62,6 +62,7 @@ required_paths=(
     /usr/bin/proton-vpn-kde-backend
     /usr/lib/systemd/user/proton-vpn-kde-agent.service
     /usr/lib/systemd/user/proton-vpn-kde-backend.service
+    /usr/lib/systemd/user/proton-vpn-kde-control-center.service
     /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/__main__.py
     /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/dbus_contract.py
     /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/unsafe_environment.txt
@@ -70,6 +71,7 @@ required_paths=(
     /usr/share/dbus-1/interfaces/quest.entropy.PlasmaVPN.Agent1.xml
     /usr/share/dbus-1/interfaces/quest.entropy.PlasmaVPN.ControlCenter1.xml
     /usr/share/dbus-1/services/quest.entropy.PlasmaVPN.Backend.service
+    /usr/share/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service
     /usr/share/icons/hicolor/scalable/apps/plasma-vpn.svg
     /usr/share/doc/proton-vpn-kde/docs/images/overview.png
     /usr/share/doc/proton-vpn-kde/SOURCE_COMMIT
@@ -146,8 +148,11 @@ trap 'rm -rf "$extract_dir"' EXIT
     rpm2cpio "$package_path" | cpio -id --quiet \
         ./usr/lib/systemd/user/proton-vpn-kde-agent.service \
         ./usr/lib/systemd/user/proton-vpn-kde-backend.service \
+        ./usr/lib/systemd/user/proton-vpn-kde-control-center.service \
         ./usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py \
         ./usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/unsafe_environment.txt \
+        ./usr/share/applications/proton-vpn-kde.desktop \
+        ./usr/share/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service \
         ./usr/share/doc/proton-vpn-kde/SOURCE_COMMIT
 )
 feature_file="$extract_dir/usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py"
@@ -160,6 +165,14 @@ grep -Fqx "$expected_unset_environment" \
     "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-backend.service"
 grep -Fqx "$expected_unset_environment" \
     "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-agent.service"
+grep -Fqx "$expected_unset_environment" \
+    "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-control-center.service"
+grep -Fqx 'ExecStart=/usr/bin/proton-vpn-kde --show' \
+    "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-control-center.service"
+grep -Fqx 'Exec=/usr/bin/proton-vpn-kde --show' \
+    "$extract_dir/usr/share/applications/proton-vpn-kde.desktop"
+grep -Fqx 'SystemdService=proton-vpn-kde-control-center.service' \
+    "$extract_dir/usr/share/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service"
 grep -Fxq "$expected_commit" \
     "$extract_dir/usr/share/doc/proton-vpn-kde/SOURCE_COMMIT"
 

@@ -35,6 +35,12 @@ denylist of dynamic-loader, OpenSSL-provider, GIO/GI, Python, Qt-plugin, and QML
 search overrides before importing backend or Core code, preventing accidental
 or inherited configuration from crossing the narrower supported boundary.
 
+The Control Center's D-Bus activation also enters a dedicated systemd user
+service carrying the same denylist before Qt loads. Its desktop entry, Plasma
+System Settings module, and resident-agent fallback use configured absolute
+paths, so an inherited writable-leading `PATH` cannot substitute a different
+client process inside this boundary.
+
 The in-process KRunner plug-in is deliberately not a backend client and never
 handles authentication material. KRunner, global shortcuts, and D-Bus-exported
 tray actions send only bounded connection requests to the Control Center and

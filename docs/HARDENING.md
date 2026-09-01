@@ -146,6 +146,8 @@ brokers. Therefore `/usr/bin/krunner`, KGlobalAccel, and status-notifier
 D-BusMenu are not trusted backend clients. Their actions send only validated
 connection requests to the Control Center activation service, which requires
 explicit modal confirmation before its already authenticated controller acts.
-The guarded
-disconnect-and-quit tray path also requires local confirmation. Shared brokers
-never authenticate to or call the backend.
+That activation service delegates startup to a dedicated systemd user unit,
+which removes the shared loader environment before Qt loads. The KCM, desktop
+entry, and agent fallbacks use configured absolute executable paths. The
+guarded disconnect-and-quit tray path also requires local confirmation. Shared
+brokers never authenticate to or call the backend.

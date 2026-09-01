@@ -16,7 +16,11 @@ shellcheck \
     scripts/*.sh \
     packaging/fedora/api-core-overlay/*.sh \
     packaging/fedora/keyring-overlay/*.sh
-desktop-file-validate data/proton-vpn-kde.desktop
+desktop_validation_file="$(mktemp --suffix=.desktop)"
+trap 'rm -f -- "$desktop_validation_file"' EXIT
+sed 's|@CMAKE_INSTALL_FULL_BINDIR@|/usr/bin|g' \
+    data/proton-vpn-kde.desktop.in >"$desktop_validation_file"
+desktop-file-validate "$desktop_validation_file"
 xmllint --noout data/plasma-vpn.svg \
     data/plasma-vpn-light.svg \
     data/plasma-vpn-dark.svg
