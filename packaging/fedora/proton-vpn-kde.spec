@@ -3,9 +3,12 @@
 
 %bcond_without kstatusnotifier
 
+%global use_source_date_epoch_as_buildtime 1
+%global _buildhost reproducible.invalid
+
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.18%{?dist}
+Release:        0.19%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -129,6 +132,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.19
+- Normalize RPM header build time and host metadata.
+- Compare complete output sets from two independent package builds.
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.18
 - Publish the backend D-Bus name only after its authorization ingress and
   exported service object are ready.

@@ -31,10 +31,12 @@ expected_source_rpm="${expected_identity[1]}"
 actual_nevra="$(rpm -qp --qf '%{NEVRA}' "$package_path")"
 actual_source_rpm="$(rpm -qp --qf '%{SOURCERPM}' "$package_path")"
 actual_license="$(rpm -qp --qf '%{LICENSE}' "$package_path")"
+actual_build_host="$(rpm -qp --qf '%{BUILDHOST}' "$package_path")"
 
 [[ "$actual_nevra" == "$expected_nevra" ]]
 [[ "$actual_source_rpm" == "$expected_source_rpm" ]]
 [[ "$actual_license" == "GPL-3.0-or-later" ]]
+[[ "$actual_build_host" == "reproducible.invalid" ]]
 
 if [[ $# -eq 2 ]]; then
     source_package_path="$(realpath "$2")"
@@ -47,9 +49,12 @@ if [[ $# -eq 2 ]]; then
         "$source_package_path")"
     actual_source_flag="$(rpm -qp --qf '%{SOURCEPACKAGE}' \
         "$source_package_path")"
+    source_build_host="$(rpm -qp --qf '%{BUILDHOST}' \
+        "$source_package_path")"
     if [[ "$(basename "$source_package_path")" != "$expected_source_rpm" \
             || "$actual_source_nvr" != "$expected_source_nvr" \
-            || "$actual_source_flag" != "1" ]]; then
+            || "$actual_source_flag" != "1" \
+            || "$source_build_host" != "reproducible.invalid" ]]; then
         echo "Unexpected source RPM identity: $actual_source_nvr" >&2
         exit 1
     fi

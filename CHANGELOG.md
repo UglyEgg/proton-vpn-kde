@@ -111,6 +111,8 @@ All notable user-visible changes are recorded here. The project follows
   agent's retained shutdown path, and explicitly allowlist exported slots.
 - Publish the backend's D-Bus name only after authorization and object export
   are ready, preventing startup races from stranding automatic connection.
+- Normalize RPM header time and host metadata, then require complete binary and
+  source package sets from two independent builds to match byte for byte.
 
 ## [0.11.3] - 2026-08-31
 

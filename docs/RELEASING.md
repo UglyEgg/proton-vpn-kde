@@ -74,7 +74,9 @@ packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
 Create a fresh dedicated top directory with the commit-stamping helper, then
 build with Fedora's package flags and `%check` enabled. The helper refuses a
 nonempty output directory and normalizes the injected commit marker so the
-same source commit produces the same archive:
+same source commit produces the same archive. The spec also derives the RPM
+header build time from the changelog epoch and uses a fixed non-routable build
+host so independent unsigned builds can be compared byte for byte:
 
 ```bash
 packaging/fedora/prepare-rpmbuild-tree.sh \
@@ -95,8 +97,9 @@ The `RPM Package` GitHub Actions workflow repeats all three builds from every
 pushed commit and pull request. It inspects the main package's identity,
 dependency boundary, required payload, ownership, permissions, community
 reporting feature gates, digest, and transaction validity; it also verifies
-the keyring and API-Core overlays and performs an isolated transaction with
-the complete six-artifact set. All binary and source RPMs are retained as CI
+the keyring and API-Core overlays, rebuilds the complete client RPM/SRPM output
+set in a second clean top directory, requires byte-identical results, and
+performs an isolated transaction with the complete six-artifact set. All binary and source RPMs are retained as CI
 artifacts for 14 days. These unsigned CI artifacts are review evidence, not
 published releases and not a substitute for the clean-environment live
 acceptance below.
