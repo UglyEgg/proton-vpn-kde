@@ -203,6 +203,7 @@ void AgentVpnClient::onServiceRegistered(const QString &)
     ++m_serviceGeneration;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
+    m_operationReconciliationPending = false;
     m_authorizationPending = false;
     const auto identity = ProtonVpnKde::verifyBackendIdentity(
         QDBusConnection::sessionBus(),
@@ -235,6 +236,7 @@ void AgentVpnClient::onServiceUnregistered(const QString &)
     m_busy = false;
     m_reconnectionApplied = false;
     m_reconnectionPending = false;
+    m_operationReconciliationPending = false;
     m_authorizationPending = false;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
@@ -639,6 +641,7 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
     }
     if (reply.isError()) {
         m_busy = false;
+        m_operationReconciliationPending = false;
         m_message = fixedCallFailureMessage(reply.error());
         const bool interactive = m_pendingInteractive;
         clearPendingConnection();
@@ -654,7 +657,12 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         && (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty())) {
         acquireTransientLease();
     }
+    const bool releaseReconciliationLease = m_operationReconciliationPending;
+    m_operationReconciliationPending = false;
     applySnapshot(reply.value());
+    if (releaseReconciliationLease) {
+        releaseTransientLease();
+    }
 }
 
 void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
@@ -666,12 +674,23 @@ void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
         return;
     }
     if (reply.isError()) {
+        if (ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type())) {
+            m_operationReconciliationPending = true;
+            m_busy = true;
+            m_message = tr(
+                "The VPN operation may still be completing; refreshing its state");
+            emit snapshotChanged();
+            requestSnapshot();
+            return;
+        }
         m_busy = false;
+        m_operationReconciliationPending = false;
         m_message = fixedCallFailureMessage(reply.error());
         emit snapshotChanged();
         releaseTransientLease();
         return;
     }
+    m_operationReconciliationPending = false;
     releaseTransientLease();
     requestSnapshot();
 }

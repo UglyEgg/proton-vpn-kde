@@ -113,6 +113,14 @@ All notable user-visible changes are recorded here. The project follows
   agent's retained shutdown path, and explicitly allowlist exported slots.
 - Publish the backend's D-Bus name only after authorization and object export
   are ready, preventing startup races from stranding automatic connection.
+- Derive failed sign-in cleanup state from Core's authoritative session probe,
+  never from whether the cleanup call itself returned successfully.
+- Make user-initiated settings writes transactional: compensate a possibly
+  committed failure, and block further VPN operations when the persisted or
+  live protection state cannot be confirmed.
+- Reconcile completion-unknown connection and settings mutations from a fresh
+  backend snapshot before releasing the agent's transient lifetime lease or
+  presenting settings as final.
 - Normalize RPM header time and host metadata, then require complete binary and
   source package sets from two independent builds to match byte for byte.
 

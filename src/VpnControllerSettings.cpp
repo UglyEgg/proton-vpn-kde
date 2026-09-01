@@ -3,6 +3,7 @@
 
 #include "VpnController.h"
 
+#include "BackendCallPolicy.h"
 #include "CustomDnsModel.h"
 #include "DbusContract.h"
 #include "InstalledApplicationModel.h"
@@ -43,6 +44,7 @@ void VpnController::loadSettings()
     stampBackendRequest(watcher);
     watcher->setProperty("sessionGeneration",
                          QVariant::fromValue<qulonglong>(m_sessionGeneration));
+    watcher->setProperty("mutationRequest", false);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSettingsReply);
 }
@@ -114,6 +116,7 @@ void VpnController::updateSetting(const QString &name, const QVariant &value)
     stampBackendRequest(watcher);
     watcher->setProperty("sessionGeneration",
                          QVariant::fromValue<qulonglong>(m_sessionGeneration));
+    watcher->setProperty("mutationRequest", true);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSettingsReply);
 }
@@ -136,6 +139,7 @@ void VpnController::loadSplitTunneling()
     stampBackendRequest(watcher);
     watcher->setProperty("sessionGeneration",
                          QVariant::fromValue<qulonglong>(m_sessionGeneration));
+    watcher->setProperty("mutationRequest", false);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSplitTunnelingReply);
 }
@@ -210,6 +214,7 @@ void VpnController::updateSplitTunneling(const QString &name,
     stampBackendRequest(watcher);
     watcher->setProperty("sessionGeneration",
                          QVariant::fromValue<qulonglong>(m_sessionGeneration));
+    watcher->setProperty("mutationRequest", true);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleSplitTunnelingReply);
 }
@@ -322,6 +327,7 @@ void VpnController::loadCustomDns()
     stampBackendRequest(watcher);
     watcher->setProperty("sessionGeneration",
                          QVariant::fromValue<qulonglong>(m_sessionGeneration));
+    watcher->setProperty("mutationRequest", false);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleCustomDnsReply);
 }
@@ -387,6 +393,7 @@ void VpnController::updateCustomDns(const QString &name,
     stampBackendRequest(watcher);
     watcher->setProperty("sessionGeneration",
                          QVariant::fromValue<qulonglong>(m_sessionGeneration));
+    watcher->setProperty("mutationRequest", true);
     watcher->setProperty("changedWhileConnected",
                          m_state == QStringLiteral("connected")
                              || m_state == QStringLiteral("connecting"));
@@ -445,6 +452,7 @@ void VpnController::handleSettingsReply(QDBusPendingCallWatcher *watcher)
     const bool currentBackend = backendReplyIsCurrent(watcher);
     const auto sessionGeneration = watcher->property(
         "sessionGeneration").toULongLong();
+    const bool mutationRequest = watcher->property("mutationRequest").toBool();
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
     if (!currentBackend
@@ -453,6 +461,14 @@ void VpnController::handleSettingsReply(QDBusPendingCallWatcher *watcher)
     }
     m_settings->setBusy(false);
     if (reply.isError()) {
+        if (mutationRequest
+            && ProtonVpnKde::isTransientSameOwnerFailure(
+                reply.error().type())) {
+            loadSettings();
+            m_settings->setMessage(
+                tr("The VPN setting may still be completing; refreshing its state"));
+            return;
+        }
         if (reply.error().name()
             == QLatin1StringView(BackendDbus::Error::invalidSettings)) {
             QString message = reply.error().message().trimmed();
@@ -462,7 +478,9 @@ void VpnController::handleSettingsReply(QDBusPendingCallWatcher *watcher)
             }
             m_settings->setMessage(message);
         } else {
-            m_settings->setMessage(tr("Unable to save VPN settings"));
+            m_settings->setMessage(
+                mutationRequest ? tr("Unable to save VPN settings")
+                                : tr("Unable to load VPN settings"));
         }
         return;
     }
@@ -478,6 +496,7 @@ void VpnController::handleSplitTunnelingReply(
     const bool currentBackend = backendReplyIsCurrent(watcher);
     const auto sessionGeneration = watcher->property(
         "sessionGeneration").toULongLong();
+    const bool mutationRequest = watcher->property("mutationRequest").toBool();
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
     if (!currentBackend
@@ -486,6 +505,14 @@ void VpnController::handleSplitTunnelingReply(
     }
     m_splitTunneling->setBusy(false);
     if (reply.isError()) {
+        if (mutationRequest
+            && ProtonVpnKde::isTransientSameOwnerFailure(
+                reply.error().type())) {
+            loadSplitTunneling();
+            m_splitTunneling->setMessage(
+                tr("The split-tunneling change may still be completing; refreshing its state"));
+            return;
+        }
         if (reply.error().name()
             == QLatin1StringView(
                 BackendDbus::Error::invalidSplitTunneling)) {
@@ -497,7 +524,9 @@ void VpnController::handleSplitTunnelingReply(
             m_splitTunneling->setMessage(message);
         } else {
             m_splitTunneling->setMessage(
-                tr("Unable to save split-tunneling settings"));
+                mutationRequest
+                    ? tr("Unable to save split-tunneling settings")
+                    : tr("Unable to load split-tunneling settings"));
         }
         return;
     }
@@ -512,6 +541,7 @@ void VpnController::handleCustomDnsReply(QDBusPendingCallWatcher *watcher)
     const bool currentBackend = backendReplyIsCurrent(watcher);
     const auto sessionGeneration = watcher->property(
         "sessionGeneration").toULongLong();
+    const bool mutationRequest = watcher->property("mutationRequest").toBool();
     const bool changedWhileConnected = watcher->property(
         "changedWhileConnected").toBool();
     const QDBusPendingReply<QString> reply = *watcher;
@@ -522,6 +552,17 @@ void VpnController::handleCustomDnsReply(QDBusPendingCallWatcher *watcher)
     }
     m_customDns->setBusy(false);
     if (reply.isError()) {
+        if (mutationRequest
+            && ProtonVpnKde::isTransientSameOwnerFailure(
+                reply.error().type())) {
+            if (changedWhileConnected) {
+                m_customDns->setRestartRequired(true);
+            }
+            loadCustomDns();
+            m_customDns->setMessage(
+                tr("The custom-DNS change may still be completing; refreshing its state"));
+            return;
+        }
         if (reply.error().name()
             == QLatin1StringView(BackendDbus::Error::invalidCustomDns)) {
             QString message = reply.error().message().trimmed();
@@ -531,7 +572,9 @@ void VpnController::handleCustomDnsReply(QDBusPendingCallWatcher *watcher)
             }
             m_customDns->setMessage(message);
         } else {
-            m_customDns->setMessage(tr("Unable to save custom-DNS settings"));
+            m_customDns->setMessage(
+                mutationRequest ? tr("Unable to save custom-DNS settings")
+                                : tr("Unable to load custom-DNS settings"));
         }
         return;
     }

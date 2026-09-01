@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from .async_utils import run_in_daemon_thread
 from .demo_adapter import DemoCoreAdapter
@@ -380,6 +380,29 @@ class ProtonCoreAdapter:
         ):
             raise UserVisibleValueError("Disable custom DNS before enabling NetShield")
 
+        previous_values = (
+            settings.protocol,
+            settings.killswitch,
+            settings.features.netshield,
+            settings.features.vpn_accelerator,
+            settings.features.moderate_nat,
+            settings.features.port_forwarding,
+            settings.ipv6,
+            settings.anonymous_crash_reports,
+        )
+
+        def rollback() -> None:
+            (
+                settings.protocol,
+                settings.killswitch,
+                settings.features.netshield,
+                settings.features.vpn_accelerator,
+                settings.features.moderate_nat,
+                settings.features.port_forwarding,
+                settings.ipv6,
+                settings.anonymous_crash_reports,
+            ) = previous_values
+
         for key, value in patch.items():
             if key == "protocol":
                 settings.protocol = value
@@ -398,7 +421,11 @@ class ProtonCoreAdapter:
             elif key == "anonymousCrashReports":
                 settings.anonymous_crash_reports = value
 
-        await self._save_settings(settings)
+        await self._save_settings_transactionally(
+            settings,
+            rollback,
+            protection_sensitive="killSwitch" in patch,
+        )
         return self._settings_from_core(settings)
 
     async def update_split_tunneling(
@@ -414,6 +441,23 @@ class ProtonCoreAdapter:
             raise UserVisibleRuntimeError(
                 "Split tunneling requires a paid Proton VPN plan"
             )
+
+        previous_values = (
+            split_tunneling.mode,
+            bool(split_tunneling.enabled),
+            list(split_tunneling.exclude.app_paths),
+            list(split_tunneling.include.app_paths),
+            list(split_tunneling.exclude.ip_ranges),
+            list(split_tunneling.include.ip_ranges),
+        )
+
+        def rollback() -> None:
+            split_tunneling.mode = previous_values[0]
+            split_tunneling.enabled = previous_values[1]
+            split_tunneling.exclude.app_paths = list(previous_values[2])
+            split_tunneling.include.app_paths = list(previous_values[3])
+            split_tunneling.exclude.ip_ranges = list(previous_values[4])
+            split_tunneling.include.ip_ranges = list(previous_values[5])
 
         final_enabled = patch.get("enabled", split_tunneling.enabled)
         final_mode = patch.get("mode", self._mode_value(split_tunneling.mode))
@@ -465,7 +509,7 @@ class ProtonCoreAdapter:
         if "enabled" in patch:
             split_tunneling.enabled = bool(patch["enabled"])
 
-        await self._save_settings(settings)
+        await self._save_settings_transactionally(settings, rollback)
         return self._split_tunneling_from_core(settings)
 
     async def update_custom_dns(
@@ -474,6 +518,13 @@ class ProtonCoreAdapter:
         settings = await self._load_settings()
         if self._user_tier() < 1:
             raise UserVisibleRuntimeError("Custom DNS requires a paid Proton VPN plan")
+
+        previous_enabled = bool(settings.custom_dns.enabled)
+        previous_servers = list(settings.custom_dns.ip_list)
+
+        def rollback() -> None:
+            settings.custom_dns.enabled = previous_enabled
+            settings.custom_dns.ip_list = list(previous_servers)
 
         final_enabled = patch.get("enabled", settings.custom_dns.enabled)
         if final_enabled and int(settings.features.netshield) != 0:
@@ -496,7 +547,7 @@ class ProtonCoreAdapter:
         if "enabled" in patch:
             settings.custom_dns.enabled = bool(patch["enabled"])
 
-        await self._save_settings(settings)
+        await self._save_settings_transactionally(settings, rollback)
         return self._custom_dns_from_core(settings)
 
     async def _load_settings(self):
@@ -533,6 +584,109 @@ class ProtonCoreAdapter:
             raise UserVisibleRuntimeError(
                 "Proton could not save the VPN settings"
             ) from None
+
+    async def _save_settings_transactionally(
+        self,
+        settings: Any,
+        rollback: Callable[[], None],
+        *,
+        protection_sensitive: bool = False,
+    ) -> None:
+        """Compensate a user setting write whose commit status is ambiguous."""
+
+        save_task = asyncio.create_task(self._save_settings(settings))
+        original_error: BaseException | None = None
+        cancellation_requested = False
+        try:
+            await asyncio.shield(save_task)
+            return
+        except asyncio.CancelledError as error:
+            original_error = error
+            cancellation_requested = True
+        except Exception as error:
+            original_error = error
+
+        recovery_task = asyncio.create_task(
+            self._recover_failed_settings_save(
+                settings,
+                rollback,
+                save_task,
+                protection_sensitive=protection_sensitive,
+            )
+        )
+        while not recovery_task.done():
+            try:
+                await asyncio.shield(recovery_task)
+            except asyncio.CancelledError:
+                cancellation_requested = True
+        recovered = recovery_task.result()
+
+        if cancellation_requested:
+            raise asyncio.CancelledError() from None
+        if not recovered:
+            raise UserVisibleRuntimeError(
+                "Proton could not confirm the VPN settings after a failed save; "
+                "restart the backend and review VPN settings before continuing"
+            ) from None
+        assert original_error is not None
+        raise original_error
+
+    async def _recover_failed_settings_save(
+        self,
+        settings: Any,
+        rollback: Callable[[], None],
+        save_task: asyncio.Task[None],
+        *,
+        protection_sensitive: bool,
+    ) -> bool:
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(save_task),
+                timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            # The executor-backed Core write may still commit. Do not race a
+            # compensation against it; require a backend restart instead.
+            save_task.add_done_callback(self._consume_background_task_result)
+            await self._publish_unknown_settings(protection_sensitive)
+            return False
+        except (Exception, asyncio.CancelledError):
+            # A failed acknowledgement can follow a completed persistence
+            # write, so compensation is still mandatory.
+            pass
+
+        rollback()
+        try:
+            await asyncio.wait_for(
+                self._save_settings(settings),
+                timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
+            )
+        except (Exception, asyncio.CancelledError):
+            await self._publish_unknown_settings(protection_sensitive)
+            return False
+        return True
+
+    async def _publish_unknown_settings(self, protection_sensitive: bool) -> None:
+        await self._quiesce_session_services()
+        self._logged_in = False
+        self._session_services_enabled = False
+        self._search_projection = None
+        if protection_sensitive:
+            # Persistence is ambiguous, so never claim permanent protection.
+            self._kill_switch = 0
+            self._auth_state = "protection_unknown"
+            self._status_message = (
+                "Proton could not confirm the kill switch setting after a "
+                "failed save; restart the backend and review VPN settings "
+                "before reconnecting"
+            )
+        else:
+            self._auth_state = "settings_unavailable"
+            self._status_message = (
+                "Proton could not confirm VPN settings after a failed save; "
+                "restart the backend and review VPN settings before continuing"
+            )
+        self._publish_snapshot()
 
     async def connect_country(self, country_code: str) -> None:
         server_list = await self._get_server_list()
@@ -989,20 +1143,19 @@ class ProtonCoreAdapter:
         except asyncio.CancelledError:
             raise
         except Exception:
-            cleanup_error: BaseException | None = None
             try:
                 await self._api.logout()
             except asyncio.CancelledError:
                 raise
-            except Exception as error:
-                cleanup_error = error
+            except Exception:
+                pass
 
             core_logged_in = await self._core_logged_in_after_failure()
-            if cleanup_error is None or core_logged_in is False:
+            if core_logged_in is False:
                 await self._set_signed_out(
                     "Proton session services could not start; sign-in was rolled back"
                 )
-            else:
+            elif core_logged_in is True:
                 self._logged_in = True
                 self._auth_state = "signed_in_degraded"
                 self._status_message = (
@@ -1010,11 +1163,27 @@ class ProtonCoreAdapter:
                     "the session could not be cleared"
                 )
                 self._publish_snapshot()
+            else:
+                await self._quiesce_session_services()
+                self._logged_in = False
+                self._auth_state = "authentication_unknown"
+                self._status_message = (
+                    "Proton session services could not start and the account "
+                    "state could not be confirmed; restart the backend before "
+                    "continuing"
+                )
+                self._search_projection = None
+                self._publish_snapshot()
 
-            if cleanup_error is not None and core_logged_in is not False:
+            if core_logged_in is True:
                 raise UserVisibleRuntimeError(
                     "Sign-in completed, but session services failed and the "
                     "authenticated session could not be cleared"
+                ) from None
+            if core_logged_in is None:
+                raise UserVisibleRuntimeError(
+                    "Sign-in could not be completed and Proton could not confirm "
+                    "the account state; restart the backend before continuing"
                 ) from None
             raise UserVisibleRuntimeError(
                 "Proton session services could not start; sign-in was rolled back"

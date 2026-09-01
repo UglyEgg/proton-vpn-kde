@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.20%{?dist}
+Release:        0.21%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -133,6 +133,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.21
+- Reconcile ambiguous login, connection, and settings completion from Core.
+- Compensate partially committed settings writes before resuming operation.
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.20
 - Keep build-tree paths out of installed translation lookup metadata.
 - Compare clean package rebuilds under one normalized RPM build path.

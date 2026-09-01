@@ -87,6 +87,7 @@ private:
     bool m_reconnectionEnabled = true;
     bool m_reconnectionApplied = false;
     bool m_reconnectionPending = false;
+    bool m_operationReconciliationPending = false;
     bool m_transientLeasePending = false;
     bool m_transientLeaseActive = false;
     quint64 m_serviceGeneration = 0;

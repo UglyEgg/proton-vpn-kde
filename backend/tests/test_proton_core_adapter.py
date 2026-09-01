@@ -512,6 +512,50 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(adapter._logged_in)
         self.assertEqual("signed_out", snapshots[-1].auth_state)
 
+    async def test_successful_login_cleanup_does_not_hide_persisted_session(self):
+        api, _ = self.make_api(logged_in=False)
+        api.login.return_value = SimpleNamespace(
+            success=True,
+            authenticated=True,
+            twofa_required=False,
+        )
+        api.refresher.enable.side_effect = RuntimeError("refresh failed")
+        api.is_user_logged_in.side_effect = [False, True]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "could not be cleared"):
+            await adapter.login("test-user", "not-recorded")
+
+        api.logout.assert_awaited_once_with()
+        self.assertTrue(adapter._logged_in)
+        self.assertEqual("signed_in_degraded", snapshots[-1].auth_state)
+
+    async def test_successful_login_cleanup_preserves_unknown_account_state(self):
+        api, _ = self.make_api(logged_in=False)
+        api.login.return_value = SimpleNamespace(
+            success=True,
+            authenticated=True,
+            twofa_required=False,
+        )
+        api.refresher.enable.side_effect = RuntimeError("refresh failed")
+        api.is_user_logged_in.side_effect = [
+            False,
+            RuntimeError("secret store unavailable"),
+        ]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "could not confirm"):
+            await adapter.login("test-user", "not-recorded")
+
+        api.logout.assert_awaited_once_with()
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("authentication_unknown", snapshots[-1].auth_state)
+        self.assertIn("restart", snapshots[-1].message)
+
     async def test_two_factor_and_recovery_code_flow(self):
         api, _ = self.make_api(logged_in=False)
         api.login.return_value = SimpleNamespace(
@@ -1672,10 +1716,150 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.load_settings.side_effect = None
         api.save_settings.side_effect = RuntimeError("secret=must-not-escape")
         with self.assertRaisesRegex(
-            RuntimeError, "Proton could not save the VPN settings"
+            RuntimeError, "Proton could not .*VPN settings"
         ) as save_error:
             await adapter.update_settings({"ipv6": False})
         self.assertNotIn("must-not-escape", str(save_error.exception))
+
+    async def test_failed_kill_switch_save_restores_persisted_and_live_state(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 0
+        persisted_kill_switch = 0
+        live_kill_switch = 0
+        write_order = []
+
+        async def commit_then_fail(saved_settings):
+            nonlocal persisted_kill_switch, live_kill_switch
+            value = int(saved_settings.killswitch)
+            write_order.append(value)
+            persisted_kill_switch = value
+            if len(write_order) == 1:
+                raise RuntimeError("connector application failed")
+            live_kill_switch = value
+
+        api.save_settings.side_effect = commit_then_fail
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "save the VPN settings"):
+            await adapter.update_settings({"killSwitch": 2})
+
+        self.assertEqual([2, 0], write_order)
+        self.assertEqual(0, persisted_kill_switch)
+        self.assertEqual(0, live_kill_switch)
+        self.assertTrue(adapter._logged_in)
+
+    async def test_failed_kill_switch_compensation_requires_recovery(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 0
+        snapshots = []
+        api.save_settings.side_effect = [
+            RuntimeError("late acknowledgement failure"),
+            RuntimeError("compensation failed"),
+        ]
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "could not confirm"):
+            await adapter.update_settings({"killSwitch": 2})
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("protection_unknown", snapshots[-1].auth_state)
+        self.assertEqual(0, snapshots[-1].kill_switch)
+
+    async def test_failed_generic_setting_compensation_blocks_operations(self):
+        api, _ = self.make_api()
+        snapshots = []
+        api.save_settings.side_effect = [
+            RuntimeError("late acknowledgement failure"),
+            RuntimeError("compensation failed"),
+        ]
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "could not confirm"):
+            await adapter.update_settings({"netShield": 2})
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("settings_unavailable", snapshots[-1].auth_state)
+        self.assertIn("restart", snapshots[-1].message)
+
+    async def test_cancelled_setting_save_finishes_before_compensation(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        first_save_started = asyncio.Event()
+        release_first_save = asyncio.Event()
+        write_order = []
+
+        async def delayed_save(saved_settings):
+            value = int(saved_settings.features.netshield)
+            if not write_order:
+                first_save_started.set()
+                await release_first_save.wait()
+            write_order.append(value)
+
+        api.save_settings.side_effect = delayed_save
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        update_task = asyncio.create_task(
+            adapter.update_settings({"netShield": 2})
+        )
+        await first_save_started.wait()
+        update_task.cancel()
+        await asyncio.sleep(0)
+        self.assertEqual([], write_order)
+        release_first_save.set()
+        with self.assertRaises(asyncio.CancelledError):
+            await update_task
+
+        self.assertEqual([2, 1], write_order)
+        self.assertEqual(1, settings.features.netshield)
+        self.assertTrue(adapter._logged_in)
+
+    async def test_cancelled_unfinished_save_blocks_racing_compensation(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 0
+        save_started = asyncio.Event()
+        release_save = asyncio.Event()
+        save_finished = asyncio.Event()
+        persisted_kill_switch = 0
+
+        async def blocked_save(saved_settings):
+            nonlocal persisted_kill_switch
+            value = int(saved_settings.killswitch)
+            save_started.set()
+            await release_save.wait()
+            persisted_kill_switch = value
+            save_finished.set()
+
+        api.save_settings.side_effect = blocked_save
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        update_task = asyncio.create_task(
+            adapter.update_settings({"killSwitch": 2})
+        )
+        await save_started.wait()
+        update_task.cancel()
+        with patch(
+            "proton_vpn_kde_backend.adapters.LOGOUT_RECOVERY_TIMEOUT_SECONDS",
+            0.01,
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await update_task
+
+        self.assertTrue(save_started.is_set())
+        self.assertEqual(1, api.save_settings.await_count)
+        self.assertEqual("protection_unknown", snapshots[-1].auth_state)
+        release_save.set()
+        await save_finished.wait()
+        self.assertEqual(2, persisted_kill_switch)
+        self.assertEqual(1, api.save_settings.await_count)
 
     async def test_split_tunneling_round_trip_preserves_ip_ranges(self):
         api, _ = self.make_api()

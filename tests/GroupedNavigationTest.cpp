@@ -11,6 +11,8 @@
 #include <QDBusConnectionInterface>
 #include <QDBusContext>
 #include <QDBusMessage>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QtTest>
 #include <memory>
 
@@ -31,12 +33,16 @@ public:
     int serverCalls = 0;
     int capabilityCalls = 0;
     int snapshotCalls = 0;
+    int settingsCalls = 0;
+    int settingsUpdateCalls = 0;
     int emptyGroupResponses = 0;
     int emptyServerResponses = 0;
     bool rejectRegistration = false;
     bool delayLogout = false;
     bool ready = true;
     bool loggedIn = true;
+    bool failNextSettingsUpdateAsNoReply = false;
+    int settingsNetShield = 0;
     int snapshotNoReplyFailures = 0;
     QString lastCountry;
     QString lastGroupKind;
@@ -128,14 +134,15 @@ public slots:
             R"json({"schemaVersion":1,"available":false})json");
     }
 
-    QString GetSettings() const
+    QString GetSettings()
     {
+        ++settingsCalls;
         return QStringLiteral(R"json({
             "schemaVersion":1,
             "protocol":"wireguard",
             "protocols":[{"id":"wireguard","name":"WireGuard"}],
             "killSwitch":0,
-            "netShield":0,
+            "netShield":%1,
             "vpnAccelerator":true,
             "moderateNat":false,
             "portForwarding":false,
@@ -147,7 +154,27 @@ public slots:
             "splitTunnelingEnabled":false,
             "customDnsEnabled":false,
             "packetCaptureSupported":false
-        })json");
+        })json").arg(settingsNetShield);
+    }
+
+    QString UpdateSettings(const QString &patchJson)
+    {
+        ++settingsUpdateCalls;
+        const QJsonDocument document = QJsonDocument::fromJson(
+            patchJson.toUtf8());
+        if (document.isObject()
+            && document.object().value(QStringLiteral("netShield")).isDouble()) {
+            settingsNetShield = document.object()
+                                    .value(QStringLiteral("netShield"))
+                                    .toInt();
+        }
+        if (failNextSettingsUpdateAsNoReply) {
+            failNextSettingsUpdateAsNoReply = false;
+            sendErrorReply(QDBusError::NoReply,
+                           QStringLiteral("settings completion unknown"));
+            return {};
+        }
+        return GetSettings();
     }
 
     QString GetServerGroups(const QString &countryCode)
@@ -210,6 +237,7 @@ private slots:
     void clearsCachedSessionWhenBackendStops();
     void ignoresOperationReplyFromReplacedBackend();
     void retriesSnapshotAfterTransientSameOwnerFailure();
+    void reconcilesSettingsAfterCompletionUnknownMutation();
     void stopsRetryingAnUnresponsiveSameOwner();
     void queuesInitialBrowserLoadUntilBackendIsReady();
     void loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint();
@@ -407,6 +435,32 @@ void GroupedNavigationTest::stopsRetryingAnUnresponsiveSameOwner()
     m_backend.snapshotNoReplyFailures = 0;
     QTest::qWait(1200);
     QCOMPARE(m_backend.snapshotCalls, snapshotCallsBefore + 4);
+}
+
+void GroupedNavigationTest::reconcilesSettingsAfterCompletionUnknownMutation()
+{
+    m_backend.publishSession(true, true);
+    m_backend.settingsNetShield = 0;
+    VpnController controller(nullptr, false);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.settings()->loaded(), 2000);
+    QCOMPARE(controller.settings()->netShield(), 0);
+
+    const int settingsCallsBefore = m_backend.settingsCalls;
+    const int updateCallsBefore = m_backend.settingsUpdateCalls;
+    m_backend.failNextSettingsUpdateAsNoReply = true;
+    controller.updateSetting(QStringLiteral("netShield"), 2);
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.settingsUpdateCalls, updateCallsBefore + 1, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.settingsCalls, settingsCallsBefore + 1, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(controller.settings()->netShield(), 2, 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.settings()->busy(), 2000);
+    QVERIFY(controller.backendAvailable());
 }
 
 void GroupedNavigationTest::loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint()

@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 191 backend tests at 81% measured branch
+translation units under Clang-Tidy, 198 backend tests at 81% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -274,6 +274,22 @@ and source path while retaining separate output trees. The byte comparison
 still covers the complete binary, debug, debug-source, and source RPM set. The
 complete gate must start on the resulting exact commit.
 
+The gate at `6aaab53` entered isolated review only after two clean normalized
+package builds produced byte-identical binary, debug, debug-source, and source
+RPMs. Error-Class review then found three completion-state defects. A
+successful login-cleanup call could publish signed out even when Core still
+reported an authenticated session; a settings save could persist a new value
+before live connector application failed; and frontend timeouts treated
+connection or settings mutations as definitely failed without first
+reconciling authoritative state. Every result from that gate is discarded.
+Login cleanup now follows only Core's postcondition, user settings writes use
+bounded compensating transactions with explicit recovery-required states, and
+both native frontends retain or reload state until a completion-unknown
+operation is reconciled. Focused regressions cover persisted-then-failed
+writes, failed and timed-out compensation, Core-confirmed login states, and
+same-owner D-Bus timeouts. The complete six-review gate must restart on the
+resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -295,6 +311,9 @@ complete gate must start on the resulting exact commit.
 | PV-012-017 | Low | Public frontend D-Bus `Quit` methods allowed arbitrary session peers to terminate the agent or Control Center | **Remediated by removing Control Center shutdown, authorizing agent shutdown, and explicitly allowlisting exported slots; final independent verification pending** |
 | PV-012-018 | Medium | The backend published its D-Bus name before authorization and object export were ready, allowing the agent's one startup authorization attempt to fail permanently | **Remediated by publishing the well-known name only after ingress authorization and object export are ready; final independent verification pending** |
 | PV-012-019 | Medium | RPM and SRPM headers embedded wall-clock build time and the local builder host, defeating byte-reproducible package builds | **Remediated with source-epoch build time, a fixed non-routable build host, and a two-build byte-comparison gate; final independent verification pending** |
+| PV-012-020 | Medium | Successful login cleanup could publish signed out while Core still retained or could not confirm the authenticated session | **Remediated by deriving the published state exclusively from Core's postcondition; final independent verification pending** |
+| PV-012-021 | Medium | A user settings write could persist before live connector application failed, leaving the current interface and next startup inconsistent | **Remediated with serialized compensation and recovery-required states for unconfirmed persistence; final independent verification pending** |
+| PV-012-022 | Medium | Frontend timeouts treated connection and settings mutations as definitely failed and released their reconciliation lifetime early | **Remediated with authoritative refresh and lease retention for completion-unknown operations; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -475,7 +494,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 191 backend Python tests;
+- 198 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;
