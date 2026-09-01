@@ -30,6 +30,7 @@ icon="$staging_dir$install_datadir/icons/hicolor/scalable/apps/plasma-vpn.svg"
 light_icon="$staging_dir$install_datadir/icons/hicolor/scalable/apps/plasma-vpn-light.svg"
 dark_icon="$staging_dir$install_datadir/icons/hicolor/scalable/apps/plasma-vpn-dark.svg"
 build_features="$staging_dir$install_libexecdir/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py"
+environment_contract="$staging_dir$install_libexecdir/proton-vpn-kde/proton_vpn_kde_backend/unsafe_environment.txt"
 
 test -x "$launcher"
 test -x "$agent"
@@ -38,6 +39,7 @@ test -r "$icon"
 test -r "$light_icon"
 test -r "$dark_icon"
 test -r "$build_features"
+test -r "$environment_contract"
 grep -Fqx 'SUPPORT_REPORT_SUBMISSION_ENABLED = False' "$build_features"
 grep -Fqx "Exec=$install_bindir/proton-vpn-kde-backend" "$dbus_service"
 grep -Fqx "Name=quest.entropy.PlasmaVPN.Backend" "$dbus_service"
@@ -51,6 +53,12 @@ grep -Fqx "ExecStart=$install_bindir/proton-vpn-kde-agent" "$agent_systemd_servi
 grep -Fqx "BusName=quest.entropy.PlasmaVPN.Agent" "$agent_systemd_service"
 grep -qx 'NoNewPrivileges=true' "$systemd_service"
 grep -qx 'NoNewPrivileges=true' "$agent_systemd_service"
+expected_unset_environment="UnsetEnvironment=$(grep -Ev '^[[:space:]]*(#|$)' \
+    "$environment_contract" | paste -sd ' ' -)"
+grep -Fqx "$expected_unset_environment" "$systemd_service"
+grep -Fqx "$expected_unset_environment" "$agent_systemd_service"
+python3 "$project_dir/scripts/check-backend-launcher-environment.py" \
+    "$launcher" "$environment_contract"
 if grep -Eq '^(PrivateTmp|ProtectSystem)=' \
         "$systemd_service" "$agent_systemd_service"; then
     echo "Mount namespace hardening breaks procfs peer authentication" >&2

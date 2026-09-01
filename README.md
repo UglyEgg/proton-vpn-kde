@@ -57,7 +57,7 @@ The maintained comparison with Proton's GTK client is in [Feature parity](docs/P
 
 ```text
 Plasma agent (resident)  ─┐
-                          ├─ authenticated session D-Bus
+                          ├─ owner-pinned, policy-checked session D-Bus
 Control Center (on demand)┘
                                   │
                     Community adapter (Python)
@@ -68,6 +68,8 @@ Control Center (on demand)┘
 ```
 
 Community code owns the Plasma experience, bounded input validation, and lifecycle coordination. Official Proton packages own VPN networking and session persistence. Authentication fields cross the community process boundary only as bounded, one-use encrypted ciphertext in sealed Linux memory descriptors.
+
+The desktop boundary resists ordinary and sandboxed session-bus peers; it does not claim OS-backed process identity against arbitrary native code already running as the same desktop user. The precise boundary and stronger-but-incompatible alternatives are documented in [Backend service hardening](docs/HARDENING.md).
 
 For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authentication](docs/AUTHENTICATION.md), and [Backend service hardening](docs/HARDENING.md).
 

@@ -78,6 +78,11 @@ All notable user-visible changes are recorded here. The project follows
   declaring the local backend unresponsive.
 - Generate source archives through one commit-stamping release path with
   normalized metadata and a two-build reproducibility gate.
+- Remove native-loader, OpenSSL-provider, GIO/GI, Python, Qt-plugin, and QML
+  search overrides before backend and Core imports, with one generated contract
+  shared by systemd, the launcher, both authorization directions, and package
+  checks. Document these checks as defense-in-depth rather than same-UID process
+  attestation.
 
 ## [0.11.3] - 2026-08-31
 

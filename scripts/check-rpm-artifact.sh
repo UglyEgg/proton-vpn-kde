@@ -64,6 +64,7 @@ required_paths=(
     /usr/lib/systemd/user/proton-vpn-kde-backend.service
     /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/__main__.py
     /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/dbus_contract.py
+    /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/unsafe_environment.txt
     /usr/share/applications/proton-vpn-kde.desktop
     /usr/share/dbus-1/interfaces/quest.entropy.PlasmaVPN.Backend1.xml
     /usr/share/dbus-1/interfaces/quest.entropy.PlasmaVPN.Agent1.xml
@@ -143,12 +144,22 @@ trap 'rm -rf "$extract_dir"' EXIT
 (
     cd "$extract_dir"
     rpm2cpio "$package_path" | cpio -id --quiet \
+        ./usr/lib/systemd/user/proton-vpn-kde-agent.service \
+        ./usr/lib/systemd/user/proton-vpn-kde-backend.service \
         ./usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py \
+        ./usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/unsafe_environment.txt \
         ./usr/share/doc/proton-vpn-kde/SOURCE_COMMIT
 )
 feature_file="$extract_dir/usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py"
+environment_contract="$extract_dir/usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/unsafe_environment.txt"
+expected_unset_environment="UnsetEnvironment=$(grep -Ev '^[[:space:]]*(#|$)' \
+    "$environment_contract" | paste -sd ' ' -)"
 grep -Fxq 'SUPPORT_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
 grep -Fxq 'CRASH_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
+grep -Fqx "$expected_unset_environment" \
+    "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-backend.service"
+grep -Fqx "$expected_unset_environment" \
+    "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-agent.service"
 grep -Fxq "$expected_commit" \
     "$extract_dir/usr/share/doc/proton-vpn-kde/SOURCE_COMMIT"
 

@@ -9,13 +9,20 @@ modes no longer reproduce in focused tests, and the 2026-08-31 `0.11.3`
 re-review found no new reportable issue.
 
 The unreleased `0.12.0` branch adds event-driven backend lifetime and an
-on-demand Connection Inspector. Its pre-final isolated reviews found lifecycle,
-error-class, Secret Service identity, and desktop-action-broker defects. Every
-reported path now has a focused response, and the source currently passes 37
-of 37 CTest targets plus 145 backend tests. **The `0.12.0` candidate remains
-explicitly not release-ready until six fresh isolated reviewers pass one exact
-remediated commit, its packages complete live acceptance, and that commit
-finishes the one-week local soak.**
+on-demand Connection Inspector. Its pre-final isolated reviews and subsequent
+standard security scans found lifecycle, error-class, Secret Service identity,
+desktop-action-broker, and inherited native-loader environment defects. Every
+reported path has a focused response in the current working tree. **The
+`0.12.0` candidate remains explicitly not release-ready until six fresh
+isolated reviewers pass one exact remediated commit, its packages complete live
+acceptance, and that commit finishes the one-week local soak.**
+
+The current source verification passed Mypy, Ruff, all 34 production
+translation units under Clang-Tidy, 170 backend tests at 79% measured branch
+coverage, and all 37 CTest targets both normally and under address, leak, and
+undefined-behavior sanitizers. These results validate the working tree; they do
+not substitute for the exact-commit review, package, live-acceptance, or soak
+gates.
 
 The public `0.11.3` source passed Mypy, Ruff, Clang-Tidy across all 34
 production translation units, and the complete native test suite under address,
@@ -125,6 +132,23 @@ These paragraphs are the historical pre-final finding record. They do not mark
 the remediated working tree as passed: the exact final commit must still receive
 six fresh independent results below.
 
+A later standard security scan of clean revision `e1f4ac8`
+(`6d471a8c-ea5b-447a-a87b-3738a0a7ea97`) found that the systemd user manager
+could pass OpenSSL-provider and GIO/GI loader overrides into the Python backend
+before Proton Core initialization. The remediation defines one checked-in
+unsafe-environment contract, generates both systemd units and native policy
+from it, scrubs the environment again in the root-owned launcher before imports,
+and makes staged-install and RPM checks enforce the exact installed contract.
+
+Review also established the limit of those checks: arbitrary native code
+already executing as the desktop user can transiently replace a user-owned
+systemd drop-in, inject into a packaged process, and restore the observable
+configuration. Unprivileged Linux process metadata cannot durably attest
+against that already-equivalent authority. The project therefore explicitly
+places arbitrary same-UID host-code execution outside scope while retaining the
+sanitization and owner checks against ordinary or sandboxed session peers. This
+is a clarified threat boundary, not a claim that the bypass became impossible.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -135,6 +159,7 @@ six fresh independent results below.
 | PV-012-006 | High | A replaceable Secret Service owner could receive future Proton session writes | **Mitigated by unique-owner pinning; initial provider remains a documented platform trust dependency; final independent verification pending** |
 | PV-012-007 | Medium | KGlobalAccel could invoke the authorized resident controller directly | **Remediated; final independent verification pending** |
 | PV-012-008 | Medium | D-BusMenu tray activation could invoke the authorized resident controller directly | **Remediated; final independent verification pending** |
+| PV-012-009 | High | Inherited OpenSSL and GIO/GI environment overrides could load native code in the backend | **Remediated within the documented threat boundary; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -154,9 +179,11 @@ The assessment covered:
 
 It did not internally audit unmodified Proton packages, NetworkManager, Secret
 Service providers, Proton's remote services, or Proton infrastructure. Root,
-debugger, and direct same-user process-memory inspection are outside the
-project's documented security boundary. Production VPN traffic was not
-intercepted or modified.
+debuggers, and arbitrary native code already executing as the desktop user are
+outside the project's documented security boundary. This includes direct
+same-user process-memory modification, native injection into packaged
+processes, and transient mutation of user-owned systemd units or drop-ins.
+Production VPN traffic was not intercepted or modified.
 
 ## Architecture and threat model
 
@@ -168,10 +195,11 @@ official Proton Core.
 
 Protected assets include Proton credentials and second factors, the saved
 session, VPN security settings, diagnostics, package integrity, and backend
-availability. The primary local attacker considered is an untrusted process in
-the same graphical session that can access the user's D-Bus but has neither
-root nor release-signing authority. Provider failures and interrupted lifecycle
-operations are treated as hostile operating conditions.
+availability. The primary local attacker considered is an ordinary or sandboxed
+process in the same graphical session that can access the user's D-Bus but has
+neither root, release-signing authority, nor arbitrary native-code execution as
+the desktop user. Provider failures and interrupted lifecycle operations are
+treated as hostile operating conditions.
 
 The material trust boundaries are:
 
@@ -192,16 +220,18 @@ Detailed current designs are maintained in
 ### Service identity and client authorization
 
 Installed native clients resolve the backend's well-known D-Bus name to a
-unique owner and verify that owner against the packaged, root-owned systemd
-user service and launcher. User-owned or writable overrides, unsafe loader and
-Python environments, owner replacement, and identity mismatches fail closed.
-Calls and signals remain pinned to the verified unique owner.
+unique owner and check its current process against the packaged, root-owned
+launcher, active systemd user service, acceptable unit inputs, and safe loader
+environment. User-owned or writable overrides fail closed while present, and
+calls and signals remain pinned to the checked unique owner. These current-state
+checks are defense-in-depth against the in-scope attacker, not OS-backed
+attestation against arbitrary native same-UID code.
 
 The backend captures the actual D-Bus sender before dispatch. State-changing
-methods accept only authenticated, root-owned Control Center or resident-agent
-executables. Registration claims must match the actual sender; authorization,
-leases, and outstanding secret keys are revoked when that unique name
-disappears.
+methods accept only senders currently executing the root-owned Control Center
+or resident-agent paths without a denied loader environment. Registration
+claims must match the actual sender; authorization, leases, and outstanding
+secret keys are revoked when that unique name disappears.
 
 KRunner, KGlobalAccel, and status-notifier D-BusMenu are deliberately not
 backend principals because they are shared desktop brokers. They can request
@@ -270,10 +300,11 @@ Core, and one lock serializes manual, watchdog, disconnect, and shutdown stops.
 ### Privilege and Core boundary
 
 The backend and agent are unprivileged user services. Fedora packages use
-absolute executable paths, `NoNewPrivileges`, an isolated Python launcher,
-and explicit loader, Python, Qt-plugin, and QML environment cleanup. Packaged
-native binaries were verified as PIE with non-executable stacks, GNU RELRO, and
-immediate binding.
+absolute executable paths, `NoNewPrivileges`, an isolated Python launcher, and
+one generated policy for dynamic-loader, OpenSSL-provider, GIO/GI, Python,
+Qt-plugin, and QML environment cleanup. The launcher repeats the cleanup before
+backend and Core imports. Packaged native binaries were verified as PIE with
+non-executable stacks, GNU RELRO, and immediate binding.
 
 Package-channel changes use Polkit, absolute executables, and fixed arguments;
 no shell or user-selected package name reaches DNF. Community code does not
@@ -487,14 +518,18 @@ systemd heuristic score remain documented in [Hardening](HARDENING.md).
 - The project has not received an independent security audit. External review
   of service identity, sender authorization, and authentication transport is
   desirable before a stable or security-reviewed claim.
-- Executable identity protects package-owned isolated processes, not arbitrary
-  code already running inside them. Shared hosts such as KRunner therefore
-  remain outside backend trust.
+- Executable-path, unit, environment, and unique-owner checks protect against
+  ordinary or sandboxed session peers, not arbitrary native code already
+  running as the desktop user or injected into an allowed process. Shared hosts
+  such as KRunner therefore remain outside backend trust. A stronger same-UID
+  boundary would require a materially different privileged or MAC-enforced
+  service architecture.
 - Any same-session process can request a bounded connection confirmation dialog
   through the exposed desktop brokers. It cannot silently mutate VPN state
   through that path, but it can create a presentation nuisance.
 - Qt and Python cannot guarantee immediate erasure of every immutable secret
-  copy. Root, debuggers, and direct process-memory readers remain out of scope.
+  copy. Root, debuggers, and arbitrary same-user native code with process-memory
+  access remain out of scope.
 - Official Proton Core, NetworkManager, Secret Service providers, and remote
   Proton services are trusted dependencies outside this assessment.
 - The verified provider-neutral Secret Service behavior depends on a separately

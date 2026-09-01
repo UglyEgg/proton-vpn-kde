@@ -13,4 +13,4 @@ RestartSec=2s
 NoNewPrivileges=true
 # See the backend unit: the agent must inspect the verified backend's procfs
 # identity, which Fedora/SELinux denies across a systemd mount namespace.
-UnsetEnvironment=LD_PRELOAD LD_AUDIT LD_LIBRARY_PATH KDE_PLUGIN_PATH QT_PLUGIN_PATH QT_QPA_PLATFORM_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH
+UnsetEnvironment=@PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_SYSTEMD@

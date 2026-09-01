@@ -11,12 +11,15 @@ The Fedora service starts the installed backend by its absolute path and uses:
 - `NoNewPrivileges=true`, preventing the backend and its children from gaining
   privileges through set-user-ID, set-group-ID, or file capabilities.
 - an isolated-mode Python launcher plus `UnsetEnvironment` for Python, dynamic
-  loader, Qt plugin, and QML import overrides. This makes the packaged unit and
-  root-owned launcher a stable identity that native clients can verify before
-  sending secrets or control operations.
+  loader, OpenSSL provider, GIO/GI, Qt plugin, and QML import overrides. The
+  launcher repeats the cleanup before importing community or Proton code, and
+  all consumers derive the exact denylist from one installed contract.
 
-These controls preserve the backend's ability to authenticate the actual
-executable and environment of each D-Bus peer before accepting a mutation.
+These controls prevent inherited user-manager configuration from silently
+redirecting common native-code loaders and let each D-Bus peer reject a
+currently unsafe packaged-process environment before accepting a mutation.
+They are defense-in-depth within the threat boundary below, not a claim that an
+unprivileged process can attest another same-user process cryptographically.
 Support-report temporary files remain mode-restricted and bounded by the
 application's explicit cleanup lifecycle.
 
@@ -64,15 +67,35 @@ defense-in-depth backlog. Compatible candidates to evaluate independently are
 the `ProtectKernel*` family. Each must pass real Core, FIDO2, packet-capture,
 KRunner, KCM, tray, and procfs peer-identity tests before adoption.
 
+## Threat boundary
+
+The local attacker considered here is an ordinary or sandboxed same-session
+process that can reach D-Bus but cannot already execute arbitrary native code as
+the desktop user. Arbitrary same-UID native code is already able to rewrite
+same-user process memory, inject into a newly launched packaged executable, or
+temporarily alter user-owned systemd units and drop-ins. Linux does not provide
+the unprivileged backend with durable evidence that distinguishes those actions
+after the attacker restores the observable files and environment.
+
+Consequently, the controls below resist ordinary bus-name substitution,
+owner-replacement races, stale replies, unexpected inherited loader settings,
+and peers without equivalent host-code execution. They do not constitute
+OS-backed code-signing identity and do not defend against arbitrary native code
+already running with the user's authority. A stronger boundary would require a
+root-controlled system service, a mandatory-access-control policy, or another
+privileged launch and attestation design; that would materially change the
+desktop architecture and is not implied by this project.
+
 ## D-Bus process identity
 
 The well-known session-bus name is an address, not an identity. Installed
-Control Center and agent clients therefore resolve it to a unique
-owner and require that owner to match the active packaged systemd unit, its
-immutable root-owned unit inputs, and its root-owned launcher. User-owned,
-writable, or mixed-trust drop-ins and unsafe loader or Python-path variables
-fail closed. Calls and signals then use the verified unique name so ownership
-replacement cannot retarget an in-flight operation.
+Control Center and agent clients therefore resolve it to a unique owner and
+check that the current process matches the active packaged systemd unit, its
+root-owned launcher, acceptable unit inputs, and a safe loader environment.
+User-owned, writable, or mixed-trust drop-ins fail closed while present. Calls
+and signals then use the checked unique name so ownership replacement cannot
+retarget an in-flight operation. These are current-state policy checks within
+the documented boundary, not durable same-UID attestation.
 
 Each asynchronous frontend request is additionally stamped with the verified
 unique destination and the frontend's current owner generation. Completion
@@ -82,11 +105,12 @@ owner. Service-replacement regressions exercise both the Control Center and the
 resident agent.
 
 At the backend ingress boundary, the actual D-Bus sender is captured before
-method dispatch. Mutations require a sender whose process is one of the
-root-owned native client executables. Claims in method arguments never replace
-the sender identity. Authorization and pending secret keys are revoked when
-the sender's unique name vanishes. Build-tree tests use an exact-owner pin that
-is ignored by installed root-owned executables.
+method dispatch. Mutations require a sender currently executing one of the
+root-owned native client paths without a denied loader environment. Claims in
+method arguments never replace the sender identity. Authorization and pending
+secret keys are revoked when the sender's unique name vanishes. Build-tree
+tests use an exact-owner pin that is ignored by installed root-owned
+executables.
 
 Successful authorization already verifies that the caller's unique D-Bus name
 is still owned. Frontend lifetime registration reuses that verified result
@@ -111,11 +135,13 @@ process names or user-owned autostart units are not trustworthy substitutes.
 The desktop-selected same-user Secret Service provider is therefore an explicit
 platform trust dependency.
 
-Executable identity is appropriate for isolated project processes such as the
-Control Center and agent. It is not sufficient for shared desktop brokers, so
-`/usr/bin/krunner`, KGlobalAccel, and status-notifier D-BusMenu are not trusted
-backend clients. Their actions send only validated connection requests to the
-Control Center activation service, which requires explicit modal confirmation
-before its already authenticated controller acts. The guarded
+Executable-path policy is useful defense-in-depth for isolated project
+processes such as the Control Center and agent within the stated boundary. It
+is not an OS-backed identity, and it is insufficient for shared desktop
+brokers. Therefore `/usr/bin/krunner`, KGlobalAccel, and status-notifier
+D-BusMenu are not trusted backend clients. Their actions send only validated
+connection requests to the Control Center activation service, which requires
+explicit modal confirmation before its already authenticated controller acts.
+The guarded
 disconnect-and-quit tray path also requires local confirmation. Shared brokers
 never authenticate to or call the backend.

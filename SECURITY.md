@@ -64,6 +64,9 @@ The following properties are part of the project's security contract:
   D-Bus sender and intended operation;
 - installed clients must authenticate and pin the packaged backend's unique
   D-Bus owner before sending secrets or state-changing requests;
+- packaged user services and the backend launcher must remove the shared
+  native-loader and runtime search-path override set before community or Proton
+  code is imported;
 - the downstream keyring adapter must require the desktop-selected Secret
   Service provider to run as the session user, pin traffic to its unique D-Bus
   owner, and reject owner replacement before sending Proton session material;
@@ -94,9 +97,22 @@ new suspected vulnerability.
 
 ## Known boundaries and exclusions
 
-The design does not claim to defend against root, a debugger, or another
-same-user process that can directly read client memory. Python and Qt may
-retain immutable string copies until their allocators reuse them.
+The primary local attacker is an ordinary or sandboxed process in the same
+graphical session that can reach the session bus but cannot already execute
+arbitrary native code as the desktop user. Unique-owner pinning, root-owned
+package paths, current process metadata, sender authorization, and environment
+sanitization are meaningful defenses within that boundary. They are not an
+OS-backed code-signing or process-attestation mechanism.
+
+The design does not claim to defend against root, a debugger, or arbitrary
+native code already running as the desktop user. The latter can inspect or
+rewrite same-user process memory, preload code into a packaged process, and
+transiently modify user-owned systemd units or drop-ins before removing the
+evidence. Findings that require only those already-equivalent host-code
+capabilities are out of scope unless they cross an additional security boundary,
+such as escaping a sandbox or gaining another user's or root's authority.
+Python and Qt may retain immutable secret-string copies until their allocators
+reuse them.
 
 The desktop-selected same-user Secret Service provider is a trusted dependency.
 The session bus can identify its unique owner and Unix user, but does not

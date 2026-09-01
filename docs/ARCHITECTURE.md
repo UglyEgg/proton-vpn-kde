@@ -3,7 +3,7 @@
 ## Design boundary
 
 Plasma VPN is a native KDE frontend around Proton's official Linux VPN Core.
-Its architecture follows five invariants:
+Its architecture follows six invariants:
 
 1.  Proton Core owns VPN protocols, NetworkManager integration, kill switch,
     IPv6 leak protection, split tunneling, server scoring, session persistence,
@@ -16,6 +16,9 @@ Its architecture follows five invariants:
     active tunnel.
 5.  The disconnected resident footprint does not include QML, Proton Core, or
     the complete server model.
+6.  Session-bus authorization resists ordinary or sandboxed peers without
+    equivalent host-code execution; it does not claim to attest processes
+    against arbitrary native code already running as the desktop user.
 
 ## Process model
 
@@ -104,12 +107,15 @@ incompatible contract change requires a new D-Bus interface version; additive
 version-one changes must preserve existing clients.
 
 Read-only status remains separate from mutation authority. The backend captures
-the actual D-Bus sender before method dispatch and authenticates package-owned
-Control Center or resident-agent executables for protected methods. Claims in
+the actual D-Bus sender before method dispatch and applies packaged executable,
+current environment, and unique-owner policy to protected methods. Claims in
 arguments never replace the actual sender. Authorization, leases, and one-use
-secret keys are revoked on owner loss. Native clients independently verify and
-pin the packaged backend's unique owner before sending operations or accepting
-signals.
+secret keys are revoked on owner loss. Native clients independently apply the
+corresponding current-state policy and pin the backend's unique owner before
+sending operations or accepting signals. The packaged units and launcher remove
+the same generated native-loader and runtime search overrides before backend or
+Core imports. These checks are defense-in-depth within the documented same-user
+threat boundary, not OS-backed process attestation.
 
 The full authentication design is documented in
 [Authentication](AUTHENTICATION.md); deployment identity and systemd tradeoffs

@@ -1,18 +1,32 @@
 #!@Python3_EXECUTABLE@ -I
 """Installed launcher for the Proton VPN KDE backend."""
 
+import os
 import sys
-from pathlib import Path
 
-install_prefix = Path(__file__).resolve().parents[1]
-sys.path.insert(
-    0,
-    str(
-        install_prefix
-        / "@PROTON_VPN_KDE_INSTALL_LIBEXECDIR@"
-        / "proton-vpn-kde"
-    ),
+install_prefix = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+backend_root = os.path.join(
+    install_prefix,
+    "@PROTON_VPN_KDE_INSTALL_LIBEXECDIR@",
+    "proton-vpn-kde",
 )
+environment_contract = os.path.join(
+    backend_root,
+    "proton_vpn_kde_backend",
+    "unsafe_environment.txt",
+)
+with open(environment_contract, encoding="ascii") as contract_file:
+    unsafe_environment_names = tuple(
+        line.strip()
+        for line in contract_file
+        if line.strip() and not line.lstrip().startswith("#")
+    )
+if not unsafe_environment_names:
+    raise RuntimeError("The backend environment contract is empty")
+for environment_name in unsafe_environment_names:
+    os.environ.pop(environment_name, None)
+
+sys.path.insert(0, backend_root)
 
 from proton_vpn_kde_backend.__main__ import main
 

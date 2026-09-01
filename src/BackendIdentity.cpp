@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "BackendIdentity.h"
+#include "UnsafeBackendEnvironment.generated.h"
 
 #include <algorithm>
 #include <QDBusConnection>
@@ -62,21 +63,22 @@ bool processEnvironmentIsSafe(quint64 pid)
     if (!environment.open(QIODevice::ReadOnly)) {
         return false;
     }
-    static const QList<QByteArray> blocked{
-        QByteArrayLiteral("LD_PRELOAD="),
-        QByteArrayLiteral("LD_AUDIT="),
-        QByteArrayLiteral("LD_LIBRARY_PATH="),
-        QByteArrayLiteral("PYTHONPATH="),
-        QByteArrayLiteral("PYTHONHOME="),
-    };
-    const QList<QByteArray> entries = environment.readAll().split('\0');
-    return std::none_of(entries.cbegin(), entries.cend(), [](const QByteArray &entry) {
-        return std::any_of(blocked.cbegin(), blocked.cend(),
-                           [&entry](const QByteArray &prefix) {
-            return entry.startsWith(prefix);
-        });
-    });
+    return ProtonVpnKde::isBackendEnvironmentSafe(environment.readAll());
 }
+}
+
+bool ProtonVpnKde::isBackendEnvironmentSafe(const QByteArray &environment)
+{
+    const QList<QByteArray> entries = environment.split('\0');
+    for (const QByteArray &entry : entries) {
+        for (const std::string_view prefix : kUnsafeBackendEnvironmentPrefixes) {
+            if (entry.size() >= static_cast<qsizetype>(prefix.size())
+                && std::equal(prefix.cbegin(), prefix.cend(), entry.cbegin())) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 bool ProtonVpnKde::isRootOwnedImmutableFile(const QString &path)

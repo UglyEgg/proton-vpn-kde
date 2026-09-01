@@ -8,9 +8,9 @@ secret fields immediately after submission and does not persist or log them.
 
 Ordinary D-Bus string arguments are intentionally not used for secret values.
 Before any application call, the installed Control Center and agent resolve the
-backend's well-known name to a unique D-Bus owner and verify that it is the
-packaged, root-owned systemd user service assembled only from immutable
-root-owned unit inputs and without unsafe loader variables.
+backend's well-known name to a unique D-Bus owner and check that its current
+process matches the packaged, root-owned launcher, active systemd user service,
+acceptable unit inputs, and safe loader environment.
 Every later call and signal is pinned to that unique owner. For each secret
 operation, the frontend requests an ephemeral X25519 public key bound to both
 its actual unique sender and the intended method, derives an independent
@@ -25,6 +25,16 @@ than credentials. A different client cannot consume the outstanding key, and
 owner replacement between key retrieval and submission invalidates the
 frontend's service generation instead of retargeting the secret.
 
+These process checks defend against ordinary or sandboxed same-session peers;
+they are not code-signing identity. Arbitrary native code already executing as
+the desktop user can inject into or rewrite same-user processes and can
+transiently alter user-owned systemd configuration. That attacker is outside
+the authentication boundary unless it must first escape a sandbox or gain
+additional authority. The packaged services and launcher still remove a shared
+denylist of dynamic-loader, OpenSSL-provider, GIO/GI, Python, Qt-plugin, and QML
+search overrides before importing backend or Core code, preventing accidental
+or inherited configuration from crossing the narrower supported boundary.
+
 The in-process KRunner plug-in is deliberately not a backend client and never
 handles authentication material. KRunner, global shortcuts, and D-Bus-exported
 tray actions send only bounded connection requests to the Control Center and
@@ -35,8 +45,8 @@ The backend accepts at most 16 KiB, validates the exact field set and value
 types, closes the received descriptor in every path, and overwrites its mutable
 input buffer. Python and Qt may retain immutable string copies in process memory
 until their normal allocators reuse them; this design does not claim to defend
-against root, a debugger, or a same-user process that can read either process's
-memory.
+against root, a debugger, or arbitrary same-user native code that can read or
+modify either process's memory.
 
 ## Password managers
 

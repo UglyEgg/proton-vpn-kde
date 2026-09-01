@@ -16,7 +16,7 @@ NoNewPrivileges=true
 # Fedora/SELinux. The backend already runs as the desktop user and cannot write
 # root-owned system paths; preserving peer authentication is the stronger
 # boundary.
-UnsetEnvironment=PYTHONPATH PYTHONHOME LD_PRELOAD LD_AUDIT LD_LIBRARY_PATH KDE_PLUGIN_PATH QT_PLUGIN_PATH QT_QPA_PLATFORM_PLUGIN_PATH QML_IMPORT_PATH QML2_IMPORT_PATH
+UnsetEnvironment=@PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_SYSTEMD@
 
 [Install]
 WantedBy=default.target

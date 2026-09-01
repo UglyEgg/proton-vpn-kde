@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "BackendIdentity.h"
+#include "UnsafeBackendEnvironment.generated.h"
 
 #include <QFile>
 #include <QTemporaryDir>
@@ -12,6 +13,35 @@ class BackendIdentityTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void ordinaryEnvironmentIsTrusted()
+    {
+        QByteArray environment("HOME=/home/test");
+        environment.append('\0');
+        environment.append(
+            "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus");
+        environment.append('\0');
+        environment.append("OPENSSL_CONFUSION=/tmp/ordinary");
+
+        QVERIFY(ProtonVpnKde::isBackendEnvironmentSafe(environment));
+    }
+
+    void everyUnsafeEnvironmentNameIsRejected()
+    {
+        for (const std::string_view prefix :
+             ProtonVpnKde::kUnsafeBackendEnvironmentPrefixes) {
+            for (const QByteArray &value : {QByteArray{},
+                                            QByteArray{"/tmp/attacker"}}) {
+                QByteArray environment("HOME=/home/test");
+                environment.append('\0');
+                environment.append(prefix.data(),
+                                   static_cast<qsizetype>(prefix.size()));
+                environment.append(value);
+                QVERIFY2(!ProtonVpnKde::isBackendEnvironmentSafe(environment),
+                         prefix.data());
+            }
+        }
+    }
+
     void emptyDropInListIsTrusted()
     {
         QVERIFY(ProtonVpnKde::areRootOwnedImmutableFiles({}));

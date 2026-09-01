@@ -18,8 +18,12 @@ from proton_vpn_kde_backend.client_authorization import (
     INVALID_ARGUMENTS_ERROR,
     INVALID_SECRET_ERROR,
     UNAUTHORIZED_ERROR,
+    process_environment_is_safe,
 )
 from proton_vpn_kde_backend.dbus_contract import CLASSIFIED_METHODS
+from proton_vpn_kde_backend.environment_contract import (
+    UNSAFE_ENVIRONMENT_NAMES,
+)
 from proton_vpn_kde_backend.dbus_service import exported_method_names
 from proton_vpn_kde_backend.features import TRUSTED_CLIENT_EXECUTABLES
 
@@ -46,6 +50,42 @@ def method_message(
 
 
 class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
+    def test_unsafe_environment_contract_is_complete_and_unique(self):
+        self.assertEqual(len(UNSAFE_ENVIRONMENT_NAMES), len(set(UNSAFE_ENVIRONMENT_NAMES)))
+        self.assertTrue(
+            {
+                "OPENSSL_CONF",
+                "OPENSSL_CONF_INCLUDE",
+                "OPENSSL_MODULES",
+                "OPENSSL_ENGINES",
+                "GI_TYPELIB_PATH",
+                "GIO_EXTRA_MODULES",
+                "GIO_MODULE_DIR",
+                "GCONV_PATH",
+            }.issubset(UNSAFE_ENVIRONMENT_NAMES)
+        )
+
+    def test_every_unsafe_environment_name_is_rejected(self):
+        for name in UNSAFE_ENVIRONMENT_NAMES:
+            with self.subTest(name=name):
+                for value in (b"", b"/tmp/attacker"):
+                    self.assertFalse(
+                        process_environment_is_safe(
+                            [b"HOME=/home/test", f"{name}=".encode() + value]
+                        )
+                    )
+
+    def test_environment_near_misses_and_ordinary_values_are_allowed(self):
+        self.assertTrue(
+            process_environment_is_safe(
+                [
+                    b"HOME=/home/test",
+                    b"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus",
+                    b"OPENSSL_CONFUSION=/tmp/ordinary",
+                ]
+            )
+        )
+
     def test_shared_plugin_hosts_are_not_trusted_clients(self):
         self.assertNotIn(
             "krunner",

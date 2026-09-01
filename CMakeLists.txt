@@ -17,6 +17,45 @@ option(
     OFF
 )
 
+# This file is the single source of truth for environment variables that can
+# redirect native code loading in an otherwise trusted packaged process.
+set(PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CONTRACT
+    "${CMAKE_CURRENT_SOURCE_DIR}/backend/proton_vpn_kde_backend/unsafe_environment.txt")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CONTRACT}")
+file(STRINGS
+    "${PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CONTRACT}"
+    PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES
+)
+list(FILTER PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES
+    EXCLUDE REGEX "^[ \t]*(#|$)")
+set(PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES_UNIQUE
+    ${PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES})
+list(REMOVE_DUPLICATES PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES_UNIQUE)
+list(LENGTH PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES
+    PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_COUNT)
+list(LENGTH PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES_UNIQUE
+    PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_UNIQUE_COUNT)
+if(NOT PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_COUNT EQUAL
+        PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_UNIQUE_COUNT)
+    message(FATAL_ERROR "Unsafe backend environment names must be unique")
+endif()
+foreach(environment_name IN LISTS PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES)
+    if(NOT environment_name MATCHES "^[A-Z][A-Z0-9_]*$")
+        message(FATAL_ERROR
+            "Invalid unsafe backend environment name: ${environment_name}")
+    endif()
+    string(APPEND PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CXX
+        "    \"${environment_name}=\",\n")
+endforeach()
+list(JOIN PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES " "
+    PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_SYSTEMD)
+configure_file(
+    src/UnsafeBackendEnvironment.generated.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/UnsafeBackendEnvironment.generated.h
+    @ONLY
+)
+
 find_package(ECM 6.0 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
 include(KDEInstallDirs6)
@@ -82,6 +121,8 @@ function(proton_vpn_kde_enable_translations target)
 endfunction()
 
 function(proton_vpn_kde_enable_backend_identity target)
+    target_include_directories(${target} PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR})
     target_compile_definitions(${target} PRIVATE
         PROTON_VPN_KDE_BACKEND_EXECUTABLE_PATH="${CMAKE_INSTALL_FULL_BINDIR}/proton-vpn-kde-backend"
         PROTON_VPN_KDE_BACKEND_UNIT_PATH="${KDE_INSTALL_FULL_SYSTEMDUSERUNITDIR}/proton-vpn-kde-backend.service"
@@ -357,6 +398,7 @@ if(BUILD_TESTING)
     target_compile_options(backend-identity-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
+    proton_vpn_kde_enable_backend_identity(backend-identity-tests)
     add_test(NAME backend-identity-tests COMMAND backend-identity-tests)
 
     qt_add_executable(agent-vpn-client-tests
@@ -990,6 +1032,10 @@ install(
     DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/proton-vpn-kde
     FILES_MATCHING PATTERN "*.py"
     PATTERN "__pycache__" EXCLUDE
+)
+install(
+    FILES backend/proton_vpn_kde_backend/unsafe_environment.txt
+    DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/proton-vpn-kde/proton_vpn_kde_backend
 )
 install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/_build_features.py

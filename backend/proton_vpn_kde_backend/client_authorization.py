@@ -23,6 +23,7 @@ from .dbus_contract import (
     SECRET_DESCRIPTOR_METHODS,
     Error,
 )
+from .environment_contract import UNSAFE_ENVIRONMENT_PREFIXES
 
 
 BACKEND_OBJECT_PATH = OBJECT_PATH
@@ -57,6 +58,15 @@ def close_unix_fds(file_descriptors: Iterable[int]) -> None:
             os.close(file_descriptor)
         except OSError:
             pass
+
+
+def process_environment_is_safe(entries: Iterable[bytes]) -> bool:
+    """Reject packaged peers whose environment can redirect native loading."""
+    return not any(
+        entry.startswith(prefix)
+        for entry in entries
+        for prefix in UNSAFE_ENVIRONMENT_PREFIXES
+    )
 
 
 class ClientAuthorizer:
@@ -227,19 +237,7 @@ class ClientAuthorizer:
             if metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
                 return False
             environment = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
-            blocked = (
-                b"LD_PRELOAD=",
-                b"LD_AUDIT=",
-                b"LD_LIBRARY_PATH=",
-                b"KDE_PLUGIN_PATH=",
-                b"QT_PLUGIN_PATH=",
-                b"QT_QPA_PLATFORM_PLUGIN_PATH=",
-                b"QML_IMPORT_PATH=",
-                b"QML2_IMPORT_PATH=",
-            )
-            return not any(
-                entry.startswith(prefix) for entry in environment for prefix in blocked
-            )
+            return process_environment_is_safe(environment)
         except (OSError, ValueError, TypeError):
             return False
 

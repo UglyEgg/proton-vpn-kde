@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QString>
 #include <QStringList>
 
@@ -19,6 +20,7 @@ struct BackendIdentityResult
 
 [[nodiscard]] bool isRootOwnedImmutableFile(const QString &path);
 [[nodiscard]] bool areRootOwnedImmutableFiles(const QStringList &paths);
+[[nodiscard]] bool isBackendEnvironmentSafe(const QByteArray &environment);
 [[nodiscard]] BackendIdentityResult
 verifyBackendIdentity(const QDBusConnection &bus, const QString &wellKnownName);
 }
