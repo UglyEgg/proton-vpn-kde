@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any
 
 from .async_utils import run_in_daemon_thread
@@ -80,6 +81,13 @@ __all__ = [
 
 
 LOGOUT_RECOVERY_TIMEOUT_SECONDS = 5.0
+
+
+@dataclass(frozen=True, slots=True)
+class _LogoutRecoveryOutcome:
+    core_logged_in: bool | None
+    protection_restored: bool
+    session_recovery_failed: bool
 
 
 class ProtonCoreAdapter:
@@ -845,68 +853,41 @@ class ProtonCoreAdapter:
         settings = await self._load_settings()
         previous_kill_switch = self._kill_switch_value(settings)
         kill_switch_changed = previous_kill_switch != 0
-        zero_kill_switch_persisted = False
+        kill_switch_zero_attempted = False
         try:
             if kill_switch_changed:
+                # The settings provider may commit before this await returns.
+                # From this point onward, failure and cancellation must both
+                # compensate even when the original save never acknowledged.
+                kill_switch_zero_attempted = True
                 settings.killswitch = 0
                 await self._save_settings(settings)
-                zero_kill_switch_persisted = True
             self._kill_switch = 0
             if self._reconnector:
                 await self._reconnector.disable()
             self._session_services_enabled = False
             await self._api.logout()
-        except asyncio.CancelledError:
-            recovery_task = asyncio.create_task(
-                self._recover_cancelled_logout(
-                    settings,
-                    previous_kill_switch,
-                    kill_switch_changed,
-                    zero_kill_switch_persisted,
-                )
+        except (Exception, asyncio.CancelledError) as error:
+            recovery, recovery_cancelled = await self._finish_logout_recovery(
+                settings,
+                previous_kill_switch,
+                kill_switch_zero_attempted,
             )
-            while not recovery_task.done():
-                try:
-                    await asyncio.shield(recovery_task)
-                except asyncio.CancelledError:
-                    # Shutdown may be requested more than once. Finish the
-                    # bounded state repair before propagating cancellation.
-                    continue
-            recovery_task.result()
-            raise
-        except Exception as error:
-            core_logged_in = await self._core_logged_in_after_failure()
-            if core_logged_in is False:
-                await self._set_signed_out(
-                    "Signed out; Proton could not complete some local cleanup"
-                )
+            if isinstance(error, asyncio.CancelledError):
+                raise
+            if recovery_cancelled:
+                raise asyncio.CancelledError() from None
+            if recovery.core_logged_in is False:
                 raise UserVisibleRuntimeError(
                     "Signed out, but Proton could not complete some local cleanup"
                 ) from None
-            rollback_failed = False
-            if kill_switch_changed:
-                settings.killswitch = previous_kill_switch
-                self._kill_switch = previous_kill_switch
-                try:
-                    if zero_kill_switch_persisted:
-                        await self._save_settings(settings)
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    rollback_failed = True
-            session_recovery_failed = False
-            if self._logged_in:
-                try:
-                    await self._enable_session_services()
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    session_recovery_failed = True
-            if rollback_failed:
+            if not recovery.protection_restored:
                 raise UserVisibleRuntimeError(
-                    "Sign-out failed and the kill switch setting could not be restored; review VPN settings before reconnecting"
+                    "Sign-out failed and the kill switch setting could not be "
+                    "confirmed; restart the backend and review VPN settings "
+                    "before reconnecting"
                 ) from None
-            if session_recovery_failed:
+            if recovery.session_recovery_failed:
                 raise UserVisibleRuntimeError(
                     "Sign-out failed and the Proton session could not be restored"
                 ) from None
@@ -1076,14 +1057,36 @@ class ProtonCoreAdapter:
         self._search_projection = None
         self._publish_snapshot()
 
-    async def _recover_cancelled_logout(
+    async def _finish_logout_recovery(
         self,
         settings: Any,
         previous_kill_switch: int,
-        kill_switch_changed: bool,
-        zero_kill_switch_persisted: bool,
-    ) -> None:
-        """Repair logout's persistent mutation before cancellation escapes."""
+        kill_switch_zero_attempted: bool,
+    ) -> tuple[_LogoutRecoveryOutcome, bool]:
+        """Finish bounded logout repair despite repeated outer cancellation."""
+
+        recovery_task = asyncio.create_task(
+            self._recover_failed_logout(
+                settings,
+                previous_kill_switch,
+                kill_switch_zero_attempted,
+            )
+        )
+        cancellation_requested = False
+        while not recovery_task.done():
+            try:
+                await asyncio.shield(recovery_task)
+            except asyncio.CancelledError:
+                cancellation_requested = True
+        return recovery_task.result(), cancellation_requested
+
+    async def _recover_failed_logout(
+        self,
+        settings: Any,
+        previous_kill_switch: int,
+        kill_switch_zero_attempted: bool,
+    ) -> _LogoutRecoveryOutcome:
+        """Publish only protection and session state confirmed after logout failure."""
 
         try:
             core_logged_in = await asyncio.wait_for(
@@ -1093,21 +1096,38 @@ class ProtonCoreAdapter:
         except TimeoutError:
             core_logged_in = None
         if core_logged_in is False:
-            await self._set_signed_out("Signed out")
-            return
+            await self._quiesce_session_services()
+            self._publish_signed_out_state("Signed out", "signed_out")
+            return _LogoutRecoveryOutcome(False, True, False)
 
-        rollback_failed = False
-        if kill_switch_changed:
+        protection_restored = True
+        if kill_switch_zero_attempted:
             settings.killswitch = previous_kill_switch
-            self._kill_switch = previous_kill_switch
-            if zero_kill_switch_persisted:
-                try:
-                    await asyncio.wait_for(
-                        self._save_settings(settings),
-                        timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
-                    )
-                except (Exception, asyncio.CancelledError):
-                    rollback_failed = True
+            try:
+                await asyncio.wait_for(
+                    self._save_settings(settings),
+                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
+                )
+            except (Exception, asyncio.CancelledError):
+                protection_restored = False
+
+        if not protection_restored:
+            await self._quiesce_session_services()
+            # Zero is the conservative projection: persistence is ambiguous,
+            # so never claim that permanent protection remains enabled.
+            self._kill_switch = 0
+            self._logged_in = False
+            self._auth_state = "protection_unknown"
+            self._status_message = (
+                "Proton could not confirm the kill switch setting after an "
+                "interrupted sign-out; restart the backend and review VPN "
+                "settings before reconnecting"
+            )
+            self._search_projection = None
+            self._publish_snapshot()
+            return _LogoutRecoveryOutcome(core_logged_in, False, True)
+
+        self._kill_switch = previous_kill_switch
 
         if core_logged_in is True:
             self._logged_in = True
@@ -1122,12 +1142,7 @@ class ProtonCoreAdapter:
             self._auth_state = (
                 "signed_in_degraded" if session_recovery_failed else "signed_in"
             )
-            if rollback_failed:
-                self._status_message = (
-                    "Sign-out was interrupted and the kill switch setting could "
-                    "not be restored; review VPN settings"
-                )
-            elif session_recovery_failed:
+            if session_recovery_failed:
                 self._status_message = (
                     "Sign-out was interrupted and Proton session services could "
                     "not be restored"
@@ -1137,19 +1152,42 @@ class ProtonCoreAdapter:
                     "Sign-out was interrupted; the Proton session remains active"
                 )
             self._publish_snapshot()
-            return
+            return _LogoutRecoveryOutcome(True, True, session_recovery_failed)
 
+        await self._quiesce_session_services()
         self._logged_in = False
         self._auth_state = "authentication_unknown"
         self._status_message = (
             "Sign-out was interrupted and Proton could not confirm the account "
             "state; restart the backend before continuing"
         )
-        if rollback_failed:
-            self._status_message += "; review the kill switch setting after restart"
         self._session_services_enabled = False
         self._search_projection = None
         self._publish_snapshot()
+        return _LogoutRecoveryOutcome(None, True, False)
+
+    async def _quiesce_session_services(self) -> bool:
+        """Best-effort bounded stop used before publishing recovery-required state."""
+
+        cleanup_failed = False
+        if self._reconnector:
+            try:
+                await asyncio.wait_for(
+                    self._reconnector.disable(),
+                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
+                )
+            except (Exception, asyncio.CancelledError):
+                cleanup_failed = True
+        if self._api:
+            try:
+                await asyncio.wait_for(
+                    self._api.refresher.disable(),
+                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
+                )
+            except (Exception, asyncio.CancelledError):
+                cleanup_failed = True
+        self._session_services_enabled = False
+        return cleanup_failed
 
     async def _core_logged_in_after_failure(self) -> bool | None:
         """Read Core's persisted authentication state after a partial operation.
@@ -1216,13 +1254,18 @@ class ProtonCoreAdapter:
     async def _raise_session_error(self, error: Exception):
         if type(error).__name__ != "ProtonAPIAuthenticationNeeded":
             raise error
+        session_services_were_enabled = self._session_services_enabled
+        self._publish_signed_out_state(
+            "Your Proton session expired; sign in again",
+            "expired",
+        )
         cleanup_failed = False
         if self._reconnector:
             try:
                 await self._reconnector.disable()
             except Exception:
                 cleanup_failed = True
-        if self._session_services_enabled:
+        if session_services_were_enabled:
             try:
                 await self._api.refresher.disable()
             except Exception:
@@ -1233,10 +1276,8 @@ class ProtonCoreAdapter:
                 "Your Proton session expired; sign in again. Some local session "
                 "cleanup could not complete"
             )
-        self._publish_signed_out_state(
-            message,
-            "expired",
-        )
+        if cleanup_failed:
+            self._publish_signed_out_state(message, "expired")
         raise UserVisibleRuntimeError(
             "Your Proton session expired; sign in again"
         ) from None

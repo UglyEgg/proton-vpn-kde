@@ -34,6 +34,7 @@ void VpnController::restartBackend()
     const bool recoveryRequired =
         m_authState == QStringLiteral("authentication_unknown")
         || m_authState == QStringLiteral("settings_unavailable")
+        || m_authState == QStringLiteral("protection_unknown")
         || m_state == QStringLiteral("unresponsive");
     if (m_ready && !recoveryRequired) {
         return;

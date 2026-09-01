@@ -670,13 +670,113 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         settings.killswitch = 1
         api.logout.side_effect = RuntimeError("remote failure")
         api.save_settings.side_effect = [None, RuntimeError("disk failure")]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "could not be confirmed"):
+            await adapter.logout()
+
+        self.assertFalse(adapter._logged_in)
+        self.assertFalse(adapter._session_services_enabled)
+        self.assertFalse(adapter._reconnector.enabled)
+        self.assertEqual(0, adapter._kill_switch)
+        self.assertEqual("protection_unknown", snapshots[-1].auth_state)
+
+    async def test_cancel_during_committed_zero_save_always_compensates(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        first_save_started = asyncio.Event()
+        persisted_kill_switch = 2
+        save_calls = 0
+
+        async def commit_then_block(saved_settings):
+            nonlocal persisted_kill_switch, save_calls
+            save_calls += 1
+            persisted_kill_switch = saved_settings.killswitch
+            if save_calls == 1:
+                first_save_started.set()
+                await asyncio.Future()
+
+        api.save_settings.side_effect = commit_then_block
+        api.is_user_logged_in.return_value = True
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        logout_task = asyncio.create_task(adapter.logout())
+        await first_save_started.wait()
+        logout_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await logout_task
+
+        self.assertEqual(2, persisted_kill_switch)
+        self.assertEqual(2, save_calls)
+        self.assertEqual(2, adapter._kill_switch)
+        self.assertTrue(adapter._logged_in)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
+
+    async def test_late_zero_save_error_always_compensates(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        persisted_kill_switch = 2
+        save_calls = 0
+
+        async def commit_then_fail_once(saved_settings):
+            nonlocal persisted_kill_switch, save_calls
+            save_calls += 1
+            persisted_kill_switch = saved_settings.killswitch
+            if save_calls == 1:
+                raise RuntimeError("late storage acknowledgement failure")
+
+        api.save_settings.side_effect = commit_then_fail_once
+        api.is_user_logged_in.return_value = True
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(Mock())
 
-        with self.assertRaisesRegex(RuntimeError, "could not be restored"):
+        with self.assertRaisesRegex(RuntimeError, "could not complete"):
             await adapter.logout()
 
-        self.assertTrue(adapter._logged_in)
+        self.assertEqual(2, persisted_kill_switch)
+        self.assertEqual(2, save_calls)
+        self.assertEqual(2, adapter._kill_switch)
+
+    async def test_rollback_timeout_enters_protection_unknown_state(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        persisted_kill_switch = 2
+        save_calls = 0
+
+        async def block_rollback(saved_settings):
+            nonlocal persisted_kill_switch, save_calls
+            save_calls += 1
+            if save_calls == 2:
+                await asyncio.Future()
+            persisted_kill_switch = saved_settings.killswitch
+
+        api.save_settings.side_effect = block_rollback
+        api.logout.side_effect = RuntimeError("remote failure")
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with patch(
+            "proton_vpn_kde_backend.adapters.LOGOUT_RECOVERY_TIMEOUT_SECONDS",
+            0.01,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "could not be confirmed"):
+                await adapter.logout()
+
+        self.assertEqual(0, persisted_kill_switch)
+        self.assertEqual(2, save_calls)
+        self.assertFalse(adapter._logged_in)
+        self.assertFalse(adapter._session_services_enabled)
+        self.assertFalse(adapter._reconnector.enabled)
+        self.assertEqual(0, snapshots[-1].kill_switch)
+        self.assertEqual("protection_unknown", snapshots[-1].auth_state)
 
     async def test_logout_rolls_back_when_reconnector_disable_fails(self):
         api, _ = self.make_api()
@@ -794,6 +894,54 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(adapter._logged_in)
         self.assertEqual("expired", snapshots[-1].auth_state)
         self.assertIn("cleanup", snapshots[-1].message)
+
+    async def test_expired_session_stays_signed_out_when_reconnector_cleanup_cancels(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.refresher.get_up_to_date_server_list.side_effect = expired_error()
+        cleanup_started = asyncio.Event()
+
+        async def blocked_cleanup():
+            cleanup_started.set()
+            await asyncio.Future()
+
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+        adapter._reconnector.disable = AsyncMock(side_effect=blocked_cleanup)
+
+        request = asyncio.create_task(adapter.get_countries())
+        await cleanup_started.wait()
+        request.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await request
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
+
+    async def test_expired_session_stays_signed_out_when_refresher_cleanup_cancels(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.refresher.get_up_to_date_server_list.side_effect = expired_error()
+        cleanup_started = asyncio.Event()
+
+        async def blocked_cleanup():
+            cleanup_started.set()
+            await asyncio.Future()
+
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+        api.refresher.disable.side_effect = blocked_cleanup
+
+        request = asyncio.create_task(adapter.get_countries())
+        await cleanup_started.wait()
+        request.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await request
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
 
     async def test_disabled_reconnection_preference_survives_initialization(self):
         api, connector = self.make_api()

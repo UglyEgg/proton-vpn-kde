@@ -103,6 +103,16 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Automatic reconnection is unavailable for this error", messages)
         await reconnector.disable()
 
+    async def test_disable_quiesces_retries_when_observer_unregistration_fails(self):
+        reconnector, connector, _, _ = self.make_reconnector()
+        reconnector.enable()
+        connector.unregister.side_effect = RuntimeError("observer failure")
+
+        with self.assertRaisesRegex(RuntimeError, "observer failure"):
+            await reconnector.disable()
+
+        self.assertFalse(reconnector.enabled)
+
     async def test_expired_certificate_requests_refresh(self):
         reconnector, connector, refresher, _ = self.make_reconnector(
             event_name="ExpiredCertificate"

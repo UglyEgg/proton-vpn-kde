@@ -149,10 +149,14 @@ class AsyncReconnector:
         self.status_update(self._connector.current_state)
 
     async def disable(self) -> None:
-        if self._enabled:
-            self._connector.unregister(self)
-        self._enabled = False
-        self._reset()
+        try:
+            if self._enabled:
+                self._connector.unregister(self)
+        finally:
+            # A faulty observer cannot leave retry work armed after a caller
+            # has entered a protection-unknown or signed-out state.
+            self._enabled = False
+            self._reset()
         await self._session_probe.close()
 
     def status_update(self, state: Any) -> None:

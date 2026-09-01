@@ -19,7 +19,7 @@ Kirigami.ScrollablePage {
         "signed_out", "signing_in", "human_verification", "expired"
     ].includes(vpnController.authState)
     readonly property bool recoveryRequired: [
-        "authentication_unknown", "settings_unavailable"
+        "authentication_unknown", "settings_unavailable", "protection_unknown"
     ].includes(vpnController.authState)
     readonly property bool twoFactorVisible: [
         "two_factor", "fido_error"
