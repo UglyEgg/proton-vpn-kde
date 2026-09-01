@@ -363,6 +363,25 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, settings.killswitch)
         api.save_settings.assert_awaited_once_with(settings)
 
+    async def test_startup_settings_failure_blocks_login_until_state_is_known(self):
+        api, _ = self.make_api(logged_in=False)
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        api.load_settings.side_effect = [RuntimeError("temporary read failure"), settings]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+
+        initial = await adapter.initialize(snapshots.append)
+
+        self.assertEqual("settings_unavailable", initial.auth_state)
+        self.assertIn("restart", initial.message)
+        with self.assertRaisesRegex(RuntimeError, "permanent kill switch"):
+            await adapter.login("test-user", "not-recorded")
+
+        self.assertEqual(2, snapshots[-1].kill_switch)
+        self.assertEqual("signed_out", snapshots[-1].auth_state)
+        api.login.assert_not_awaited()
+
     async def test_login_without_two_factor_enables_session_services(self):
         api, connector = self.make_api(logged_in=False)
         api.login.return_value = SimpleNamespace(
@@ -565,6 +584,35 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(item.auth_state == "fido_touch" for item in snapshots))
         self.assertTrue(snapshots[-1].logged_in)
 
+    async def test_security_key_cancel_during_submit_reconciles_late_login(self):
+        api, _ = self.make_api(logged_in=False)
+        api.supports_fido2 = True
+        api.is_user_logged_in.side_effect = [False, True]
+        api.generate_2fa_fido2_assertion.return_value = "assertion"
+        submit_started = asyncio.Event()
+        release_submit = asyncio.Event()
+
+        async def late_submit_failure(_assertion):
+            submit_started.set()
+            await release_submit.wait()
+            raise RuntimeError("late session-data failure")
+
+        api.submit_2fa_fido2.side_effect = late_submit_failure
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+        adapter._auth_state = "two_factor"
+
+        fido_task = asyncio.create_task(adapter.begin_fido2())
+        await submit_started.wait()
+        await adapter.cancel_fido2()
+        release_submit.set()
+        await fido_task
+
+        self.assertTrue(adapter._logged_in)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertIn("incomplete authentication response", snapshots[-1].message)
+
     async def test_logout_disconnects_and_clears_account_metadata(self):
         api, connector = self.make_api()
         connector.current_state = state_named("Connected")
@@ -672,6 +720,35 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(adapter._logged_in)
         self.assertFalse(adapter._reconnector.enabled)
 
+    async def test_cancelled_logout_restores_persistent_protection_state(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        logout_started = asyncio.Event()
+
+        async def blocked_logout():
+            logout_started.set()
+            await asyncio.Future()
+
+        api.logout.side_effect = blocked_logout
+        api.is_user_logged_in.return_value = True
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        logout_task = asyncio.create_task(adapter.logout())
+        await logout_started.wait()
+        logout_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await logout_task
+
+        self.assertEqual(2, settings.killswitch)
+        self.assertEqual(2, adapter._kill_switch)
+        self.assertEqual(2, api.save_settings.await_count)
+        self.assertTrue(adapter._logged_in)
+        self.assertTrue(adapter._session_services_enabled)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
+
     async def test_core_state_probe_propagates_cancellation(self):
         api, _ = self.make_api(logged_in=False)
         adapter = ProtonCoreAdapter(api)
@@ -698,6 +775,25 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(snapshots[-1].logged_in)
         self.assertEqual("expired", snapshots[-1].auth_state)
         api.refresher.disable.assert_awaited_once_with()
+
+    async def test_expired_session_publishes_signed_out_when_cleanup_fails(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.refresher.get_up_to_date_server_list.side_effect = expired_error()
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+        adapter._reconnector.disable = AsyncMock(
+            side_effect=RuntimeError("observer cleanup failed")
+        )
+        api.refresher.disable.side_effect = RuntimeError("refresh cleanup failed")
+
+        with self.assertRaisesRegex(RuntimeError, "session expired"):
+            await adapter.get_countries()
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
+        self.assertIn("cleanup", snapshots[-1].message)
 
     async def test_disabled_reconnection_preference_survives_initialization(self):
         api, connector = self.make_api()

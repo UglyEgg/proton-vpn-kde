@@ -37,7 +37,7 @@ public:
     bool delayLogout = false;
     bool ready = true;
     bool loggedIn = true;
-    bool failNextSnapshotWithNoReply = false;
+    int snapshotNoReplyFailures = 0;
     QString lastCountry;
     QString lastGroupKind;
     QString lastGroupName;
@@ -87,8 +87,8 @@ public slots:
     QString GetSnapshot()
     {
         ++snapshotCalls;
-        if (failNextSnapshotWithNoReply) {
-            failNextSnapshotWithNoReply = false;
+        if (snapshotNoReplyFailures > 0) {
+            --snapshotNoReplyFailures;
             sendErrorReply(QDBusError::NoReply,
                            QStringLiteral("transient snapshot timeout"));
             return {};
@@ -210,6 +210,7 @@ private slots:
     void clearsCachedSessionWhenBackendStops();
     void ignoresOperationReplyFromReplacedBackend();
     void retriesSnapshotAfterTransientSameOwnerFailure();
+    void stopsRetryingAnUnresponsiveSameOwner();
     void queuesInitialBrowserLoadUntilBackendIsReady();
     void loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint();
     void retriesTransientEmptyServerGroupResponses();
@@ -372,7 +373,7 @@ void GroupedNavigationTest::retriesSnapshotAfterTransientSameOwnerFailure()
     QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
 
     const int snapshotCallsBefore = m_backend.snapshotCalls;
-    m_backend.failNextSnapshotWithNoReply = true;
+    m_backend.snapshotNoReplyFailures = 1;
     controller.refresh();
 
     QTRY_COMPARE_WITH_TIMEOUT(
@@ -382,6 +383,30 @@ void GroupedNavigationTest::retriesSnapshotAfterTransientSameOwnerFailure()
         m_backend.snapshotCalls, snapshotCallsBefore + 2, 2500);
     QVERIFY(controller.backendAvailable());
     QVERIFY(controller.ready());
+}
+
+void GroupedNavigationTest::stopsRetryingAnUnresponsiveSameOwner()
+{
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+
+    const int snapshotCallsBefore = m_backend.snapshotCalls;
+    m_backend.snapshotNoReplyFailures = 5;
+    controller.refresh();
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.snapshotCalls, snapshotCallsBefore + 4, 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        controller.state(), QStringLiteral("unresponsive"), 3000);
+    QVERIFY(controller.backendAvailable());
+    QVERIFY(!controller.ready());
+    QVERIFY(controller.message().contains(
+        QStringLiteral("not responding"), Qt::CaseInsensitive));
+
+    m_backend.snapshotNoReplyFailures = 0;
+    QTest::qWait(1200);
+    QCOMPARE(m_backend.snapshotCalls, snapshotCallsBefore + 4);
 }
 
 void GroupedNavigationTest::loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint()

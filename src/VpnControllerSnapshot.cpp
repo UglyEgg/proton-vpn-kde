@@ -224,6 +224,7 @@ void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         return;
     }
     m_snapshotRefreshRetryTimer->stop();
+    m_snapshotRefreshRetryCount = 0;
     setBackendAvailable(true);
     applySnapshot(reply.value());
 }

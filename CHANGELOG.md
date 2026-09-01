@@ -64,6 +64,17 @@ All notable user-visible changes are recorded here. The project follows
 - Bind the complete Fedora binary/source artifact set and generated translation
   catalogs to the exact reviewed commit, and identify the modified API-Core RPM
   with its community downstream vendor.
+- Make logout and backend shutdown cancellation-safe so a partially completed
+  sign-out cannot silently persist a disabled kill switch or tear down session
+  services around a still-authenticated Core session.
+- Reconcile a cancelled security-key submission after Core may have persisted
+  authentication, and guarantee that an expired Core session reaches the
+  signed-out interface even when observer cleanup fails.
+- Pause sign-in and offer an explicit backend restart whenever account or kill
+  switch state cannot be confirmed; bound same-owner snapshot recovery before
+  declaring the local backend unresponsive.
+- Generate source archives through one commit-stamping release path with
+  normalized metadata and a two-build reproducibility gate.
 
 ## [0.11.3] - 2026-08-31
 

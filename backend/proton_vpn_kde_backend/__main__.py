@@ -107,13 +107,20 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
         if lifetime_task is not None:
             lifetime_task.cancel()
             await asyncio.gather(lifetime_task, return_exceptions=True)
-        if initialized:
-            await controller.close()
+        # Stop accepting new D-Bus work before draining the current serialized
+        # mutation. This keeps package upgrades and session shutdown from
+        # cancelling a logout after it has persisted protection changes.
         bus.unexport(OBJECT_PATH, service)
         bus.remove_message_handler(authorizer.message_handler)
-        await authorizer.uninstall()
-        await bus.release_name(BUS_NAME)
-        bus.disconnect()
+        try:
+            if initialized:
+                await controller.close()
+        finally:
+            try:
+                await authorizer.uninstall()
+            finally:
+                await bus.release_name(BUS_NAME)
+                bus.disconnect()
 
 
 def main() -> None:

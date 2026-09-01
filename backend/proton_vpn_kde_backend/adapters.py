@@ -79,6 +79,9 @@ __all__ = [
 ]
 
 
+LOGOUT_RECOVERY_TIMEOUT_SECONDS = 5.0
+
+
 class ProtonCoreAdapter:
     """Thin adapter over the official python-proton-vpn-api-core package.
 
@@ -165,6 +168,11 @@ class ProtonCoreAdapter:
                 settings = await self._load_settings()
             except Exception:
                 self._kill_switch = 0
+                self._auth_state = "settings_unavailable"
+                self._status_message = (
+                    "Proton could not read the kill switch setting; restart the "
+                    "backend before signing in"
+                )
             else:
                 self._kill_switch = self._kill_switch_value(settings)
 
@@ -678,6 +686,11 @@ class ProtonCoreAdapter:
         settings = await self._load_settings()
         self._kill_switch = self._kill_switch_value(settings)
         if self._kill_switch == 2:
+            self._auth_state = "signed_out"
+            self._status_message = (
+                "Disable the permanent kill switch before signing in"
+            )
+            self._publish_snapshot()
             raise UserVisibleRuntimeError(
                 "Disable the permanent kill switch before signing in"
             )
@@ -772,35 +785,49 @@ class ProtonCoreAdapter:
             "Insert your security key and follow its prompts",
         )
         try:
-            assertion = await self._api.generate_2fa_fido2_assertion(
-                interaction,
-                interaction.cancel_assertion,
-            )
+            try:
+                assertion = await self._api.generate_2fa_fido2_assertion(
+                    interaction,
+                    interaction.cancel_assertion,
+                )
+            except Exception as error:
+                if interaction.cancelled:
+                    self._set_auth_status(
+                        "two_factor", "Security-key authentication cancelled"
+                    )
+                else:
+                    await self._reconcile_authentication_failure(
+                        error,
+                        fallback_state="fido_error",
+                        fido_error=True,
+                    )
+                return
             if interaction.cancelled:
                 self._set_auth_status(
                     "two_factor", "Security-key authentication cancelled"
                 )
                 return
-            result = await self._api.submit_2fa_fido2(assertion)
-        except Exception as error:
-            if interaction.cancelled:
-                self._set_auth_status(
-                    "two_factor", "Security-key authentication cancelled"
-                )
-            else:
+            try:
+                result = await self._api.submit_2fa_fido2(assertion)
+            except Exception as error:
+                # Once Core accepts an assertion it may persist authentication
+                # before a later session-data fetch fails. A concurrent UI
+                # cancel cannot classify that late failure as signed out.
                 await self._reconcile_authentication_failure(
                     error,
                     fallback_state="fido_error",
                     fido_error=True,
                 )
-            return
+                return
+
+            if not result.success:
+                self._set_auth_status(
+                    "fido_error", "The security key was not accepted"
+                )
+                return
+            await self._complete_login()
         finally:
             self._fido_interaction = None
-
-        if not result.success:
-            self._set_auth_status("fido_error", "The security key was not accepted")
-            return
-        await self._complete_login()
 
     async def submit_fido2_pin(self, pin: str) -> None:
         if not self._fido_interaction or not self._fido_interaction.provide_pin(pin):
@@ -830,6 +857,22 @@ class ProtonCoreAdapter:
             self._session_services_enabled = False
             await self._api.logout()
         except asyncio.CancelledError:
+            recovery_task = asyncio.create_task(
+                self._recover_cancelled_logout(
+                    settings,
+                    previous_kill_switch,
+                    kill_switch_changed,
+                    zero_kill_switch_persisted,
+                )
+            )
+            while not recovery_task.done():
+                try:
+                    await asyncio.shield(recovery_task)
+                except asyncio.CancelledError:
+                    # Shutdown may be requested more than once. Finish the
+                    # bounded state repair before propagating cancellation.
+                    continue
+            recovery_task.result()
             raise
         except Exception as error:
             core_logged_in = await self._core_logged_in_after_failure()
@@ -1017,10 +1060,93 @@ class ProtonCoreAdapter:
         self, message: str, auth_state: str = "signed_out"
     ) -> None:
         if self._reconnector:
-            await self._reconnector.disable()
+            try:
+                await self._reconnector.disable()
+            except Exception:
+                # Authentication state is authoritative. Observer cleanup is
+                # best effort and must never preserve a stale signed-in state.
+                pass
+        self._publish_signed_out_state(message, auth_state)
+
+    def _publish_signed_out_state(self, message: str, auth_state: str) -> None:
         self._logged_in = False
         self._auth_state = auth_state
         self._status_message = message
+        self._session_services_enabled = False
+        self._search_projection = None
+        self._publish_snapshot()
+
+    async def _recover_cancelled_logout(
+        self,
+        settings: Any,
+        previous_kill_switch: int,
+        kill_switch_changed: bool,
+        zero_kill_switch_persisted: bool,
+    ) -> None:
+        """Repair logout's persistent mutation before cancellation escapes."""
+
+        try:
+            core_logged_in = await asyncio.wait_for(
+                self._core_logged_in_after_failure(),
+                timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            core_logged_in = None
+        if core_logged_in is False:
+            await self._set_signed_out("Signed out")
+            return
+
+        rollback_failed = False
+        if kill_switch_changed:
+            settings.killswitch = previous_kill_switch
+            self._kill_switch = previous_kill_switch
+            if zero_kill_switch_persisted:
+                try:
+                    await asyncio.wait_for(
+                        self._save_settings(settings),
+                        timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
+                    )
+                except (Exception, asyncio.CancelledError):
+                    rollback_failed = True
+
+        if core_logged_in is True:
+            self._logged_in = True
+            session_recovery_failed = False
+            try:
+                await asyncio.wait_for(
+                    self._enable_session_services(),
+                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
+                )
+            except (Exception, asyncio.CancelledError):
+                session_recovery_failed = True
+            self._auth_state = (
+                "signed_in_degraded" if session_recovery_failed else "signed_in"
+            )
+            if rollback_failed:
+                self._status_message = (
+                    "Sign-out was interrupted and the kill switch setting could "
+                    "not be restored; review VPN settings"
+                )
+            elif session_recovery_failed:
+                self._status_message = (
+                    "Sign-out was interrupted and Proton session services could "
+                    "not be restored"
+                )
+            else:
+                self._status_message = (
+                    "Sign-out was interrupted; the Proton session remains active"
+                )
+            self._publish_snapshot()
+            return
+
+        self._logged_in = False
+        self._auth_state = "authentication_unknown"
+        self._status_message = (
+            "Sign-out was interrupted and Proton could not confirm the account "
+            "state; restart the backend before continuing"
+        )
+        if rollback_failed:
+            self._status_message += "; review the kill switch setting after restart"
         self._session_services_enabled = False
         self._search_projection = None
         self._publish_snapshot()
@@ -1090,13 +1216,26 @@ class ProtonCoreAdapter:
     async def _raise_session_error(self, error: Exception):
         if type(error).__name__ != "ProtonAPIAuthenticationNeeded":
             raise error
+        cleanup_failed = False
         if self._reconnector:
-            await self._reconnector.disable()
+            try:
+                await self._reconnector.disable()
+            except Exception:
+                cleanup_failed = True
         if self._session_services_enabled:
-            await self._api.refresher.disable()
-        await self._set_signed_out(
-            "Your Proton session expired; sign in again",
-            auth_state="expired",
+            try:
+                await self._api.refresher.disable()
+            except Exception:
+                cleanup_failed = True
+        message = "Your Proton session expired; sign in again"
+        if cleanup_failed:
+            message = (
+                "Your Proton session expired; sign in again. Some local session "
+                "cleanup could not complete"
+            )
+        self._publish_signed_out_state(
+            message,
+            "expired",
         )
         raise UserVisibleRuntimeError(
             "Your Proton session expired; sign in again"

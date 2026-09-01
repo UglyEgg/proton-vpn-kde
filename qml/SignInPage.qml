@@ -16,8 +16,10 @@ Kirigami.ScrollablePage {
 
     readonly property bool preparingSignIn: !vpnController.ready
     readonly property bool credentialsVisible: preparingSignIn || [
-        "signed_out", "signing_in", "human_verification", "expired",
-        "authentication_unknown"
+        "signed_out", "signing_in", "human_verification", "expired"
+    ].includes(vpnController.authState)
+    readonly property bool recoveryRequired: [
+        "authentication_unknown", "settings_unavailable"
     ].includes(vpnController.authState)
     readonly property bool twoFactorVisible: [
         "two_factor", "fido_error"
@@ -173,10 +175,14 @@ Kirigami.ScrollablePage {
         }
 
         PageHeader {
-            heading: page.twoFactorVisible || !page.credentialsVisible
+            heading: page.recoveryRequired
+                     ? qsTr("Account state unavailable")
+                     : page.twoFactorVisible || !page.credentialsVisible
                      ? qsTr("Two-factor authentication")
                      : qsTr("Sign in to Proton VPN")
-            description: page.credentialsVisible
+            description: page.recoveryRequired
+                         ? qsTr("Restart the local backend to obtain an authoritative Proton account and protection state.")
+                         : page.credentialsVisible
                          ? qsTr("Use your Proton account to access VPN servers.")
                          : qsTr("Complete the security check for this account.")
             iconName: applicationWindow().appIconSource
@@ -190,6 +196,21 @@ Kirigami.ScrollablePage {
                   ? Kirigami.MessageType.Warning
                   : Kirigami.MessageType.Information
             text: vpnController.message
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: page.recoveryRequired
+            type: Kirigami.MessageType.Warning
+            text: qsTr("Sign-in is paused until the backend has been restarted and the Proton account state can be confirmed.")
+
+            actions: [
+                Kirigami.Action {
+                    text: qsTr("Restart backend")
+                    icon.name: "view-refresh"
+                    onTriggered: vpnController.restartBackend()
+                }
+            ]
         }
 
         Kirigami.InlineMessage {

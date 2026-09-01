@@ -6,7 +6,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable
+from collections.abc import AsyncIterator, Awaitable
+from contextlib import asynccontextmanager
 from dataclasses import replace
 import json
 import logging
@@ -164,6 +165,7 @@ class BackendController:
         adapter: CoreAdapter,
         *,
         crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
+        shutdown_drain_seconds: float = 5.0,
     ):
         self._adapter = adapter
         self._crash_report_submission_enabled = crash_report_submission_enabled
@@ -175,6 +177,9 @@ class BackendController:
         self._custom_dns_listeners: list[CustomDnsCallback] = []
         self._operation_lock = asyncio.Lock()
         self._session_epoch = 0
+        self._closing = False
+        self._active_operation_task: asyncio.Task[None] | None = None
+        self._shutdown_drain_seconds = max(0.0, shutdown_drain_seconds)
 
     @property
     def snapshot(self) -> VpnSnapshot:
@@ -321,7 +326,7 @@ class BackendController:
             raise UserVisibleRuntimeError(
                 "Another VPN operation is already in progress"
             )
-        async with self._operation_lock:
+        async with self._serialized_operation():
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
                 settings = await self._adapter.update_settings(patch)
@@ -366,7 +371,7 @@ class BackendController:
             raise UserVisibleRuntimeError(
                 "Another VPN operation is already in progress"
             )
-        async with self._operation_lock:
+        async with self._serialized_operation():
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
                 split_tunneling = await self._adapter.update_split_tunneling(patch)
@@ -414,7 +419,7 @@ class BackendController:
             raise UserVisibleRuntimeError(
                 "Another VPN operation is already in progress"
             )
-        async with self._operation_lock:
+        async with self._serialized_operation():
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
                 custom_dns = await self._adapter.update_custom_dns(patch)
@@ -552,7 +557,7 @@ class BackendController:
             raise UserVisibleRuntimeError(
                 "Another VPN operation is already in progress"
             )
-        async with self._operation_lock:
+        async with self._serialized_operation():
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
                 await self._adapter.submit_support_report(report)
@@ -660,11 +665,32 @@ class BackendController:
         # Preference updates arrive from both desktop processes. Serialize them
         # with logout/session expiry so a late update cannot re-enable the live
         # reconnector after the account has been signed out.
-        async with self._operation_lock:
+        async with self._serialized_operation():
+            if self._closing:
+                return
             await self._adapter.set_reconnection_enabled(enabled)
 
     async def close(self) -> None:
-        await self._adapter.close()
+        # The D-Bus object is unexported before this runs, so acquiring the
+        # mutation lock first drains the accepted operation. A stuck operation
+        # is cancelled only after a bounded grace period; adapter transactions
+        # perform their own cancellation-safe state repair before unwinding.
+        self._closing = True
+        try:
+            await asyncio.wait_for(
+                self._operation_lock.acquire(),
+                timeout=self._shutdown_drain_seconds,
+            )
+        except TimeoutError:
+            active_operation = self._active_operation_task
+            if active_operation is not None and active_operation is not asyncio.current_task():
+                active_operation.cancel()
+                await asyncio.gather(active_operation, return_exceptions=True)
+            await self._operation_lock.acquire()
+        try:
+            await self._adapter.close()
+        finally:
+            self._operation_lock.release()
 
     def _require_session(self) -> None:
         self._require_ready()
@@ -680,6 +706,8 @@ class BackendController:
             raise UserVisibleRuntimeError("The Proton account session changed")
 
     def _require_ready(self) -> None:
+        if self._closing:
+            raise UserVisibleRuntimeError("The Proton backend is shutting down")
         if not self._snapshot.ready:
             raise UserVisibleRuntimeError("The Proton backend is not ready")
 
@@ -716,7 +744,7 @@ class BackendController:
                 "Another VPN operation is already in progress"
             )
 
-        async with self._operation_lock:
+        async with self._serialized_operation():
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
                 await operation()
@@ -745,6 +773,17 @@ class BackendController:
                 raise
             else:
                 self._publish(replace(self._snapshot, busy=False))
+
+    @asynccontextmanager
+    async def _serialized_operation(self) -> AsyncIterator[None]:
+        async with self._operation_lock:
+            task = asyncio.current_task()
+            self._active_operation_task = task
+            try:
+                yield
+            finally:
+                if self._active_operation_task is task:
+                    self._active_operation_task = None
 
     def _on_adapter_snapshot(self, snapshot: VpnSnapshot) -> None:
         if snapshot.logged_in != self._snapshot.logged_in:

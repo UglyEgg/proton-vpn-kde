@@ -31,7 +31,11 @@ constexpr auto backendUnit = "proton-vpn-kde-backend.service";
 
 void VpnController::restartBackend()
 {
-    if (m_ready) {
+    const bool recoveryRequired =
+        m_authState == QStringLiteral("authentication_unknown")
+        || m_authState == QStringLiteral("settings_unavailable")
+        || m_state == QStringLiteral("unresponsive");
+    if (m_ready && !recoveryRequired) {
         return;
     }
     m_message = tr("Restarting the Proton backend service…");
@@ -113,6 +117,7 @@ void VpnController::onServiceRegistered(const QString &)
     m_backendDestination = identity.uniqueOwner;
     ++m_backendGeneration;
     m_snapshotRefreshRetryTimer->stop();
+    m_snapshotRefreshRetryCount = 0;
     connectBackendSignals();
     setBackendAvailable(false);
     m_clientRegistration.serviceChanged();
@@ -127,6 +132,8 @@ void VpnController::onServiceUnregistered(const QString &)
     m_backendDestination.clear();
     ++m_backendGeneration;
     m_clientRegistration.serviceChanged();
+    m_snapshotRefreshRetryTimer->stop();
+    m_snapshotRefreshRetryCount = 0;
     setBackendAvailable(false);
     m_ready = false;
     m_startupCompatible = true;
@@ -322,5 +329,20 @@ void VpnController::scheduleSnapshotRefreshRetry()
         || m_snapshotRefreshRetryTimer->isActive()) {
         return;
     }
-    m_snapshotRefreshRetryTimer->start(1000);
+    constexpr unsigned int maximumRetries = 3;
+    if (m_snapshotRefreshRetryCount >= maximumRetries) {
+        m_snapshotRefreshPending = false;
+        m_ready = false;
+        m_busy = false;
+        m_state = QStringLiteral("unresponsive");
+        m_message = tr(
+            "The Proton backend is not responding. Restart it before continuing.");
+        emit snapshotChanged();
+        return;
+    }
+    constexpr int retryBaseMilliseconds = 250;
+    const int delayMilliseconds =
+        retryBaseMilliseconds * (1 << m_snapshotRefreshRetryCount);
+    ++m_snapshotRefreshRetryCount;
+    m_snapshotRefreshRetryTimer->start(delayMilliseconds);
 }

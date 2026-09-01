@@ -71,24 +71,25 @@ packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     '' "$PWD/build-api-core-overlay"
 ```
 
-Create a dedicated top directory and release archive, then build with Fedora's
-package flags and `%check` enabled:
+Create a fresh dedicated top directory with the commit-stamping helper, then
+build with Fedora's package flags and `%check` enabled. The helper refuses a
+nonempty output directory and normalizes the injected commit marker so the
+same source commit produces the same archive:
 
 ```bash
-mkdir -p build-release/{SOURCES,SPECS,TMP}
-git archive --format=tar.gz \
-    --prefix=proton-vpn-kde-VERSION/ \
-    --output=build-release/SOURCES/proton-vpn-kde-VERSION.tar.gz \
+packaging/fedora/prepare-rpmbuild-tree.sh \
+    "$PWD/build-release" \
+    "$PWD/packaging/fedora/proton-vpn-kde.spec" \
     HEAD
-cp packaging/fedora/proton-vpn-kde.spec build-release/SPECS/
 rpmbuild \
     --define "_topdir $PWD/build-release" \
     --define "_tmppath $PWD/build-release/TMP" \
     -ba build-release/SPECS/proton-vpn-kde.spec
 ```
 
-Replace `VERSION` with the verified release version. The resulting build is not
-releasable if `%check` is skipped or reports a failure.
+For a tagged release, replace `HEAD` with the verified signed `vVERSION` tag.
+The resulting build is not releasable if `%check` is skipped or reports a
+failure.
 
 The `RPM Package` GitHub Actions workflow repeats all three builds from every
 pushed commit and pull request. It inspects the main package's identity,

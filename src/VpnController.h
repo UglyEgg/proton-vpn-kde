@@ -286,6 +286,7 @@ private:
     quint64 m_backendGeneration = 0;
     quint64 m_sessionGeneration = 0;
     bool m_snapshotRefreshPending = false;
+    unsigned int m_snapshotRefreshRetryCount = 0;
     ProtonVpnKde::ClientRegistrationState m_clientRegistration;
     unsigned int m_clientRegistrationRetryCount = 0;
     bool m_clientIdentityRejected = false;

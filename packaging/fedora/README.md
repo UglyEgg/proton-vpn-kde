@@ -27,15 +27,16 @@ an installed Python file outside package ownership.
 
 ## Build
 
-Create the source archive from the exact clean release tag:
+Create a fresh RPM top directory from the exact clean release tag. The helper
+adds the exact commit identity using normalized archive metadata:
 
 ```bash
 version="$(sed -n 's/^Version:[[:space:]]*//p' \
     packaging/fedora/proton-vpn-kde.spec | head -n 1)"
-git archive \
-    --format=tar.gz \
-    --prefix="proton-vpn-kde-${version}/" \
-    --output="${HOME}/rpmbuild/SOURCES/proton-vpn-kde-${version}.tar.gz" \
+topdir="$PWD/build-release"
+packaging/fedora/prepare-rpmbuild-tree.sh \
+    "$topdir" \
+    "$PWD/packaging/fedora/proton-vpn-kde.spec" \
     "v${version}"
 ```
 
@@ -45,14 +46,20 @@ For a local, untagged soak candidate, use the exact signed commit instead of
 Build with the direct Plasma status-notifier integration:
 
 ```bash
-rpmbuild -ba packaging/fedora/proton-vpn-kde.spec
+rpmbuild \
+    --define "_topdir $topdir" \
+    --define "_tmppath $topdir/TMP" \
+    -ba "$topdir/SPECS/proton-vpn-kde.spec"
 ```
 
 For a development machine without `kf6-kstatusnotifieritem-devel`, the Qt
 system-tray fallback can be packaged explicitly:
 
 ```bash
-rpmbuild -ba --without kstatusnotifier packaging/fedora/proton-vpn-kde.spec
+rpmbuild \
+    --define "_topdir $topdir" \
+    --define "_tmppath $topdir/TMP" \
+    -ba --without kstatusnotifier "$topdir/SPECS/proton-vpn-kde.spec"
 ```
 
 The fallback remains a Qt/Plasma application and does not introduce GTK or

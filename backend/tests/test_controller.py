@@ -46,6 +46,23 @@ class CancellableOperationAdapter(DemoCoreAdapter):
         await asyncio.Future()
 
 
+class BlockingLogoutAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__()
+        self.logout_started = asyncio.Event()
+        self.release_logout = asyncio.Event()
+        self.close_calls = 0
+
+    async def logout(self) -> None:
+        self.logout_started.set()
+        await self.release_logout.wait()
+        await super().logout()
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        await super().close()
+
+
 class LoginRecordingAdapter(DemoCoreAdapter):
     def __init__(self):
         super().__init__(logged_in=False)
@@ -615,6 +632,35 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await operation
 
+        self.assertFalse(controller.snapshot.busy)
+
+    async def test_close_drains_an_accepted_mutation_before_adapter_teardown(self):
+        adapter = BlockingLogoutAdapter()
+        controller = BackendController(adapter)
+        await controller.start()
+        logout_task = asyncio.create_task(controller.logout())
+        await adapter.logout_started.wait()
+
+        close_task = asyncio.create_task(controller.close())
+        await asyncio.sleep(0)
+        self.assertFalse(close_task.done())
+        self.assertEqual(0, adapter.close_calls)
+
+        adapter.release_logout.set()
+        await logout_task
+        await close_task
+        self.assertEqual(1, adapter.close_calls)
+
+    async def test_close_cancels_a_stuck_mutation_after_bounded_grace(self):
+        adapter = CancellableOperationAdapter()
+        controller = BackendController(adapter, shutdown_drain_seconds=0.01)
+        await controller.start()
+        operation = asyncio.create_task(controller.connect_fastest())
+        await adapter.started.wait()
+
+        await controller.close()
+
+        self.assertTrue(operation.cancelled())
         self.assertFalse(controller.snapshot.busy)
 
 
