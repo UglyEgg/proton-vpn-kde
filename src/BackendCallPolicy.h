@@ -70,7 +70,6 @@ enum class BackendCallFailure
     case QDBusError::ServiceUnknown:
     case QDBusError::NoServer:
     case QDBusError::Disconnected:
-        return BackendCallFailure::Unavailable;
     case QDBusError::NoReply:
     case QDBusError::Timeout:
     case QDBusError::NoNetwork:
