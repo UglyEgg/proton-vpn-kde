@@ -14,6 +14,7 @@ from .errors import UserVisibleRuntimeError, UserVisibleValueError
 
 
 PACKET_CAPTURE_MAX_SECONDS = 15 * 60
+PACKET_CAPTURE_STOP_ATTEMPT_SECONDS = 5.0
 MAX_ACCEPTED_CORE_CAPTURE_BYTES = 512 * 1024 * 1024
 
 
@@ -24,8 +25,11 @@ class PacketCaptureCoordinator:
         self,
         max_seconds: float,
         notify: Callable[[str | None], None],
+        stop_attempt_seconds: float = PACKET_CAPTURE_STOP_ATTEMPT_SECONDS,
     ) -> None:
         self._max_seconds = max(0.01, float(max_seconds))
+        self._stop_attempt_seconds = max(0.01, float(stop_attempt_seconds))
+        self._stop_retry_seconds = min(1.0, self._stop_attempt_seconds)
         self._notify = notify
         self.active = False
         self.watchdog_task: asyncio.Task | None = None
@@ -141,6 +145,9 @@ class PacketCaptureCoordinator:
     async def _compensate_unconfirmed_start(
         self, generation: int, connection: Any, deadline: float
     ) -> None:
+        # Arm before calling Core again: even a second cancellation leaves the
+        # original capture deadline represented by an independent task.
+        self._arm_watchdog(generation, connection, deadline)
         stopped = await self._stop_generation(
             generation,
             connection,
@@ -152,7 +159,12 @@ class PacketCaptureCoordinator:
             completion_message=None,
             raise_on_failure=False,
         )
-        if not stopped and generation == self._generation and self.active:
+        if (
+            not stopped
+            and generation == self._generation
+            and self.active
+            and (self.watchdog_task is None or self.watchdog_task.done())
+        ):
             self._arm_watchdog(generation, connection, deadline)
 
     async def _watchdog(
@@ -198,11 +210,12 @@ class PacketCaptureCoordinator:
             for attempt in range(attempts):
                 try:
                     if connection is not None:
-                        await connection.stop_packet_capture()
+                        async with asyncio.timeout(self._stop_attempt_seconds):
+                            await connection.stop_packet_capture()
                     break
                 except Exception:
                     if attempt + 1 < attempts:
-                        await asyncio.sleep(1.0)
+                        await asyncio.sleep(self._stop_retry_seconds)
                         continue
                     if failure_message is not None:
                         self._notify(failure_message)

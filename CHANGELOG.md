@@ -95,6 +95,8 @@ All notable user-visible changes are recorded here. The project follows
 - Commit automatic reconnection only after observer registration succeeds,
   keep failed registration retryable, and always close its session probe when
   observer removal fails.
+- Bound every Core packet-capture stop attempt so a non-returning Core reply
+  cannot retain startup or block backend shutdown indefinitely.
 
 ## [0.11.3] - 2026-08-31
 

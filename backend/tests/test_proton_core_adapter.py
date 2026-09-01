@@ -17,7 +17,11 @@ from proton_vpn_kde_backend.adapters import (
     ProtonCoreAdapter,
     _core_memory_optimization_behavior,
 )
-from proton_vpn_kde_backend.controller import NpsSurveyResponse, SupportReport
+from proton_vpn_kde_backend.controller import (
+    BackendController,
+    NpsSurveyResponse,
+    SupportReport,
+)
 
 
 def state_named(name: str):
@@ -1384,6 +1388,48 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("acknowledgement", str(failure.exception))
         connection.stop_packet_capture.assert_awaited_once_with()
         self.assertFalse(adapter._packet_capture_active)
+        self.assertIsNone(adapter._packet_capture_watchdog_task)
+
+    async def test_hanging_capture_stop_cannot_stall_backend_shutdown(self):
+        api, connector = self.make_api()
+        start_entered = asyncio.Event()
+        never_finishes = asyncio.Event()
+
+        async def start_capture():
+            start_entered.set()
+            await never_finishes.wait()
+
+        async def stop_capture():
+            await never_finishes.wait()
+
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(side_effect=start_capture),
+            stop_packet_capture=AsyncMock(side_effect=stop_capture),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = ProtonCoreAdapter(
+            api, packet_capture_stop_attempt_seconds=0.01
+        )
+        controller = BackendController(adapter, shutdown_drain_seconds=0.01)
+        self.assertTrue(await controller.start())
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            start_task = asyncio.create_task(
+                controller.start_packet_capture(capture_directory)
+            )
+            await asyncio.wait_for(start_entered.wait(), timeout=1.0)
+            await asyncio.wait_for(controller.close(), timeout=0.5)
+
+        self.assertTrue(start_task.cancelled())
+        self.assertGreaterEqual(connection.stop_packet_capture.await_count, 4)
         self.assertIsNone(adapter._packet_capture_watchdog_task)
 
     async def test_packet_capture_fails_closed_without_core_byte_limit(self):

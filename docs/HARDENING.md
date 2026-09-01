@@ -29,8 +29,9 @@ application's explicit cleanup lifecycle.
 
 Packet capture reserves its bounded lifecycle before Core receives the start
 request. Cancellation and completion-unknown starts issue a compensating stop;
-an unconfirmed stop retains the watchdog for the remainder of the original
-15-minute deadline rather than publishing a false inactive state.
+the watchdog is armed first against the original 15-minute deadline, and every
+Core stop attempt has its own timeout. An unconfirmed stop preserves active
+state rather than publishing a false clean shutdown condition.
 
 The 0.11.3 release-battery inspection confirmed that all four ELF files in the
 exact locally built `proton-vpn-kde-0.11.3-1.fc44` RPM are position-independent

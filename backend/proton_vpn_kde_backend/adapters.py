@@ -68,7 +68,11 @@ from .core_support import (
 )
 from .fido_interaction import FidoInteraction
 from .features import CRASH_REPORT_SUBMISSION_ENABLED
-from .packet_capture import PACKET_CAPTURE_MAX_SECONDS, PacketCaptureCoordinator
+from .packet_capture import (
+    PACKET_CAPTURE_MAX_SECONDS,
+    PACKET_CAPTURE_STOP_ATTEMPT_SECONDS,
+    PacketCaptureCoordinator,
+)
 from .reconnector import AsyncReconnector
 from .search_projection import ServerSearchProjection
 
@@ -102,6 +106,9 @@ class ProtonCoreAdapter:
         api: Any = None,
         *,
         packet_capture_max_seconds: float = PACKET_CAPTURE_MAX_SECONDS,
+        packet_capture_stop_attempt_seconds: float = (
+            PACKET_CAPTURE_STOP_ATTEMPT_SECONDS
+        ),
         crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
     ):
         self._api: Any = api
@@ -119,6 +126,7 @@ class ProtonCoreAdapter:
         self._packet_capture = PacketCaptureCoordinator(
             packet_capture_max_seconds,
             self._on_packet_capture_changed,
+            packet_capture_stop_attempt_seconds,
         )
         self._kill_switch = 0
         self._startup_compatible = True
