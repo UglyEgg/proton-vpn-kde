@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 174 backend tests at 79% measured branch
+translation units under Clang-Tidy, 178 backend tests at 79% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -170,6 +170,17 @@ the desktop entry absolute. Staged-install, package, native hostile-`PATH`, and
 missing-helper regressions cover the corrected launch boundaries. The complete
 six-review gate must restart again on the resulting exact clean commit.
 
+That next gate at `8dac1fd` returned four passes before Error-Class review found
+two transactional-state defects. A cancelled or completion-unknown Core packet
+capture start could leave capture active without the community watchdog, and a
+failed reconnection-observer registration could leave reconnection marked
+enabled while future registration attempts became no-ops. Every result from
+that gate is discarded. The remediation now reserves capture state before the
+Core call, compensates uncertain starts while retaining the original deadline,
+commits reconnection enablement only after registration, and guarantees session
+probe cleanup after observer-removal failure. The complete gate must restart on
+the new exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -184,6 +195,8 @@ six-review gate must restart again on the resulting exact clean commit.
 | PV-012-010 | Medium | Inherited `PATH` could select an attacker-written `ip` executable for the reconnect probe | **Remediated with a fixed packaged path; final independent verification pending** |
 | PV-012-011 | High | Direct Control Center D-Bus activation could load inherited native-loader overrides before Qt startup | **Remediated with a sanitized systemd activation unit; final independent verification pending** |
 | PV-012-012 | Medium | KCM and agent fallback launches could select project executables through inherited `PATH` | **Remediated with configured absolute paths; final independent verification pending** |
+| PV-012-013 | Medium | Cancellation or a late failure after Core accepted packet-capture start could leave capture outside the community watchdog | **Remediated with precommitted state, compensating stop, and original-deadline watchdog; final independent verification pending** |
+| PV-012-014 | Medium | Failed reconnection-observer registration could leave enablement stale and future attempts inert | **Remediated with registration-first commit and rollback; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -364,7 +377,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 174 backend Python tests;
+- 178 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

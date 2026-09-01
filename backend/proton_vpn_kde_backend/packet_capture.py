@@ -68,21 +68,29 @@ class PacketCaptureCoordinator:
             ) from error
         if not resolved.is_dir() or not os.access(resolved, os.W_OK | os.X_OK):
             raise UserVisibleValueError("Select a writable packet-capture folder")
-        try:
-            capture_settings.directory_path = str(resolved)
-            await connection.start_packet_capture()
-        except Exception:
-            raise UserVisibleRuntimeError(
-                "Proton could not start packet capture"
-            ) from None
         self._generation += 1
         generation = self._generation
         self.active = True
         self._connection = connection
         self.cancel_watchdog()
-        self.watchdog_task = asyncio.create_task(
-            self._watchdog(generation, connection)
-        )
+        deadline = asyncio.get_running_loop().time() + self._max_seconds
+        capture_settings.directory_path = str(resolved)
+        try:
+            async with asyncio.timeout(self._max_seconds):
+                await connection.start_packet_capture()
+        except asyncio.CancelledError:
+            await self._compensate_unconfirmed_start(
+                generation, connection, deadline
+            )
+            raise
+        except Exception:
+            await self._compensate_unconfirmed_start(
+                generation, connection, deadline
+            )
+            raise UserVisibleRuntimeError(
+                "Proton could not start packet capture"
+            ) from None
+        self._arm_watchdog(generation, connection, deadline)
         self._notify(None)
 
     async def stop(self) -> None:
@@ -93,7 +101,9 @@ class PacketCaptureCoordinator:
             self._generation,
             self._connection,
             attempts=1,
-            safety_limit=False,
+            failure_message=None,
+            completion_message=None,
+            raise_on_failure=True,
         )
 
     def cancel_watchdog(self) -> None:
@@ -119,14 +129,49 @@ class PacketCaptureCoordinator:
         except (AttributeError, TypeError):
             return False
 
-    async def _watchdog(self, generation: int, connection: Any) -> None:
+    def _arm_watchdog(
+        self, generation: int, connection: Any, deadline: float
+    ) -> None:
+        self.cancel_watchdog()
+        remaining = max(0.01, deadline - asyncio.get_running_loop().time())
+        self.watchdog_task = asyncio.create_task(
+            self._watchdog(generation, connection, remaining)
+        )
+
+    async def _compensate_unconfirmed_start(
+        self, generation: int, connection: Any, deadline: float
+    ) -> None:
+        stopped = await self._stop_generation(
+            generation,
+            connection,
+            attempts=3,
+            failure_message=(
+                "Packet capture start could not be confirmed and Proton Core "
+                "could not stop it"
+            ),
+            completion_message=None,
+            raise_on_failure=False,
+        )
+        if not stopped and generation == self._generation and self.active:
+            self._arm_watchdog(generation, connection, deadline)
+
+    async def _watchdog(
+        self, generation: int, connection: Any, delay: float
+    ) -> None:
         try:
-            await asyncio.sleep(self._max_seconds)
+            await asyncio.sleep(delay)
             await self._stop_generation(
                 generation,
                 connection,
                 attempts=3,
-                safety_limit=True,
+                failure_message=(
+                    "Packet capture reached its time limit but Proton Core "
+                    "could not stop it"
+                ),
+                completion_message=(
+                    "Packet capture stopped at the 15-minute safety limit"
+                ),
+                raise_on_failure=False,
             )
         except asyncio.CancelledError:
             return
@@ -137,7 +182,9 @@ class PacketCaptureCoordinator:
         connection: Any,
         *,
         attempts: int,
-        safety_limit: bool,
+        failure_message: str | None,
+        completion_message: str | None,
+        raise_on_failure: bool,
     ) -> bool:
         """Stop one capture generation exactly once across every caller."""
         async with self._stop_lock:
@@ -157,10 +204,9 @@ class PacketCaptureCoordinator:
                     if attempt + 1 < attempts:
                         await asyncio.sleep(1.0)
                         continue
-                    if safety_limit:
-                        self._notify(
-                            "Packet capture reached its time limit but Proton Core could not stop it"
-                        )
+                    if failure_message is not None:
+                        self._notify(failure_message)
+                    if not raise_on_failure:
                         return False
                     raise UserVisibleRuntimeError(
                         "Proton could not stop packet capture"
@@ -169,9 +215,5 @@ class PacketCaptureCoordinator:
             if generation != self._generation or connection is not self._connection:
                 return False
             self.finish()
-            self._notify(
-                "Packet capture stopped at the 15-minute safety limit"
-                if safety_limit
-                else None
-            )
+            self._notify(completion_message)
             return True

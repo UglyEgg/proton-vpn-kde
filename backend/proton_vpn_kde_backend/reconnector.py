@@ -33,7 +33,7 @@ async def network_route_available() -> bool:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
-    except OSError:
+    except FileNotFoundError:
         return False
     return await process.wait() == 0
 
@@ -144,9 +144,17 @@ class AsyncReconnector:
     def enable(self) -> None:
         if self._enabled:
             return
-        self._enabled = True
         self._connector.register(self)
-        self.status_update(self._connector.current_state)
+        self._enabled = True
+        try:
+            self.status_update(self._connector.current_state)
+        except Exception:
+            try:
+                self._connector.unregister(self)
+            finally:
+                self._enabled = False
+                self._reset()
+            raise
 
     async def disable(self) -> None:
         try:
@@ -157,7 +165,7 @@ class AsyncReconnector:
             # has entered a protection-unknown or signed-out state.
             self._enabled = False
             self._reset()
-        await self._session_probe.close()
+            await self._session_probe.close()
 
     def status_update(self, state: Any) -> None:
         if not self._enabled:

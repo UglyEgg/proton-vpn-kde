@@ -1317,6 +1317,75 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connection.stop_packet_capture.assert_awaited_once_with()
         self.assertFalse(snapshots[-1].packet_capture_active)
 
+    async def test_cancelled_packet_capture_start_is_compensated(self):
+        api, connector = self.make_api()
+        start_entered = asyncio.Event()
+        never_finishes = asyncio.Event()
+
+        async def start_capture():
+            start_entered.set()
+            await never_finishes.wait()
+
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(side_effect=start_capture),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            start_task = asyncio.create_task(
+                adapter.start_packet_capture(capture_directory)
+            )
+            await asyncio.wait_for(start_entered.wait(), timeout=1.0)
+            start_task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await start_task
+
+        connection.stop_packet_capture.assert_awaited_once_with()
+        self.assertFalse(adapter._packet_capture_active)
+        self.assertIsNone(adapter._packet_capture_watchdog_task)
+
+    async def test_late_packet_capture_start_failure_is_compensated(self):
+        api, connector = self.make_api()
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(
+                side_effect=RuntimeError("late start acknowledgement")
+            ),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            with self.assertRaisesRegex(
+                RuntimeError, "Proton could not start packet capture"
+            ) as failure:
+                await adapter.start_packet_capture(capture_directory)
+
+        self.assertNotIn("acknowledgement", str(failure.exception))
+        connection.stop_packet_capture.assert_awaited_once_with()
+        self.assertFalse(adapter._packet_capture_active)
+        self.assertIsNone(adapter._packet_capture_watchdog_task)
+
     async def test_packet_capture_fails_closed_without_core_byte_limit(self):
         api, connector = self.make_api()
         connection = SimpleNamespace(

@@ -27,6 +27,11 @@ unprivileged process can attest another same-user process cryptographically.
 Support-report temporary files remain mode-restricted and bounded by the
 application's explicit cleanup lifecycle.
 
+Packet capture reserves its bounded lifecycle before Core receives the start
+request. Cancellation and completion-unknown starts issue a compensating stop;
+an unconfirmed stop retains the watchdog for the remainder of the original
+15-minute deadline rather than publishing a false inactive state.
+
 The 0.11.3 release-battery inspection confirmed that all four ELF files in the
 exact locally built `proton-vpn-kde-0.11.3-1.fc44` RPM are position-independent
 executables or shared objects with non-executable stacks, GNU RELRO, and

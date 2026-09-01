@@ -67,6 +67,14 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             stderr=asyncio.subprocess.DEVNULL,
         )
 
+    async def test_network_probe_propagates_non_missing_executable_failures(self):
+        with patch(
+            "proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
+            new=AsyncMock(side_effect=PermissionError),
+        ):
+            with self.assertRaises(PermissionError):
+                await network_route_available()
+
     def make_reconnector(
         self,
         *,
@@ -145,7 +153,10 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await reconnector.disable()
 
     async def test_disable_quiesces_retries_when_observer_unregistration_fails(self):
-        reconnector, connector, _, _ = self.make_reconnector()
+        session_probe = FakeSessionProbe()
+        reconnector, connector, _, _ = self.make_reconnector(
+            session_probe=session_probe
+        )
         reconnector.enable()
         connector.unregister.side_effect = RuntimeError("observer failure")
 
@@ -153,6 +164,20 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             await reconnector.disable()
 
         self.assertFalse(reconnector.enabled)
+        session_probe.close.assert_awaited_once_with()
+
+    async def test_enable_registration_failure_remains_retryable(self):
+        reconnector, connector, _, _ = self.make_reconnector()
+        connector.register.side_effect = [RuntimeError("observer failure"), None]
+
+        with self.assertRaisesRegex(RuntimeError, "observer failure"):
+            reconnector.enable()
+
+        self.assertFalse(reconnector.enabled)
+        reconnector.enable()
+        self.assertTrue(reconnector.enabled)
+        self.assertEqual(2, connector.register.call_count)
+        await reconnector.disable()
 
     async def test_expired_certificate_requests_refresh(self):
         reconnector, connector, refresher, _ = self.make_reconnector(

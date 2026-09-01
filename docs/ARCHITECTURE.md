@@ -221,8 +221,11 @@ connection while the general kill-switch setting is Off; Core removes that
 temporary protection after disconnecting.
 
 Packet capture remains an operation of the active official protocol. The
-adapter requires Core's reviewed byte ceiling and adds a 15-minute lifecycle
-watchdog, but it does not inspect, rename, upload, or rewrite PCAP data.
+adapter requires Core's reviewed byte ceiling and reserves its local capture
+generation before asking Core to start. Cancellation or a completion-unknown
+start issues a compensating stop; if Core cannot confirm that stop, the
+watchdog remains armed to the original 15-minute deadline. The adapter does not
+inspect, rename, upload, or rewrite PCAP data.
 
 Direct support submission and anonymous crash reporting to Proton are disabled
 in community builds through synchronized build, frontend, and backend gates.

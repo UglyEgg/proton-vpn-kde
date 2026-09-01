@@ -89,6 +89,12 @@ All notable user-visible changes are recorded here. The project follows
 - Route Control Center D-Bus activation through its own environment-sanitized
   systemd user service, and pin desktop, System Settings, resident-agent, and
   Control Center fallback launches to configured absolute executable paths.
+- Reserve packet-capture state before asking Core to start, compensate a
+  cancelled or completion-unknown start, and keep its watchdog bounded from
+  the original request deadline.
+- Commit automatic reconnection only after observer registration succeeds,
+  keep failed registration retryable, and always close its session probe when
+  observer removal fails.
 
 ## [0.11.3] - 2026-08-31
 
