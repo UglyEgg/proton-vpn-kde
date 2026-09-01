@@ -45,6 +45,16 @@ All notable user-visible changes are recorded here. The project follows
 - Add a repeatable same-process Inspector retention measurement; three
   two-open samples show one bounded warm-up allocation and no repeated retained
   growth.
+- Roll back Proton Core authentication when post-login session services cannot
+  start, and reconcile the visible account state with Core when a late logout
+  failure occurs instead of presenting a false signed-out or signed-in state.
+- Reload the open Connection Inspector after a backend generation changes so
+  its lazily owned protection models recover with the rest of the interface.
+- Generate strict Python and C++ snapshot validators from one versioned schema,
+  and reject missing, extra, or incorrectly typed snapshot fields.
+- Bind translation imports and all three Fedora package identities,
+  capabilities, source packages, and dependency resolution to machine-checked
+  manifests and exact artifact metadata.
 
 ## [0.11.3] - 2026-08-31
 

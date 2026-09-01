@@ -11,8 +11,8 @@ re-review found no new reportable issue.
 The unreleased `0.12.0` branch adds event-driven backend lifetime and an
 on-demand Connection Inspector. Its pre-final isolated reviews found lifecycle,
 error-class, Secret Service identity, and desktop-action-broker defects. Every
-reported path now has a focused response, and the source currently passes 36
-of 36 CTest targets plus 142 backend tests. **The `0.12.0` candidate remains
+reported path now has a focused response, and the source currently passes 37
+of 37 CTest targets plus 145 backend tests. **The `0.12.0` candidate remains
 explicitly not release-ready until six fresh isolated reviewers pass one exact
 remediated commit, its packages complete live acceptance, and that commit
 finishes the one-week local soak.**
@@ -304,10 +304,10 @@ and are not represented as undisclosed vulnerabilities.
 
 The current remediated tree passed:
 
-- 36 of 36 CTest tests, including native controllers, QML, D-Bus activation,
+- 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 142 backend Python tests;
+- 145 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

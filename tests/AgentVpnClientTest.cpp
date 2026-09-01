@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "AgentVpnClient.h"
+#include "SnapshotTestData.h"
 
 #include <QDBusConnection>
 #include <QDBusContext>
@@ -91,17 +92,7 @@ public slots:
             delayedSnapshotMessage = message();
             return {};
         }
-        return QStringLiteral(R"json({
-            "schemaVersion":1,
-            "ready":true,
-            "loggedIn":true,
-            "state":"%1",
-            "busy":false,
-            "killSwitch":0,
-            "forwardedPort":0,
-            "serverName":"",
-            "message":""
-        })json").arg(state);
+        return ProtonVpnKde::TestData::completeSnapshot(state);
     }
 
     void ConnectFastest() { ++fastestCalls; }

@@ -11,8 +11,11 @@
   "overlay": {
     "packageName": "python3-proton-keyring-linux",
     "version": "0.2.3",
-    "release": "7.plasmavpn1",
-    "capability": "proton-keyring-secret-service-owner-pinned = 1",
+    "release": "8.plasmavpn1",
+    "capabilities": [
+      "proton-keyring-secret-service-provider-agnostic = 1",
+      "proton-keyring-secret-service-owner-pinned = 1"
+    ],
     "patches": [
       {
         "file": "0001-provider-agnostic-secret-service.patch",

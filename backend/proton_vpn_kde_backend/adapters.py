@@ -797,6 +797,16 @@ class ProtonCoreAdapter:
             self._session_services_enabled = False
             await self._api.logout()
         except (Exception, asyncio.CancelledError) as error:
+            core_logged_in = await self._core_logged_in_after_failure()
+            if core_logged_in is False:
+                await self._set_signed_out(
+                    "Signed out; Proton could not complete some local cleanup"
+                )
+                if isinstance(error, asyncio.CancelledError):
+                    raise
+                raise UserVisibleRuntimeError(
+                    "Signed out, but Proton could not complete some local cleanup"
+                ) from None
             rollback_failed = False
             if kill_switch_changed:
                 settings.killswitch = previous_kill_switch
@@ -905,12 +915,37 @@ class ProtonCoreAdapter:
     async def _complete_login(self) -> None:
         try:
             await self._enable_session_services()
-        except (Exception, asyncio.CancelledError):
-            self._logged_in = False
-            self._auth_state = "signed_out"
-            self._status_message = "Proton session services could not start"
-            self._publish_snapshot()
-            raise
+        except (Exception, asyncio.CancelledError) as service_error:
+            cleanup_error: BaseException | None = None
+            try:
+                await self._api.logout()
+            except (Exception, asyncio.CancelledError) as error:
+                cleanup_error = error
+
+            core_logged_in = await self._core_logged_in_after_failure()
+            if cleanup_error is None or core_logged_in is False:
+                await self._set_signed_out(
+                    "Proton session services could not start; sign-in was rolled back"
+                )
+            else:
+                self._logged_in = True
+                self._auth_state = "signed_in_degraded"
+                self._status_message = (
+                    "Signed in, but Proton session services could not start and "
+                    "the session could not be cleared"
+                )
+                self._publish_snapshot()
+
+            if isinstance(service_error, asyncio.CancelledError):
+                raise
+            if cleanup_error is not None and core_logged_in is not False:
+                raise UserVisibleRuntimeError(
+                    "Sign-in completed, but session services failed and the "
+                    "authenticated session could not be cleared"
+                ) from None
+            raise UserVisibleRuntimeError(
+                "Proton session services could not start; sign-in was rolled back"
+            ) from None
         self._logged_in = True
         self._auth_state = "signed_in"
         self._status_message = ""
@@ -950,6 +985,20 @@ class ProtonCoreAdapter:
         self._session_services_enabled = False
         self._search_projection = None
         self._publish_snapshot()
+
+    async def _core_logged_in_after_failure(self) -> bool | None:
+        """Read Core's persisted authentication state after a partial operation.
+
+        Proton Core login and logout are multi-stage operations. An exception
+        does not establish whether the SSO session was persisted or revoked, so
+        rollback decisions must query Core instead of trusting adapter flags.
+        A failed query is deliberately treated as unknown by callers.
+        """
+
+        try:
+            return bool(await run_in_daemon_thread(self._api.is_user_logged_in))
+        except (Exception, asyncio.CancelledError):
+            return None
 
     async def _raise_session_error(self, error: Exception):
         if type(error).__name__ != "ProtonAPIAuthenticationNeeded":

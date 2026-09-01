@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-    echo "usage: $0 /path/to/proton-vpn-kde.rpm" >&2
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+    echo "usage: $0 /path/to/proton-vpn-kde.rpm [/path/to/source.rpm]" >&2
     exit 2
 fi
 
@@ -17,15 +17,37 @@ if [[ ! -f "$package_path" ]]; then
     exit 1
 fi
 
-expected_version="$(sed -n 's/^Version:[[:space:]]*//p' \
-    "$project_dir/packaging/fedora/proton-vpn-kde.spec" | head -n 1)"
-actual_name="$(rpm -qp --qf '%{NAME}' "$package_path")"
-actual_version="$(rpm -qp --qf '%{VERSION}' "$package_path")"
+spec_path="$project_dir/packaging/fedora/proton-vpn-kde.spec"
+mapfile -t expected_identity < <(
+    rpmspec -q --qf '%{NEVRA}\n%{SOURCERPM}\n' "$spec_path"
+)
+if [[ ${#expected_identity[@]} -ne 2 ]]; then
+    echo "Unable to derive the expected client RPM identity from $spec_path" >&2
+    exit 1
+fi
+expected_nevra="${expected_identity[0]}"
+expected_source_rpm="${expected_identity[1]}"
+actual_nevra="$(rpm -qp --qf '%{NEVRA}' "$package_path")"
+actual_source_rpm="$(rpm -qp --qf '%{SOURCERPM}' "$package_path")"
 actual_license="$(rpm -qp --qf '%{LICENSE}' "$package_path")"
 
-[[ "$actual_name" == "proton-vpn-kde" ]]
-[[ "$actual_version" == "$expected_version" ]]
+[[ "$actual_nevra" == "$expected_nevra" ]]
+[[ "$actual_source_rpm" == "$expected_source_rpm" ]]
 [[ "$actual_license" == "GPL-3.0-or-later" ]]
+
+if [[ $# -eq 2 ]]; then
+    source_package_path="$(realpath "$2")"
+    if [[ ! -f "$source_package_path" ]]; then
+        echo "Source RPM does not exist: $source_package_path" >&2
+        exit 1
+    fi
+    actual_source_nevra="$(rpm -qp --qf '%{NEVRA}' "$source_package_path")"
+    expected_source_nevra="${expected_source_rpm%.rpm}"
+    if [[ "$actual_source_nevra" != "$expected_source_nevra" ]]; then
+        echo "Unexpected source RPM identity: $actual_source_nevra" >&2
+        exit 1
+    fi
+fi
 
 payload="$(rpm -qpl "$package_path")"
 required_paths=(
@@ -67,6 +89,10 @@ if ! grep -Fxq \
         'proton-keyring-secret-service-owner-pinned >= 1' \
         <<<"$requires"; then
     echo "RPM does not require the owner-pinned Secret Service capability" >&2
+    exit 1
+fi
+if ! grep -Fxq '/usr/bin/ip' <<<"$requires"; then
+    echo "RPM does not declare the reconnect route-probe dependency" >&2
     exit 1
 fi
 
@@ -117,4 +143,7 @@ grep -Fxq 'SUPPORT_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
 grep -Fxq 'CRASH_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
 
 rpmkeys --checksig "$package_path"
+if [[ $# -eq 2 ]]; then
+    rpmkeys --checksig "$source_package_path"
+fi
 echo "RPM artifact checks passed: $package_path"

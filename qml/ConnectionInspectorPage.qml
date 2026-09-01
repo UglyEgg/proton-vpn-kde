@@ -125,6 +125,16 @@ Kirigami.ScrollablePage {
 
     Component.onCompleted: page.ensureInspectorModels()
 
+    Connections {
+        target: vpnController
+
+        function onSnapshotChanged() {
+            if (vpnController.ready && vpnController.loggedIn) {
+                Qt.callLater(page.ensureInspectorModels)
+            }
+        }
+    }
+
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 

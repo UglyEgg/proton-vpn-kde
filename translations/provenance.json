@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/ProtonVPN/proton-vpn-gtk-app.git",
+  "commit": "8e3897b6fe81840eef4762f2377c5a985754edea",
+  "catalogSha256": {
+    "be.po": "c16307de1808a40350c44e13b35d036394d889fd754af8498f2899ccf83d62df",
+    "ca.po": "a5ad1403eb3e0f80d2839e2f1de9bac1a97185607b8218b001d0c5fae72040ec",
+    "cs.po": "b6ef441852b7384410f66237d0efd1d7998e5c67fc864711e0eb8049a16a2b8b",
+    "de.po": "9698ded7980ead0d66588e877979a05045f40386b3c22d1a763929c1a34b1ad6",
+    "el.po": "d45562b8b7bee73dfef78e192258b86dc11ccbdc12f3ab8e46ed0dc380be3382",
+    "es.po": "fd1f0617ade6211c9c9a9996e9dfe314c9194f777d44eca0766f2975ba08f43b",
+    "es_ES.po": "aee884290c7e67dad6881066070cff6f8eeeaa2964942f293a9f5e041d56d730",
+    "fr.po": "5cd894c2247878fbda5e5afc9d03441ee08a1b2154189538482cf742d63bdf4a",
+    "it.po": "6bed827bd724afcfa060d089f2f3ffded3e14bf5d3cf4dae374e21eb29ca6f82",
+    "ja.po": "54fc00751fdb0157ed0b41a5bfd193dce5458b8fde2b36131ea7e9f051aa3b81",
+    "ko.po": "e0b90134d82ecbdbe50ce64f4077e3518026c1d81e04d5b4e067aa097861950d",
+    "nl.po": "43de264763a97c13779cefd359cf24bbcb2070c3ced9d84ab9037c10c8e4d3e6",
+    "pl.po": "730346698c1efff5c87cb662cd93ca87bbf5917eb610841f91f08822a2b2527f",
+    "pt_BR.po": "283948c9b84ff94da17a56bfa9f1251596e8eed7a228a8d2540850294ded45b3",
+    "ro.po": "d386215b56e12d4013ca04bac8d82f4246e402f8c423463a922437c0c27e9fb9",
+    "ru.po": "ae4410f2bad78831b2726fb408a789e2651134c5b903de01fbf6f8428d30ece5",
+    "sl.po": "6ad93a814ec29683359b58adb513f5d0fea95c56cc6cd94751be616266092e23",
+    "tr.po": "d0eb6c99b52bc44c64313231b9acea8e28bc6f8068b58155ff9848447c93ffcb",
+    "zh_CN.po": "9ebbcc1ebbd9ae2e77089a685b75ddda4aae60578ccaf1255e74a3e5d3f8dcd5",
+    "zh_HK.po": "25a916c320da962c77a1f0ecd81f2c84a829c1ce4e1b85d62a139b4a27325179",
+    "zh_MO.po": "25a916c320da962c77a1f0ecd81f2c84a829c1ce4e1b85d62a139b4a27325179",
+    "zh_MY.po": "9ebbcc1ebbd9ae2e77089a685b75ddda4aae60578ccaf1255e74a3e5d3f8dcd5",
+    "zh_SG.po": "9ebbcc1ebbd9ae2e77089a685b75ddda4aae60578ccaf1255e74a3e5d3f8dcd5",
+    "zh_TW.po": "25a916c320da962c77a1f0ecd81f2c84a829c1ce4e1b85d62a139b4a27325179"
+  }
+}

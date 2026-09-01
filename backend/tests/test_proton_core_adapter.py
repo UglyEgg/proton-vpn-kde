@@ -395,17 +395,63 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(snapshots.append)
 
-        with self.assertRaisesRegex(RuntimeError, "refresh failed"):
+        with self.assertRaisesRegex(RuntimeError, "rolled back"):
             await adapter.login("test-user", "not-recorded")
 
+        api.logout.assert_awaited_once_with()
         self.assertFalse(adapter._logged_in)
         self.assertFalse(adapter._session_services_enabled)
         self.assertFalse(snapshots[-1].logged_in)
         self.assertEqual("signed_out", snapshots[-1].auth_state)
         self.assertEqual(
-            "Proton session services could not start",
+            "Proton session services could not start; sign-in was rolled back",
             snapshots[-1].message,
         )
+        restarted = ProtonCoreAdapter(api)
+        restarted_snapshot = await restarted.initialize(Mock())
+        self.assertFalse(restarted_snapshot.logged_in)
+        self.assertEqual("signed_out", restarted_snapshot.auth_state)
+
+    async def test_failed_login_rollback_exposes_authenticated_degraded_state(self):
+        api, _ = self.make_api(logged_in=False)
+        api.login.return_value = SimpleNamespace(
+            success=True,
+            authenticated=True,
+            twofa_required=False,
+        )
+        api.refresher.enable.side_effect = RuntimeError("refresh failed")
+        api.logout.side_effect = RuntimeError("logout failed")
+        api.is_user_logged_in.side_effect = [False, True]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "could not be cleared"):
+            await adapter.login("test-user", "not-recorded")
+
+        self.assertTrue(adapter._logged_in)
+        self.assertEqual("signed_in_degraded", snapshots[-1].auth_state)
+        self.assertIn("could not be cleared", snapshots[-1].message)
+
+    async def test_failed_login_rollback_accepts_core_confirmed_sign_out(self):
+        api, _ = self.make_api(logged_in=False)
+        api.login.return_value = SimpleNamespace(
+            success=True,
+            authenticated=True,
+            twofa_required=False,
+        )
+        api.refresher.enable.side_effect = RuntimeError("refresh failed")
+        api.logout.side_effect = RuntimeError("late cleanup failed")
+        api.is_user_logged_in.side_effect = [False, False]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "rolled back"):
+            await adapter.login("test-user", "not-recorded")
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("signed_out", snapshots[-1].auth_state)
 
     async def test_two_factor_and_recovery_code_flow(self):
         api, _ = self.make_api(logged_in=False)
@@ -496,6 +542,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         settings.killswitch = 2
         unreachable = type("ProtonAPINotReachable", (Exception,), {})
         api.logout.side_effect = unreachable()
+        api.is_user_logged_in.return_value = True
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(Mock())
 
@@ -506,6 +553,24 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, adapter._kill_switch)
         self.assertEqual(2, api.save_settings.await_count)
         self.assertTrue(adapter._logged_in)
+
+    async def test_partially_successful_logout_publishes_signed_out_state(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        api.logout.side_effect = RuntimeError("late cleanup failed")
+        api.is_user_logged_in.side_effect = [True, False]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "Signed out"):
+            await adapter.logout()
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("signed_out", snapshots[-1].auth_state)
+        self.assertEqual(0, adapter._kill_switch)
+        self.assertEqual(1, api.save_settings.await_count)
 
     async def test_failed_logout_surfaces_kill_switch_rollback_failure(self):
         api, _ = self.make_api()

@@ -92,7 +92,10 @@ rpmbuild -ba \
     --define "_tmppath $topdir/tmp" \
     "$topdir/SPECS/python3-proton-vpn-api-core-overlay.spec"
 
-overlay_rpm="$topdir/RPMS/x86_64/python3-proton-vpn-api-core-5.6.10-8.plasmavpn1.fc44.x86_64.rpm"
+overlay_nevra="$(python3 -c \
+    'import json,sys; print(json.load(open(sys.argv[1]))["overlay"]["nevra"])' \
+    "$manifest")"
+overlay_rpm="$topdir/RPMS/x86_64/$overlay_nevra.rpm"
 "$overlay_dir/rebuild_overlay.py" verify-rpm \
     --manifest "$overlay_dir/overlay-manifest.json" \
     --vendor-rpm "$vendor_rpm" \

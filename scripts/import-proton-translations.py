@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+import hashlib
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -23,6 +25,42 @@ SOURCE_PATHS = (
     "kcm/ProtonVpnKcm.h",
     "kcm/ui",
 )
+
+
+def validate_provenance(locale_dir: Path, provenance_path: Path) -> None:
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    if provenance.get("schemaVersion") != 1:
+        raise ValueError("Unsupported translation provenance schema")
+    expected_commit = provenance.get("commit")
+    expected_catalogs = provenance.get("catalogSha256")
+    if not isinstance(expected_commit, str) or not isinstance(expected_catalogs, dict):
+        raise ValueError("Translation provenance is incomplete")
+
+    po_files = sorted(locale_dir.glob("*.po"))
+    actual_names = {path.name for path in po_files}
+    expected_names = set(expected_catalogs)
+    if actual_names != expected_names:
+        raise ValueError(
+            "Official translation catalog set differs from pinned provenance: "
+            f"missing={sorted(expected_names - actual_names)}, "
+            f"extra={sorted(actual_names - expected_names)}"
+        )
+    for path in po_files:
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != expected_catalogs[path.name]:
+            raise ValueError(f"Official translation digest mismatch: {path.name}")
+
+    checkout = subprocess.run(
+        ["git", "-C", str(locale_dir), "rev-parse", "HEAD"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    if checkout.returncode == 0 and checkout.stdout.strip() != expected_commit:
+        raise ValueError(
+            "Official translation checkout revision differs from pinned provenance"
+        )
 
 
 def qt_tool(name: str) -> str:
@@ -136,6 +174,11 @@ def main() -> int:
     parser.add_argument(
         "--output-dir", type=Path, default=Path("translations")
     )
+    parser.add_argument(
+        "--provenance",
+        type=Path,
+        help="pinned translation provenance JSON (defaults to translations/provenance.json)",
+    )
     args = parser.parse_args()
 
     source_root = args.source_root.resolve()
@@ -145,6 +188,8 @@ def main() -> int:
         if args.output_dir.is_absolute()
         else source_root / args.output_dir
     )
+    provenance_path = args.provenance or source_root / "translations/provenance.json"
+    validate_provenance(locale_dir, provenance_path.resolve())
     po_files = sorted(locale_dir.glob("*.po"))
     if not po_files:
         raise FileNotFoundError(f"No .po catalogs found in {locale_dir}")

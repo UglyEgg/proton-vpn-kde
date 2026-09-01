@@ -59,17 +59,37 @@ install -m 0644 "$overlay_dir/patches/"*.patch "$topdir/SOURCES/"
 install -m 0644 "$overlay_dir/python3-proton-keyring-linux.spec" \
     "$topdir/SPECS/"
 
-python3 - "$manifest" "$overlay_dir/patches" <<'PY'
+python3 - "$manifest" "$overlay_dir/patches" \
+    "$overlay_dir/python3-proton-keyring-linux.spec" <<'PY'
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 
 manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 patch_dir = Path(sys.argv[2])
+spec_text = Path(sys.argv[3]).read_text(encoding="utf-8")
 if manifest.get("schemaVersion") != 1:
     raise SystemExit("Unsupported overlay manifest schema")
-for record in manifest["overlay"]["patches"]:
+records = manifest["overlay"]["patches"]
+listed = {record["file"] for record in records}
+present = {path.name for path in patch_dir.glob("*.patch")}
+if listed != present:
+    raise SystemExit(
+        f"Manifest patch set differs from patches directory: "
+        f"missing={sorted(present - listed)}, extra={sorted(listed - present)}"
+    )
+declared = {
+    match.group(1)
+    for match in re.finditer(r"^Patch\d*:\s*(\S+)\s*$", spec_text, re.MULTILINE)
+}
+if listed != declared:
+    raise SystemExit(
+        f"Manifest patch set differs from spec declarations: "
+        f"missing={sorted(declared - listed)}, extra={sorted(listed - declared)}"
+    )
+for record in records:
     path = patch_dir / record["file"]
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
     if actual != record["sha256"]:

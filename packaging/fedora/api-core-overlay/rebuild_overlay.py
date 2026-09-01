@@ -47,6 +47,17 @@ def _load_manifest(path: Path) -> dict[str, Any]:
         raise OverlayError("Overlay manifest has no vendor signing-key record")
     if not isinstance(manifest.get("overlay"), dict):
         raise OverlayError("Overlay manifest has no overlay record")
+    capability = manifest["overlay"].get("capability")
+    capability_patch = manifest["overlay"].get("capabilityPatch")
+    patch_files = {
+        record.get("file")
+        for record in manifest["overlay"].get("patches", [])
+        if isinstance(record, dict)
+    }
+    if not isinstance(capability, str) or not capability:
+        raise OverlayError("Overlay manifest has no required capability")
+    if capability_patch not in patch_files:
+        raise OverlayError("Overlay capability is not tied to a listed patch")
     return manifest
 
 
@@ -633,6 +644,16 @@ def verify_overlay_rpm(
         raise OverlayError(
             f"Overlay RPM NEVRA mismatch: expected {manifest['overlay']['nevra']}, "
             f"got {overlay_fields['nevra']}"
+        )
+    capability = manifest["overlay"].get("capability")
+    if not isinstance(capability, str) or not capability:
+        raise OverlayError("Overlay manifest has no required capability")
+    overlay_provides = _run(
+        ["rpm", "-qp", "--provides", str(overlay_rpm)]
+    ).stdout.decode("utf-8", errors="strict").splitlines()
+    if capability not in overlay_provides:
+        raise OverlayError(
+            f"Overlay RPM does not provide the required capability: {capability}"
         )
     for option in ("--requires", "--obsoletes", "--conflicts"):
         vendor_values = sorted(

@@ -7,7 +7,7 @@
 
 Name:           python3-proton-vpn-api-core
 Version:        5.6.10
-Release:        8.plasmavpn1%{?dist}
+Release:        9.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
@@ -142,6 +142,10 @@ fi
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-9.plasmavpn1
+- Expose the manifest-bound Protun interoperability capability and derive the
+  output identity from the same verified manifest.
+
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-8.plasmavpn1
 - Keep Protun's key system-owned inside its unsaved NetworkManager profile.
 - Pass the supplied key directly without requiring a desktop secret agent.

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "LocationModels.h"
+#include "SnapshotTestData.h"
 #include "VpnController.h"
 #include "VpnSettingsModel.h"
 
@@ -92,20 +93,8 @@ public slots:
                            QStringLiteral("transient snapshot timeout"));
             return {};
         }
-        return QStringLiteral(R"json({
-            "schemaVersion":1,
-            "ready":%1,
-            "startupCompatible":true,
-            "loggedIn":%2,
-            "authState":"signed_in",
-            "coreMemoryOptimized":false,
-            "coreVersion":"5.7.0",
-            "state":"disconnected",
-            "busy":false,
-            "message":""
-        })json")
-            .arg(ready ? QStringLiteral("true") : QStringLiteral("false"),
-                 loggedIn ? QStringLiteral("true") : QStringLiteral("false"));
+        return ProtonVpnKde::TestData::completeSnapshot(
+            QStringLiteral("disconnected"), loggedIn, ready);
     }
 
     QString GetCountries()

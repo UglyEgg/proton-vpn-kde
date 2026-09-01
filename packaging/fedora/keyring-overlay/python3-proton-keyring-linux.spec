@@ -3,7 +3,7 @@
 
 Name:           python3-proton-keyring-linux
 Version:        0.2.3
-Release:        7.plasmavpn1%{?dist}
+Release:        8.plasmavpn1%{?dist}
 Summary:        Provider-neutral Proton Secret Service adapter
 
 License:        GPL-3.0-only
@@ -68,6 +68,10 @@ python3 -m pytest -o addopts='' -q \
 %doc overlay-manifest.json keyring-overlay-README.md
 
 %changelog
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.2.3-8.plasmavpn1
+- Bind the built package identity, capabilities, embedded manifest, and exact
+  patch set to the machine-readable overlay manifest.
+
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.2.3-7.plasmavpn1
 - Select a same-user Secret Service provider and pin all traffic to its unique
   D-Bus owner, rejecting owner replacement.

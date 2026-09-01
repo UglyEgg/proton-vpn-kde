@@ -75,7 +75,7 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 | Evidence | Public 0.11.3 release evidence |
 | --- | --- |
-| Automated verification | 36/36 CTest tests, including 130 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and a measured 75% backend branch-coverage floor |
+| Automated verification | 37/37 CTest tests, including 145 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and a measured 75% backend branch-coverage floor |
 | Integration verification | QML diagnostics, D-Bus activation, staged installation, KRunner, and System Settings |
 | Package verification | Exact 0.11.3-1 client and pinned overlay binary/source RPM builds, artifact-policy checks, and a combined transaction test |
 | Security assessment | All seven historical findings closed; the eight-surface 2026-08-31 re-review found no new reportable issue |

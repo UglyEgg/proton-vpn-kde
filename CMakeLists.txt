@@ -328,6 +328,21 @@ if(BUILD_TESTING)
     )
     add_test(NAME backend-call-policy-tests COMMAND backend-call-policy-tests)
 
+    qt_add_executable(snapshot-contract-tests
+        tests/SnapshotContractTest.cpp
+        tests/SnapshotTestData.h
+        src/SnapshotContract.generated.h
+    )
+    target_include_directories(snapshot-contract-tests PRIVATE src tests)
+    target_link_libraries(snapshot-contract-tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    target_compile_options(snapshot-contract-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME snapshot-contract-tests COMMAND snapshot-contract-tests)
+
     qt_add_executable(backend-identity-tests
         tests/BackendIdentityTest.cpp
         src/BackendIdentity.cpp

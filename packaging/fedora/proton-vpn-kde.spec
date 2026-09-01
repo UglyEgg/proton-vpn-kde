@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.4%{?dist}
+Release:        0.5%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -41,6 +41,7 @@ Requires:       kf6-kirigami
 Requires:       kf6-kglobalaccel
 Requires:       kf6-kcmutils
 Requires:       kf6-krunner
+Requires:       /usr/bin/ip
 Requires:       python3-cryptography >= 45.0.1
 Requires:       python3-dbus-fast
 Requires:       python3-fido2
@@ -54,12 +55,14 @@ Plasma VPN is an unofficial native Qt 6 and Kirigami frontend compatible with
 Proton VPN. It reuses Proton's official Python VPN core. VPN protocols,
 NetworkManager integration, kill-switch behavior, split tunneling, and session
 persistence remain owned by the official core. The separately packaged,
-version-pinned API-Core overlay changes only Protun's secret ownership inside
-its existing unsaved NetworkManager profile so Plasma does not require a
-missing Protun secret plugin. The frontend has no direct GTK or GNOME Keyring
-dependency and uses the Freedesktop Secret Service provider selected by the
-desktop session. The official API Core package may retain its own desktop
-integration dependencies.
+version-pinned API-Core overlay keeps Protun's secret inside its existing
+unsaved NetworkManager profile so Plasma does not require a missing Protun
+secret plugin. That same audited rebuild carries the project's independently
+tested server-string memory reductions and an upstream diagnostic cleanup; its
+Protun capability gates only the required connection semantic. The frontend
+has no direct GTK or GNOME Keyring dependency and uses the Freedesktop Secret
+Service provider selected by the desktop session. The official API Core
+package may retain its own desktop integration dependencies.
 
 %prep
 %autosetup -n %{name}-%{version}
@@ -124,6 +127,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.5
+- Reconcile partial authentication and logout failures with persisted Core state.
+- Require the runtime iproute command used by reconnect readiness probes.
+- Enforce exact snapshot, translation, overlay, and source-RPM provenance.
+
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.4
 - Support Secret Service providers started by desktop autostart.
 - Require same-user provider selection and unique-owner pinning.
