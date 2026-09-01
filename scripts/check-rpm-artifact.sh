@@ -41,10 +41,15 @@ if [[ $# -eq 2 ]]; then
         echo "Source RPM does not exist: $source_package_path" >&2
         exit 1
     fi
-    actual_source_nevra="$(rpm -qp --qf '%{NEVRA}' "$source_package_path")"
-    expected_source_nevra="${expected_source_rpm%.rpm}"
-    if [[ "$actual_source_nevra" != "$expected_source_nevra" ]]; then
-        echo "Unexpected source RPM identity: $actual_source_nevra" >&2
+    expected_source_nvr="${expected_source_rpm%.src.rpm}"
+    actual_source_nvr="$(rpm -qp --qf '%{NAME}-%{VERSION}-%{RELEASE}' \
+        "$source_package_path")"
+    actual_source_flag="$(rpm -qp --qf '%{SOURCEPACKAGE}' \
+        "$source_package_path")"
+    if [[ "$(basename "$source_package_path")" != "$expected_source_rpm" \
+            || "$actual_source_nvr" != "$expected_source_nvr" \
+            || "$actual_source_flag" != "1" ]]; then
+        echo "Unexpected source RPM identity: $actual_source_nvr" >&2
         exit 1
     fi
 fi
