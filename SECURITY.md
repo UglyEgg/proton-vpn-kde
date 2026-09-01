@@ -67,6 +67,8 @@ The following properties are part of the project's security contract:
 - packaged user services and the backend launcher must remove the shared
   native-loader and runtime search-path override set before community or Proton
   code is imported;
+- project-owned subprocesses must use fixed packaged executable paths rather
+  than select commands through the inherited desktop `PATH`;
 - the downstream keyring adapter must require the desktop-selected Secret
   Service provider to run as the session user, pin traffic to its unique D-Bus
   owner, and reject owner replacement before sending Proton session material;

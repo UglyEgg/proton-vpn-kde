@@ -83,6 +83,9 @@ All notable user-visible changes are recorded here. The project follows
   shared by systemd, the launcher, both authorization directions, and package
   checks. Document these checks as defense-in-depth rather than same-UID process
   attestation.
+- Invoke the packaged `ip` and `journalctl` tools by absolute path instead of
+  inheriting executable selection from the desktop environment, and reserve the
+  adjustable backend idle deadline for explicit demo/test mode.
 
 ## [0.11.3] - 2026-08-31
 

@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.7%{?dist}
+Release:        0.8%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -128,6 +128,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.8
+- Pin project-owned helper commands to their packaged Fedora paths.
+- Ignore the demo-only idle-timeout override in production backend mode.
+- Refresh the exact security-gate evidence and hostile PATH regression.
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.7
 - Sanitize native-loader and runtime search overrides before backend imports.
 - Generate service, launcher, client, and package policy from one contract.

@@ -1,4 +1,4 @@
-# Security and engineering assessment — 2026-08-30, refreshed 2026-08-31
+# Security and engineering assessment — 2026-08-30, refreshed 2026-09-01
 
 ## Current assessment posture
 
@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 34 production
-translation units under Clang-Tidy, 170 backend tests at 79% measured branch
+translation units under Clang-Tidy, 174 backend tests at 79% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -149,6 +149,16 @@ places arbitrary same-UID host-code execution outside scope while retaining the
 sanitization and owner checks against ordinary or sandboxed session peers. This
 is a clarified threat boundary, not a claim that the bypass became impossible.
 
+The first exact-commit gate at `42afa2f` then found a related command-search
+path: the reconnect readiness probe resolved `ip` through inherited `PATH`, and
+the dormant support collector did the same for `journalctl`. A user-writable
+leading path could therefore move code execution from a sandboxed peer into the
+unsandboxed backend. The remediation pins the Fedora package paths already
+required by the client, adds a hostile-`PATH` regression, and makes the
+production idle deadline ignore the demo-only environment override. Because
+this changed runtime code, every six-review result for `42afa2f` is discarded;
+the next exact commit restarts the complete gate.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -160,6 +170,7 @@ is a clarified threat boundary, not a claim that the bypass became impossible.
 | PV-012-007 | Medium | KGlobalAccel could invoke the authorized resident controller directly | **Remediated; final independent verification pending** |
 | PV-012-008 | Medium | D-BusMenu tray activation could invoke the authorized resident controller directly | **Remediated; final independent verification pending** |
 | PV-012-009 | High | Inherited OpenSSL and GIO/GI environment overrides could load native code in the backend | **Remediated within the documented threat boundary; final independent verification pending** |
+| PV-012-010 | Medium | Inherited `PATH` could select an attacker-written `ip` executable for the reconnect probe | **Remediated with a fixed packaged path; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -338,7 +349,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 145 backend Python tests;
+- 174 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

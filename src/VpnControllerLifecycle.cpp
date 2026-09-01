@@ -122,7 +122,6 @@ void VpnController::onServiceRegistered(const QString &)
     connectBackendSignals();
     setBackendAvailable(false);
     m_clientRegistration.serviceChanged();
-    m_snapshotRefreshRetryTimer->stop();
     m_clientRegistrationRetryTimer->stop();
     registerClient();
 }

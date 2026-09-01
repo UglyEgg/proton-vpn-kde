@@ -10,7 +10,6 @@ from collections.abc import Awaitable, Callable
 import logging
 import os
 import random
-import shutil
 from typing import Any
 
 
@@ -20,15 +19,15 @@ DelayFactory = Callable[[int], float]
 
 
 logger = logging.getLogger(__name__)
+IP_COMMAND = "/usr/bin/ip"
 
 
 async def network_route_available() -> bool:
     """Match Proton's route-based connectivity check without GLib polling."""
-    ip_command = shutil.which("ip")
-    if not ip_command:
+    if not os.access(IP_COMMAND, os.X_OK):
         return False
     process = await asyncio.create_subprocess_exec(
-        ip_command,
+        IP_COMMAND,
         "route",
         "get",
         "192.0.2.1",

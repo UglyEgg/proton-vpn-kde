@@ -18,6 +18,10 @@ The Fedora service starts the installed backend by its absolute path and uses:
 These controls prevent inherited user-manager configuration from silently
 redirecting common native-code loaders and let each D-Bus peer reject a
 currently unsafe packaged-process environment before accepting a mutation.
+The backend's project-owned `ip` readiness probe and dormant `journalctl`
+collector also use their absolute Fedora package paths rather than the inherited
+desktop `PATH`. The production idle deadline is fixed; only explicit demo mode
+honors the short test override.
 They are defense-in-depth within the threat boundary below, not a claim that an
 unprivileged process can attest another same-user process cryptographically.
 Support-report temporary files remain mode-restricted and bounded by the

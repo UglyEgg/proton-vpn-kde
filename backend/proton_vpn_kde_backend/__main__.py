@@ -22,11 +22,23 @@ from .features import TRUSTED_CLIENT_EXECUTABLES
 from .lifetime import BackendLifetime, name_has_owner
 
 
+DEFAULT_IDLE_TIMEOUT_SECONDS = 10.0
+
+
 def _seconds_from_environment(name: str, default: float) -> float:
     try:
         return max(0.0, float(os.environ.get(name, default)))
     except ValueError:
         return default
+
+
+def _idle_timeout_seconds(demo: bool) -> float:
+    """Allow short test/demo lifetimes without trusting production environment."""
+    if not demo:
+        return DEFAULT_IDLE_TIMEOUT_SECONDS
+    return _seconds_from_environment(
+        "PROTON_VPN_KDE_IDLE_TIMEOUT_SECONDS", DEFAULT_IDLE_TIMEOUT_SECONDS
+    )
 
 
 def _owns_bus_name(reply: RequestNameReply) -> bool:
@@ -56,9 +68,7 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
         controller,
         stopped,
         lambda name: name_has_owner(bus, name),
-        idle_timeout=_seconds_from_environment(
-            "PROTON_VPN_KDE_IDLE_TIMEOUT_SECONDS", 10.0
-        ),
+        idle_timeout=_idle_timeout_seconds(demo),
     )
     authorizer = ClientAuthorizer(
         bus,
