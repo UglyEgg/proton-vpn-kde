@@ -150,9 +150,7 @@ jobs:
           rpm -qpi "${source_rpms[0]}"
           rpm -qpi "${keyring_source_rpms[0]}"
           rpm -qpi "${api_core_source_rpms[0]}"
-          dependency_dir="$(mktemp -d)"
           dnf install -y --downloadonly \
-            --destdir "$dependency_dir" \
             --setopt=install_weak_deps=False \
             "${keyring_rpms[0]}" "${api_core_rpms[0]}" \
             "${binary_rpms[0]}"
