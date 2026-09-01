@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 180 backend tests at 80% measured branch
+translation units under Clang-Tidy, 184 backend tests at 80% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -204,6 +204,14 @@ discarded. Git now treats those context markers as patch syntax, while a
 dedicated source check continues to reject trailing whitespace in lines the
 overlay actually adds to its target. The patch bytes and manifest digest remain
 unchanged. The complete gate must restart on the resulting exact commit.
+
+The gate at `a522fd0` then failed Error-Class review because the first semantic
+checker treated every `+++` prefix as a file header, including an in-hunk added
+target line whose content began with `++`. Every result from that gate is
+discarded. The checker now tracks declared old/new hunk sizes, distinguishes
+headers from content by parser state, and has focused regressions for ordinary
+additions, blank context markers, file headers, and `++`-prefixed target
+content. The complete gate must restart on the resulting exact commit.
 
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
@@ -403,7 +411,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 180 backend Python tests;
+- 184 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;
