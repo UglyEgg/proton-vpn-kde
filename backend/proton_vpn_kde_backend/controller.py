@@ -94,6 +94,13 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+RECOVERY_REQUIRED_AUTH_STATES = frozenset(
+    {"authentication_unknown", "settings_unavailable", "protection_unknown"}
+)
+RECOVERY_REQUIRED_MESSAGE = (
+    "Restart the Proton backend and review VPN settings before continuing"
+)
+
 class CoreAdapter(Protocol):
     """Minimal surface required from Proton's networking core."""
 
@@ -221,8 +228,7 @@ class BackendController:
         return True
 
     async def connect_fastest(self) -> None:
-        if not self._snapshot.logged_in:
-            raise UserVisibleRuntimeError("A Proton account session is required")
+        self._require_session()
         await self._run_operation(self._adapter.connect_fastest)
 
     async def connect_fastest_with_feature(self, feature: str) -> None:
@@ -641,8 +647,7 @@ class BackendController:
         await self._run_operation(self._adapter.logout)
 
     async def disable_kill_switch_for_login(self) -> None:
-        if not self._snapshot.ready:
-            raise UserVisibleRuntimeError("The Proton backend is not ready")
+        self._require_ready()
         if self._snapshot.logged_in:
             raise UserVisibleRuntimeError("The Proton account is already signed in")
         await self._run_operation(self._adapter.disable_kill_switch_for_login)
@@ -710,6 +715,8 @@ class BackendController:
             raise UserVisibleRuntimeError("The Proton backend is shutting down")
         if not self._snapshot.ready:
             raise UserVisibleRuntimeError("The Proton backend is not ready")
+        if self._snapshot.auth_state in RECOVERY_REQUIRED_AUTH_STATES:
+            raise UserVisibleRuntimeError(RECOVERY_REQUIRED_MESSAGE)
 
     @staticmethod
     def _validate_country_code(country_code: str) -> str:

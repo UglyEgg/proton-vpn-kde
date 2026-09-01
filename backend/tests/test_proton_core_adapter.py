@@ -683,23 +683,30 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, adapter._kill_switch)
         self.assertEqual("protection_unknown", snapshots[-1].auth_state)
 
-    async def test_cancel_during_committed_zero_save_always_compensates(self):
+    async def test_cancelled_zero_save_finishes_before_compensation(self):
         api, _ = self.make_api()
         settings = await api.load_settings()
         settings.killswitch = 2
         first_save_started = asyncio.Event()
+        release_first_save = asyncio.Event()
+        compensation_started = asyncio.Event()
         persisted_kill_switch = 2
         save_calls = 0
+        write_order = []
 
-        async def commit_then_block(saved_settings):
+        async def delayed_executor_shaped_save(saved_settings):
             nonlocal persisted_kill_switch, save_calls
             save_calls += 1
-            persisted_kill_switch = saved_settings.killswitch
+            captured_kill_switch = saved_settings.killswitch
             if save_calls == 1:
                 first_save_started.set()
-                await asyncio.Future()
+                await release_first_save.wait()
+            else:
+                compensation_started.set()
+            persisted_kill_switch = captured_kill_switch
+            write_order.append(captured_kill_switch)
 
-        api.save_settings.side_effect = commit_then_block
+        api.save_settings.side_effect = delayed_executor_shaped_save
         api.is_user_logged_in.return_value = True
         snapshots = []
         adapter = ProtonCoreAdapter(api)
@@ -708,14 +715,66 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         logout_task = asyncio.create_task(adapter.logout())
         await first_save_started.wait()
         logout_task.cancel()
+        await asyncio.sleep(0)
+        self.assertFalse(compensation_started.is_set())
+        release_first_save.set()
         with self.assertRaises(asyncio.CancelledError):
             await logout_task
 
         self.assertEqual(2, persisted_kill_switch)
         self.assertEqual(2, save_calls)
+        self.assertEqual([0, 2], write_order)
         self.assertEqual(2, adapter._kill_switch)
         self.assertTrue(adapter._logged_in)
         self.assertEqual("signed_in", snapshots[-1].auth_state)
+
+    async def test_unquiesced_zero_save_blocks_compensation_and_reconnection(self):
+        api, _ = self.make_api()
+        settings = await api.load_settings()
+        settings.killswitch = 2
+        first_save_started = asyncio.Event()
+        release_first_save = asyncio.Event()
+        first_save_finished = asyncio.Event()
+        persisted_kill_switch = 2
+        save_calls = 0
+
+        async def blocked_executor_shaped_save(saved_settings):
+            nonlocal persisted_kill_switch, save_calls
+            save_calls += 1
+            captured_kill_switch = saved_settings.killswitch
+            first_save_started.set()
+            await release_first_save.wait()
+            persisted_kill_switch = captured_kill_switch
+            first_save_finished.set()
+
+        api.save_settings.side_effect = blocked_executor_shaped_save
+        api.is_user_logged_in.return_value = True
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with patch(
+            "proton_vpn_kde_backend.adapters.LOGOUT_RECOVERY_TIMEOUT_SECONDS",
+            0.01,
+        ):
+            logout_task = asyncio.create_task(adapter.logout())
+            await first_save_started.wait()
+            logout_task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await logout_task
+
+        self.assertEqual(1, save_calls)
+        self.assertFalse(adapter._logged_in)
+        self.assertFalse(adapter._session_services_enabled)
+        self.assertFalse(adapter._reconnector.enabled)
+        self.assertEqual(0, snapshots[-1].kill_switch)
+        self.assertEqual("protection_unknown", snapshots[-1].auth_state)
+
+        release_first_save.set()
+        await first_save_finished.wait()
+        self.assertEqual(0, persisted_kill_switch)
+        self.assertEqual(1, save_calls)
+        self.assertEqual("protection_unknown", snapshots[-1].auth_state)
 
     async def test_late_zero_save_error_always_compensates(self):
         api, _ = self.make_api()

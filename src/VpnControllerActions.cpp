@@ -20,6 +20,13 @@ namespace
 {
 namespace BackendDbus = ProtonVpnKde::DBusContract::Backend;
 
+bool authenticationRecoveryRequired(const QString &authState)
+{
+    return authState == QStringLiteral("authentication_unknown")
+        || authState == QStringLiteral("settings_unavailable")
+        || authState == QStringLiteral("protection_unknown");
+}
+
 bool normalizeServerFeatures(const QStringList &features, QStringList *result)
 {
     static const QStringList supported{
@@ -310,7 +317,8 @@ void VpnController::connectServer(const QString &serverName)
 
 void VpnController::login(const QString &username, const QString &password)
 {
-    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy) {
+    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy
+        || authenticationRecoveryRequired(m_authState)) {
         return;
     }
     callSecretOperation(
@@ -321,7 +329,8 @@ void VpnController::login(const QString &username, const QString &password)
 
 void VpnController::submitTwoFactor(const QString &code)
 {
-    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy) {
+    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy
+        || authenticationRecoveryRequired(m_authState)) {
         return;
     }
     callSecretOperation(
@@ -331,16 +340,25 @@ void VpnController::submitTwoFactor(const QString &code)
 
 void VpnController::cancelLogin()
 {
+    if (authenticationRecoveryRequired(m_authState)) {
+        return;
+    }
     callOperation(QString::fromLatin1(BackendDbus::Method::cancelLogin));
 }
 
 void VpnController::beginFido2()
 {
+    if (authenticationRecoveryRequired(m_authState)) {
+        return;
+    }
     callOperation(QString::fromLatin1(BackendDbus::Method::beginFido2));
 }
 
 void VpnController::submitFido2Pin(const QString &pin)
 {
+    if (authenticationRecoveryRequired(m_authState)) {
+        return;
+    }
     callSecretOperation(
         QString::fromLatin1(BackendDbus::Method::submitFido2Pin),
         {{QStringLiteral("pin"), pin}},
@@ -349,18 +367,24 @@ void VpnController::submitFido2Pin(const QString &pin)
 
 void VpnController::cancelFido2()
 {
+    if (authenticationRecoveryRequired(m_authState)) {
+        return;
+    }
     callControlOperation(QString::fromLatin1(BackendDbus::Method::cancelFido2));
 }
 
 void VpnController::logout()
 {
+    if (authenticationRecoveryRequired(m_authState)) {
+        return;
+    }
     callOperation(QString::fromLatin1(BackendDbus::Method::logout));
 }
 
 void VpnController::disableKillSwitchForLogin()
 {
     if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy
-        || m_killSwitch == 0) {
+        || m_killSwitch == 0 || authenticationRecoveryRequired(m_authState)) {
         return;
     }
     callOperation(QString::fromLatin1(BackendDbus::Method::disableKillSwitchForLogin));

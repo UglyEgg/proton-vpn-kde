@@ -66,8 +66,10 @@ All notable user-visible changes are recorded here. The project follows
   with its community downstream vendor.
 - Make logout and backend shutdown cancellation-safe so a partially completed
   sign-out cannot silently persist a disabled kill switch or tear down session
-  services around a still-authenticated Core session; if protection persistence
-  cannot be confirmed, block reconnection behind an explicit recovery state.
+  services around a still-authenticated Core session. Serialize Core's
+  executor-backed protection write before compensation, and enforce any
+  unconfirmed protection or authentication state at both the D-Bus authority
+  boundary and the interface until the backend is restarted.
 - Reconcile a cancelled security-key submission after Core may have persisted
   authentication, and guarantee that an expired Core session reaches the
   signed-out interface even when observer cleanup fails.

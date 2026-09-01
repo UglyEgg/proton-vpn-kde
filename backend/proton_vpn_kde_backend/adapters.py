@@ -853,15 +853,17 @@ class ProtonCoreAdapter:
         settings = await self._load_settings()
         previous_kill_switch = self._kill_switch_value(settings)
         kill_switch_changed = previous_kill_switch != 0
-        kill_switch_zero_attempted = False
+        kill_switch_zero_task: asyncio.Task[None] | None = None
         try:
             if kill_switch_changed:
-                # The settings provider may commit before this await returns.
-                # From this point onward, failure and cancellation must both
-                # compensate even when the original save never acknowledged.
-                kill_switch_zero_attempted = True
+                # Proton Core persists settings in an executor. Shield this
+                # task so outer cancellation cannot abandon a worker that may
+                # later overwrite the compensating protection write.
                 settings.killswitch = 0
-                await self._save_settings(settings)
+                kill_switch_zero_task = asyncio.create_task(
+                    self._save_settings(settings)
+                )
+                await asyncio.shield(kill_switch_zero_task)
             self._kill_switch = 0
             if self._reconnector:
                 await self._reconnector.disable()
@@ -871,7 +873,7 @@ class ProtonCoreAdapter:
             recovery, recovery_cancelled = await self._finish_logout_recovery(
                 settings,
                 previous_kill_switch,
-                kill_switch_zero_attempted,
+                kill_switch_zero_task,
             )
             if isinstance(error, asyncio.CancelledError):
                 raise
@@ -1061,7 +1063,7 @@ class ProtonCoreAdapter:
         self,
         settings: Any,
         previous_kill_switch: int,
-        kill_switch_zero_attempted: bool,
+        kill_switch_zero_task: asyncio.Task[None] | None,
     ) -> tuple[_LogoutRecoveryOutcome, bool]:
         """Finish bounded logout repair despite repeated outer cancellation."""
 
@@ -1069,7 +1071,7 @@ class ProtonCoreAdapter:
             self._recover_failed_logout(
                 settings,
                 previous_kill_switch,
-                kill_switch_zero_attempted,
+                kill_switch_zero_task,
             )
         )
         cancellation_requested = False
@@ -1084,9 +1086,28 @@ class ProtonCoreAdapter:
         self,
         settings: Any,
         previous_kill_switch: int,
-        kill_switch_zero_attempted: bool,
+        kill_switch_zero_task: asyncio.Task[None] | None,
     ) -> _LogoutRecoveryOutcome:
         """Publish only protection and session state confirmed after logout failure."""
+
+        if kill_switch_zero_task is not None:
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(kill_switch_zero_task),
+                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
+                )
+            except TimeoutError:
+                # Never race compensation against Core's still-live executor
+                # worker. Its eventual zero write agrees with the conservative
+                # recovery projection published below.
+                kill_switch_zero_task.add_done_callback(
+                    self._consume_background_task_result
+                )
+                return await self._publish_unknown_protection(None)
+            except (Exception, asyncio.CancelledError):
+                # A failed acknowledgement is still terminal. The provider may
+                # have committed, so a compensating write remains required.
+                pass
 
         try:
             core_logged_in = await asyncio.wait_for(
@@ -1101,7 +1122,7 @@ class ProtonCoreAdapter:
             return _LogoutRecoveryOutcome(False, True, False)
 
         protection_restored = True
-        if kill_switch_zero_attempted:
+        if kill_switch_zero_task is not None:
             settings.killswitch = previous_kill_switch
             try:
                 await asyncio.wait_for(
@@ -1112,20 +1133,7 @@ class ProtonCoreAdapter:
                 protection_restored = False
 
         if not protection_restored:
-            await self._quiesce_session_services()
-            # Zero is the conservative projection: persistence is ambiguous,
-            # so never claim that permanent protection remains enabled.
-            self._kill_switch = 0
-            self._logged_in = False
-            self._auth_state = "protection_unknown"
-            self._status_message = (
-                "Proton could not confirm the kill switch setting after an "
-                "interrupted sign-out; restart the backend and review VPN "
-                "settings before reconnecting"
-            )
-            self._search_projection = None
-            self._publish_snapshot()
-            return _LogoutRecoveryOutcome(core_logged_in, False, True)
+            return await self._publish_unknown_protection(core_logged_in)
 
         self._kill_switch = previous_kill_switch
 
@@ -1165,6 +1173,31 @@ class ProtonCoreAdapter:
         self._search_projection = None
         self._publish_snapshot()
         return _LogoutRecoveryOutcome(None, True, False)
+
+    async def _publish_unknown_protection(
+        self, core_logged_in: bool | None
+    ) -> _LogoutRecoveryOutcome:
+        await self._quiesce_session_services()
+        # Zero is the conservative projection: persistence is ambiguous, so
+        # never claim that permanent protection remains enabled.
+        self._kill_switch = 0
+        self._logged_in = False
+        self._auth_state = "protection_unknown"
+        self._status_message = (
+            "Proton could not confirm the kill switch setting after an "
+            "interrupted sign-out; restart the backend and review VPN "
+            "settings before reconnecting"
+        )
+        self._search_projection = None
+        self._publish_snapshot()
+        return _LogoutRecoveryOutcome(core_logged_in, False, True)
+
+    @staticmethod
+    def _consume_background_task_result(task: asyncio.Task[None]) -> None:
+        try:
+            task.result()
+        except (Exception, asyncio.CancelledError):
+            pass
 
     async def _quiesce_session_services(self) -> bool:
         """Best-effort bounded stop used before publishing recovery-required state."""

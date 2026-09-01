@@ -73,6 +73,38 @@ class LoginRecordingAdapter(DemoCoreAdapter):
         await super().login(username, password)
 
 
+class RecoveryMutationRecordingAdapter(DemoCoreAdapter):
+    def __init__(self, auth_state: str):
+        super().__init__(logged_in=False, kill_switch=2)
+        self._auth_state = auth_state
+        self._snapshot = self._build_snapshot(message="Restart required")
+        self.auth_calls: list[str] = []
+
+    async def login(self, username: str, password: str) -> None:
+        self.auth_calls.append("login")
+
+    async def submit_two_factor(self, code: str) -> None:
+        self.auth_calls.append("submit_two_factor")
+
+    async def cancel_login(self) -> None:
+        self.auth_calls.append("cancel_login")
+
+    async def begin_fido2(self) -> None:
+        self.auth_calls.append("begin_fido2")
+
+    async def submit_fido2_pin(self, pin: str) -> None:
+        self.auth_calls.append("submit_fido2_pin")
+
+    async def cancel_fido2(self) -> None:
+        self.auth_calls.append("cancel_fido2")
+
+    async def logout(self) -> None:
+        self.auth_calls.append("logout")
+
+    async def disable_kill_switch_for_login(self) -> None:
+        self.auth_calls.append("disable_kill_switch_for_login")
+
+
 class BlockingSettingsAdapter(DemoCoreAdapter):
     def __init__(self, method_name: str):
         super().__init__()
@@ -575,6 +607,33 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, controller.snapshot.kill_switch)
         await controller.login("demo-user", "password")
         self.assertTrue(controller.snapshot.logged_in)
+
+    async def test_recovery_states_reject_every_authentication_mutation(self):
+        operations = (
+            lambda controller: controller.login("demo-user", "password"),
+            lambda controller: controller.submit_two_factor("123456"),
+            lambda controller: controller.cancel_login(),
+            lambda controller: controller.begin_fido2(),
+            lambda controller: controller.submit_fido2_pin("1234"),
+            lambda controller: controller.cancel_fido2(),
+            lambda controller: controller.logout(),
+            lambda controller: controller.disable_kill_switch_for_login(),
+        )
+        for auth_state in (
+            "authentication_unknown",
+            "settings_unavailable",
+            "protection_unknown",
+        ):
+            adapter = RecoveryMutationRecordingAdapter(auth_state)
+            controller = BackendController(adapter)
+            self.assertTrue(await controller.start())
+
+            for operation in operations:
+                with self.subTest(auth_state=auth_state, operation=operation):
+                    with self.assertRaisesRegex(RuntimeError, "Restart the Proton"):
+                        await operation(controller)
+
+            self.assertEqual([], adapter.auth_calls)
 
     async def test_logout_disables_kill_switch(self):
         controller = BackendController(DemoCoreAdapter(kill_switch=2))

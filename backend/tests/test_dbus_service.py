@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, Mock
 from dbus_fast.errors import DBusError
 
 from fd_helpers import create_test_fd
+from proton_vpn_kde_backend.adapters import DemoCoreAdapter
+from proton_vpn_kde_backend.controller import BackendController
 from proton_vpn_kde_backend.dbus_service import (
     INVALID_SUPPORT_REPORT_ERROR,
     INVALID_SETTINGS_ERROR,
@@ -104,6 +106,31 @@ class VpnDbusServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(INVALID_SETTINGS_ERROR, raised.exception.type)
         self.assertEqual(message, raised.exception.text)
+
+    async def test_recovery_state_blocks_dbus_credentials_and_protection_mutation(self):
+        adapter = DemoCoreAdapter(logged_in=False, kill_switch=2)
+        adapter._auth_state = "protection_unknown"
+        adapter._snapshot = adapter._build_snapshot(message="Restart required")
+        adapter.login = AsyncMock()
+        adapter.disable_kill_switch_for_login = AsyncMock()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+        service = VpnDbusService(controller)
+        service._read_secret = Mock(  # type: ignore[method-assign]
+            return_value={"username": "demo-user", "password": "password"}
+        )
+
+        with self.assertRaises(DBusError) as login_error:
+            await type(service).login.__wrapped__(service, 0)
+        self.assertEqual(OPERATION_FAILED_ERROR, login_error.exception.type)
+        self.assertIn("Restart the Proton backend", login_error.exception.text)
+        adapter.login.assert_not_awaited()
+
+        with self.assertRaises(DBusError) as settings_error:
+            await type(service).disable_kill_switch_for_login.__wrapped__(service)
+        self.assertEqual(INVALID_SETTINGS_ERROR, settings_error.exception.type)
+        self.assertIn("Restart the Proton backend", settings_error.exception.text)
+        adapter.disable_kill_switch_for_login.assert_not_awaited()
 
     async def test_capability_connect_is_forwarded_without_interpretation(self):
         service, controller = make_service()
