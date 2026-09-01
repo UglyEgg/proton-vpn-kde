@@ -383,6 +383,30 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("VPN Plus", snapshots[-1].plan_title)
         self.assertEqual(2, connector.register.call_count)
 
+    async def test_failed_session_service_start_does_not_commit_login_state(self):
+        api, _ = self.make_api(logged_in=False)
+        api.login.return_value = SimpleNamespace(
+            success=True,
+            authenticated=True,
+            twofa_required=False,
+        )
+        api.refresher.enable.side_effect = RuntimeError("refresh failed")
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "refresh failed"):
+            await adapter.login("test-user", "not-recorded")
+
+        self.assertFalse(adapter._logged_in)
+        self.assertFalse(adapter._session_services_enabled)
+        self.assertFalse(snapshots[-1].logged_in)
+        self.assertEqual("signed_out", snapshots[-1].auth_state)
+        self.assertEqual(
+            "Proton session services could not start",
+            snapshots[-1].message,
+        )
+
     async def test_two_factor_and_recovery_code_flow(self):
         api, _ = self.make_api(logged_in=False)
         api.login.return_value = SimpleNamespace(

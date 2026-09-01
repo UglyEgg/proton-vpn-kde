@@ -99,10 +99,20 @@ session. A logout or account transition advances the session generation and
 rejects late replies, preventing an old session from repopulating cleared
 frontend state even though the underlying methods do not mutate Core.
 
+The same address-versus-identity rule applies to
+`org.freedesktop.secrets`. The downstream keyring overlay activates the selected
+provider without sending secrets, resolves its unique owner, verifies the
+same-user process and root-owned, non-writable native executable, and rejects
+known loader, interpreter, plugin, and sandbox-wrapper ambiguity. Secret Service
+calls are retargeted to the verified unique owner; replies, prompt signals, and
+owner continuity are checked. This remains provider-neutral, but it deliberately
+does not treat an arbitrary user-installed executable as a trusted session store.
+
 Executable identity is appropriate for isolated project processes such as the
-Control Center and agent. It is not sufficient for a shared in-process plugin
-host, so `/usr/bin/krunner` is not a trusted backend client. The plugin sends
-only validated connection requests to the Control Center activation service,
-which requires explicit modal confirmation before its already authenticated
-controller acts. The shared plugin host never authenticates to or calls the
-backend.
+Control Center and agent. It is not sufficient for shared desktop brokers, so
+`/usr/bin/krunner`, KGlobalAccel, and status-notifier D-BusMenu are not trusted
+backend clients. Their actions send only validated connection requests to the
+Control Center activation service, which requires explicit modal confirmation
+before its already authenticated controller acts. The guarded
+disconnect-and-quit tray path also requires local confirmation. Shared brokers
+never authenticate to or call the backend.

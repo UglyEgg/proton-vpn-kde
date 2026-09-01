@@ -211,3 +211,23 @@ void ProtonVpnKde::requestControlCenter(bool settings)
                       : QStringLiteral("--show")});
     });
 }
+
+void ProtonVpnKde::requestConfirmedControlCenterAction(
+    const QString &action, const QString &argument)
+{
+    QDBusMessage message = controlCenterCall(
+        QString::fromLatin1(ControlCenterDbus::Method::requestRunnerAction));
+    message.setArguments({action, argument});
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 5000),
+        QCoreApplication::instance());
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished,
+                     QCoreApplication::instance(),
+                     [](QDBusPendingCallWatcher *finished) {
+        const QDBusPendingReply<bool> reply = *finished;
+        finished->deleteLater();
+        if (reply.isError() || !reply.value()) {
+            qWarning("Unable to present the VPN action confirmation");
+        }
+    });
+}

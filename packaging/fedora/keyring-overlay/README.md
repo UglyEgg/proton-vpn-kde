@@ -14,11 +14,18 @@ The patch set is provider-neutral:
 - reuse one serialized D-Bus connection per backend, without caching plaintext;
 - close that connection explicitly or through a finalizer; and
 - treat an already-absent keyring entry as a normal `KeyError`, without an
-  error-level traceback.
+  error-level traceback;
+- authenticate the same-user provider's root-owned, non-writable native
+  executable before sending it secret data; and
+- pin every Secret Service call, reply, and prompt signal to that provider's
+  unique D-Bus owner, rejecting owner replacement.
 
 GNOME Keyring remains a supported provider, but it is a suggestion rather than
-a runtime requirement. KeePassXC and other conforming Freedesktop Secret
-Service implementations use the same code path.
+a runtime requirement. System-packaged KeePassXC, KWallet, GNOME Keyring, and
+other conforming native Freedesktop Secret Service implementations use the same
+code path. User-writable binaries, AppImages, Flatpaks, Snaps, interpreter-hosted
+providers, and processes with known code-injection environment variables are
+rejected because a provider receives Proton session material.
 
 ## Rebuild
 
@@ -41,15 +48,16 @@ packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
 An already downloaded archive can be supplied as the first argument. Neither
 the downloaded archive nor built RPMs belong in Git.
 
-The resulting package provides
-`proton-keyring-secret-service-provider-agnostic = 1`. The Plasma client RPM
-requires that capability until an equivalent implementation is verified in an
-upstream package and the dependency can be retired.
+The resulting package provides both the compatibility capability
+`proton-keyring-secret-service-provider-agnostic = 1` and the stronger
+`proton-keyring-secret-service-authenticated-provider = 1`. The Plasma client
+RPM requires the stronger capability until an equivalent implementation is
+verified in an upstream package and the dependency can be retired.
 
 ## Upstream boundary
 
 The first patch combines the default-alias compatibility and stable-client
 identity changes because they modify one small backend implementation and share
-the same focused test module. The missing-entry logging patch remains separate
-and can be proposed independently. No VPN networking, session format, or secret
-storage schema is changed.
+the same focused test module. The missing-entry logging and provider-identity
+patches remain separate and can be proposed independently. No VPN networking,
+session format, or secret storage schema is changed.

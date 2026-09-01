@@ -93,6 +93,9 @@ class LogindSessionProbe:
             properties = session_object.get_interface(
                 "org.freedesktop.DBus.Properties"
             )
+        except asyncio.CancelledError:
+            bus.disconnect()
+            raise
         except Exception:
             bus.disconnect()
             raise
@@ -293,4 +296,10 @@ class AsyncReconnector:
     @staticmethod
     def _retry_delay(retry_counter: int) -> float:
         # Match Proton's exponential jitter while capping pathological outages.
-        return min(2**retry_counter * random.uniform(0.9, 1.1), 60.0)
+        if retry_counter >= 7:
+            return 60.0
+        bounded_counter = max(0, retry_counter)
+        return min(
+            2**bounded_counter * random.uniform(0.9, 1.1),
+            60.0,
+        )

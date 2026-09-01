@@ -64,6 +64,48 @@ class BlockingSettingsAdapter(DemoCoreAdapter):
         return await super().get_custom_dns()
 
 
+class BlockingSessionReadAdapter(DemoCoreAdapter):
+    def __init__(self, method_name: str):
+        super().__init__(nps_survey_available=True)
+        self.method_name = method_name
+        self.read_started = asyncio.Event()
+        self.release_read = asyncio.Event()
+
+    async def _wait_if_selected(self, method_name: str) -> None:
+        if self.method_name != method_name:
+            return
+        self.read_started.set()
+        await self.release_read.wait()
+
+    async def get_countries(self):
+        await self._wait_if_selected("countries")
+        return await super().get_countries()
+
+    async def get_server_groups(self, country_code: str):
+        await self._wait_if_selected("groups")
+        return await super().get_server_groups(country_code)
+
+    async def get_group_servers(
+        self, country_code: str, group_kind: str, group_name: str
+    ):
+        await self._wait_if_selected("servers")
+        return await super().get_group_servers(
+            country_code, group_kind, group_name
+        )
+
+    async def get_server_loads(self, country_code: str):
+        await self._wait_if_selected("loads")
+        return await super().get_server_loads(country_code)
+
+    async def search_locations(self, query: str):
+        await self._wait_if_selected("search")
+        return await super().search_locations(query)
+
+    async def take_pending_nps_survey(self) -> bool:
+        await self._wait_if_selected("nps")
+        return await super().take_pending_nps_survey()
+
+
 class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.controller = BackendController(DemoCoreAdapter())
@@ -326,6 +368,35 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaisesRegex(RuntimeError, "session changed"):
                     await read_task
                 self.assertEqual([], publications)
+
+    async def test_late_account_scoped_reads_are_rejected_after_logout(self):
+        cases = (
+            ("countries", "get_countries_json", ()),
+            ("groups", "get_server_groups_json", ("CH",)),
+            (
+                "servers",
+                "get_group_servers_json",
+                ("CH", "location", "Zurich"),
+            ),
+            ("loads", "get_server_loads_json", ("CH",)),
+            ("search", "search_locations_json", ("Zurich",)),
+            ("nps", "get_pending_nps_survey_json", ()),
+        )
+        for method_name, read_name, arguments in cases:
+            with self.subTest(method_name=method_name):
+                adapter = BlockingSessionReadAdapter(method_name)
+                controller = BackendController(adapter)
+                self.assertTrue(await controller.start())
+
+                read_task = asyncio.create_task(
+                    getattr(controller, read_name)(*arguments)
+                )
+                await adapter.read_started.wait()
+                await controller.logout()
+                adapter.release_read.set()
+
+                with self.assertRaisesRegex(RuntimeError, "session changed"):
+                    await read_task
 
     async def test_unofficial_build_rejects_crash_reporting_enable(self):
         with self.assertRaisesRegex(RuntimeError, "unofficial community build"):

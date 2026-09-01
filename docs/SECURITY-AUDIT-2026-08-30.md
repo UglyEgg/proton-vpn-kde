@@ -9,12 +9,13 @@ modes no longer reproduce in focused tests, and the 2026-08-31 `0.11.3`
 re-review found no new reportable issue.
 
 The unreleased `0.12.0` branch adds event-driven backend lifetime and an
-on-demand Connection Inspector. Its first six-part isolated review battery
-found three release-blocking lifecycle races. Those defects have been
-remediated with focused regressions, and the source currently passes 36 of 36
-CTest targets including 138 backend tests. **The `0.12.0` candidate remains
-explicitly not release-ready until six fresh isolated reviewers pass the
-remediated snapshot and the result is recorded below.**
+on-demand Connection Inspector. Its pre-final isolated reviews found lifecycle,
+error-class, Secret Service identity, and desktop-action-broker defects. Every
+reported path now has a focused remediation, and the source currently passes 36
+of 36 CTest targets plus 142 backend tests. **The `0.12.0` candidate remains
+explicitly not release-ready until six fresh isolated reviewers pass one exact
+remediated commit, its packages complete live acceptance, and that commit
+finishes the one-week local soak.**
 
 The public `0.11.3` source passed Mypy, Ruff, Clang-Tidy across all 34
 production translation units, and the complete native test suite under address,
@@ -91,6 +92,46 @@ its healthy successor or clear its queued action. Readiness-probe
 exceptions also remain inside the bounded retry lifecycle. Focused regressions
 cover every release blocker found to date.
 
+A second pre-final review at `98969fc` deliberately restarted the review gate
+after those changes. Hostile review identified late country, group, server,
+load, search, and NPS reads that were not yet account-generation fenced, plus a
+cancelled logind initialization that could retain its temporary bus. Error-Class
+review found that the reconnect exponential could overflow before its 60-second
+cap after a sufficiently long outage, a same-owner snapshot timeout could leave
+the Control Center falsely offline without retry, and login state could be
+committed before refresher startup completed. Those are remediated by complete
+account-read fencing, cancellation cleanup, bounded backoff before exponentiation,
+transient snapshot retry, and transactional session-service startup.
+
+The standard security scan of that second snapshot
+(`a13d81f0-f762-4406-b59c-c50959d10357`) reported three additional issues: one
+high-severity Secret Service provider-identity gap and two medium-severity
+desktop broker paths. The keyring adapter previously treated the replaceable
+`org.freedesktop.secrets` well-known owner as sufficient identity before sending
+Proton session material. The new separate overlay patch authenticates a
+same-user process running a root-owned, non-writable native executable, rejects
+generic launchers and known injection environments, pins every call to the
+verified unique owner, validates reply and prompt-signal senders, and rejects
+owner replacement. KGlobalAccel and status-notifier D-BusMenu actions previously
+invoked the authorized resident controller directly. They now send only bounded
+requests to the Control Center's explicit modal confirmation; the combined
+disconnect-and-quit action uses a guarded local confirmation.
+
+These paragraphs are the historical pre-final finding record. They do not mark
+the remediated working tree as passed: the exact final commit must still receive
+six fresh independent results below.
+
+| ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
+| --- | --- | --- | --- |
+| PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
+| PV-012-002 | Low | Cancellation during logind proxy setup could retain a temporary bus | **Remediated; final independent verification pending** |
+| PV-012-003 | High | Pathological reconnect count overflowed before applying the backoff cap | **Remediated; final independent verification pending** |
+| PV-012-004 | Medium | A same-owner snapshot timeout could leave the UI falsely offline | **Remediated; final independent verification pending** |
+| PV-012-005 | Medium | Login state could commit before session services finished starting | **Remediated; final independent verification pending** |
+| PV-012-006 | High | A replaceable Secret Service owner could receive future Proton session writes | **Remediated; final independent verification pending** |
+| PV-012-007 | Medium | KGlobalAccel could invoke the authorized resident controller directly | **Remediated; final independent verification pending** |
+| PV-012-008 | Medium | D-BusMenu tray activation could invoke the authorized resident controller directly | **Remediated; final independent verification pending** |
+
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
 
@@ -135,7 +176,8 @@ The material trust boundaries are:
 3. the community adapter to official Proton Core;
 4. the Control Center to Polkit and DNF;
 5. diagnostic and capture operations to user-selected storage; and
-6. maintainer inputs to published source and RPM artifacts.
+6. the keyring adapter to the selected Secret Service provider; and
+7. maintainer inputs to published source and RPM artifacts.
 
 Detailed current designs are maintained in
 [Architecture](ARCHITECTURE.md), [Authentication](AUTHENTICATION.md), and
@@ -157,11 +199,26 @@ executables. Registration claims must match the actual sender; authorization,
 leases, and outstanding secret keys are revoked when that unique name
 disappears.
 
-KRunner is deliberately not a backend principal because it is a shared plugin
-host. The runner can request only fastest, disconnect, two-letter country, or
-validated exact-server actions from the Control Center. The Control Center
-shows a modal confirmation and uses its existing authenticated controller only
-after acceptance.
+KRunner, KGlobalAccel, and status-notifier D-BusMenu are deliberately not
+backend principals because they are shared desktop brokers. They can request
+only fastest, disconnect, two-letter country, validated group, or validated
+exact-server actions from the Control Center. The Control Center shows a modal
+confirmation and uses its existing authenticated controller only after
+acceptance. The resident tray's combined disconnect-and-quit action requires a
+guarded local confirmation before its coordinator can act.
+
+### Secret Service provider identity
+
+The downstream keyring adapter activates the configured Secret Service without
+sending secret data, resolves the well-known name to a unique owner, confirms
+that owner is a same-user process running a root-owned, non-writable native
+executable without known injection variables, and then addresses the unique
+owner directly. It verifies method-reply and prompt-signal senders and checks
+the well-known owner before every operation. Owner replacement, mutable or
+user-owned executables, generic launchers, sandbox wrappers, and unsafe
+environments fail closed. The Fedora client requires the overlay's stronger
+authenticated-provider capability so the older alias-only package cannot
+satisfy this control accidentally.
 
 ### Authentication payloads
 
@@ -228,7 +285,9 @@ IPv6 leak protection, split tunneling, or Proton session storage.
 | PV-SEC-006 | Low | KDE capture orchestration lacked duration enforcement and Core-cap validation | **Closed** |
 | PV-SEC-007 | Medium | Trusting the shared KRunner host granted broader backend authority than intended | **Closed** |
 
-There are no deferred or accepted-open findings from this assessment.
+There are no deferred or accepted-open findings among the original seven.
+The separate unreleased `0.12.0` table above remains verification-pending until
+the final six-reviewer gate closes.
 Defense-in-depth opportunities are listed under **Residual risk and follow-up**
 and are not represented as undisclosed vulnerabilities.
 
@@ -241,7 +300,7 @@ The current remediated tree passed:
 - 36 of 36 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 138 backend Python tests;
+- 142 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;
@@ -249,6 +308,13 @@ The current remediated tree passed:
   tamper, logout rollback, support-budget, and packet-capture race tests; and
 - staged installation using the same systemd user-unit directory compiled into
   backend identity verification.
+
+The current keyring overlay separately rebuilt from Proton's pinned 0.2.3
+archive, applied all three manifest-hashed patches without fuzz, passed 27 of 27
+focused tests in RPM `%check`, and produced one binary and one source RPM. Its
+artifact check verified both the provider-neutral and authenticated-provider
+capabilities. This is source/package evidence only; live KeePassXC acceptance of
+that new overlay remains required before the final gate can close.
 
 The focused harnesses show that the seven original failures no longer
 reproduce: substituted owners are rejected, unauthorized mutations do not
@@ -397,19 +463,22 @@ systemd heuristic score remain documented in [Hardening](HARDENING.md).
 - Executable identity protects package-owned isolated processes, not arbitrary
   code already running inside them. Shared hosts such as KRunner therefore
   remain outside backend trust.
-- Any same-session process can request a bounded KRunner confirmation dialog.
-  It cannot silently mutate VPN state through that path, but it can create a
-  presentation nuisance.
+- Any same-session process can request a bounded connection confirmation dialog
+  through the exposed desktop brokers. It cannot silently mutate VPN state
+  through that path, but it can create a presentation nuisance.
 - Qt and Python cannot guarantee immediate erasure of every immutable secret
   copy. Root, debuggers, and direct process-memory readers remain out of scope.
 - Official Proton Core, NetworkManager, Secret Service providers, and remote
   Proton services are trusted dependencies outside this assessment.
 - The verified provider-neutral Secret Service behavior depends on a separately
   patched Proton keyring package. Its exact upstream source, patch hashes,
-  focused tests, Fedora spec, and source/binary CI build now live in this
-  repository. It remains an unofficial downstream dependency until Proton
-  accepts an equivalent change; stock Proton 0.2.3 must not be described as
-  KeePassXC-compatible.
+  focused tests, Fedora spec, and source/binary CI build live in this repository.
+  The hardened provider check supports system-packaged native providers; it
+  intentionally rejects user-writable binaries, AppImages, Flatpaks, Snaps,
+  generic interpreters, and processes with known code-injection variables. It
+  remains an unofficial downstream dependency until Proton accepts equivalent
+  changes; stock Proton 0.2.3 must not be described as KeePassXC-compatible or
+  provider-authenticated.
 - The Fedora API-Core overlay keeps Protun's transient private key in
   NetworkManager's unsaved profile rather than a desktop secret agent. Fedora
   may materialize that profile as a mode-0600 file under volatile `/run` while

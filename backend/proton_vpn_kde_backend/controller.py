@@ -229,40 +229,44 @@ class BackendController:
         )
 
     async def get_countries_json(self) -> str:
-        self._require_session()
-        return location_list_to_json("countries", await self._adapter.get_countries())
+        session_epoch = self._current_session_epoch()
+        countries = await self._adapter.get_countries()
+        self._require_current_session(session_epoch)
+        return location_list_to_json("countries", countries)
 
     async def get_server_groups_json(self, country_code: str) -> str:
-        self._require_session()
+        session_epoch = self._current_session_epoch()
         normalized_code = self._validate_country_code(country_code)
-        return location_list_to_json(
-            "groups", await self._adapter.get_server_groups(normalized_code)
-        )
+        groups = await self._adapter.get_server_groups(normalized_code)
+        self._require_current_session(session_epoch)
+        return location_list_to_json("groups", groups)
 
     async def get_group_servers_json(
         self, country_code: str, group_kind: str, group_name: str
     ) -> str:
-        self._require_session()
+        session_epoch = self._current_session_epoch()
         normalized_code = self._validate_country_code(country_code)
         normalized_kind, normalized_name = self._validate_server_group(
             group_kind, group_name
         )
+        servers = await self._adapter.get_group_servers(
+            normalized_code, normalized_kind, normalized_name
+        )
+        self._require_current_session(session_epoch)
         return location_list_to_json(
             "servers",
-            await self._adapter.get_group_servers(
-                normalized_code, normalized_kind, normalized_name
-            ),
+            servers,
         )
 
     async def get_server_loads_json(self, country_code: str) -> str:
-        self._require_session()
+        session_epoch = self._current_session_epoch()
         normalized_code = self._validate_country_code(country_code)
-        return location_list_to_json(
-            "loads", await self._adapter.get_server_loads(normalized_code)
-        )
+        loads = await self._adapter.get_server_loads(normalized_code)
+        self._require_current_session(session_epoch)
+        return location_list_to_json("loads", loads)
 
     async def search_locations_json(self, query: str) -> str:
-        self._require_session()
+        session_epoch = self._current_session_epoch()
         normalized_query = " ".join(query.split())
         if (
             not normalized_query
@@ -270,9 +274,9 @@ class BackendController:
             or "\0" in normalized_query
         ):
             raise UserVisibleValueError("Enter a valid location search")
-        return location_list_to_json(
-            "results", await self._adapter.search_locations(normalized_query)
-        )
+        results = await self._adapter.search_locations(normalized_query)
+        self._require_current_session(session_epoch)
+        return location_list_to_json("results", results)
 
     async def get_settings_json(self) -> str:
         session_epoch = self._current_session_epoch()
@@ -282,8 +286,9 @@ class BackendController:
         return settings.to_json()
 
     async def get_pending_nps_survey_json(self) -> str:
-        self._require_session()
+        session_epoch = self._current_session_epoch()
         available = await self._adapter.take_pending_nps_survey()
+        self._require_current_session(session_epoch)
         return json.dumps(
             {"schemaVersion": 1, "available": available},
             separators=(",", ":"),

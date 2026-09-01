@@ -11,8 +11,8 @@
   "overlay": {
     "packageName": "python3-proton-keyring-linux",
     "version": "0.2.3",
-    "release": "4.plasmavpn1",
-    "capability": "proton-keyring-secret-service-provider-agnostic = 1",
+    "release": "5.plasmavpn1",
+    "capability": "proton-keyring-secret-service-authenticated-provider = 1",
     "patches": [
       {
         "file": "0001-provider-agnostic-secret-service.patch",
@@ -22,6 +22,10 @@
         "file": "0002-avoid-missing-entry-traceback.patch",
         "sha256": "b5b2b1c6b0dcfe613ae47f18ae090b94d0cc27be2d8bf91beb6d0937d085c8f2",
         "upstreamCommit": "4b2adc79d64e5f9ffeecc14d943d65e92254b5b0"
+      },
+      {
+        "file": "0003-authenticate-secret-service-provider.patch",
+        "sha256": "8ee9c644968542772a9c48c2171f68ae28ca2a051949b61f4578450d92c704ac"
       }
     ]
   }

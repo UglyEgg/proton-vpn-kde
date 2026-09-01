@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
-from proton_vpn_kde_backend.reconnector import AsyncReconnector
+from proton_vpn_kde_backend.reconnector import AsyncReconnector, LogindSessionProbe
 
 
 def state_named(state_name: str, event_name: str = "UnexpectedError"):
@@ -211,6 +212,47 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("RuntimeError", log_output)
         self.assertNotIn(sentinel, log_output)
         await reconnector.disable()
+
+    async def test_pathological_retry_count_remains_capped_and_scheduled(self):
+        reconnector, _, _, messages = self.make_reconnector(
+            delay_factory=AsyncReconnector._retry_delay
+        )
+        reconnector._retry_counter = 1024
+
+        reconnector.enable()
+        await asyncio.sleep(0)
+
+        self.assertTrue(reconnector.enabled)
+        self.assertIsNotNone(reconnector._retry_task)
+        self.assertFalse(reconnector._retry_task.done())
+        self.assertIn("Reconnecting in 60.0 seconds…", messages)
+        await reconnector.disable()
+
+    async def test_logind_proxy_disconnects_temporary_bus_when_cancelled(self):
+        bus = SimpleNamespace(
+            introspect=AsyncMock(side_effect=asyncio.CancelledError()),
+            disconnect=Mock(),
+        )
+        message_bus = Mock(
+            return_value=SimpleNamespace(
+                connect=AsyncMock(return_value=bus),
+            )
+        )
+        modules = {
+            "dbus_fast.aio": SimpleNamespace(MessageBus=message_bus),
+            "dbus_fast.constants": SimpleNamespace(
+                BusType=SimpleNamespace(SYSTEM="system")
+            ),
+        }
+        probe = LogindSessionProbe()
+
+        with patch.dict(sys.modules, modules):
+            with self.assertRaises(asyncio.CancelledError):
+                await probe._ensure_proxy()
+
+        bus.disconnect.assert_called_once_with()
+        self.assertIsNone(probe._bus)
+        self.assertIsNone(probe._properties)
 
 
 if __name__ == "__main__":

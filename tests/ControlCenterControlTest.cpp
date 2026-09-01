@@ -28,6 +28,10 @@ void ControlCenterControlTest::acceptsOnlyValidatedRunnerActions_data()
         << QStringLiteral("country") << QStringLiteral("CH");
     QTest::newRow("server")
         << QStringLiteral("server") << QStringLiteral("US-CA#18");
+    QTest::newRow("group")
+        << QStringLiteral("group")
+        << QStringLiteral(
+               R"json({"countryCode":"CH","kind":"location","name":"Zurich"})json");
 }
 
 void ControlCenterControlTest::acceptsOnlyValidatedRunnerActions()

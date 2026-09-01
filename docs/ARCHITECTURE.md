@@ -154,8 +154,10 @@ only the method-call destination.
 
 The adapter calls Proton's public API facade for password login, TOTP and
 recovery codes, FIDO2, session retrieval, and logout. Proton SSO persists the
-session through whichever conforming Freedesktop Secret Service provider owns
-`org.freedesktop.secrets`.
+session through a separately packaged keyring adapter. That adapter validates
+the selected system Secret Service provider's same-user process and immutable
+native executable, then pins traffic to its unique owner instead of trusting
+the replaceable `org.freedesktop.secrets` well-known name as identity.
 
 The frontend receives only minimum account display metadata. Authentication
 fields use a one-use encrypted and sealed descriptor transport, and provider
@@ -218,10 +220,14 @@ distribution deliberately enables it.
 The resident agent owns the status notifier, notifications, global shortcuts,
 pinned targets, and auto-connect behavior. The complete Kirigami Control Center
 starts on demand and exits when its window closes. Both are single-instance
-processes. Tray shutdown distinguishes leaving the Core-managed tunnel active
-from disconnecting it: the latter waits for a fully disconnected, idle Core
-snapshot before the agent exits and keeps supervision alive if confirmation
-times out.
+processes. Because KGlobalAccel and status-notifier menus are session-bus
+brokers rather than authentication principals, their VPN-changing actions open
+the Control Center's validated confirmation dialog and cannot call the agent's
+authorized controller directly. The combined disconnect-and-quit tray action
+uses a guarded local confirmation before invoking its coordinator. Tray
+shutdown distinguishes leaving the Core-managed tunnel active from
+disconnecting it: the latter waits for a fully disconnected, idle Core snapshot
+before the agent exits and keeps supervision alive if confirmation times out.
 
 Drop-recovery retries retain a cancellation generation through every network,
 session, and previous-connection readiness await. Disabling recovery or
@@ -231,9 +237,9 @@ as applied only after the current backend owner acknowledges it; a failed or
 stale policy reply cannot release a queued connection action.
 
 KRunner recognizes only explicit VPN prefixes and validated connection targets.
-It addresses the Control Center activation service, never the backend. A modal
-confirmation is required before the Control Center's authenticated controller
-acts.
+It addresses the Control Center activation service, never the backend. KRunner,
+global shortcuts, and tray connection actions share the bounded validator and
+modal confirmation before the Control Center's authenticated controller acts.
 
 The System Settings module owns desktop preferences only: startup,
 auto-connect, drop recovery, window and tray behavior, notifications, pinned
@@ -250,7 +256,7 @@ the KCM, agent, and Control Center.
 - A signed-out client can disable permanent kill switch for login only through
   one dedicated operation; it cannot reach general settings.
 - Closing the Control Center never disconnects an active tunnel.
-- KRunner and other shared plugin hosts are not trusted backend clients.
+- KRunner and desktop action brokers are not trusted backend clients.
 - The GUI never issues direct NetworkManager mutations.
 - Optional Core string-sharing optimizations never gate VPN or account
   behavior. The separately verified Fedora Core overlay also changes Protun's

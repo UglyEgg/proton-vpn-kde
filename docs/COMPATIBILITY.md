@@ -19,7 +19,7 @@ The source build requires:
 The real backend requires Proton's Fedora packages. The minimum declared VPN
 API Core version is 5.5.6.
 
-CI runs all 138 isolated backend tests under Python 3.11 with the exact minimum
+CI runs all 142 isolated backend tests under Python 3.11 with the exact minimum
 `cryptography` 45.0.1 and `dbus-fast` 2.20.0 wheels. A separate source-level
 contract check downloads and extracts Proton's SHA-256-pinned Fedora 44 API
 Core 5.5.6 RPM, then verifies every public class, method, property, and exported
@@ -29,17 +29,21 @@ or touch networking; live acceptance remains a separate release step.
 KeePassXC acceptance also depends on the downstream
 `python3-proton-keyring-linux` capability identified below. It contains the
 narrow provider-neutral fallback for a missing or stale `default` Secret
-Service collection alias and reuses one bounded Secret Service connection.
-Those changes were not present in the assessed upstream 0.2.3 tag.
+Service collection alias and reuses one bounded Secret Service connection. The
+unreleased overlay revision also authenticates a same-user, system-packaged
+native provider and pins all traffic to its unique owner. Those changes were
+not present in the assessed upstream 0.2.3 tag.
 
 The repository now carries the exact patches, upstream archive identity,
 focused tests, and Fedora rebuild under
 [`packaging/fedora/keyring-overlay`](../packaging/fedora/keyring-overlay/).
 Release CI produces that package's source and binary RPMs beside the client,
-and the client RPM requires its explicit
-`proton-keyring-secret-service-provider-agnostic` capability. This dependency
-can be retired after an equivalent upstream build is verified; it is not a
-claim that stock Proton 0.2.3 supports KeePassXC correctly.
+and the unreleased client RPM requires its explicit
+`proton-keyring-secret-service-authenticated-provider` capability. The overlay
+continues to provide the older provider-agnostic capability for compatibility,
+but that weaker capability cannot satisfy the hardened client dependency. This
+dependency can be retired after an equivalent upstream build is verified; it
+is not a claim that stock Proton 0.2.3 supports KeePassXC correctly.
 
 ## Last verified installed stack
 
@@ -74,8 +78,9 @@ the live acceptance evidence.
 - A new Proton Core version must pass demo tests, backend tests, the packaged
   `%check` battery, and disconnected live startup before it is listed here.
 - A new keyring adapter must pass alias, activation, locked-collection,
-  connection-reuse, KeePassXC read/write/delete, and absent-entry tests before
-  it replaces the downstream version listed above.
+  connection-reuse, provider identity/owner replacement, KeePassXC
+  read/write/delete, and absent-entry tests before it replaces the downstream
+  version listed above.
 - Connection testing follows only after startup, account, server-list, and
   settings checks succeed.
 - The client must fail with bounded guidance when a required public API is

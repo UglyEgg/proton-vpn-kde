@@ -903,24 +903,43 @@ class ProtonCoreAdapter:
         self._search_projection = None
 
     async def _complete_login(self) -> None:
+        try:
+            await self._enable_session_services()
+        except (Exception, asyncio.CancelledError):
+            self._logged_in = False
+            self._auth_state = "signed_out"
+            self._status_message = "Proton session services could not start"
+            self._publish_snapshot()
+            raise
         self._logged_in = True
         self._auth_state = "signed_in"
         self._status_message = ""
-        await self._enable_session_services()
         self._publish_snapshot()
 
     async def _enable_session_services(self) -> None:
-        if not self._session_services_enabled:
-            await self._api.refresher.enable()
-            self._session_services_enabled = True
-        if not self._reconnector:
-            self._reconnector = AsyncReconnector(
-                self._connector,
-                self._api.refresher,
-                self._on_reconnector_status,
-            )
-        if self._reconnection_enabled:
-            self._reconnector.enable()
+        refresher_enabled_here = False
+        try:
+            if not self._session_services_enabled:
+                await self._api.refresher.enable()
+                self._session_services_enabled = True
+                refresher_enabled_here = True
+            if not self._reconnector:
+                self._reconnector = AsyncReconnector(
+                    self._connector,
+                    self._api.refresher,
+                    self._on_reconnector_status,
+                )
+            if self._reconnection_enabled:
+                self._reconnector.enable()
+        except (Exception, asyncio.CancelledError):
+            if self._reconnector and self._reconnector.enabled:
+                await self._reconnector.disable()
+            if refresher_enabled_here:
+                try:
+                    await self._api.refresher.disable()
+                finally:
+                    self._session_services_enabled = False
+            raise
 
     async def _set_signed_out(
         self, message: str, auth_state: str = "signed_out"

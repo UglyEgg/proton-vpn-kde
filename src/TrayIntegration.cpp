@@ -3,6 +3,7 @@
 
 #include "TrayIntegration.h"
 
+#include "AgentControl.h"
 #include "AppIcon.h"
 #include "AppSettings.h"
 #include "BackgroundQuitCoordinator.h"
@@ -11,6 +12,8 @@
 #include <QAction>
 #include <QApplication>
 #include <QIcon>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMenu>
 #include <QMessageBox>
 #include <utility>
@@ -42,10 +45,9 @@ TrayIntegration::TrayIntegration(VpnConnectionController *controller,
     connect(m_showAction, &QAction::triggered,
             this, &TrayIntegration::showControlCenter);
     connect(m_connectionAction, &QAction::triggered,
-            m_controller, &VpnConnectionController::activatePrimaryAction);
+            this, &TrayIntegration::requestPrimaryActionConfirmation);
     connect(m_disconnectAndQuitAction, &QAction::triggered,
-            m_quitCoordinator,
-            &BackgroundQuitCoordinator::disconnectAndQuit);
+            this, &TrayIntegration::confirmDisconnectAndQuit);
     connect(m_quitAction, &QAction::triggered,
             qApp, &QCoreApplication::quit);
     connect(m_quitCoordinator, &BackgroundQuitCoordinator::readyToQuit,
@@ -112,7 +114,10 @@ void TrayIntegration::rebuildPinnedActions()
             QIcon::fromTheme(QStringLiteral("window-pin")), target, m_menu);
         action->setEnabled(m_controller->primaryActionEnabled());
         connect(action, &QAction::triggered, this,
-                [this, target] { m_controller->connectTarget(target); });
+                [target] {
+                    ProtonVpnKde::requestConfirmedControlCenterAction(
+                        QStringLiteral("server"), target);
+                });
         m_menu->insertAction(m_pinnedSeparator, action);
         m_pinnedActions.append(action);
     }
@@ -124,14 +129,48 @@ void TrayIntegration::rebuildPinnedActions()
             QIcon::fromTheme(QStringLiteral("window-pin")), label, m_menu);
         action->setEnabled(m_controller->primaryActionEnabled());
         connect(action, &QAction::triggered, this,
-                [this, group] {
-                    m_controller->connectGroup(
-                        group.countryCode, group.kind, group.name);
+                [group] {
+                    const QJsonObject argument{
+                        {QStringLiteral("countryCode"), group.countryCode},
+                        {QStringLiteral("kind"), group.kind},
+                        {QStringLiteral("name"), group.name},
+                    };
+                    ProtonVpnKde::requestConfirmedControlCenterAction(
+                        QStringLiteral("group"),
+                        QString::fromUtf8(QJsonDocument(argument).toJson(
+                            QJsonDocument::Compact)));
                 });
         m_menu->insertAction(m_pinnedSeparator, action);
         m_pinnedActions.append(action);
     }
 }
+
+void TrayIntegration::requestPrimaryActionConfirmation()
+{
+    const QString state = m_controller->state();
+    ProtonVpnKde::requestConfirmedControlCenterAction(
+        state == QStringLiteral("connected")
+                || state == QStringLiteral("connecting")
+            ? QStringLiteral("disconnect") : QStringLiteral("fastest"));
+}
+
+void TrayIntegration::confirmDisconnectAndQuit()
+{
+    if (m_confirmationActive || m_quitCoordinator->pending()) {
+        return;
+    }
+    m_confirmationActive = true;
+    const auto answer = QMessageBox::question(
+        nullptr, tr("Disconnect VPN and quit?"),
+        tr("Disconnect the active Proton VPN connection, then quit all "
+           "background controls?"),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+    m_confirmationActive = false;
+    if (answer == QMessageBox::Yes) {
+        m_quitCoordinator->disconnectAndQuit();
+    }
+}
+
 void TrayIntegration::showControlCenter()
 {
     if (m_showControlCenter) {

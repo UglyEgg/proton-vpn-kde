@@ -24,6 +24,23 @@ All notable user-visible changes are recorded here. The project follows
   service from corrupting its healthy successor.
 - Keep transient network and session readiness-probe failures retryable instead
   of leaving drop recovery enabled but inert.
+- Cap pathological reconnect backoff without evaluating an overflowing
+  exponential, and close a partially initialized logind bus when cancellation
+  interrupts setup.
+- Fence countries, groups, servers, load, search, and NPS reads to the account
+  session that requested them; make post-login refresher and reconnector startup
+  transactional so a partial failure cannot publish a signed-in state.
+- Retry a transient same-owner snapshot timeout without falsely marking the
+  authenticated backend offline.
+- Route tray and global-shortcut connection changes through the same validated,
+  explicit Control Center confirmation used by KRunner; confirm the combined
+  disconnect-and-quit action locally before it can reach the VPN controller.
+- Authenticate the selected system-packaged Secret Service provider before
+  sending session material, pin calls and prompt signals to its unique D-Bus
+  owner, and require the stronger overlay capability from the Fedora package.
+- Add a repeatable same-process Inspector retention measurement; three
+  two-open samples show one bounded warm-up allocation and no repeated retained
+  growth.
 
 ## [0.11.3] - 2026-08-31
 

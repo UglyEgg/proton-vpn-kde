@@ -13,12 +13,72 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QDebug>
+#include <QEvent>
+#include <QFile>
 #include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
 #include <QTimer>
 #include <QVariant>
+
+#include <memory>
+#include <optional>
+
+namespace
+{
+struct ProcessMemorySample {
+    quint64 pssKiB = 0;
+    quint64 privateKiB = 0;
+};
+
+std::optional<ProcessMemorySample> selfMemorySample()
+{
+    QFile rollup(QStringLiteral("/proc/self/smaps_rollup"));
+    if (!rollup.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return std::nullopt;
+    }
+    ProcessMemorySample sample;
+    bool foundPss = false;
+    bool foundPrivateClean = false;
+    bool foundPrivateDirty = false;
+    const QList<QByteArray> lines = rollup.readAll().split('\n');
+    for (const QByteArray &line : lines) {
+        const bool isPss = line.startsWith("Pss:");
+        const bool isPrivateClean = line.startsWith("Private_Clean:");
+        const bool isPrivateDirty = line.startsWith("Private_Dirty:");
+        if (!isPss && !isPrivateClean && !isPrivateDirty) {
+            continue;
+        }
+        const QList<QByteArray> fields = line.simplified().split(' ');
+        bool valid = false;
+        const quint64 value = fields.size() >= 2
+            ? fields.at(1).toULongLong(&valid) : 0;
+        if (!valid) {
+            return std::nullopt;
+        }
+        if (isPss) {
+            sample.pssKiB = value;
+            foundPss = true;
+        } else {
+            sample.privateKiB += value;
+            foundPrivateClean = foundPrivateClean || isPrivateClean;
+            foundPrivateDirty = foundPrivateDirty || isPrivateDirty;
+        }
+    }
+    if (!foundPss || !foundPrivateClean || !foundPrivateDirty) {
+        return std::nullopt;
+    }
+    return sample;
+}
+
+struct InspectorRetentionSamples {
+    ProcessMemorySample baseline;
+    ProcessMemorySample firstOpen;
+    ProcessMemorySample firstClosed;
+    ProcessMemorySample secondOpen;
+};
+}
 
 int main(int argc, char *argv[])
 {
@@ -60,12 +120,16 @@ int main(int argc, char *argv[])
         QStringLiteral("visual-page"),
         QStringLiteral("Page used with --visual-snapshot"),
         QStringLiteral("page"), QStringLiteral("overview"));
+    const QCommandLineOption inspectorRetentionOption(
+        QStringLiteral("inspector-retention-smoke"),
+        QStringLiteral("Measure repeated Inspector retention (internal test option)"));
     commandLine.addOption(settingsOption);
     commandLine.addOption(diagnosticSmokeOption);
     commandLine.addOption(settingsRouteSmokeOption);
     commandLine.addOption(showOption);
     commandLine.addOption(visualSnapshotOption);
     commandLine.addOption(visualPageOption);
+    commandLine.addOption(inspectorRetentionOption);
     commandLine.process(app);
     const bool openSettings = commandLine.isSet(settingsOption);
     const bool diagnosticSmoke = commandLine.isSet(diagnosticSmokeOption);
@@ -73,8 +137,9 @@ int main(int argc, char *argv[])
     const bool forceShow = commandLine.isSet(showOption);
     const QString visualSnapshotPath = commandLine.value(visualSnapshotOption);
     const bool visualSnapshot = !visualSnapshotPath.isEmpty();
+    const bool inspectorRetention = commandLine.isSet(inspectorRetentionOption);
     const bool internalTest = diagnosticSmoke || settingsRouteSmoke
-                              || visualSnapshot;
+                              || visualSnapshot || inspectorRetention;
 
     if (internalTest
         && ProtonVpnKde::isRootOwnedImmutableFile(
@@ -214,6 +279,113 @@ int main(int argc, char *argv[])
             }
             qInfo() << "Saved visual snapshot to" << visualSnapshotPath;
             app.quit();
+        });
+    }
+    if (inspectorRetention) {
+        auto samples = std::make_shared<InspectorRetentionSamples>();
+        QTimer::singleShot(2000, window,
+                           [window, &engine, &app, samples] {
+            const auto baseline = selfMemorySample();
+            if (!baseline) {
+                qCritical() << "Unable to read the baseline Inspector PSS";
+                app.exit(1);
+                return;
+            }
+            if (!QMetaObject::invokeMethod(window,
+                                           "showConnectionInspector")) {
+                qCritical() << "Unable to open the Inspector measurement";
+                app.exit(1);
+                return;
+            }
+            samples->baseline = *baseline;
+            QTimer::singleShot(2000, window,
+                               [window, &engine, &app, samples] {
+                const auto firstOpen = selfMemorySample();
+                if (!firstOpen
+                    || !QMetaObject::invokeMethod(window, "showOverview")) {
+                    qCritical() << "Unable to close the Inspector measurement";
+                    app.exit(1);
+                    return;
+                }
+                samples->firstOpen = *firstOpen;
+                QCoreApplication::sendPostedEvents(nullptr,
+                                                   QEvent::DeferredDelete);
+                engine.collectGarbage();
+                QTimer::singleShot(2000, window,
+                                   [window, &engine, &app, samples] {
+                    const auto firstClosed = selfMemorySample();
+                    if (!firstClosed
+                        || !QMetaObject::invokeMethod(
+                            window, "showConnectionInspector")) {
+                        qCritical() << "Unable to repeat Inspector measurement";
+                        app.exit(1);
+                        return;
+                    }
+                    samples->firstClosed = *firstClosed;
+                    QTimer::singleShot(2000, window,
+                                       [window, &engine, &app, samples] {
+                        const auto secondOpen = selfMemorySample();
+                        if (!secondOpen
+                            || !QMetaObject::invokeMethod(window,
+                                                          "showOverview")) {
+                            qCritical() << "Unable to finish Inspector measurement";
+                            app.exit(1);
+                            return;
+                        }
+                        samples->secondOpen = *secondOpen;
+                        QCoreApplication::sendPostedEvents(
+                            nullptr, QEvent::DeferredDelete);
+                        engine.collectGarbage();
+                        QTimer::singleShot(2000, window,
+                                           [&app, samples] {
+                            const auto secondClosed = selfMemorySample();
+                            if (!secondClosed) {
+                                qCritical() << "Unable to read Inspector retention";
+                                app.exit(1);
+                                return;
+                            }
+                            const qint64 firstPssRetained =
+                                static_cast<qint64>(samples->firstClosed.pssKiB)
+                                - static_cast<qint64>(samples->baseline.pssKiB);
+                            const qint64 repeatPssRetained =
+                                static_cast<qint64>(secondClosed->pssKiB)
+                                - static_cast<qint64>(samples->firstClosed.pssKiB);
+                            const qint64 firstPrivateRetained =
+                                static_cast<qint64>(samples->firstClosed.privateKiB)
+                                - static_cast<qint64>(samples->baseline.privateKiB);
+                            const qint64 repeatPrivateRetained =
+                                static_cast<qint64>(secondClosed->privateKiB)
+                                - static_cast<qint64>(samples->firstClosed.privateKiB);
+                            qInfo().noquote()
+                                << QStringLiteral(
+                                    "inspector-retention: {"
+                                    "\"baselinePssKiB\":%1,\"firstOpenPssKiB\":%2,"
+                                    "\"firstClosedPssKiB\":%3,\"secondOpenPssKiB\":%4,"
+                                    "\"secondClosedPssKiB\":%5,\"firstPssRetainedKiB\":%6,"
+                                    "\"repeatPssRetainedKiB\":%7,\"baselinePrivateKiB\":%8,"
+                                    "\"firstOpenPrivateKiB\":%9,\"firstClosedPrivateKiB\":%10,"
+                                    "\"secondOpenPrivateKiB\":%11,\"secondClosedPrivateKiB\":%12,"
+                                    "\"firstPrivateRetainedKiB\":%13,"
+                                    "\"repeatPrivateRetainedKiB\":%14}")
+                                       .arg(samples->baseline.pssKiB)
+                                       .arg(samples->firstOpen.pssKiB)
+                                       .arg(samples->firstClosed.pssKiB)
+                                       .arg(samples->secondOpen.pssKiB)
+                                       .arg(secondClosed->pssKiB)
+                                       .arg(firstPssRetained)
+                                       .arg(repeatPssRetained)
+                                       .arg(samples->baseline.privateKiB)
+                                       .arg(samples->firstOpen.privateKiB)
+                                       .arg(samples->firstClosed.privateKiB)
+                                       .arg(samples->secondOpen.privateKiB)
+                                       .arg(secondClosed->privateKiB)
+                                       .arg(firstPrivateRetained)
+                                       .arg(repeatPrivateRetained);
+                            app.quit();
+                        });
+                    });
+                });
+            });
         });
     }
     return app.exec();

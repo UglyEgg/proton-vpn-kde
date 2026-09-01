@@ -24,8 +24,6 @@ independent upstream contribution, not a hidden part of this client.
   independently security-reviewed or stable.
 - Complete translation coverage for Plasma-specific strings without guessing
   translations or obscuring their provenance.
-- Record a same-process Inspector open-and-close memory-retention sample in
-  addition to the existing dormant-page differential measurement.
 - Add a publication-mode release-metadata gate that requires a dated changelog
   entry and final Fedora release number while preserving the current local-soak
   workflow for unreleased feature branches.

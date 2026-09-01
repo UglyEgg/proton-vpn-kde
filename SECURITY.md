@@ -64,8 +64,13 @@ The following properties are part of the project's security contract:
   D-Bus sender and intended operation;
 - installed clients must authenticate and pin the packaged backend's unique
   D-Bus owner before sending secrets or state-changing requests;
+- the downstream keyring adapter must authenticate and pin the selected
+  system-packaged Secret Service provider's unique owner before sending Proton
+  session material;
 - state-changing backend methods must authorize the actual D-Bus sender and
   revoke that authority when its unique name vanishes;
+- shared desktop action brokers may present bounded confirmation requests but
+  must not invoke an authorized VPN controller before explicit acceptance;
 - unexpected third-party exception text must not cross the public D-Bus
   boundary;
 - the community client must not implement or override VPN protocols,

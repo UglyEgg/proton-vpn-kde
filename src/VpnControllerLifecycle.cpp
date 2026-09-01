@@ -112,9 +112,11 @@ void VpnController::onServiceRegistered(const QString &)
     disconnectBackendSignals();
     m_backendDestination = identity.uniqueOwner;
     ++m_backendGeneration;
+    m_snapshotRefreshRetryTimer->stop();
     connectBackendSignals();
     setBackendAvailable(false);
     m_clientRegistration.serviceChanged();
+    m_snapshotRefreshRetryTimer->stop();
     m_clientRegistrationRetryTimer->stop();
     registerClient();
 }
@@ -312,4 +314,13 @@ void VpnController::scheduleClientRegistrationRetry()
     const int delayMilliseconds = 1000 * (1 << shift);
     ++m_clientRegistrationRetryCount;
     m_clientRegistrationRetryTimer->start(delayMilliseconds);
+}
+
+void VpnController::scheduleSnapshotRefreshRetry()
+{
+    if (m_backendDestination.isEmpty()
+        || m_snapshotRefreshRetryTimer->isActive()) {
+        return;
+    }
+    m_snapshotRefreshRetryTimer->start(1000);
 }

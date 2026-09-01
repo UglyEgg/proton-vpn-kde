@@ -26,8 +26,10 @@ owner replacement between key retrieval and submission invalidates the
 frontend's service generation instead of retargeting the secret.
 
 The in-process KRunner plug-in is deliberately not a backend client and never
-handles authentication material. Its bounded connection requests go to the
-Control Center and require explicit user confirmation there.
+handles authentication material. KRunner, global shortcuts, and D-Bus-exported
+tray actions send only bounded connection requests to the Control Center and
+require explicit user confirmation there. Synthetic desktop-broker activation
+can therefore present a modal but cannot silently mutate VPN state.
 
 The backend accepts at most 16 KiB, validates the exact field set and value
 types, closes the received descriptor in every path, and overwrites its mutable
@@ -52,11 +54,19 @@ Only Proton's SSO/session implementation persists the authenticated session.
 Its Linux keyring adapter uses the Freedesktop Secret Service API, so KeePassXC,
 KWallet, GNOME Keyring, or another implementation can own
 `org.freedesktop.secrets` when the adapter handles that provider's collection
-layout correctly. The verified KeePassXC stack uses the compatible downstream
-adapter recorded in [Compatibility](COMPATIBILITY.md); release builds provide
-it as a separate, provenance-tracked RPM rather than overwriting the keyring
-package in place. The KDE application stores only non-secret UI
-preferences in KConfig.
+layout correctly. Before an operation sends session material, the downstream
+adapter activates the configured provider without secrets, resolves its unique
+D-Bus owner, verifies that it is a same-user process running a root-owned,
+non-writable native executable without known injection variables, and pins all
+later calls, replies, and prompt signals to that owner. Owner replacement fails
+closed. This is provider-neutral identity validation, not KeePassXC-specific
+logic; user-writable, sandbox-wrapper, and interpreter-hosted providers are not
+inside the supported trust boundary.
+
+The verified KeePassXC stack uses the compatible downstream adapter recorded in
+[Compatibility](COMPATIBILITY.md); release builds provide it as a separate,
+provenance-tracked RPM rather than overwriting the keyring package in place. The
+KDE application stores only non-secret UI preferences in KConfig.
 
 State snapshots expose connection state and the minimum useful account display
 metadata. They must never contain passwords, two-factor values, recovery codes,

@@ -3,6 +3,12 @@
 Only release from a clean working tree after the version-specific changes are
 committed.
 
+Feature releases require at least one week of local use on one immutable
+candidate commit after the complete review and package battery passes. Any
+runtime change restarts that soak. During the soak, record defects on the
+feature branch instead of publishing successive corrective tags; one deliberate
+release should represent the complete reviewed feature set.
+
 ## 1. Update release metadata
 
 Update the canonical version in `CMakeLists.txt` and the matching values in:
@@ -34,6 +40,7 @@ scripts/check-static-analysis.sh
 scripts/check-python-analysis.sh
 scripts/check-native-sanitizers.sh
 scripts/check-clang-tidy.sh
+scripts/measure-inspector-retention.sh build
 cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
 cmake --build build
 ctest --test-dir build --output-on-failure

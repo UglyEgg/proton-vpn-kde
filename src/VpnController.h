@@ -264,9 +264,11 @@ private:
     void handleCustomDnsReply(QDBusPendingCallWatcher *watcher);
     void loadPendingNpsSurvey();
     void scheduleClientRegistrationRetry();
+    void scheduleSnapshotRefreshRetry();
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
     QTimer *m_clientRegistrationRetryTimer = nullptr;
+    QTimer *m_snapshotRefreshRetryTimer = nullptr;
     CountryModel *m_countryModel = nullptr;
     LocationSearchModel *m_locationSearchModel = nullptr;
     ServerGroupModel *m_serverGroupModel = nullptr;

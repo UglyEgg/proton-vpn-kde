@@ -48,6 +48,7 @@ VpnController::VpnController(QObject *parent, bool discoverApplications)
               | QDBusServiceWatcher::WatchForUnregistration,
           this))
     , m_clientRegistrationRetryTimer(new QTimer(this))
+    , m_snapshotRefreshRetryTimer(new QTimer(this))
     , m_countryModel(new CountryModel(this))
     , m_locationSearchModel(new LocationSearchModel(this))
     , m_serverGroupModel(new ServerGroupModel(this))
@@ -65,6 +66,9 @@ VpnController::VpnController(QObject *parent, bool discoverApplications)
     m_clientRegistrationRetryTimer->setSingleShot(true);
     connect(m_clientRegistrationRetryTimer, &QTimer::timeout,
             this, &VpnController::registerClient);
+    m_snapshotRefreshRetryTimer->setSingleShot(true);
+    connect(m_snapshotRefreshRetryTimer, &QTimer::timeout,
+            this, &VpnController::refresh);
     m_countryFilterModel->setSourceModel(m_countryModel);
     m_countryFilterModel->setSearchRoles({CountryModel::CodeRole, CountryModel::NameRole});
     m_serverGroupFilterModel->setSourceModel(m_serverGroupModel);

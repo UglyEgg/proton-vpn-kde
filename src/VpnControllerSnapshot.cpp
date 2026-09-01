@@ -13,6 +13,7 @@
 #include <QDBusPendingReply>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QTimer>
 #include <algorithm>
 
 void VpnController::onSnapshotChanged(const QString &snapshotJson)
@@ -199,12 +200,24 @@ void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
     }
     m_snapshotRefreshPending = false;
     if (reply.isError()) {
-        setBackendAvailable(false);
+        const auto errorType = reply.error().type();
+        const bool transientSameOwnerFailure = errorType == QDBusError::NoReply
+            || errorType == QDBusError::Timeout
+            || errorType == QDBusError::NoNetwork;
+        if (!transientSameOwnerFailure
+            && ProtonVpnKde::classifyBackendCallFailure(
+                   errorType, reply.error().name())
+                == ProtonVpnKde::BackendCallFailure::Unavailable) {
+            setBackendAvailable(false);
+        }
         m_message = tr("Unable to read backend state");
         emit snapshotChanged();
+        if (transientSameOwnerFailure) {
+            scheduleSnapshotRefreshRetry();
+        }
         return;
     }
-    emit snapshotChanged();
+    m_snapshotRefreshRetryTimer->stop();
     setBackendAvailable(true);
     applySnapshot(reply.value());
 }

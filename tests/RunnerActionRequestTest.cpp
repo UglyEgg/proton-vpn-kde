@@ -27,6 +27,10 @@ void RunnerActionRequestTest::acceptsIntendedActions_data()
         << QStringLiteral("country") << QStringLiteral("CH");
     QTest::newRow("server")
         << QStringLiteral("server") << QStringLiteral("US-CA#18");
+    QTest::newRow("group")
+        << QStringLiteral("group")
+        << QStringLiteral(
+               R"json({"countryCode":"CH","kind":"location","name":"Zurich"})json");
 }
 
 void RunnerActionRequestTest::acceptsIntendedActions()
@@ -38,7 +42,13 @@ void RunnerActionRequestTest::acceptsIntendedActions()
         action, argument);
     QVERIFY(request.has_value());
     QCOMPARE(request->action, action);
-    QCOMPARE(request->argument, argument);
+    if (action == QStringLiteral("group")) {
+        QCOMPARE(request->argument,
+                 QStringLiteral(
+                     R"json({"countryCode":"CH","kind":"location","name":"Zurich"})json"));
+    } else {
+        QCOMPARE(request->argument, argument);
+    }
 }
 
 void RunnerActionRequestTest::rejectsUnintendedOrMalformedActions_data()
@@ -66,6 +76,18 @@ void RunnerActionRequestTest::rejectsUnintendedOrMalformedActions_data()
         << (QString(64, QLatin1Char('A')) + QStringLiteral("#1"));
     QTest::newRow("embedded nul")
         << QString::fromUtf8("fastest\0logout", 14) << QString();
+    QTest::newRow("group extra authority")
+        << QStringLiteral("group")
+        << QStringLiteral(
+               R"json({"countryCode":"CH","kind":"location","name":"Zurich","method":"Logout"})json");
+    QTest::newRow("group invalid kind")
+        << QStringLiteral("group")
+        << QStringLiteral(
+               R"json({"countryCode":"CH","kind":"server","name":"Zurich"})json");
+    QTest::newRow("group embedded nul")
+        << QStringLiteral("group")
+        << QString::fromUtf8(
+               "{\"countryCode\":\"CH\",\"kind\":\"location\",\"name\":\"Zurich\\u0000West\"}");
 }
 
 void RunnerActionRequestTest::rejectsUnintendedOrMalformedActions()

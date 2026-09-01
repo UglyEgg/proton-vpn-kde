@@ -90,6 +90,14 @@ Item {
             argument = ""
         }
 
+        function parsedGroup() {
+            try {
+                return JSON.parse(argument)
+            } catch (error) {
+                return null
+            }
+        }
+
         onOpened: {
             const confirmButton = standardButton(Controls.Dialog.Yes)
             if (confirmButton !== null) {
@@ -112,6 +120,14 @@ Item {
                 dialogs.vpnController.connectCountry(confirmedArgument)
             } else if (confirmedAction === "server") {
                 dialogs.vpnController.connectServer(confirmedArgument)
+            } else if (confirmedAction === "group") {
+                try {
+                    const group = JSON.parse(confirmedArgument)
+                    dialogs.vpnController.connectGroup(
+                        group.countryCode, group.kind, group.name)
+                } catch (error) {
+                    console.error("Rejected an invalid confirmed group action")
+                }
             }
         }
         onRejected: clearRequest()
@@ -125,7 +141,9 @@ Item {
                     ? qsTr("Disconnect the current Proton VPN connection?")
                     : runnerActionDialog.actionId === "country"
                       ? qsTr("Connect to the fastest Proton VPN server in %1?").arg(runnerActionDialog.argument)
-                      : qsTr("Connect to Proton VPN server %1?").arg(runnerActionDialog.argument)
+                      : runnerActionDialog.actionId === "group"
+                        ? qsTr("Connect to the pinned Proton VPN location %1?").arg(runnerActionDialog.parsedGroup() !== null ? runnerActionDialog.parsedGroup().name : "")
+                        : qsTr("Connect to Proton VPN server %1?").arg(runnerActionDialog.argument)
         }
     }
 

@@ -38,20 +38,27 @@ while one snapshot request is in flight and reload all three Inspector-owned
 settings models. A static UI gate rejects timers and worker or socket collectors
 in that page.
 
-A same-host differential measurement compared the exact committed
-event-driven baseline (`75ffc5e`) with the committed 0.12.0 Inspector candidate
-(`659ce23`). The
-baseline measured 88,858 KiB combined PSS. Three candidate runs measured
-87,967, 88,084, and 88,640 KiB, so no resident-memory increase was detected
-within run-to-run sharing variance. The compiled Control Center grew by
-342,944 bytes on disk. This comparison isolates the dormant page more fairly
-than comparing absolute PSS with an older package measurement made under
-different host page-sharing conditions.
+A later alternating same-host differential compared the exact event-driven
+baseline (`75ffc5e`) with the pre-remediation 0.12.0 candidate (`98969fc`). The
+median combined PSS moved from 91,828 KiB to 92,956 KiB: an increase of 1,128
+KiB, or 1.23%, almost entirely in the Control Center. Unstripped artifacts grew
+by 405,696 bytes while executable text and data grew by roughly 44 KiB. This
+supersedes the earlier three-run observation that classified the difference as
+sharing variance; the smaller positive result is still bounded and consistent
+with adding the dormant page and controller fields.
 
-The differential measurement covers the dormant Inspector. A same-process
-open-and-close retention measurement remains a pre-release performance gate;
-until it is recorded, the project makes no claim that opening the page has zero
-retained allocator or QML-cache cost.
+The final candidate adds a repeatable same-process retention probe. It measures
+the Control Center at Overview, after opening and destroying the Inspector,
+then repeats that open/destroy cycle in the same process. The probe reports both
+PSS and private resident memory because PSS can change when another process
+starts or stops sharing the same Qt pages. Three runs retained 580, 580, and
+576 KiB of private memory after the first close, which is normal one-time QML
+and allocator warming. The second close changed private memory by -60, -76,
+and -56 KiB from the first-close sample. No per-open retained growth was
+observed. The corresponding second-cycle PSS changes were -109, -168, and -57
+KiB. These figures do not claim that allocator caches return to the cold
+baseline; they demonstrate that repeated use does not accumulate another
+page-sized allocation.
 
 ## Search performance
 
@@ -88,6 +95,17 @@ refresh invalidates the projection and rebuilds it lazily on the next search.
 An exact comparison with the previous implementation produced identical result
 fields and ordering for 12 representative location, exact-server, feature,
 broad, punctuation, and no-match queries.
+
+## Current unreleased 0.12.0 candidate measurement
+
+Three isolated disconnected/demo runs of the remediated working tree measured
+80,197, 80,293, and 80,101 KiB combined PSS, for a median of 80,197 KiB (78.3
+MiB). The median components were 23,606 KiB for the Python backend, 5,204 KiB
+for the resident agent, and 51,394 KiB for the Control Center. These absolute
+figures were collected after the security and failure-mode remediations but
+before the final candidate commit; the exact committed candidate must repeat
+the measurement. They are not substituted for the alternating baseline
+comparison above because host page sharing differs between runs.
 
 ## Current 0.11.3 release measurement
 
@@ -143,9 +161,20 @@ Measure the disconnected demo processes from an existing build:
 scripts/measure-demo-memory.sh build
 ```
 
-The script starts the deterministic backend, resident agent, and Control Center
-on an isolated session bus with temporary configuration and an offscreen Qt
-platform. It samples `/proc` after a five-second settling period, then removes
-the isolated processes and state. PSS varies with the allocator, Qt/KDE package
-versions, and the host page cache; it is a regression measurement rather than a
-fixed product requirement.
+Measure same-process Inspector retention with two consecutive open/close
+cycles:
+
+```bash
+scripts/measure-inspector-retention.sh build
+```
+
+Both scripts use an isolated session bus, temporary configuration, the
+deterministic backend, and an offscreen Qt platform. The demo-stack script also
+starts the resident agent and samples all three processes after a five-second
+settling period. The retention probe runs the Control Center without the agent
+and reads both PSS and private memory from `/proc/self/smaps_rollup`; private
+memory is the primary same-process retention signal because it is not
+re-apportioned as page-sharing peers change. Both scripts remove their isolated
+processes and state. PSS varies with the allocator, Qt/KDE package versions,
+and the host page cache; it is a regression measurement rather than a fixed
+product requirement.

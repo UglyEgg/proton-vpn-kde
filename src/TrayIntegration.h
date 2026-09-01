@@ -34,6 +34,8 @@ private:
     void updateState();
     void rebuildPinnedActions();
     void showDisconnectTimeout();
+    void requestPrimaryActionConfirmation();
+    void confirmDisconnectAndQuit();
 
     VpnConnectionController *m_controller = nullptr;
     AppSettings *m_settings = nullptr;
@@ -46,6 +48,7 @@ private:
     QAction *m_quitAction = nullptr;
     BackgroundQuitCoordinator *m_quitCoordinator = nullptr;
     QList<QAction *> m_pinnedActions;
+    bool m_confirmationActive = false;
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM
     KStatusNotifierItem *m_tray = nullptr;

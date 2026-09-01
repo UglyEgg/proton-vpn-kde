@@ -60,4 +60,6 @@ namespace ProtonVpnKde
 {
 void setAgentEnabled(bool enabled);
 void requestControlCenter(bool settings = false);
+void requestConfirmedControlCenterAction(const QString &action,
+                                         const QString &argument = {});
 }
