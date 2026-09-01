@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 179 backend tests at 79% measured branch
+translation units under Clang-Tidy, 180 backend tests at 80% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -189,6 +189,14 @@ now armed before compensation, every Core stop attempt and retry is bounded,
 and a never-returning-stop regression covers the controller shutdown path. The
 complete gate must restart on the resulting exact commit.
 
+The gate at `59fa94b` then passed HPC/Performance and Entropy before
+Error-Class review found that a Core object rejecting the capture-directory
+assignment could leave capture falsely active without a watchdog, although Core
+had never received a start request. Every result from that gate is discarded.
+Capture configuration is now accepted and sanitized before lifecycle state is
+reserved; focused coverage proves rejection remains inactive, watchdog-free,
+and retryable. The complete gate must restart on the resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -206,6 +214,7 @@ complete gate must restart on the resulting exact commit.
 | PV-012-013 | Medium | Cancellation or a late failure after Core accepted packet-capture start could leave capture outside the community watchdog | **Remediated with precommitted state, compensating stop, and original-deadline watchdog; final independent verification pending** |
 | PV-012-014 | Medium | Failed reconnection-observer registration could leave enablement stale and future attempts inert | **Remediated with registration-first commit and rollback; final independent verification pending** |
 | PV-012-015 | Medium | A non-returning Core capture-stop reply could retain startup and block backend shutdown before the watchdog was armed | **Remediated with pre-armed watchdog and bounded stop attempts; final independent verification pending** |
+| PV-012-016 | Medium | A rejected Core capture-directory assignment could leave a false active state with no watchdog and block retries | **Remediated by configuring before lifecycle reservation; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -386,7 +395,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 179 backend Python tests;
+- 180 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

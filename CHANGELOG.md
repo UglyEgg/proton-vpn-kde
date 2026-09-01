@@ -97,6 +97,8 @@ All notable user-visible changes are recorded here. The project follows
   observer removal fails.
 - Bound every Core packet-capture stop attempt so a non-returning Core reply
   cannot retain startup or block backend shutdown indefinitely.
+- Keep capture setup inactive and retryable when Core rejects the selected
+  destination before it receives a start request.
 
 ## [0.11.3] - 2026-08-31
 

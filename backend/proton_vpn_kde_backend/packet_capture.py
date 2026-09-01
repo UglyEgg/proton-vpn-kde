@@ -72,13 +72,20 @@ class PacketCaptureCoordinator:
             ) from error
         if not resolved.is_dir() or not os.access(resolved, os.W_OK | os.X_OK):
             raise UserVisibleValueError("Select a writable packet-capture folder")
+        try:
+            capture_settings.directory_path = str(resolved)
+        except Exception:
+            # Core has not received a start request, so rejecting the selected
+            # destination must leave the lifecycle completely retryable.
+            raise UserVisibleRuntimeError(
+                "Proton could not configure packet capture"
+            ) from None
         self._generation += 1
         generation = self._generation
         self.active = True
         self._connection = connection
         self.cancel_watchdog()
         deadline = asyncio.get_running_loop().time() + self._max_seconds
-        capture_settings.directory_path = str(resolved)
         try:
             async with asyncio.timeout(self._max_seconds):
                 await connection.start_packet_capture()

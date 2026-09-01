@@ -27,8 +27,10 @@ unprivileged process can attest another same-user process cryptographically.
 Support-report temporary files remain mode-restricted and bounded by the
 application's explicit cleanup lifecycle.
 
-Packet capture reserves its bounded lifecycle before Core receives the start
-request. Cancellation and completion-unknown starts issue a compensating stop;
+Packet capture first requires Core to accept the selected destination, then
+reserves its bounded lifecycle before Core receives the start request. A
+rejected destination remains inactive and retryable. Cancellation and
+completion-unknown starts issue a compensating stop;
 the watchdog is armed first against the original 15-minute deadline, and every
 Core stop attempt has its own timeout. An unconfirmed stop preserves active
 state rather than publishing a false clean shutdown condition.

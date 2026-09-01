@@ -1321,6 +1321,44 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connection.stop_packet_capture.assert_awaited_once_with()
         self.assertFalse(snapshots[-1].packet_capture_active)
 
+    async def test_rejected_capture_directory_remains_inactive_and_retryable(self):
+        class RejectingCaptureSettings:
+            max_bytes = 512 * 1024 * 1024
+
+            @property
+            def directory_path(self):
+                return "/tmp"
+
+            @directory_path.setter
+            def directory_path(self, _value):
+                raise RuntimeError("provider detail must remain private")
+
+        api, connector = self.make_api()
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(packet_capture=RejectingCaptureSettings()),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            for _attempt in range(2):
+                with self.assertRaisesRegex(
+                    RuntimeError, "Proton could not configure packet capture"
+                ) as failure:
+                    await adapter.start_packet_capture(capture_directory)
+                self.assertNotIn("provider detail", str(failure.exception))
+
+        connection.start_packet_capture.assert_not_awaited()
+        connection.stop_packet_capture.assert_not_awaited()
+        self.assertFalse(adapter._packet_capture_active)
+        self.assertIsNone(adapter._packet_capture_watchdog_task)
+
     async def test_cancelled_packet_capture_start_is_compensated(self):
         api, connector = self.make_api()
         start_entered = asyncio.Event()
