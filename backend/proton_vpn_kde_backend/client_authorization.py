@@ -89,6 +89,8 @@ class ClientAuthorizer:
         self._identity_probe = identity_probe or self._probe_identity
         self._owner_probe = owner_probe or self._name_has_owner
         self._authorized: set[str] = set()
+        self._pending_authorizations: dict[str, int] = {}
+        self._revoked_while_pending: set[str] = set()
         self._revocation_callbacks: list[Callable[[str], None]] = []
 
     @property
@@ -133,12 +135,25 @@ class ClientAuthorizer:
         sender = current_request_sender()
         if not sender.startswith(":") or claimed_sender != sender:
             raise PermissionError(UNAUTHORIZED_MESSAGE)
-        if self._enforce_identity:
-            if not await self._identity_probe(sender):
+        self._pending_authorizations[sender] = (
+            self._pending_authorizations.get(sender, 0) + 1
+        )
+        try:
+            if self._enforce_identity:
+                if not await self._identity_probe(sender):
+                    raise PermissionError(UNAUTHORIZED_MESSAGE)
+                if not await self._owner_probe(sender):
+                    raise PermissionError(UNAUTHORIZED_MESSAGE)
+            if sender in self._revoked_while_pending:
                 raise PermissionError(UNAUTHORIZED_MESSAGE)
-            if not await self._owner_probe(sender):
-                raise PermissionError(UNAUTHORIZED_MESSAGE)
-        self._authorized.add(sender)
+            self._authorized.add(sender)
+        finally:
+            pending = self._pending_authorizations[sender] - 1
+            if pending:
+                self._pending_authorizations[sender] = pending
+            else:
+                self._pending_authorizations.pop(sender, None)
+                self._revoked_while_pending.discard(sender)
 
     def require_authorized_sender(self) -> str:
         sender = current_request_sender()
@@ -147,6 +162,12 @@ class ClientAuthorizer:
         return sender
 
     def revoke(self, sender: str) -> None:
+        if sender in self._pending_authorizations:
+            # A unique D-Bus name cannot be reused during a bus lifetime. Keep
+            # a bounded tombstone only while its asynchronous identity probe
+            # is in flight so a loss signal cannot be followed by stale
+            # authorization.
+            self._revoked_while_pending.add(sender)
         if sender not in self._authorized:
             return
         self._authorized.discard(sender)

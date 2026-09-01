@@ -123,6 +123,12 @@ All notable user-visible changes are recorded here. The project follows
   presenting settings as final.
 - Normalize RPM header time and host metadata, then require complete binary and
   source package sets from two independent builds to match byte for byte.
+- Reject authorization if a D-Bus client loses its unique name while identity
+  checks are still in flight, preventing a dead frontend lease from retaining
+  an otherwise idle backend.
+- Preserve the ordinary signed-out recovery path when a Proton session expires
+  during a settings write or its compensation instead of replacing it with a
+  restart-only settings error.
 
 ## [0.11.3] - 2026-08-31
 

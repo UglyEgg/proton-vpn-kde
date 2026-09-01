@@ -11,7 +11,11 @@ from typing import Any, Callable
 
 from .async_utils import run_in_daemon_thread
 from .demo_adapter import DemoCoreAdapter
-from .errors import UserVisibleRuntimeError, UserVisibleValueError
+from .errors import (
+    SessionExpiredError,
+    UserVisibleRuntimeError,
+    UserVisibleValueError,
+)
 from .controller import (
     CountryInfo,
     CustomDnsSettings,
@@ -598,8 +602,17 @@ class ProtonCoreAdapter:
         original_error: BaseException | None = None
         cancellation_requested = False
         try:
-            await asyncio.shield(save_task)
+            await asyncio.wait((save_task,))
+            save_task.result()
             return
+        except SessionExpiredError:
+            # Authentication expiry owns the recovery path. Core may have
+            # persisted the requested value before discovering the expired
+            # session, but another authenticated write cannot safely be used
+            # as compensation. Restore the local object and let the next
+            # sign-in reload the authoritative persisted settings.
+            rollback()
+            raise
         except asyncio.CancelledError as error:
             original_error = error
             cancellation_requested = True
@@ -616,10 +629,15 @@ class ProtonCoreAdapter:
         )
         while not recovery_task.done():
             try:
-                await asyncio.shield(recovery_task)
+                await asyncio.wait((recovery_task,))
             except asyncio.CancelledError:
                 cancellation_requested = True
-        recovered = recovery_task.result()
+        try:
+            recovered = recovery_task.result()
+        except SessionExpiredError:
+            if cancellation_requested:
+                raise asyncio.CancelledError() from None
+            raise
 
         if cancellation_requested:
             raise asyncio.CancelledError() from None
@@ -639,17 +657,20 @@ class ProtonCoreAdapter:
         *,
         protection_sensitive: bool,
     ) -> bool:
-        try:
-            await asyncio.wait_for(
-                asyncio.shield(save_task),
-                timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
-            )
-        except TimeoutError:
+        completed, _ = await asyncio.wait(
+            (save_task,), timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS
+        )
+        if not completed:
             # The executor-backed Core write may still commit. Do not race a
             # compensation against it; require a backend restart instead.
             save_task.add_done_callback(self._consume_background_task_result)
             await self._publish_unknown_settings(protection_sensitive)
             return False
+        try:
+            save_task.result()
+        except SessionExpiredError:
+            rollback()
+            raise
         except (Exception, asyncio.CancelledError):
             # A failed acknowledgement can follow a completed persistence
             # write, so compensation is still mandatory.
@@ -661,6 +682,8 @@ class ProtonCoreAdapter:
                 self._save_settings(settings),
                 timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
             )
+        except SessionExpiredError:
+            raise
         except (Exception, asyncio.CancelledError):
             await self._publish_unknown_settings(protection_sensitive)
             return False
@@ -1490,7 +1513,7 @@ class ProtonCoreAdapter:
             )
         if cleanup_failed:
             self._publish_signed_out_state(message, "expired")
-        raise UserVisibleRuntimeError(
+        raise SessionExpiredError(
             "Your Proton session expired; sign in again"
         ) from None
 

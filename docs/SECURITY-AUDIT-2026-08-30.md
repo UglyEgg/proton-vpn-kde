@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 198 backend tests at 81% measured branch
+translation units under Clang-Tidy, 202 backend tests at 81% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -290,6 +290,21 @@ writes, failed and timed-out compensation, Core-confirmed login states, and
 same-owner D-Bus timeouts. The complete six-review gate must restart on the
 resulting exact commit.
 
+The gate at `ee12c05` entered isolated review after two clean normalized
+package builds again produced byte-identical binary, debug, debug-source, and
+source RPMs. Subtractive review found two lifecycle/error-state defects. A
+client could lose its unique D-Bus name while identity checks were in flight,
+then be added after its revocation signal had already passed and retain an idle
+backend indefinitely. A Proton session expiring during a settings save could
+publish the normal signed-out state, then have compensation overwrite it with
+a restart-only settings-unavailable state. Every result from that gate is
+discarded. Pending authorization now records owner loss only for the bounded
+duration of its identity probe, and settings transactions treat session expiry
+as the authoritative signed-out recovery path without attempting a second
+authenticated write. Focused regressions cover both direct and compensation
+expiry as well as cancellation while the expiring write is in flight. The
+complete six-review gate must restart on the resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -314,6 +329,8 @@ resulting exact commit.
 | PV-012-020 | Medium | Successful login cleanup could publish signed out while Core still retained or could not confirm the authenticated session | **Remediated by deriving the published state exclusively from Core's postcondition; final independent verification pending** |
 | PV-012-021 | Medium | A user settings write could persist before live connector application failed, leaving the current interface and next startup inconsistent | **Remediated with serialized compensation and recovery-required states for unconfirmed persistence; final independent verification pending** |
 | PV-012-022 | Medium | Frontend timeouts treated connection and settings mutations as definitely failed and released their reconciliation lifetime early | **Remediated with authoritative refresh and lease retention for completion-unknown operations; final independent verification pending** |
+| PV-012-023 | Medium | Owner loss during an asynchronous identity probe could be processed before authorization, allowing the dead client to be added afterward and retain an idle backend | **Remediated with a bounded pending-authorization owner-loss marker; final independent verification pending** |
+| PV-012-024 | Medium | Session expiry during a settings write or compensation could be overwritten with a restart-only settings-unavailable state | **Remediated by preserving the authoritative expired-session state and deferring persisted-settings reconciliation to the next sign-in; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -494,7 +511,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 198 backend Python tests;
+- 202 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

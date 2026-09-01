@@ -128,7 +128,11 @@ Successful authorization already verifies that the caller's unique D-Bus name
 is still owned. Frontend lifetime registration reuses that verified result
 instead of issuing a second asynchronous owner probe, then checks authorization
 again and rolls the lease back if owner loss raced registration. The fallback
-authorizer-free demo/test path retains its independent ownership probe.
+authorizer-free demo/test path retains its independent ownership probe. Owner
+loss during the asynchronous identity checks also invalidates the pending
+authorization before it can create a lifetime lease; this pending marker is
+removed when the check completes rather than accumulating unique-name
+tombstones for the backend lifetime.
 
 Read-only settings and protection replies are also scoped to the active account
 session. A logout or account transition advances the session generation and

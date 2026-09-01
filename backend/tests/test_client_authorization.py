@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import unittest
 from unittest.mock import AsyncMock
@@ -205,6 +206,44 @@ class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn(":1.40", authorizer.authorized_senders)
         self.assertEqual([":1.40"], revoked)
+
+    async def test_name_owner_loss_during_probe_cannot_authorize_stale_sender(self):
+        probe_started = asyncio.Event()
+        release_probe = asyncio.Event()
+
+        async def delayed_identity_probe(_sender: str) -> bool:
+            probe_started.set()
+            await release_probe.wait()
+            return True
+
+        authorizer = ClientAuthorizer(
+            None,
+            (),
+            identity_probe=delayed_identity_probe,
+            owner_probe=AsyncMock(return_value=True),
+        )
+        authorizer.message_handler(method_message("AuthorizeClient"))
+        authorization = asyncio.create_task(authorizer.authorize(":1.40"))
+        await probe_started.wait()
+
+        authorizer.message_handler(
+            Message(
+                path="/org/freedesktop/DBus",
+                interface="org.freedesktop.DBus",
+                member="NameOwnerChanged",
+                message_type=MessageType.SIGNAL,
+                sender="org.freedesktop.DBus",
+                signature="sss",
+                body=[":1.40", ":1.40", ""],
+            )
+        )
+        release_probe.set()
+
+        with self.assertRaises(PermissionError):
+            await authorization
+        self.assertNotIn(":1.40", authorizer.authorized_senders)
+        self.assertFalse(authorizer._pending_authorizations)
+        self.assertFalse(authorizer._revoked_while_pending)
 
 
 if __name__ == "__main__":

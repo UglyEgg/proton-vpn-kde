@@ -18,6 +18,10 @@ class UserVisibleRuntimeError(UserVisibleError, RuntimeError):
     """A backend state error with a safe, actionable message."""
 
 
+class SessionExpiredError(UserVisibleRuntimeError):
+    """A Proton session expiry already published as signed-out state."""
+
+
 def bounded_user_message(error: UserVisibleError, fallback: str) -> str:
     """Return only bounded, printable text explicitly marked safe for users."""
 

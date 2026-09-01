@@ -1019,6 +1019,70 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("expired", snapshots[-1].auth_state)
         api.refresher.disable.assert_awaited_once_with()
 
+    async def test_expired_session_during_settings_save_stays_signed_out(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.save_settings.side_effect = expired_error()
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "session expired"):
+            await adapter.update_settings({"moderateNat": True})
+
+        self.assertEqual(1, api.save_settings.await_count)
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
+        self.assertIn("sign in again", snapshots[-1].message)
+
+    async def test_session_expiry_during_settings_compensation_stays_signed_out(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.save_settings.side_effect = [
+            RuntimeError("late acknowledgement failure"),
+            expired_error(),
+        ]
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "session expired"):
+            await adapter.update_settings({"moderateNat": True})
+
+        self.assertEqual(2, api.save_settings.await_count)
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
+        self.assertNotIn("restart", snapshots[-1].message)
+
+    async def test_cancelled_settings_save_that_expires_stays_signed_out(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        save_started = asyncio.Event()
+        release_save = asyncio.Event()
+
+        async def delayed_expiry(_settings):
+            save_started.set()
+            await release_save.wait()
+            raise expired_error()
+
+        api.save_settings.side_effect = delayed_expiry
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        update_task = asyncio.create_task(
+            adapter.update_settings({"moderateNat": True})
+        )
+        await save_started.wait()
+        update_task.cancel()
+        release_save.set()
+        with self.assertRaises(asyncio.CancelledError):
+            await update_task
+
+        self.assertEqual(1, api.save_settings.await_count)
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
+
     async def test_expired_session_publishes_signed_out_when_cleanup_fails(self):
         api, _ = self.make_api()
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
