@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 from .async_utils import run_in_daemon_thread
@@ -113,6 +114,7 @@ class ProtonCoreAdapter:
         packet_capture_stop_attempt_seconds: float = (
             PACKET_CAPTURE_STOP_ATTEMPT_SECONDS
         ),
+        packet_capture_recovery_path: Path | None = None,
         crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
     ):
         self._api: Any = api
@@ -131,6 +133,7 @@ class ProtonCoreAdapter:
             packet_capture_max_seconds,
             self._on_packet_capture_changed,
             packet_capture_stop_attempt_seconds,
+            packet_capture_recovery_path,
         )
         self._kill_switch = 0
         self._startup_compatible = True
@@ -162,6 +165,9 @@ class ProtonCoreAdapter:
         self._auth_state = "signed_in" if self._logged_in else "signed_out"
         self._connector = await self._api.get_vpn_connector()
         self._connector.register(self)
+        # Packet capture is external to this process. Reacquire any durable
+        # completion-unknown generation before advertising backend readiness.
+        await self._packet_capture.recover(self._connector)
         validator = getattr(self._api, "validate_connection_availability", None)
         if callable(validator):
             self._startup_compatible = bool(validator())
@@ -1117,7 +1123,7 @@ class ProtonCoreAdapter:
                 # Preserve active state when Core cannot confirm the stop. The
                 # service must not report a false clean shutdown condition.
                 pass
-        self._cancel_packet_capture_watchdog()
+        self._packet_capture.release_for_shutdown()
         if self._api:
             self._api.refresher.set_server_list_updated_callback(None)
             self._api.refresher.set_server_loads_updated_callback(None)
@@ -1564,7 +1570,7 @@ class ProtonCoreAdapter:
         )
 
     def _snapshot_from_state(self, state: Any) -> VpnSnapshot:
-        if core_state_name(state) != "connected":
+        if core_state_name(state) in {"disconnected", "device_disconnected"}:
             if self._packet_capture_active or self._packet_capture_watchdog_task:
                 self._finish_packet_capture_state()
         return translate_snapshot(

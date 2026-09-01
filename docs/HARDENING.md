@@ -33,7 +33,14 @@ rejected destination remains inactive and retryable. Cancellation and
 completion-unknown starts issue a compensating stop;
 the watchdog is armed first against the original 15-minute deadline, and every
 Core stop attempt has its own timeout. An unconfirmed stop preserves active
-state rather than publishing a false clean shutdown condition.
+state rather than publishing a false clean shutdown condition. Before Core can
+receive a start request, the backend atomically records the deadline in the
+session's private runtime directory. Confirmed stop removes that record. If a
+backend replacement follows an unconfirmed stop, it reacquires the current Core
+connection and retries before publishing readiness; unavailable recovery state
+fails startup for systemd retry. The recovered watchdog retains the original
+deadline and continues bounded attempts after that deadline until Core confirms
+completion.
 
 The 0.11.3 release-battery inspection confirmed that all four ELF files in the
 exact locally built `proton-vpn-kde-0.11.3-1.fc44` RPM are position-independent

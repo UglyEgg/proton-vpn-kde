@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import asyncio
 from ipaddress import ip_address
+import os
+from pathlib import Path
 import threading
 import tempfile
 from types import SimpleNamespace
@@ -16,6 +18,9 @@ from core_fakes import core_module_fakes
 from proton_vpn_kde_backend.adapters import (
     ProtonCoreAdapter,
     _core_memory_optimization_behavior,
+)
+from proton_vpn_kde_backend.capture_recovery import (
+    PACKET_CAPTURE_RECOVERY_FILENAME,
 )
 from proton_vpn_kde_backend.controller import (
     BackendController,
@@ -71,6 +76,17 @@ class CoreMemoryOptimizationProbeTests(unittest.TestCase):
 
 @patch.dict("sys.modules", core_module_fakes())
 class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self._runtime_directory = tempfile.TemporaryDirectory()
+        self._runtime_environment = patch.dict(
+            os.environ, {"XDG_RUNTIME_DIR": self._runtime_directory.name}
+        )
+        self._runtime_environment.start()
+
+    def tearDown(self):
+        self._runtime_environment.stop()
+        self._runtime_directory.cleanup()
+
     def make_api(self, *, logged_in: bool = True):
         protocol = SimpleNamespace(
             protocol="wireguard",
@@ -1435,6 +1451,14 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_packet_capture_uses_connected_protocol_and_selected_folder(self):
         api, connector = self.make_api()
+        recovery_path = Path(os.environ["XDG_RUNTIME_DIR"]) / (
+            PACKET_CAPTURE_RECOVERY_FILENAME
+        )
+
+        async def start_capture():
+            # The durable handoff must exist before Core can accept the start.
+            self.assertTrue(recovery_path.is_file())
+
         connection = SimpleNamespace(
             server_name="US-IL#42",
             settings=SimpleNamespace(
@@ -1443,7 +1467,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 )
             ),
             supports_packet_capture=Mock(return_value=True),
-            start_packet_capture=AsyncMock(),
+            start_packet_capture=AsyncMock(side_effect=start_capture),
             stop_packet_capture=AsyncMock(),
         )
         connector.current_state = state_named("Connected")
@@ -1464,6 +1488,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.stop_packet_capture()
         connection.stop_packet_capture.assert_awaited_once_with()
         self.assertFalse(snapshots[-1].packet_capture_active)
+        self.assertFalse(recovery_path.exists())
 
     async def test_rejected_capture_directory_remains_inactive_and_retryable(self):
         class RejectingCaptureSettings:
@@ -1613,6 +1638,95 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(start_task.cancelled())
         self.assertGreaterEqual(connection.stop_packet_capture.await_count, 4)
         self.assertIsNone(adapter._packet_capture_watchdog_task)
+        recovery_path = Path(os.environ["XDG_RUNTIME_DIR"]) / (
+            PACKET_CAPTURE_RECOVERY_FILENAME
+        )
+        self.assertTrue(recovery_path.is_file())
+
+    async def test_restarted_backend_stops_unconfirmed_packet_capture(self):
+        api, connector = self.make_api()
+        never_finishes = asyncio.Event()
+
+        async def stop_capture():
+            await never_finishes.wait()
+
+        first_connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(side_effect=stop_capture),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = first_connection
+        first = ProtonCoreAdapter(api, packet_capture_stop_attempt_seconds=0.01)
+        await first.initialize(Mock())
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            await first.start_packet_capture(capture_directory)
+            await asyncio.wait_for(first.close(), timeout=0.5)
+
+        recovery_path = Path(os.environ["XDG_RUNTIME_DIR"]) / (
+            PACKET_CAPTURE_RECOVERY_FILENAME
+        )
+        self.assertTrue(recovery_path.is_file())
+        self.assertTrue(first._packet_capture_active)
+        self.assertIsNone(first._packet_capture_watchdog_task)
+
+        replacement_connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=first_connection.settings,
+            supports_packet_capture=Mock(return_value=True),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_connection = replacement_connection
+        replacement = ProtonCoreAdapter(
+            api, packet_capture_stop_attempt_seconds=0.01
+        )
+
+        snapshot = await replacement.initialize(Mock())
+
+        replacement_connection.stop_packet_capture.assert_awaited_once_with()
+        self.assertFalse(snapshot.packet_capture_active)
+        self.assertFalse(recovery_path.exists())
+
+    async def test_recovery_without_connection_fails_closed_and_keeps_marker(self):
+        api, connector = self.make_api()
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(side_effect=RuntimeError("unavailable")),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        first = ProtonCoreAdapter(api, packet_capture_stop_attempt_seconds=0.01)
+        await first.initialize(Mock())
+        with tempfile.TemporaryDirectory() as capture_directory:
+            await first.start_packet_capture(capture_directory)
+            await first.close()
+
+        recovery_path = Path(os.environ["XDG_RUNTIME_DIR"]) / (
+            PACKET_CAPTURE_RECOVERY_FILENAME
+        )
+        connector.current_connection = None
+        replacement = ProtonCoreAdapter(
+            api, packet_capture_stop_attempt_seconds=0.01
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "backend will retry"):
+            await replacement.initialize(Mock())
+
+        self.assertTrue(recovery_path.is_file())
 
     async def test_packet_capture_fails_closed_without_core_byte_limit(self):
         api, connector = self.make_api()
@@ -1687,6 +1801,45 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         connection.stop_packet_capture.assert_awaited_once_with()
         self.assertFalse(snapshots[-1].packet_capture_active)
+        self.assertIn("safety limit", snapshots[-1].message)
+
+    async def test_packet_capture_watchdog_retries_past_deadline_until_confirmed(self):
+        api, connector = self.make_api()
+        stop_attempts = 0
+
+        async def stop_capture():
+            nonlocal stop_attempts
+            stop_attempts += 1
+            if stop_attempts <= 3:
+                raise RuntimeError("temporarily unavailable")
+
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(side_effect=stop_capture),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        snapshots = []
+        adapter = ProtonCoreAdapter(
+            api,
+            packet_capture_max_seconds=0.01,
+            packet_capture_stop_attempt_seconds=0.01,
+        )
+        await adapter.initialize(snapshots.append)
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            await adapter.start_packet_capture(capture_directory)
+            await asyncio.sleep(0.1)
+
+        self.assertEqual(4, stop_attempts)
+        self.assertFalse(adapter._packet_capture_active)
         self.assertIn("safety limit", snapshots[-1].message)
 
     async def test_manual_packet_capture_stop_cancels_watchdog(self):

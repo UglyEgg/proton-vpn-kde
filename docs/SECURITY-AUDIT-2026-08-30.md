@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 202 backend tests at 81% measured branch
+translation units under Clang-Tidy, 208 backend tests at 81% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -305,6 +305,21 @@ authenticated write. Focused regressions cover both direct and compensation
 expiry as well as cancellation while the expiring write is in flight. The
 complete six-review gate must restart on the resulting exact commit.
 
+The next candidate at `ea9d844` again passed source analysis and two normalized,
+byte-reproducible package builds before isolated review. Hostile review found
+that shutdown canceled the only process-local packet-capture watchdog after an
+unconfirmed Core stop. A replacement backend had no durable knowledge of the
+capture or its original deadline, so capture could outlive the advertised
+safety interval. The Subtractive result from that same wave is discarded with
+all other results. Capture start now atomically records its original deadline
+before Core receives the request; confirmed stop removes it; unconfirmed
+shutdown preserves it; and a replacement must reacquire Core and retry before
+publishing readiness. The recovered watchdog keeps retrying bounded stop calls
+after the deadline until Core confirms completion. Focused regressions cover
+pre-start persistence, unconfirmed shutdown, successful replacement recovery,
+missing-connection fail-closed behavior, and post-deadline retries. The complete
+six-review gate must restart on the resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -331,6 +346,7 @@ complete six-review gate must restart on the resulting exact commit.
 | PV-012-022 | Medium | Frontend timeouts treated connection and settings mutations as definitely failed and released their reconciliation lifetime early | **Remediated with authoritative refresh and lease retention for completion-unknown operations; final independent verification pending** |
 | PV-012-023 | Medium | Owner loss during an asynchronous identity probe could be processed before authorization, allowing the dead client to be added afterward and retain an idle backend | **Remediated with a bounded pending-authorization owner-loss marker; final independent verification pending** |
 | PV-012-024 | Medium | Session expiry during a settings write or compensation could be overwritten with a restart-only settings-unavailable state | **Remediated by preserving the authoritative expired-session state and deferring persisted-settings reconciliation to the next sign-in; final independent verification pending** |
+| PV-012-025 | Medium | Backend shutdown could discard the only watchdog after an unconfirmed packet-capture stop, leaving a replacement unable to enforce the original deadline | **Remediated with an atomic runtime recovery record, pre-readiness Core reacquisition, and continuing deadline retries; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -467,6 +483,10 @@ capture requires a connected supported protocol, an existing writable absolute
 directory, and Core's positive reviewed byte ceiling, currently no greater
 than 512 MiB. A generation-bound 15-minute watchdog stops capture through
 Core, and one lock serializes manual, watchdog, disconnect, and shutdown stops.
+The original deadline is atomically persisted before start, removed only after
+confirmed stop or confirmed tunnel termination, and reacquired before a
+replacement backend reports ready. A failed stop retains bounded retry
+supervision beyond the deadline instead of discarding capture ownership.
 
 ### Privilege and Core boundary
 

@@ -233,8 +233,14 @@ destination therefore remains inactive and retryable. Cancellation or a
 completion-unknown start issues a compensating stop; if Core cannot confirm
 that stop, the watchdog is already armed against the original 15-minute
 deadline. Every Core stop attempt has its own timeout, so a non-returning reply
-cannot indefinitely retain startup or backend shutdown. The adapter does not
-inspect, rename, upload, or rewrite PCAP data.
+cannot indefinitely retain startup or backend shutdown. A mode-restricted,
+atomically replaced recovery record in the private desktop runtime directory
+preserves the original deadline across backend replacement. The replacement
+reacquires Core and retries an unconfirmed stop before publishing readiness;
+if no active connection can be reacquired, startup fails for bounded systemd
+retry rather than discarding capture ownership. Deadline retries continue until
+Core confirms completion. The adapter does not inspect, rename, upload, or
+rewrite PCAP data.
 
 Direct support submission and anonymous crash reporting to Proton are disabled
 in community builds through synchronized build, frontend, and backend gates.

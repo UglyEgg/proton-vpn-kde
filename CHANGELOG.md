@@ -99,6 +99,10 @@ All notable user-visible changes are recorded here. The project follows
   observer removal fails.
 - Bound every Core packet-capture stop attempt so a non-returning Core reply
   cannot retain startup or block backend shutdown indefinitely.
+- Preserve packet-capture recovery ownership and its original safety deadline
+  across backend replacement, retry an unconfirmed stop before the replacement
+  reports ready, and continue bounded stop attempts after the deadline until
+  Core confirms completion.
 - Keep capture setup inactive and retryable when Core rejects the selected
   destination before it receives a start request.
 - Teach Git that unified-diff context markers are patch syntax while retaining
