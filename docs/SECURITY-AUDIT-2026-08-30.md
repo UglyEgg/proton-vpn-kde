@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 184 backend tests at 80% measured branch
+translation units under Clang-Tidy, 186 backend tests at 80% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -212,6 +212,15 @@ discarded. The checker now tracks declared old/new hunk sizes, distinguishes
 headers from content by parser state, and has focused regressions for ordinary
 additions, blank context markers, file headers, and `++`-prefixed target
 content. The complete gate must restart on the resulting exact commit.
+
+The gate at `a4c174a` then failed Entropy review because Python's generic byte
+line splitter treated an embedded carriage return as a line boundary. A valid
+added line ending in carriage-return, space, line-feed could therefore evade
+the dedicated trailing-whitespace check even though Git applied those bytes.
+Every result from that gate is discarded. Patch input is now split only on
+line-feed boundaries, genuine CRLF framing is normalized, stray carriage
+returns are rejected, and both cases have raw-byte regressions. The complete
+gate must restart on the resulting exact commit.
 
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
@@ -411,7 +420,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 184 backend Python tests;
+- 186 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

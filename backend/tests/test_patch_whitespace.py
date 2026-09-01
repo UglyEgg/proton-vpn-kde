@@ -40,6 +40,16 @@ class PatchWhitespaceTests(unittest.TestCase):
         ]
         self.assertEqual([], CHECKER.added_trailing_whitespace(lines))
 
+    def test_rejects_bare_carriage_return_before_trailing_space(self):
+        data = b"@@ -0,0 +1 @@\n+value\r \n"
+        with self.assertRaisesRegex(ValueError, "Bare carriage return"):
+            CHECKER.patch_lines(data)
+
+    def test_accepts_crlf_framing(self):
+        data = b"--- a/example\r\n+++ b/example\r\n@@ -0,0 +1 @@\r\n+value\r\n"
+        lines = CHECKER.patch_lines(data)
+        self.assertEqual([], CHECKER.added_trailing_whitespace(lines))
+
 
 if __name__ == "__main__":
     unittest.main()

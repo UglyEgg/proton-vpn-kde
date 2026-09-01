@@ -19,6 +19,17 @@ HUNK_HEADER = re.compile(
 )
 
 
+def patch_lines(data: bytes) -> list[bytes]:
+    """Split patch bytes without treating embedded carriage returns as lines."""
+    lines: list[bytes] = []
+    for line_number, raw_line in enumerate(data.split(b"\n"), 1):
+        line = raw_line[:-1] if raw_line.endswith(b"\r") else raw_line
+        if b"\r" in line:
+            raise ValueError(f"Bare carriage return at line {line_number}")
+        lines.append(line)
+    return lines
+
+
 def added_trailing_whitespace(lines: Iterable[bytes]) -> list[int]:
     """Return added-target line numbers with trailing horizontal whitespace."""
     failures: list[int] = []
@@ -69,7 +80,7 @@ def main() -> int:
     for path in patch_paths:
         try:
             line_numbers = added_trailing_whitespace(
-                path.read_bytes().splitlines()
+                patch_lines(path.read_bytes())
             )
         except ValueError as error:
             failures.append(f"{path.relative_to(PROJECT_DIR)}: {error}")

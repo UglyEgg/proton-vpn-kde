@@ -103,6 +103,8 @@ All notable user-visible changes are recorded here. The project follows
   a dedicated check against trailing whitespace in added target lines.
 - Parse declared hunk sizes so the patch checker distinguishes file headers
   from added target content beginning with `++`.
+- Parse patch bytes on LF boundaries so embedded carriage returns cannot hide
+  trailing whitespace while ordinary CRLF patches remain valid.
 
 ## [0.11.3] - 2026-08-31
 
