@@ -15,18 +15,25 @@ import sys
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 PATCH_ROOT = PROJECT_DIR / "packaging" / "fedora"
 HUNK_HEADER = re.compile(
-    rb"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@(?: .*)?$"
+    rb"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@(?:[ \t].*)?$"
 )
 
 
 def patch_lines(data: bytes) -> list[bytes]:
     """Split patch bytes without treating embedded carriage returns as lines."""
-    lines: list[bytes] = []
-    for line_number, raw_line in enumerate(data.split(b"\n"), 1):
-        line = raw_line[:-1] if raw_line.endswith(b"\r") else raw_line
-        if b"\r" in line:
-            raise ValueError(f"Bare carriage return at line {line_number}")
-        lines.append(line)
+    has_crlf = b"\r\n" in data
+    without_crlf = data.replace(b"\r\n", b"")
+    if b"\r" in without_crlf:
+        raise ValueError("Bare carriage return in patch input")
+    if has_crlf and b"\n" in without_crlf:
+        raise ValueError("Mixed LF and CRLF line endings in patch input")
+
+    normalized = data.replace(b"\r\n", b"\n") if has_crlf else data
+    lines = normalized.split(b"\n")
+    if normalized.endswith(b"\n"):
+        # split() returns a sentinel after a terminal delimiter. It is not a
+        # physical blank context line and must not satisfy a hunk count.
+        lines.pop()
     return lines
 
 

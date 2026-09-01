@@ -105,6 +105,8 @@ All notable user-visible changes are recorded here. The project follows
   from added target content beginning with `++`.
 - Parse patch bytes on LF boundaries so embedded carriage returns cannot hide
   trailing whitespace while ordinary CRLF patches remain valid.
+- Reject mixed patch line endings and terminal-delimiter pseudo-content.
+- Reapply kill-switch state after a partially persisted Core settings failure.
 
 ## [0.11.3] - 2026-08-31
 

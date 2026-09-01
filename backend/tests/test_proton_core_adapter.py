@@ -367,6 +367,42 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, settings.killswitch)
         api.save_settings.assert_awaited_once_with(settings)
 
+    async def test_kill_switch_disable_retry_reapplies_partially_persisted_state(self):
+        api, _ = self.make_api(logged_in=False)
+        settings = await api.load_settings()
+        persisted_kill_switch = 2
+        live_kill_switch = 2
+        save_calls = 0
+
+        async def load_settings():
+            settings.killswitch = persisted_kill_switch
+            return settings
+
+        async def save_settings(saved_settings):
+            nonlocal persisted_kill_switch, live_kill_switch, save_calls
+            save_calls += 1
+            persisted_kill_switch = saved_settings.killswitch
+            if save_calls == 1:
+                raise RuntimeError("connector application failed")
+            live_kill_switch = saved_settings.killswitch
+
+        api.load_settings = AsyncMock(side_effect=load_settings)
+        api.save_settings = AsyncMock(side_effect=save_settings)
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "save the VPN settings"):
+            await adapter.disable_kill_switch_for_login()
+        self.assertEqual(0, persisted_kill_switch)
+        self.assertEqual(2, live_kill_switch)
+        self.assertEqual(2, adapter._kill_switch)
+
+        await adapter.disable_kill_switch_for_login()
+
+        self.assertEqual(2, save_calls)
+        self.assertEqual(0, live_kill_switch)
+        self.assertEqual(0, adapter._kill_switch)
+
     async def test_startup_settings_failure_blocks_login_until_state_is_known(self):
         api, _ = self.make_api(logged_in=False)
         settings = await api.load_settings()

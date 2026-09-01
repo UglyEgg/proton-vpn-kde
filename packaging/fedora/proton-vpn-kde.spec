@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.15%{?dist}
+Release:        0.16%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -129,6 +129,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.16
+- Reject mixed overlay patch line endings and truncated hunk content.
+- Reapply a partially persisted kill-switch disable operation on retry.
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.15
 - Parse overlay patch bytes only on LF boundaries.
 - Reject bare carriage returns while accepting ordinary CRLF patches.

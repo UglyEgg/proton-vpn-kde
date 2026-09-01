@@ -50,6 +50,20 @@ class PatchWhitespaceTests(unittest.TestCase):
         lines = CHECKER.patch_lines(data)
         self.assertEqual([], CHECKER.added_trailing_whitespace(lines))
 
+    def test_rejects_mixed_lf_and_crlf_framing(self):
+        data = b"--- /dev/null\n+++ b/example\n@@ -0,0 +1 @@\n+value\r\n"
+        with self.assertRaisesRegex(ValueError, "Mixed LF and CRLF"):
+            CHECKER.patch_lines(data)
+
+    def test_terminal_lf_does_not_supply_blank_hunk_content(self):
+        lines = CHECKER.patch_lines(b"@@ -1 +1 @@\n")
+        with self.assertRaisesRegex(ValueError, "ended before its declared size"):
+            CHECKER.added_trailing_whitespace(lines)
+
+    def test_accepts_tab_prefixed_hunk_section(self):
+        lines = [b"@@ -0,0 +1 @@\tsection", b"+value"]
+        self.assertEqual([], CHECKER.added_trailing_whitespace(lines))
+
 
 if __name__ == "__main__":
     unittest.main()

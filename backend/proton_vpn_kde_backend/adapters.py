@@ -913,9 +913,11 @@ class ProtonCoreAdapter:
 
     async def disable_kill_switch_for_login(self) -> None:
         settings = await self._load_settings()
-        if self._kill_switch_value(settings) != 0:
-            settings.killswitch = 0
-            await self._save_settings(settings)
+        # Always ask Core to apply the disabled state. Its save operation can
+        # persist the value before connector application fails, so a retry may
+        # load zero even while the live connector still has protection active.
+        settings.killswitch = 0
+        await self._save_settings(settings)
         self._kill_switch = 0
         self._status_message = "Kill switch disabled; you can now sign in"
         self._publish_snapshot()

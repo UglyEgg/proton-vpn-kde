@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 186 backend tests at 80% measured branch
+translation units under Clang-Tidy, 190 backend tests at 80% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -222,6 +222,17 @@ line-feed boundaries, genuine CRLF framing is normalized, stray carriage
 returns are rejected, and both cases have raw-byte regressions. The complete
 gate must restart on the resulting exact commit.
 
+The gate at `0bd16be` then failed Error-Class review. Per-line CR stripping
+allowed a mixed-LF/CRLF patch to introduce a carriage return into target source,
+and a terminal line-feed could masquerade as empty hunk content. Separately, a
+Core settings write could persist a disabled kill switch before connector
+application failed; retrying then skipped the Core write and falsely reported
+the live state disabled. Every result from that gate is discarded. Line-ending
+style is now enforced for the complete patch, terminal split sentinels are not
+hunk content, and login preparation always asks Core to apply the disabled
+kill-switch state. Focused regressions cover all three paths. The complete gate
+must restart on the resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -420,7 +431,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 186 backend Python tests;
+- 190 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;
