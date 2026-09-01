@@ -18,9 +18,9 @@ system Python interpreter. Runtime integration additionally uses
 `python3-dbus-fast`, `python3-cryptography`, `python3-fido2`, and Proton VPN API
 Core 5.5.6 or newer. Session storage reaches Freedesktop Secret Service through
 Proton's separately packaged keyring adapter. Until the provider-neutral alias,
-stable-connection, and provider-identity fixes are upstream, this repository
+stable-connection, and unique-owner-pinning fixes are upstream, this repository
 builds a reviewable downstream adapter from Proton's pinned source and requires
-its stronger authenticated-provider RPM capability. The verified KeePassXC
+its explicit owner-pinned RPM capability. The verified KeePassXC
 stack and retirement policy are recorded in
 [Compatibility](../../docs/COMPATIBILITY.md); the client RPM never overwrites
 an installed Python file outside package ownership.

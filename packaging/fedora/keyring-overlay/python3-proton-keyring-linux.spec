@@ -3,7 +3,7 @@
 
 Name:           python3-proton-keyring-linux
 Version:        0.2.3
-Release:        5.plasmavpn1%{?dist}
+Release:        7.plasmavpn1%{?dist}
 Summary:        Provider-neutral Proton Secret Service adapter
 
 License:        GPL-3.0-only
@@ -13,7 +13,7 @@ Source1:        overlay-manifest.json
 Source2:        keyring-overlay-README.md
 Patch0:         0001-provider-agnostic-secret-service.patch
 Patch1:         0002-avoid-missing-entry-traceback.patch
-Patch2:         0003-authenticate-secret-service-provider.patch
+Patch2:         0003-pin-secret-service-provider.patch
 BuildArch:      noarch
 
 BuildRequires:  pyproject-rpm-macros
@@ -29,7 +29,7 @@ Requires:       python3-proton-core
 Requires:       python3-secretstorage
 Suggests:       gnome-keyring
 Provides:       proton-keyring-secret-service-provider-agnostic = 1
-Provides:       proton-keyring-secret-service-authenticated-provider = 1
+Provides:       proton-keyring-secret-service-owner-pinned = 1
 Conflicts:      python3-proton-keyring-linux-secretservice < 0.1.0
 Obsoletes:      python3-proton-keyring-linux-secretservice < 0.1.0
 
@@ -40,10 +40,9 @@ Proton's Linux keyring adapter with a narrow, provider-neutral Freedesktop
 Secret Service compatibility patch. The adapter honors the default collection
 alias, safely handles a sole advertised collection when that alias is stale,
 and keeps one bounded D-Bus client connection so desktop providers can remember
-authorization decisions. The selected provider must be a same-user process
-running a root-owned, non-writable native executable; all secret traffic is
-pinned to its authenticated unique D-Bus owner. It does not contain KDE- or
-KeePassXC-specific logic.
+authorization decisions. The selected provider must run as the session user;
+all secret traffic is pinned to its unique D-Bus owner and rejected if that
+owner changes. It does not contain KDE- or KeePassXC-specific logic.
 
 This is an unofficial downstream rebuild maintained by the Plasma VPN project.
 
@@ -69,10 +68,11 @@ python3 -m pytest -o addopts='' -q \
 %doc overlay-manifest.json keyring-overlay-README.md
 
 %changelog
-* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.2.3-5.plasmavpn1
-- Authenticate the selected Secret Service provider before sending secret data.
-- Pin all Secret Service calls, replies, and prompt signals to its unique owner.
-- Reject mutable executables, generic launchers, and injection environments.
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.2.3-7.plasmavpn1
+- Select a same-user Secret Service provider and pin all traffic to its unique
+  D-Bus owner, rejecting owner replacement.
+- Support D-Bus activation and already-running desktop providers without
+  relying on non-portable process-executable inspection.
 
 * Sun Aug 30 2026 uglyegg <uglyegg@entropy.quest> - 0.2.3-4.plasmavpn1
 - Rebuild the upstream v0.2.3 source with provider-neutral Secret Service support.

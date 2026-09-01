@@ -30,18 +30,18 @@ KeePassXC acceptance also depends on the downstream
 `python3-proton-keyring-linux` capability identified below. It contains the
 narrow provider-neutral fallback for a missing or stale `default` Secret
 Service collection alias and reuses one bounded Secret Service connection. The
-unreleased overlay revision also authenticates a same-user, system-packaged
-native provider and pins all traffic to its unique owner. Those changes were
-not present in the assessed upstream 0.2.3 tag.
+unreleased overlay revision also requires a same-user provider and pins all
+traffic to its unique owner. Those changes were not present in the assessed
+upstream 0.2.3 tag.
 
 The repository now carries the exact patches, upstream archive identity,
 focused tests, and Fedora rebuild under
 [`packaging/fedora/keyring-overlay`](../packaging/fedora/keyring-overlay/).
 Release CI produces that package's source and binary RPMs beside the client,
 and the unreleased client RPM requires its explicit
-`proton-keyring-secret-service-authenticated-provider` capability. The overlay
+`proton-keyring-secret-service-owner-pinned` capability. The overlay
 continues to provide the older provider-agnostic capability for compatibility,
-but that weaker capability cannot satisfy the hardened client dependency. This
+but that weaker capability cannot satisfy the owner-pinned client dependency. This
 dependency can be retired after an equivalent upstream build is verified; it
 is not a claim that stock Proton 0.2.3 supports KeePassXC correctly.
 

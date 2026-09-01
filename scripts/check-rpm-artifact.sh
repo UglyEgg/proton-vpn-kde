@@ -64,9 +64,9 @@ if ! grep -Fxq \
     exit 1
 fi
 if ! grep -Fxq \
-        'proton-keyring-secret-service-authenticated-provider >= 1' \
+        'proton-keyring-secret-service-owner-pinned >= 1' \
         <<<"$requires"; then
-    echo "RPM does not require the authenticated Secret Service capability" >&2
+    echo "RPM does not require the owner-pinned Secret Service capability" >&2
     exit 1
 fi
 

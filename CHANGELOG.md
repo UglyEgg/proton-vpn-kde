@@ -35,9 +35,13 @@ All notable user-visible changes are recorded here. The project follows
 - Route tray and global-shortcut connection changes through the same validated,
   explicit Control Center confirmation used by KRunner; confirm the combined
   disconnect-and-quit action locally before it can reach the VPN controller.
-- Authenticate the selected system-packaged Secret Service provider before
-  sending session material, pin calls and prompt signals to its unique D-Bus
-  owner, and require the stronger overlay capability from the Fedora package.
+- Select the desktop's same-user Secret Service provider before sending session
+  material, pin calls and prompt signals to its unique D-Bus owner, reject
+  owner replacement, and require that explicit overlay capability from the
+  Fedora package.
+- Accept a provider that already owns the Secret Service name after desktop
+  autostart even when it has no D-Bus activation service, while still requiring
+  same-user ownership and current-owner continuity before every operation.
 - Add a repeatable same-process Inspector retention measurement; three
   two-open samples show one bounded warm-up allocation and no repeated retained
   growth.

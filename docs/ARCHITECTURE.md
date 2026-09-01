@@ -154,10 +154,11 @@ only the method-call destination.
 
 The adapter calls Proton's public API facade for password login, TOTP and
 recovery codes, FIDO2, session retrieval, and logout. Proton SSO persists the
-session through a separately packaged keyring adapter. That adapter validates
-the selected system Secret Service provider's same-user process and immutable
-native executable, then pins traffic to its unique owner instead of trusting
-the replaceable `org.freedesktop.secrets` well-known name as identity.
+session through a separately packaged keyring adapter. That adapter requires
+the desktop-selected Secret Service provider to run as the session user, then
+pins traffic to its unique owner instead of continuing to address the
+replaceable `org.freedesktop.secrets` well-known name. The desktop's initial
+provider selection remains an explicit session trust boundary.
 
 The frontend receives only minimum account display metadata. Authentication
 fields use a one-use encrypted and sealed descriptor transport, and provider

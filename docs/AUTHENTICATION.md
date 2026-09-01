@@ -56,12 +56,20 @@ KWallet, GNOME Keyring, or another implementation can own
 `org.freedesktop.secrets` when the adapter handles that provider's collection
 layout correctly. Before an operation sends session material, the downstream
 adapter activates the configured provider without secrets, resolves its unique
-D-Bus owner, verifies that it is a same-user process running a root-owned,
-non-writable native executable without known injection variables, and pins all
-later calls, replies, and prompt signals to that owner. Owner replacement fails
-closed. This is provider-neutral identity validation, not KeePassXC-specific
-logic; user-writable, sandbox-wrapper, and interpreter-hosted providers are not
-inside the supported trust boundary.
+D-Bus owner, requires that owner to run as the session user, and pins all later
+calls, replies, and prompt signals to that owner. Owner replacement fails
+closed. A provider that already owns the name after desktop autostart does not
+need to be D-Bus-activatable; the adapter tolerates that activation response
+only when current-owner resolution and same-user validation succeed. This is
+provider-neutral owner pinning, not KeePassXC-specific logic.
+
+The session bus does not portably attest the executable behind a non-dumpable
+provider. KeePassXC on the verified Fedora system denies same-user access to
+`/proc/<pid>/exe`, while process names, command lines, and user-owned autostart
+units are spoofable. The adapter therefore makes no package-provenance claim:
+the desktop-selected same-user Secret Service provider is a trusted dependency.
+Pinning prevents a later owner from inheriting the session traffic; it cannot
+prove that the initially selected provider is benign.
 
 The verified KeePassXC stack uses the compatible downstream adapter recorded in
 [Compatibility](COMPATIBILITY.md); release builds provide it as a separate,

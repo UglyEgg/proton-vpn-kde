@@ -99,14 +99,17 @@ session. A logout or account transition advances the session generation and
 rejects late replies, preventing an old session from repopulating cleared
 frontend state even though the underlying methods do not mutate Core.
 
-The same address-versus-identity rule applies to
-`org.freedesktop.secrets`. The downstream keyring overlay activates the selected
-provider without sending secrets, resolves its unique owner, verifies the
-same-user process and root-owned, non-writable native executable, and rejects
-known loader, interpreter, plugin, and sandbox-wrapper ambiguity. Secret Service
-calls are retargeted to the verified unique owner; replies, prompt signals, and
-owner continuity are checked. This remains provider-neutral, but it deliberately
-does not treat an arbitrary user-installed executable as a trusted session store.
+The same address-versus-identity rule is applied as far as the portable Secret
+Service API permits. The downstream keyring overlay activates the selected
+provider without sending secrets, requires its current unique owner to run as
+the session user, and retargets every Secret Service call to that unique owner.
+Replies, prompt signals, and well-known-owner continuity are checked. This
+prevents later name replacement without KeePassXC-specific logic. It does not
+attest the executable behind the initial provider: Linux deliberately blocks
+same-user `/proc/<pid>/exe` inspection for some non-dumpable providers, and
+process names or user-owned autostart units are not trustworthy substitutes.
+The desktop-selected same-user Secret Service provider is therefore an explicit
+platform trust dependency.
 
 Executable identity is appropriate for isolated project processes such as the
 Control Center and agent. It is not sufficient for shared desktop brokers, so

@@ -64,9 +64,9 @@ The following properties are part of the project's security contract:
   D-Bus sender and intended operation;
 - installed clients must authenticate and pin the packaged backend's unique
   D-Bus owner before sending secrets or state-changing requests;
-- the downstream keyring adapter must authenticate and pin the selected
-  system-packaged Secret Service provider's unique owner before sending Proton
-  session material;
+- the downstream keyring adapter must require the desktop-selected Secret
+  Service provider to run as the session user, pin traffic to its unique D-Bus
+  owner, and reject owner replacement before sending Proton session material;
 - state-changing backend methods must authorize the actual D-Bus sender and
   revoke that authority when its unique name vanishes;
 - shared desktop action brokers may present bounded confirmation requests but
@@ -97,6 +97,12 @@ new suspected vulnerability.
 The design does not claim to defend against root, a debugger, or another
 same-user process that can directly read client memory. Python and Qt may
 retain immutable string copies until their allocators reuse them.
+
+The desktop-selected same-user Secret Service provider is a trusted dependency.
+The session bus can identify its unique owner and Unix user, but does not
+portably attest the executable behind a non-dumpable provider process. Unique-
+owner pinning prevents later name replacement; it does not prove the initial
+provider's package provenance.
 
 The following are outside this repository's disclosure scope:
 

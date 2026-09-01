@@ -5,7 +5,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.3%{?dist}
+Release:        0.4%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -46,7 +46,7 @@ Requires:       python3-dbus-fast
 Requires:       python3-fido2
 Requires:       python3-proton-vpn-api-core >= 5.5.6
 Requires:       proton-vpn-api-core-plasma-protun-secret >= 1
-Requires:       proton-keyring-secret-service-authenticated-provider >= 1
+Requires:       proton-keyring-secret-service-owner-pinned >= 1
 Requires:       qt6-qtdeclarative
 
 %description
@@ -124,11 +124,15 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-agent.service
 
 %changelog
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.4
+- Support Secret Service providers started by desktop autostart.
+- Require same-user provider selection and unique-owner pinning.
+
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.3
 - Recover from transient same-owner snapshot timeouts without false offline state.
 - Fence account reads and session startup across logout and partial failures.
 - Confirm tray and global-shortcut connection changes in the Control Center.
-- Require an authenticated, uniquely pinned Secret Service provider overlay.
+- Require a same-user, uniquely pinned Secret Service provider overlay.
 
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.2
 - Bind asynchronous frontend replies to the authenticated backend generation.

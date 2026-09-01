@@ -11,7 +11,7 @@ re-review found no new reportable issue.
 The unreleased `0.12.0` branch adds event-driven backend lifetime and an
 on-demand Connection Inspector. Its pre-final isolated reviews found lifecycle,
 error-class, Secret Service identity, and desktop-action-broker defects. Every
-reported path now has a focused remediation, and the source currently passes 36
+reported path now has a focused response, and the source currently passes 36
 of 36 CTest targets plus 142 backend tests. **The `0.12.0` candidate remains
 explicitly not release-ready until six fresh isolated reviewers pass one exact
 remediated commit, its packages complete live acceptance, and that commit
@@ -108,11 +108,15 @@ The standard security scan of that second snapshot
 high-severity Secret Service provider-identity gap and two medium-severity
 desktop broker paths. The keyring adapter previously treated the replaceable
 `org.freedesktop.secrets` well-known owner as sufficient identity before sending
-Proton session material. The new separate overlay patch authenticates a
-same-user process running a root-owned, non-writable native executable, rejects
-generic launchers and known injection environments, pins every call to the
-verified unique owner, validates reply and prompt-signal senders, and rejects
-owner replacement. KGlobalAccel and status-notifier D-BusMenu actions previously
+Proton session material. The new separate overlay patch requires the selected
+owner to run as the session user, pins every call to that unique owner, validates
+reply and prompt-signal senders, and rejects owner replacement. Live Fedora
+acceptance proved that unprivileged executable attestation is not portable:
+KeePassXC deliberately denies same-user `/proc/<pid>/exe` inspection, while
+process names, command lines, and user-owned autostart units are spoofable. The
+current design therefore records the initially selected provider as an explicit
+platform trust dependency instead of presenting weak process metadata as
+authentication. KGlobalAccel and status-notifier D-BusMenu actions previously
 invoked the authorized resident controller directly. They now send only bounded
 requests to the Control Center's explicit modal confirmation; the combined
 disconnect-and-quit action uses a guarded local confirmation.
@@ -128,7 +132,7 @@ six fresh independent results below.
 | PV-012-003 | High | Pathological reconnect count overflowed before applying the backoff cap | **Remediated; final independent verification pending** |
 | PV-012-004 | Medium | A same-owner snapshot timeout could leave the UI falsely offline | **Remediated; final independent verification pending** |
 | PV-012-005 | Medium | Login state could commit before session services finished starting | **Remediated; final independent verification pending** |
-| PV-012-006 | High | A replaceable Secret Service owner could receive future Proton session writes | **Remediated; final independent verification pending** |
+| PV-012-006 | High | A replaceable Secret Service owner could receive future Proton session writes | **Mitigated by unique-owner pinning; initial provider remains a documented platform trust dependency; final independent verification pending** |
 | PV-012-007 | Medium | KGlobalAccel could invoke the authorized resident controller directly | **Remediated; final independent verification pending** |
 | PV-012-008 | Medium | D-BusMenu tray activation could invoke the authorized resident controller directly | **Remediated; final independent verification pending** |
 
@@ -210,15 +214,18 @@ guarded local confirmation before its coordinator can act.
 ### Secret Service provider identity
 
 The downstream keyring adapter activates the configured Secret Service without
-sending secret data, resolves the well-known name to a unique owner, confirms
-that owner is a same-user process running a root-owned, non-writable native
-executable without known injection variables, and then addresses the unique
-owner directly. It verifies method-reply and prompt-signal senders and checks
-the well-known owner before every operation. Owner replacement, mutable or
-user-owned executables, generic launchers, sandbox wrappers, and unsafe
-environments fail closed. The Fedora client requires the overlay's stronger
-authenticated-provider capability so the older alias-only package cannot
-satisfy this control accidentally.
+sending secret data, resolves the well-known name to a unique owner, requires
+that owner to run as the session user, and then addresses the unique owner
+directly. It verifies method-reply and prompt-signal senders and checks the
+well-known owner before every operation. Owner replacement fails closed. The
+Fedora client requires the overlay's explicit owner-pinned capability so the
+older alias-only package cannot satisfy this control accidentally.
+
+The session bus does not portably attest the executable behind a non-dumpable
+provider. The initial desktop-selected same-user Secret Service provider is
+therefore a trusted platform dependency. This control prevents a later name-
+owner replacement from inheriting traffic; it does not prove the package
+provenance of the initially selected provider.
 
 ### Authentication payloads
 
@@ -309,12 +316,12 @@ The current remediated tree passed:
 - staged installation using the same systemd user-unit directory compiled into
   backend identity verification.
 
-The current keyring overlay separately rebuilt from Proton's pinned 0.2.3
-archive, applied all three manifest-hashed patches without fuzz, passed 27 of 27
-focused tests in RPM `%check`, and produced one binary and one source RPM. Its
-artifact check verified both the provider-neutral and authenticated-provider
-capabilities. This is source/package evidence only; live KeePassXC acceptance of
-that new overlay remains required before the final gate can close.
+The current keyring overlay rebuilt from Proton's pinned 0.2.3 archive, applied
+all three manifest-hashed patches without fuzz, passed 29 of 29 focused tests in
+RPM `%check`, and produced one binary and one source RPM. Its artifact check
+verified both the provider-neutral and owner-pinned capabilities. Live KeePassXC
+acceptance of this corrected revision remains required before the final gate can
+close.
 
 The focused harnesses show that the seven original failures no longer
 reproduce: substituted owners are rejected, unauthorized mutations do not
@@ -473,12 +480,13 @@ systemd heuristic score remain documented in [Hardening](HARDENING.md).
 - The verified provider-neutral Secret Service behavior depends on a separately
   patched Proton keyring package. Its exact upstream source, patch hashes,
   focused tests, Fedora spec, and source/binary CI build live in this repository.
-  The hardened provider check supports system-packaged native providers; it
-  intentionally rejects user-writable binaries, AppImages, Flatpaks, Snaps,
-  generic interpreters, and processes with known code-injection variables. It
-  remains an unofficial downstream dependency until Proton accepts equivalent
-  changes; stock Proton 0.2.3 must not be described as KeePassXC-compatible or
-  provider-authenticated.
+  The adapter requires a same-user provider and pins all traffic to its unique
+  owner, but the portable Secret Service and D-Bus APIs cannot prove the
+  executable behind a non-dumpable initial provider. Desktop provider selection
+  is therefore a platform trust boundary rather than an authenticated package-
+  provenance claim. The overlay remains an unofficial downstream dependency
+  until Proton accepts equivalent changes; stock Proton 0.2.3 must not be
+  described as KeePassXC-compatible or owner-pinned.
 - The Fedora API-Core overlay keeps Protun's transient private key in
   NetworkManager's unsaved profile rather than a desktop secret agent. Fedora
   may materialize that profile as a mode-0600 file under volatile `/run` while

@@ -10,7 +10,7 @@ if [[ $# -ne 1 || ! -f "$1" ]]; then
 fi
 
 package_path="$(realpath "$1")"
-expected_nevra='python3-proton-keyring-linux-0.2.3-5.plasmavpn1.fc44.noarch'
+expected_nevra='python3-proton-keyring-linux-0.2.3-7.plasmavpn1.fc44.noarch'
 actual_nevra="$(rpm -qp --qf '%{NEVRA}' "$package_path")"
 if [[ "$actual_nevra" != "$expected_nevra" ]]; then
     echo "Unexpected keyring overlay NEVRA: $actual_nevra" >&2
@@ -19,7 +19,7 @@ fi
 
 provides="$(rpm -qp --provides "$package_path")"
 grep -Fxq 'proton-keyring-secret-service-provider-agnostic = 1' <<<"$provides"
-grep -Fxq 'proton-keyring-secret-service-authenticated-provider = 1' <<<"$provides"
+grep -Fxq 'proton-keyring-secret-service-owner-pinned = 1' <<<"$provides"
 
 requires="$(rpm -qp --requires "$package_path")"
 for required in python3-keyring python3-proton-core python3-secretstorage; do
