@@ -197,6 +197,14 @@ Capture configuration is now accepted and sanitized before lifecycle state is
 reserved; focused coverage proves rejection remains inactive, watchdog-free,
 and retryable. The complete gate must restart on the resulting exact commit.
 
+That gate at `75bdbd0` passed Error-Class and HPC/Performance before Entropy
+reported `git diff --check` failures on the single-space context markers
+required by a checked-in unified-diff payload. Every result from that gate is
+discarded. Git now treats those context markers as patch syntax, while a
+dedicated source check continues to reject trailing whitespace in lines the
+overlay actually adds to its target. The patch bytes and manifest digest remain
+unchanged. The complete gate must restart on the resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |

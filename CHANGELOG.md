@@ -99,6 +99,8 @@ All notable user-visible changes are recorded here. The project follows
   cannot retain startup or block backend shutdown indefinitely.
 - Keep capture setup inactive and retryable when Core rejects the selected
   destination before it receives a start request.
+- Teach Git that unified-diff context markers are patch syntax while retaining
+  a dedicated check against trailing whitespace in added target lines.
 
 ## [0.11.3] - 2026-08-31
 
