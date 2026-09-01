@@ -136,6 +136,12 @@ refreshers, connectors, or SSO sessions.
 
 The Control Center holds a lease while open. The resident agent observes
 without a lease and acquires one only while an explicit action is starting.
+Their public session-bus objects export an explicit method allowlist. The
+Control Center has no remote shutdown method; the agent accepts its shutdown
+method only from the current packaged Control Center owner after UID,
+executable, environment, and owner-continuity checks. This preserves the
+background-controls setting without granting lifecycle authority to arbitrary
+session peers.
 Lease acquisition checks D-Bus ownership once; the existing authenticated
 `NameOwnerChanged` stream releases vanished clients without a polling timer.
 With no live lease, the backend exits after a short grace period only when Core

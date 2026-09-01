@@ -233,6 +233,19 @@ hunk content, and login preparation always asks Core to apply the disabled
 kill-switch state. Focused regressions cover all three paths. The complete gate
 must restart on the resulting exact commit.
 
+The gate at `222f5f0` passed Hostile, Subtractive, Entropy, Error-Class, and
+HPC/Performance review, then failed the canonical Hardening/Security scan. The
+native frontend objects exported every public slot, including unauthenticated
+`Agent1.Quit` and `ControlCenter1.Quit`; an ordinary session peer could cleanly
+terminate the agent or Control Center. The active Core tunnel remained intact,
+so the validated finding was Low severity. Every result from that gate is
+discarded. The Control Center shutdown method is removed, the agent's retained
+background-controls shutdown path authorizes the current packaged Control
+Center owner, and object registration exports only explicitly scriptable
+slots. Isolated activation coverage proves an arbitrary shutdown caller fails
+while both processes remain alive. The complete gate must restart on the
+resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -251,6 +264,7 @@ must restart on the resulting exact commit.
 | PV-012-014 | Medium | Failed reconnection-observer registration could leave enablement stale and future attempts inert | **Remediated with registration-first commit and rollback; final independent verification pending** |
 | PV-012-015 | Medium | A non-returning Core capture-stop reply could retain startup and block backend shutdown before the watchdog was armed | **Remediated with pre-armed watchdog and bounded stop attempts; final independent verification pending** |
 | PV-012-016 | Medium | A rejected Core capture-directory assignment could leave a false active state with no watchdog and block retries | **Remediated by configuring before lifecycle reservation; final independent verification pending** |
+| PV-012-017 | Low | Public frontend D-Bus `Quit` methods allowed arbitrary session peers to terminate the agent or Control Center | **Remediated by removing Control Center shutdown, authorizing agent shutdown, and explicitly allowlisting exported slots; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.

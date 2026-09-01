@@ -78,6 +78,9 @@ The following properties are part of the project's security contract:
   revoke that authority when its unique name vanishes;
 - shared desktop action brokers may present bounded confirmation requests but
   must not invoke an authorized VPN controller before explicit acceptance;
+- public frontend D-Bus brokers must export an explicit presentation/action
+  allowlist; any retained process-lifecycle operation must authorize its actual
+  caller and must not grant that authority to arbitrary session peers;
 - unexpected third-party exception text must not cross the public D-Bus
   boundary;
 - the community client must not implement or override VPN protocols,

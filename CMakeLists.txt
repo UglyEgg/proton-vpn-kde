@@ -646,6 +646,8 @@ if(BUILD_TESTING)
         tests/ControlCenterControlTest.cpp
         src/AgentControl.cpp
         src/AgentControl.h
+        src/BackendIdentity.cpp
+        src/BackendIdentity.h
         src/InstalledExecutablePaths.cpp
         src/InstalledExecutablePaths.h
         src/RunnerActionRequest.cpp
@@ -661,6 +663,7 @@ if(BUILD_TESTING)
     target_compile_options(control-center-control-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
+    proton_vpn_kde_enable_backend_identity(control-center-control-tests)
     proton_vpn_kde_enable_installed_executable_paths(
         control-center-control-tests)
     add_test(NAME control-center-control-tests COMMAND control-center-control-tests)

@@ -8,18 +8,11 @@ build_dir="${1:?Pass the CMake build directory}"
 staging_dir="$(mktemp -d)"
 agent_pid=""
 duplicate_pid=""
+control_center_pid=""
 
 cleanup() {
-    if [[ "$(gdbus call --session \
-        --dest org.freedesktop.DBus \
-        --object-path /org/freedesktop/DBus \
-        --method org.freedesktop.DBus.NameHasOwner \
-        quest.entropy.PlasmaVPN.ControlCenter 2>/dev/null || true)" == "(true,)" ]]; then
-        gdbus call --session \
-            --dest quest.entropy.PlasmaVPN.ControlCenter \
-            --object-path /quest/entropy/PlasmaVPN/ControlCenter \
-            --method quest.entropy.PlasmaVPN.ControlCenter1.Quit \
-            >/dev/null 2>&1 || true
+    if [[ -n "$control_center_pid" ]]; then
+        kill "$control_center_pid" 2>/dev/null || true
     fi
     if [[ -n "$agent_pid" ]]; then
         kill "$agent_pid" 2>/dev/null || true
@@ -54,6 +47,19 @@ if ! kill -0 "$agent_pid" 2>/dev/null; then
     exit 1
 fi
 
+if gdbus call --session \
+    --dest quest.entropy.PlasmaVPN.Agent \
+    --object-path /quest/entropy/PlasmaVPN/Agent \
+    --method quest.entropy.PlasmaVPN.Agent1.Quit \
+    >/dev/null 2>&1; then
+    echo "Agent exposed an unauthenticated Quit method" >&2
+    exit 1
+fi
+if ! kill -0 "$agent_pid" 2>/dev/null; then
+    echo "An unauthenticated Quit request stopped the Plasma agent" >&2
+    exit 1
+fi
+
 gdbus call --session \
     --dest quest.entropy.PlasmaVPN.Agent \
     --object-path /quest/entropy/PlasmaVPN/Agent \
@@ -75,6 +81,7 @@ if [[ "$control_center_count" != "1" ]]; then
     echo "Agent activation did not produce exactly one Control Center" >&2
     exit 1
 fi
+control_center_pid="$(pgrep -f "^$build_dir/proton-vpn-kde( |$)")"
 
 env XDG_CONFIG_HOME="$staging_dir/config" \
     "$build_dir/proton-vpn-kde" --show \
@@ -110,10 +117,20 @@ if [[ "$control_center_count" != "1" ]]; then
     exit 1
 fi
 
-gdbus call --session \
+if gdbus call --session \
     --dest quest.entropy.PlasmaVPN.ControlCenter \
     --object-path /quest/entropy/PlasmaVPN/ControlCenter \
-    --method quest.entropy.PlasmaVPN.ControlCenter1.Quit >/dev/null
+    --method quest.entropy.PlasmaVPN.ControlCenter1.Quit \
+    >/dev/null 2>&1; then
+    echo "Control Center exposed an unauthenticated Quit method" >&2
+    exit 1
+fi
+if ! kill -0 "$control_center_pid" 2>/dev/null; then
+    echo "An unauthenticated Quit request stopped the Control Center" >&2
+    exit 1
+fi
+
+kill "$control_center_pid"
 
 for _ in {1..80}; do
     if [[ "$(gdbus call --session \
@@ -133,8 +150,37 @@ if [[ "$(gdbus call --session \
     echo "Control Center did not exit on request" >&2
     exit 1
 fi
+control_center_pid=""
 
 if ! kill -0 "$agent_pid" 2>/dev/null; then
     echo "Closing the Control Center stopped the Plasma agent" >&2
     exit 1
 fi
+
+disabled_config="$staging_dir/disabled-config"
+mkdir -p "$disabled_config"
+env XDG_CONFIG_HOME="$disabled_config" \
+    /usr/bin/kwriteconfig6 \
+    --file proton-vpn-kderc \
+    --group General \
+    --key CloseToTray false
+env XDG_CONFIG_HOME="$disabled_config" \
+    /usr/bin/dbus-update-activation-environment XDG_CONFIG_HOME
+gdbus call --session \
+    --dest quest.entropy.PlasmaVPN.ControlCenter \
+    --object-path /quest/entropy/PlasmaVPN/ControlCenter \
+    --method quest.entropy.PlasmaVPN.ControlCenter1.ShowControlCenter \
+    >/dev/null
+control_center_pid="$(pgrep -f "^$build_dir/proton-vpn-kde( |$)")"
+for _ in {1..80}; do
+    if ! kill -0 "$agent_pid" 2>/dev/null; then
+        break
+    fi
+    sleep 0.05
+done
+if kill -0 "$agent_pid" 2>/dev/null; then
+    echo "The packaged Control Center could not stop background controls" >&2
+    exit 1
+fi
+wait "$agent_pid"
+agent_pid=""
