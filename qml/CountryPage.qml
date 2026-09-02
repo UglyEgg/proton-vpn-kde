@@ -66,7 +66,6 @@ Kirigami.ScrollablePage {
                          : true)
             onTriggered: {
                 if (page.countryAccessible) {
-                    applicationWindow().beginConnectionAction("connected")
                     if (page.requiredCapabilities.length > 0) {
                         vpnController.connectCountryWithFeatures(
                             page.countryCode, page.requiredCapabilities)
@@ -164,7 +163,6 @@ Kirigami.ScrollablePage {
                                  : true)
                     onClicked: {
                         if (groupDelegate.accessible) {
-                            applicationWindow().beginConnectionAction("connected")
                             vpnController.connectGroup(
                                 page.countryCode, groupDelegate.kind,
                                 groupDelegate.name)

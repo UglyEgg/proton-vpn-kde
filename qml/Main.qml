@@ -50,10 +50,6 @@ Kirigami.ApplicationWindow {
         close.accepted = vpnController.requestShutdown()
     }
 
-    function beginConnectionAction(expectedState) {
-        globalConnectionActionFeedback.beginForState(expectedState)
-    }
-
     function pushOwnedPage(pageComponent, properties) {
         const page = pageComponent.createObject(
             pageStack, properties === undefined ? {} : properties)
@@ -620,8 +616,6 @@ Kirigami.ApplicationWindow {
         vpnController: root.controller
         appSettings: root.integrationSettings
         windowWidth: root.width
-        onConnectionActionStarted: expectedState =>
-            root.beginConnectionAction(expectedState)
     }
 
     Connections {

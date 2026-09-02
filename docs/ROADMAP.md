@@ -49,6 +49,18 @@ The implementation constraints are:
 1. Verify compact and wide windows, keyboard-only use, screen-reader names,
    1.5x text, right-to-left layout, light and dark schemes, high contrast, and
    reduced motion before repeating the full release battery.
+2. Seal all admitted mechanics corrections and their focused regressions to one
+   clean commit, then restart the six independent Hostile, Subtractive,
+   Entropy, Error-Class, HPC/Performance, and Hardening/Security reviews against
+   that exact revision.
+3. Repeat source-archive, sanitizer, static-analysis, reproducibility, RPM,
+   SRPM, overlay-policy, and combined-transaction verification from the exact
+   review-passing revision.
+4. Install only the resulting artifacts and repeat live Plasma acceptance,
+   including authentication, connect/disconnect, suspend recovery, server
+   browsing, settings, resident controls, and packet-capture shutdown.
+5. Use that accepted build locally for the planned soak period before any
+   public release or merge decision.
 
 ### Information-architecture target
 

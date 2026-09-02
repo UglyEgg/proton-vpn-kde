@@ -151,7 +151,6 @@ Kirigami.Page {
                                  : true)
                     onClicked: {
                         if (countryDelegate.accessible) {
-                            applicationWindow().beginConnectionAction("connected")
                             vpnController.connectCountry(countryDelegate.code)
                         } else {
                             Qt.openUrlExternally("https://protonvpn.com/pricing")
@@ -250,7 +249,6 @@ Kirigami.Page {
                                  && (page.requiredCapabilities.length === 0
                                      || vpnController.userTier > 0)
                         onClicked: {
-                            applicationWindow().beginConnectionAction("connected")
                             vpnController.connectFastestWithFeatures(
                                 page.requiredCapabilities)
                         }
@@ -446,8 +444,6 @@ Kirigami.Page {
                                     Qt.openUrlExternally(
                                         "https://protonvpn.com/pricing")
                                 } else {
-                                    applicationWindow().beginConnectionAction(
-                                        "connected")
                                     vpnController.connectServer(resultDelegate.name)
                                 }
                             }

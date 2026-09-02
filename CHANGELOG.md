@@ -56,6 +56,11 @@ All notable user-visible changes are recorded here. The project follows
   disconnected, prevent server-browser actions from re-entering while another
   connection operation is active, and avoid duplicate status surfaces on the
   Connection page.
+- Give connection and foreground authentication requests explicit operation
+  identities. A delayed reply from an older same-backend attempt can no longer
+  clear busy state, replace guidance, or complete the feedback owned by a
+  newer retry; one controller signal now establishes that ownership for every
+  request origin.
 - Distinguish failed country, search, location, server, and load reads from a
   valid empty server-browser result, with errors scoped to their owning view
   and cleared when that read is retried. Explain whether an empty exact-server
@@ -73,10 +78,18 @@ All notable user-visible changes are recorded here. The project follows
   replies, keep risk-reducing Stop available after a malformed snapshot, and
   offer service restart for recoverable snapshot failures while treating an
   unsupported interface version as an update or reinstall condition.
+- Let packet-capture Stop preempt an accepted but unfinished Start, wait for
+  Core's existing cancellation compensation, and require affirmative inactive
+  confirmation before application shutdown. A temporary busy/inactive snapshot
+  can no longer allow an unconfirmed capture to outlive the Control Center.
 - Fence browser replies and protected NPS submissions to the account session
   that created them. Report survey success only after the backend accepts it,
   and retire old page cleanup synchronously before a replacement Settings page
   can start a new capture.
+- Serialize destructive NPS retrieval and submission with account transitions,
+  generation-fence both protected submission stages, and permit retry only
+  after a definitive same-session rejection. Completion-unknown submissions
+  are reported explicitly and are never retried automatically.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

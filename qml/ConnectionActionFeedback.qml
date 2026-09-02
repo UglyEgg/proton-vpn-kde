@@ -9,6 +9,7 @@ Kirigami.InlineMessage {
 
     required property var controller
     property bool awaitingResult: false
+    property double operationId: 0
     property string expectedState
     property string startingState
     property string completedMessage
@@ -26,7 +27,8 @@ Kirigami.InlineMessage {
         sourceMessage = ""
     }
 
-    function beginForState(state) {
+    function beginForOperation(id, state) {
+        operationId = id
         expectedState = state
         startingState = controller.state
         awaitingResult = true
@@ -59,8 +61,9 @@ Kirigami.InlineMessage {
         }
     }
 
-    function completeOperation(targetState, success, resultMessage) {
-        if (!awaitingResult || targetState !== expectedState) {
+    function completeOperation(id, targetState, success, resultMessage) {
+        if (!awaitingResult || id !== operationId
+                || targetState !== expectedState) {
             return
         }
         awaitingResult = false
@@ -85,8 +88,12 @@ Kirigami.InlineMessage {
         function onSnapshotChanged() {
             root.reconcileSnapshot()
         }
-        function onConnectionOperationFinished(targetState, success, message) {
-            root.completeOperation(targetState, success, message)
+        function onConnectionOperationStarted(operationId, targetState) {
+            root.beginForOperation(operationId, targetState)
+        }
+        function onConnectionOperationFinished(operationId, targetState,
+                                               success, message) {
+            root.completeOperation(operationId, targetState, success, message)
         }
     }
 }

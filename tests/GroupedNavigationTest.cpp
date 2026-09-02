@@ -68,6 +68,7 @@ public:
     int packetCaptureStartCalls = 0;
     int packetCaptureStopCalls = 0;
     int npsSubmissionCalls = 0;
+    int delayedCapabilityOperationCount = 0;
     int countryFailures = 0;
     int searchFailures = 0;
     int loadFailures = 0;
@@ -86,6 +87,7 @@ public:
     bool delayCountries = false;
     bool delayAuthPublicKey = false;
     bool delayNpsSubmission = false;
+    bool failNextNpsSubmission = false;
     bool packetCaptureActive = false;
     int settingsNetShield = 0;
     int snapshotNoReplyFailures = 0;
@@ -101,6 +103,7 @@ public:
     QDBusMessage delayedCountriesMessage;
     QDBusMessage delayedAuthPublicKeyMessage;
     QDBusMessage delayedNpsSubmissionMessage;
+    QList<QDBusMessage> delayedCapabilityMessages;
     QByteArray authPublicKey = backendPublicKey();
 
     void publishSession(bool sessionReady, bool sessionLoggedIn)
@@ -208,6 +211,11 @@ public slots:
     {
         ++capabilityCalls;
         lastCapabilities = features;
+        if (delayedCapabilityOperationCount > 0) {
+            --delayedCapabilityOperationCount;
+            setDelayedReply(true);
+            delayedCapabilityMessages.append(message());
+        }
     }
 
     QString GetPendingNpsSurvey() const
@@ -229,6 +237,12 @@ public slots:
     void SubmitNpsSurvey(const QDBusUnixFileDescriptor &)
     {
         ++npsSubmissionCalls;
+        if (failNextNpsSubmission) {
+            failNextNpsSubmission = false;
+            sendErrorReply(QDBusError::Failed,
+                           QStringLiteral("survey submission rejected"));
+            return;
+        }
         if (delayNpsSubmission) {
             setDelayedReply(true);
             delayedNpsSubmissionMessage = message();
@@ -372,6 +386,14 @@ public slots:
     void StopPacketCapture()
     {
         ++packetCaptureStopCalls;
+        if (delayedPacketCaptureStartMessage.type()
+            == QDBusMessage::MethodCallMessage) {
+            connection().send(
+                delayedPacketCaptureStartMessage.createErrorReply(
+                    QDBusError::Failed,
+                    QStringLiteral("packet capture start cancelled by stop")));
+            delayedPacketCaptureStartMessage = {};
+        }
         if (delayPacketCaptureStop) {
             setDelayedReply(true);
             delayedPacketCaptureStopMessage = message();
@@ -403,7 +425,7 @@ private slots:
     void invalidSnapshotOwnsGlobalHealthError();
     void invalidSnapshotStillAllowsCaptureStopAndRestart();
     void packetCaptureFailuresHaveTypedState();
-    void defersCaptureStopUntilPendingStartSettles();
+    void captureStopPreemptsPendingStart();
     void captureSignalBeforeStartReplyPreservesStopOwnership();
     void shutdownWaitsForDeferredCaptureStop();
     void duplicateCaptureStopPreservesReconciliation();
@@ -418,10 +440,14 @@ private slots:
     void supplementalLoadFailuresPreserveAuthoritativeEmptyResults();
     void stalePageCleanupCannotClearReplacementContexts();
     void requestsFastestServerByValidatedCapabilities();
+    void staleConnectionReplyCannotCompleteReplacementOperation();
+    void staleForegroundAuthReplyCannotCorruptReplacementOperation();
     void supportReportSubmissionFollowsBuildPolicy();
     void crashReportSubmissionFollowsBuildPolicy();
     void npsSubmissionWaitsForBackendAcceptance();
+    void rejectedNpsSubmissionCanBeRetried();
     void staleNpsKeyCannotSubmitForReplacementSession();
+    void staleNpsDismissalCannotCompleteReplacementSubmission();
 
 private:
     GroupedNavigationBackend m_backend;
@@ -721,7 +747,7 @@ void GroupedNavigationTest::packetCaptureFailuresHaveTypedState()
     m_backend.publishSession(true, true);
 }
 
-void GroupedNavigationTest::defersCaptureStopUntilPendingStartSettles()
+void GroupedNavigationTest::captureStopPreemptsPendingStart()
 {
     m_backend.connectionState = QStringLiteral("connected");
     m_backend.packetCaptureActive = false;
@@ -746,15 +772,10 @@ void GroupedNavigationTest::defersCaptureStopUntilPendingStartSettles()
     controller.stopPacketCapture();
     QVERIFY(controller.m_packetCaptureStopRequested);
     QVERIFY(controller.m_packetCaptureOperationPending);
-    QCOMPARE(m_backend.packetCaptureStopCalls, stopCallsBefore);
-
-    m_backend.delayPacketCaptureStart = false;
-    m_backend.packetCaptureActive = true;
-    QVERIFY(m_backendBus->send(
-        m_backend.delayedPacketCaptureStartMessage.createReply()));
     QTRY_COMPARE_WITH_TIMEOUT(
-        m_backend.packetCaptureStopCalls, stopCallsBefore + 1, 3000);
-    QTRY_VERIFY_WITH_TIMEOUT(!controller.packetCaptureActive(), 3000);
+        m_backend.packetCaptureStopCalls, stopCallsBefore + 1, 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.m_packetCaptureStopRequested, 3000);
+    QVERIFY(!controller.packetCaptureActive());
     QVERIFY(!controller.m_packetCaptureStopRequested);
     QVERIFY(!controller.m_packetCaptureOperationPending);
     QVERIFY(!controller.m_packetCaptureExpectedActive.has_value());
@@ -781,19 +802,12 @@ void GroupedNavigationTest::captureSignalBeforeStartReplyPreservesStopOwnership(
     controller.startPacketCapture(QStringLiteral("/tmp"));
     QTRY_COMPARE_WITH_TIMEOUT(
         m_backend.packetCaptureStartCalls, startsBefore + 1, 2000);
-    controller.stopPacketCapture();
 
     m_backend.packetCaptureActive = true;
     m_backend.publishSession(true, true);
+    controller.stopPacketCapture();
     QTRY_COMPARE_WITH_TIMEOUT(
         m_backend.packetCaptureStopCalls, stopsBefore + 1, 2000);
-    QVERIFY(controller.m_packetCaptureOperationPending);
-    QVERIFY(controller.m_packetCaptureExpectedActive.has_value());
-    QVERIFY(!*controller.m_packetCaptureExpectedActive);
-
-    QVERIFY(m_backendBus->send(
-        m_backend.delayedPacketCaptureStartMessage.createReply()));
-    QTest::qWait(100);
     QVERIFY(controller.m_packetCaptureOperationPending);
     QVERIFY(controller.m_packetCaptureExpectedActive.has_value());
     QVERIFY(!*controller.m_packetCaptureExpectedActive);
@@ -833,9 +847,6 @@ void GroupedNavigationTest::shutdownWaitsForDeferredCaptureStop()
     QVERIFY(controller.shutdownPending());
     QCOMPARE(shutdownSpy.count(), 0);
 
-    m_backend.packetCaptureActive = true;
-    QVERIFY(m_backendBus->send(
-        m_backend.delayedPacketCaptureStartMessage.createReply()));
     QTRY_COMPARE_WITH_TIMEOUT(
         m_backend.packetCaptureStopCalls, stopsBefore + 1, 2000);
     QCOMPARE(shutdownSpy.count(), 0);
@@ -1284,9 +1295,10 @@ void GroupedNavigationTest::requestsFastestServerByValidatedCapabilities()
                           QStringLiteral("streaming")}));
     QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 2000);
     QTRY_COMPARE_WITH_TIMEOUT(connectionFinished.count(), 1, 2000);
-    QCOMPARE(connectionFinished.at(0).at(0).toString(),
+    QVERIFY(connectionFinished.at(0).at(0).toULongLong() > 0);
+    QCOMPARE(connectionFinished.at(0).at(1).toString(),
              QStringLiteral("connected"));
-    QVERIFY(connectionFinished.at(0).at(1).toBool());
+    QVERIFY(connectionFinished.at(0).at(2).toBool());
 
     controller.setFastestFeatures(
         {QStringLiteral("secure-core"), QStringLiteral("p2p")});
@@ -1299,6 +1311,102 @@ void GroupedNavigationTest::requestsFastestServerByValidatedCapabilities()
     controller.connectFastestWithFeatures({QStringLiteral("unsupported")});
     QTest::qWait(50);
     QCOMPARE(m_backend.capabilityCalls, callsBefore + 2);
+}
+
+void GroupedNavigationTest::staleConnectionReplyCannotCompleteReplacementOperation()
+{
+    m_backend.publishSession(true, true);
+    m_backend.delayedCapabilityOperationCount = 2;
+    m_backend.delayedCapabilityMessages.clear();
+    VpnController controller(nullptr, false);
+    QSignalSpy connectionStarted(
+        &controller, &VpnController::connectionOperationStarted);
+    QSignalSpy connectionFinished(
+        &controller, &VpnController::connectionOperationFinished);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    controller.connectFastestWithFeatures({QStringLiteral("p2p")});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedCapabilityMessages.size(), 1, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(connectionStarted.count(), 1, 2000);
+    const quint64 firstOperation =
+        connectionStarted.at(0).at(0).toULongLong();
+
+    // Production publishes busy=false before the method reply. That permits a
+    // retry while the first D-Bus reply is still in flight.
+    m_backend.publishSession(true, true);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 2000);
+    controller.connectFastestWithFeatures({QStringLiteral("streaming")});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedCapabilityMessages.size(), 2, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(connectionStarted.count(), 2, 2000);
+    const quint64 replacementOperation =
+        connectionStarted.at(1).at(0).toULongLong();
+    QVERIFY(replacementOperation > firstOperation);
+    QVERIFY(controller.busy());
+
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedCapabilityMessages.at(0).createErrorReply(
+            QDBusError::Failed,
+            QStringLiteral("older connection attempt failed"))));
+    QTest::qWait(100);
+    QCOMPARE(connectionFinished.count(), 0);
+    QVERIFY(controller.busy());
+
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedCapabilityMessages.at(1).createReply()));
+    QTRY_COMPARE_WITH_TIMEOUT(connectionFinished.count(), 1, 2000);
+    QCOMPARE(connectionFinished.at(0).at(0).toULongLong(),
+             replacementOperation);
+    QCOMPARE(connectionFinished.at(0).at(1).toString(),
+             QStringLiteral("connected"));
+    QVERIFY(connectionFinished.at(0).at(2).toBool());
+
+    m_backend.delayedCapabilityOperationCount = 0;
+    m_backend.delayedCapabilityMessages.clear();
+}
+
+void GroupedNavigationTest::staleForegroundAuthReplyCannotCorruptReplacementOperation()
+{
+    m_backend.publishSession(true, true);
+    m_backend.delayLogout = true;
+    m_backend.delayedLogoutMessage = {};
+    m_backend.delayedCapabilityOperationCount = 1;
+    m_backend.delayedCapabilityMessages.clear();
+    VpnController controller(nullptr, false);
+    QSignalSpy connectionFinished(
+        &controller, &VpnController::connectionOperationFinished);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    controller.logout();
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedLogoutMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+
+    m_backend.publishSession(true, true);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 2000);
+    controller.connectFastestWithFeatures({QStringLiteral("p2p")});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedCapabilityMessages.size(), 1, 2000);
+    QVERIFY(controller.busy());
+
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedLogoutMessage.createErrorReply(
+            QDBusError::Failed,
+            QStringLiteral("older logout failed"))));
+    QTest::qWait(100);
+    QVERIFY(controller.busy());
+    QVERIFY(controller.message().isEmpty());
+    QCOMPARE(connectionFinished.count(), 0);
+
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedCapabilityMessages.at(0).createReply()));
+    QTRY_COMPARE_WITH_TIMEOUT(connectionFinished.count(), 1, 2000);
+    QVERIFY(connectionFinished.at(0).at(2).toBool());
+
+    m_backend.delayLogout = false;
+    m_backend.delayedCapabilityOperationCount = 0;
+    m_backend.delayedCapabilityMessages.clear();
 }
 
 void GroupedNavigationTest::npsSubmissionWaitsForBackendAcceptance()
@@ -1330,6 +1438,33 @@ void GroupedNavigationTest::npsSubmissionWaitsForBackendAcceptance()
     m_backend.delayNpsSubmission = false;
 }
 
+void GroupedNavigationTest::rejectedNpsSubmissionCanBeRetried()
+{
+    m_backend.publishSession(true, true);
+    m_backend.delayAuthPublicKey = false;
+    m_backend.delayNpsSubmission = false;
+    m_backend.failNextNpsSubmission = true;
+    VpnController controller(nullptr, false);
+    QSignalSpy submissionFinished(
+        &controller, &VpnController::npsSurveySubmissionFinished);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    controller.m_npsSurveyAvailable = true;
+    const int submissionsBefore = m_backend.npsSubmissionCalls;
+    controller.submitNpsSurvey(8, QStringLiteral("First attempt"));
+    QTRY_COMPARE_WITH_TIMEOUT(submissionFinished.count(), 1, 2000);
+    QVERIFY(!submissionFinished.at(0).at(0).toBool());
+    QVERIFY(controller.npsSurveyAvailable());
+    QVERIFY(!controller.npsSurveySubmissionPending());
+
+    controller.submitNpsSurvey(8, QStringLiteral("Second attempt"));
+    QTRY_COMPARE_WITH_TIMEOUT(submissionFinished.count(), 2, 2000);
+    QVERIFY(submissionFinished.at(1).at(0).toBool());
+    QCOMPARE(m_backend.npsSubmissionCalls, submissionsBefore + 2);
+    QVERIFY(!controller.npsSurveyAvailable());
+    QVERIFY(!controller.npsSurveySubmissionPending());
+}
+
 void GroupedNavigationTest::staleNpsKeyCannotSubmitForReplacementSession()
 {
     QCOMPARE(m_backend.authPublicKey.size(), 32);
@@ -1357,14 +1492,81 @@ void GroupedNavigationTest::staleNpsKeyCannotSubmitForReplacementSession()
     QVERIFY(!submissionFinished.at(0).at(0).toBool());
     QVERIFY(!controller.npsSurveySubmissionPending());
 
-    QVERIFY(m_backendBus->send(
+    const QDBusMessage staleKeyReply =
         m_backend.delayedAuthPublicKeyMessage.createReply(
-            QString::fromLatin1(m_backend.authPublicKey.toBase64()))));
+            QString::fromLatin1(m_backend.authPublicKey.toBase64()));
+    m_backend.delayAuthPublicKey = false;
+    m_backend.delayNpsSubmission = true;
+    m_backend.delayedNpsSubmissionMessage = {};
+    controller.m_npsSurveyAvailable = true;
+    controller.submitNpsSurvey(
+        10, QStringLiteral("Replacement session response"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedNpsSubmissionMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+    QVERIFY(controller.npsSurveySubmissionPending());
+
+    QVERIFY(m_backendBus->send(staleKeyReply));
     QTest::qWait(100);
-    QCOMPARE(m_backend.npsSubmissionCalls, submissionsBefore);
+    QCOMPARE(m_backend.npsSubmissionCalls, submissionsBefore + 1);
     QCOMPARE(submissionFinished.count(), 1);
+    QVERIFY(controller.npsSurveySubmissionPending());
+
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedNpsSubmissionMessage.createReply()));
+    QTRY_COMPARE_WITH_TIMEOUT(submissionFinished.count(), 2, 2000);
+    QVERIFY(submissionFinished.at(1).at(0).toBool());
+    QVERIFY(!controller.npsSurveySubmissionPending());
 
     m_backend.delayAuthPublicKey = false;
+    m_backend.delayNpsSubmission = false;
+}
+
+void GroupedNavigationTest::staleNpsDismissalCannotCompleteReplacementSubmission()
+{
+    m_backend.publishSession(true, true);
+    m_backend.delayAuthPublicKey = false;
+    m_backend.delayNpsSubmission = true;
+    m_backend.delayedNpsSubmissionMessage = {};
+    VpnController controller(nullptr, false);
+    QSignalSpy submissionFinished(
+        &controller, &VpnController::npsSurveySubmissionFinished);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    controller.m_npsSurveyAvailable = true;
+    controller.dismissNpsSurvey();
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedNpsSubmissionMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+    const QDBusMessage staleDismissalReply =
+        m_backend.delayedNpsSubmissionMessage.createReply();
+
+    m_backend.publishSession(true, false);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.loggedIn(), 2000);
+    m_backend.publishSession(true, true);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+
+    m_backend.delayedNpsSubmissionMessage = {};
+    controller.m_npsSurveyAvailable = true;
+    controller.submitNpsSurvey(
+        9, QStringLiteral("Replacement session response"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedNpsSubmissionMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+    QVERIFY(controller.npsSurveySubmissionPending());
+
+    QVERIFY(m_backendBus->send(staleDismissalReply));
+    QTest::qWait(100);
+    QCOMPARE(submissionFinished.count(), 0);
+    QVERIFY(controller.npsSurveySubmissionPending());
+
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedNpsSubmissionMessage.createReply()));
+    QTRY_COMPARE_WITH_TIMEOUT(submissionFinished.count(), 1, 2000);
+    QVERIFY(submissionFinished.at(0).at(0).toBool());
+    QVERIFY(!controller.npsSurveySubmissionPending());
+
+    m_backend.delayNpsSubmission = false;
 }
 
 void GroupedNavigationTest::supportReportSubmissionFollowsBuildPolicy()

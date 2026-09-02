@@ -64,11 +64,10 @@ echo "The mechanics gate rejects changed controller state ownership"
 
 git clone --quiet --no-hardlinks "$project_dir" "$feedback_fixture_dir"
 perl -0pi -e \
-    's/\n\s*applicationWindow\(\)\.beginConnectionAction\(\n\s*"connected"\)(\n\s*vpnController\.connectServer\(resultDelegate\.name\))/\1/' \
-    "$feedback_fixture_dir/qml/LocationsPage.qml"
-if rg -U -q \
-        'beginConnectionAction\(\n[[:space:]]*"connected"\)\n[[:space:]]*vpnController\.connectServer\(resultDelegate\.name\)' \
-        "$feedback_fixture_dir/qml/LocationsPage.qml"; then
+    's/\n\s*function onConnectionOperationStarted\(operationId, targetState\) \{\n\s*root\.beginForOperation\(operationId, targetState\)\n\s*\}//' \
+    "$feedback_fixture_dir/qml/ConnectionActionFeedback.qml"
+if rg -q 'function onConnectionOperationStarted' \
+        "$feedback_fixture_dir/qml/ConnectionActionFeedback.qml"; then
     echo "Unable to construct the feedback-ownership negative fixture" >&2
     exit 1
 fi
@@ -79,7 +78,7 @@ if "$feedback_fixture_dir/scripts/check-qml-ui-hygiene.sh" \
     echo "The UI hygiene gate accepted an unowned connection action" >&2
     exit 1
 fi
-if ! rg -q 'Connection action lacks explicit feedback ownership' \
+if ! rg -q 'Backend failures must preserve diagnostics' \
         "$feedback_output"; then
     echo "The UI hygiene gate failed for an unexpected reason" >&2
     sed -n '1,120p' "$feedback_output" >&2

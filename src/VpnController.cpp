@@ -304,13 +304,15 @@ void VpnController::submitNpsSurvey(int score, const QString &comments)
     }
     m_npsSurveyAvailable = false;
     m_npsSurveySubmissionPending = true;
+    const quint64 generation = ++m_npsSurveyOperationGeneration;
     emit npsSurveyChanged();
     callSecretOperation(
         QString::fromLatin1(BackendDbus::Method::submitNpsSurvey),
         {{QStringLiteral("score"), QString::number(score)},
          {QStringLiteral("comments"), comments.left(250)},
          {QStringLiteral("responseType"), QStringLiteral("submit")}},
-        false);
+        false,
+        generation);
 }
 
 void VpnController::dismissNpsSurvey()
@@ -371,13 +373,19 @@ void VpnController::handlePendingNpsSurveyReply(
     }
 }
 
-void VpnController::finishNpsSurveySubmission(bool success,
-                                              const QString &message)
+void VpnController::finishNpsSurveySubmission(quint64 generation,
+                                              bool success,
+                                              const QString &message,
+                                              bool retryAllowed)
 {
-    if (!m_npsSurveySubmissionPending) {
+    if (!m_npsSurveySubmissionPending
+        || generation != m_npsSurveyOperationGeneration) {
         return;
     }
     m_npsSurveySubmissionPending = false;
+    if (!success && retryAllowed && m_loggedIn && snapshotHealthy()) {
+        m_npsSurveyAvailable = true;
+    }
     emit npsSurveyChanged();
     emit npsSurveySubmissionFinished(success, message);
 }

@@ -48,10 +48,11 @@ class CancellableOperationAdapter(DemoCoreAdapter):
 
 class BlockingLogoutAdapter(DemoCoreAdapter):
     def __init__(self):
-        super().__init__()
+        super().__init__(nps_survey_available=True)
         self.logout_started = asyncio.Event()
         self.release_logout = asyncio.Event()
         self.close_calls = 0
+        self.pending_nps_take_calls = 0
 
     async def logout(self) -> None:
         self.logout_started.set()
@@ -61,6 +62,10 @@ class BlockingLogoutAdapter(DemoCoreAdapter):
     async def close(self) -> None:
         self.close_calls += 1
         await super().close()
+
+    async def take_pending_nps_survey(self) -> bool:
+        self.pending_nps_take_calls += 1
+        return await super().take_pending_nps_survey()
 
 
 class LoginRecordingAdapter(DemoCoreAdapter):
@@ -185,6 +190,30 @@ class BlockingNpsSubmissionAdapter(DemoCoreAdapter):
         await super().submit_nps_survey(response)
 
 
+class BlockingPacketCaptureAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__()
+        self.capture_start_started = asyncio.Event()
+        self.capture_start_compensated = asyncio.Event()
+        self.capture_stop_calls = 0
+
+    async def start_packet_capture(self, directory_path: str) -> None:
+        if not directory_path.startswith("/"):
+            raise ValueError("Select a valid packet-capture folder")
+        self._packet_capture_active = True
+        self.capture_start_started.set()
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            self._packet_capture_active = False
+            self.capture_start_compensated.set()
+            raise
+
+    async def stop_packet_capture(self) -> None:
+        self.capture_stop_calls += 1
+        await super().stop_packet_capture()
+
+
 class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.controller = BackendController(DemoCoreAdapter())
@@ -307,6 +336,47 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         await self.controller.stop_packet_capture()
         self.assertFalse(self.controller.snapshot.packet_capture_active)
 
+    async def test_packet_capture_stop_preempts_and_compensates_pending_start(self):
+        adapter = BlockingPacketCaptureAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        capture_start = asyncio.create_task(
+            controller.start_packet_capture("/tmp")
+        )
+        await adapter.capture_start_started.wait()
+        self.assertTrue(controller.snapshot.busy)
+
+        await controller.stop_packet_capture()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await capture_start
+        self.assertTrue(adapter.capture_start_compensated.is_set())
+        self.assertEqual(1, adapter.capture_stop_calls)
+        self.assertFalse(adapter._packet_capture_active)
+        self.assertFalse(controller.snapshot.busy)
+
+    async def test_rejected_second_capture_start_preserves_stop_preemption(self):
+        adapter = BlockingPacketCaptureAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        capture_start = asyncio.create_task(
+            controller.start_packet_capture("/tmp")
+        )
+        await adapter.capture_start_started.wait()
+
+        with self.assertRaisesRegex(RuntimeError, "already in progress"):
+            await controller.start_packet_capture("/tmp")
+        await controller.stop_packet_capture()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await capture_start
+        self.assertTrue(adapter.capture_start_compensated.is_set())
+        self.assertEqual(1, adapter.capture_stop_calls)
+        self.assertFalse(adapter._packet_capture_active)
+        self.assertFalse(controller.snapshot.busy)
+
     async def test_support_report_is_validated_and_submitted(self):
         description = "A sufficiently detailed description of the VPN issue I found."
 
@@ -345,7 +415,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "0 through 10"):
             await controller.submit_nps_survey("11", "", "submit")
 
-    async def test_late_nps_submission_is_rejected_after_logout(self):
+    async def test_accepted_nps_submission_blocks_session_replacement(self):
         adapter = BlockingNpsSubmissionAdapter()
         controller = BackendController(adapter)
         self.assertTrue(await controller.start())
@@ -354,11 +424,38 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             controller.submit_nps_survey("9", "Works well on Plasma", "submit")
         )
         await adapter.submission_started.wait()
-        await controller.logout()
+
+        with self.assertRaisesRegex(RuntimeError, "already in progress"):
+            await controller.logout()
         adapter.release_submission.set()
+        await submission
+
+        self.assertEqual(
+            NpsSurveyResponse(score=9, comments="Works well on Plasma"),
+            adapter.last_nps_response,
+        )
+        await controller.logout()
+        self.assertFalse(controller.snapshot.logged_in)
+
+    async def test_nps_submission_waiting_behind_logout_has_no_side_effect(self):
+        adapter = BlockingLogoutAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        logout = asyncio.create_task(controller.logout())
+        await adapter.logout_started.wait()
+        submission = asyncio.create_task(
+            controller.submit_nps_survey("9", "Account A private comment", "submit")
+        )
+        await asyncio.sleep(0)
+        self.assertIsNone(adapter.last_nps_response)
+
+        adapter.release_logout.set()
+        await logout
 
         with self.assertRaisesRegex(RuntimeError, "session changed"):
             await submission
+        self.assertIsNone(adapter.last_nps_response)
 
     def test_support_report_rejects_invalid_or_oversized_fields(self):
         with self.assertRaisesRegex(ValueError, "valid email"):
@@ -474,7 +571,6 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             ),
             ("loads", "get_server_loads_json", ("CH",)),
             ("search", "search_locations_json", ("Zurich",)),
-            ("nps", "get_pending_nps_survey_json", ()),
         )
         for method_name, read_name, arguments in cases:
             with self.subTest(method_name=method_name):
@@ -491,6 +587,42 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
                 with self.assertRaisesRegex(RuntimeError, "session changed"):
                     await read_task
+
+    async def test_accepted_pending_nps_take_blocks_session_replacement(self):
+        adapter = BlockingSessionReadAdapter("nps")
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        pending_survey = asyncio.create_task(
+            controller.get_pending_nps_survey_json()
+        )
+        await adapter.read_started.wait()
+        with self.assertRaisesRegex(RuntimeError, "already in progress"):
+            await controller.logout()
+
+        adapter.release_read.set()
+        self.assertIn('"available":true', await pending_survey)
+        await controller.logout()
+        self.assertFalse(controller.snapshot.logged_in)
+
+    async def test_pending_nps_take_waiting_behind_logout_has_no_side_effect(self):
+        adapter = BlockingLogoutAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        logout = asyncio.create_task(controller.logout())
+        await adapter.logout_started.wait()
+        pending_survey = asyncio.create_task(
+            controller.get_pending_nps_survey_json()
+        )
+        await asyncio.sleep(0)
+        self.assertEqual(0, adapter.pending_nps_take_calls)
+
+        adapter.release_logout.set()
+        await logout
+        with self.assertRaisesRegex(RuntimeError, "session changed"):
+            await pending_survey
+        self.assertEqual(0, adapter.pending_nps_take_calls)
 
     async def test_unofficial_build_rejects_crash_reporting_enable(self):
         with self.assertRaisesRegex(RuntimeError, "unofficial community build"):

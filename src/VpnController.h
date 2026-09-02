@@ -226,7 +226,10 @@ public:
 
 signals:
     void locationsChanged();
-    void connectionOperationFinished(const QString &targetState,
+    void connectionOperationStarted(quint64 operationId,
+                                    const QString &targetState);
+    void connectionOperationFinished(quint64 operationId,
+                                     const QString &targetState,
                                      bool success,
                                      const QString &message);
     void npsSurveyChanged();
@@ -263,7 +266,8 @@ private:
     void callOperation(const QString &method, const QVariantList &arguments = {});
     void callFastestOperation(const QStringList &features);
     void callSecretOperation(const QString &method, const QJsonObject &fields,
-                             bool updateBusy = true);
+                             bool updateBusy = true,
+                             quint64 npsSubmissionGeneration = 0);
     void callControlOperation(const QString &method,
                               const QVariantList &arguments = {});
     void requestServerLoads();
@@ -284,7 +288,10 @@ private:
     void dispatchPendingLocationRefreshes();
     void dispatchPendingPacketCaptureStop(bool allowUnconfirmedActive = false);
     void completeShutdownIfSafe();
-    void finishNpsSurveySubmission(bool success, const QString &message);
+    void finishNpsSurveySubmission(quint64 generation,
+                                   bool success,
+                                   const QString &message,
+                                   bool retryAllowed = true);
     void setLocationsBusy(bool busy);
     void setBrowserError(QString &target, const QString &message);
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
@@ -354,6 +361,7 @@ private:
     bool m_npsSurveyChecked = false;
     bool m_npsSurveyAvailable = false;
     bool m_npsSurveySubmissionPending = false;
+    quint64 m_npsSurveyOperationGeneration = 0;
     bool m_countryRefreshPending = false;
     bool m_serverGroupRefreshPending = false;
     bool m_serverRefreshPending = false;
@@ -385,6 +393,8 @@ private:
     bool m_packetCaptureOperationPending = false;
     bool m_packetCaptureStopRequested = false;
     bool m_shutdownPending = false;
+    quint64 m_foregroundOperationGeneration = 0;
+    quint64 m_connectionOperationGeneration = 0;
     bool m_coreMemoryOptimized = false;
     QString m_coreVersion;
     QString m_message = QStringLiteral("Waiting for the Proton backend service");

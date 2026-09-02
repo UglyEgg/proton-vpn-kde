@@ -153,11 +153,13 @@ void VpnController::stopPacketCapture()
         && !*m_packetCaptureExpectedActive) {
         return;
     }
-    if (!m_packetCaptureActive
+    if (!m_packetCaptureStopRequested && !m_shutdownPending
+        && !m_packetCaptureActive
         && (!m_packetCaptureExpectedActive.has_value()
             || !*m_packetCaptureExpectedActive)) {
         return;
     }
+    m_packetCaptureError.clear();
     m_packetCaptureStopRequested = true;
     dispatchPendingPacketCaptureStop();
 }
@@ -170,16 +172,21 @@ void VpnController::dispatchPendingPacketCaptureStop(bool allowUnconfirmedActive
     if (m_packetCaptureOperationPending
         && m_packetCaptureExpectedActive.has_value()
         && !*m_packetCaptureExpectedActive) {
-        m_packetCaptureStopRequested = false;
         return;
     }
-    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_busy) {
+    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
         return;
     }
-    if (!m_packetCaptureActive && !allowUnconfirmedActive) {
+    if (!m_packetCaptureError.isEmpty() && !allowUnconfirmedActive) {
         return;
     }
-    m_packetCaptureStopRequested = false;
+    const bool startMayStillActivate = m_packetCaptureOperationPending
+        && m_packetCaptureExpectedActive.has_value()
+        && *m_packetCaptureExpectedActive;
+    if (!m_packetCaptureActive && !startMayStillActivate
+        && !allowUnconfirmedActive) {
+        return;
+    }
     callOperation(QString::fromLatin1(BackendDbus::Method::stopPacketCapture));
 }
 
@@ -511,6 +518,7 @@ void VpnController::callOperation(const QString &method,
                                   const QVariantList &arguments)
 {
     const QVariant captureTarget = packetCaptureTargetActive(method);
+    const QString connectionTarget = connectionTargetState(method);
     const bool riskReducingCaptureStop = captureTarget.isValid()
         && !captureTarget.toBool();
     if (!m_backendAvailable || m_backendDestination.isEmpty()
@@ -519,12 +527,18 @@ void VpnController::callOperation(const QString &method,
     }
     m_busy = true;
     m_message.clear();
+    const quint64 foregroundGeneration = ++m_foregroundOperationGeneration;
     quint64 captureGeneration = 0;
     if (captureTarget.isValid()) {
         captureGeneration = ++m_packetCaptureOperationGeneration;
         m_packetCaptureOperationPending = true;
         m_packetCaptureExpectedActive = captureTarget.toBool();
         m_packetCaptureError.clear();
+    }
+    quint64 connectionGeneration = 0;
+    if (!connectionTarget.isEmpty()) {
+        connectionGeneration = ++m_connectionOperationGeneration;
+        emit connectionOperationStarted(connectionGeneration, connectionTarget);
     }
     emit snapshotChanged();
 
@@ -537,7 +551,12 @@ void VpnController::callOperation(const QString &method,
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
     stampBackendRequest(watcher);
-    watcher->setProperty("connectionTargetState", connectionTargetState(method));
+    watcher->setProperty("connectionTargetState", connectionTarget);
+    watcher->setProperty(
+        "foregroundOperationGeneration",
+        QVariant::fromValue<qulonglong>(foregroundGeneration));
+    watcher->setProperty("connectionOperationGeneration",
+                         QVariant::fromValue<qulonglong>(connectionGeneration));
     watcher->setProperty("packetCaptureTargetActive", captureTarget);
     watcher->setProperty("packetCaptureOperationGeneration",
                          QVariant::fromValue<qulonglong>(captureGeneration));
@@ -562,17 +581,16 @@ void VpnController::callFastestOperation(const QStringList &features)
 
 void VpnController::callSecretOperation(const QString &method,
                                         const QJsonObject &fields,
-                                        bool updateBusy)
+                                        bool updateBusy,
+                                        quint64 npsSubmissionGeneration)
 {
-    const bool npsOperation =
-        method == QString::fromLatin1(BackendDbus::Method::submitNpsSurvey);
+    const bool npsSubmission = npsSubmissionGeneration != 0;
     if (!snapshotHealthy()) {
-        if (npsOperation) {
-            if (m_loggedIn) {
-                m_npsSurveyAvailable = true;
-            }
+        if (npsSubmission) {
             finishNpsSurveySubmission(
-                false, tr("The current account state is unavailable"));
+                npsSubmissionGeneration,
+                false,
+                tr("The current account state is unavailable"));
         }
         return;
     }
@@ -581,6 +599,8 @@ void VpnController::callSecretOperation(const QString &method,
         m_message.clear();
         emit snapshotChanged();
     }
+    const quint64 foregroundGeneration = updateBusy
+        ? ++m_foregroundOperationGeneration : 0;
 
     if (!m_backendAvailable || m_backendDestination.isEmpty()) {
         if (updateBusy) {
@@ -588,11 +608,9 @@ void VpnController::callSecretOperation(const QString &method,
         }
         m_message = tr("The Proton backend is not available");
         emit snapshotChanged();
-        if (npsOperation) {
-            if (m_loggedIn && snapshotHealthy()) {
-                m_npsSurveyAvailable = true;
-            }
-            finishNpsSurveySubmission(false, m_message);
+        if (npsSubmission) {
+            finishNpsSurveySubmission(
+                npsSubmissionGeneration, false, m_message);
         }
         return;
     }
@@ -611,17 +629,26 @@ void VpnController::callSecretOperation(const QString &method,
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
             [this, method, fields, updateBusy, backendDestination,
              backendGeneration, sessionGeneration,
-             npsOperation](QDBusPendingCallWatcher *finished) {
+             npsSubmissionGeneration,
+             foregroundGeneration](QDBusPendingCallWatcher *finished) {
+        const bool npsSubmission = npsSubmissionGeneration != 0;
         const QDBusPendingReply<QString> reply = *finished;
         const bool current = sessionReplyIsCurrent(finished);
         finished->deleteLater();
+        if (foregroundGeneration != 0
+            && foregroundGeneration != m_foregroundOperationGeneration) {
+            return;
+        }
         if (!current
             || backendGeneration != m_backendGeneration
             || backendDestination != m_backendDestination
             || sessionGeneration != m_sessionGeneration) {
-            if (npsOperation) {
+            if (npsSubmission) {
                 finishNpsSurveySubmission(
-                    false, tr("The Proton account session changed"));
+                    npsSubmissionGeneration,
+                    false,
+                    tr("The Proton account session changed"),
+                    false);
             }
             return;
         }
@@ -631,11 +658,9 @@ void VpnController::callSecretOperation(const QString &method,
             }
             m_message = tr("Unable to initialize protected authentication");
             emit snapshotChanged();
-            if (npsOperation) {
-                if (m_loggedIn && snapshotHealthy()) {
-                    m_npsSurveyAvailable = true;
-                }
-                finishNpsSurveySubmission(false, m_message);
+            if (npsSubmission) {
+                finishNpsSurveySubmission(
+                    npsSubmissionGeneration, false, m_message);
             }
             return;
         }
@@ -651,11 +676,9 @@ void VpnController::callSecretOperation(const QString &method,
             m_message = tr("Unable to protect the authentication data: %1")
                             .arg(errorMessage);
             emit snapshotChanged();
-            if (npsOperation) {
-                if (m_loggedIn && snapshotHealthy()) {
-                    m_npsSurveyAvailable = true;
-                }
-                finishNpsSurveySubmission(false, m_message);
+            if (npsSubmission) {
+                finishNpsSurveySubmission(
+                    npsSubmissionGeneration, false, m_message);
             }
             return;
         }
@@ -668,6 +691,12 @@ void VpnController::callSecretOperation(const QString &method,
             QDBusConnection::sessionBus().asyncCall(request, 120000), this);
         stampSessionRequest(operationWatcher);
         operationWatcher->setProperty("secretMethod", method);
+        operationWatcher->setProperty(
+            "foregroundOperationGeneration",
+            QVariant::fromValue<qulonglong>(foregroundGeneration));
+        operationWatcher->setProperty(
+            "npsSubmissionGeneration",
+            QVariant::fromValue<qulonglong>(npsSubmissionGeneration));
         connect(operationWatcher, &QDBusPendingCallWatcher::finished, this,
                 updateBusy ? &VpnController::handleOperationReply
                            : &VpnController::handleControlOperationReply);
@@ -690,7 +719,15 @@ void VpnController::callControlOperation(const QString &method,
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
     stampBackendRequest(watcher);
-    watcher->setProperty("connectionTargetState", connectionTargetState(method));
+    const QString connectionTarget = connectionTargetState(method);
+    quint64 connectionGeneration = 0;
+    if (!connectionTarget.isEmpty()) {
+        connectionGeneration = ++m_connectionOperationGeneration;
+        emit connectionOperationStarted(connectionGeneration, connectionTarget);
+    }
+    watcher->setProperty("connectionTargetState", connectionTarget);
+    watcher->setProperty("connectionOperationGeneration",
+                         QVariant::fromValue<qulonglong>(connectionGeneration));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleControlOperationReply);
 }

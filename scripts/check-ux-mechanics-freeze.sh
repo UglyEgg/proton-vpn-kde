@@ -102,7 +102,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "8031d5d35e6121235bafa46c01578d5a0bb724f6779063c9778ee69e882c3b12" \
+    "7c87e2a4c4693ad37235a7e515261ea08679d129a49dd28453ed6720017bc9f5" \
     "backend session-fencing exception" \
     backend/proton_vpn_kde_backend/controller.py backend/tests/test_controller.py
 assert_diff_hash \
@@ -112,14 +112,14 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "60ceb7dc68445972d8de55e6eab07840e81125ce1f351851bb3e9f818c1fa0d6" \
+    "18ad750d70a323fff59f7b63b1281fef23930b8d5f3b8f4d76c7a59af0ec576c" \
     "frontend presentation contract" \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
     src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
     src/VpnControllerSettings.cpp src/VpnControllerSnapshot.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp tests/SignInPresentationTest.cpp
 assert_diff_hash \
-    "65e6f5391c04b8687a55e8119dd02190a8181a03eea8083083af4dad3202c26b" \
+    "4dc0d4d8ff00dd94b96a402793a81e7a742376d04f77f3c0d0095801faa46e9e" \
     "QML presentation" qml
 
 qml_operation_hash="$(

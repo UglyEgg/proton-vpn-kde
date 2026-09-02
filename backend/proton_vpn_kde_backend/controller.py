@@ -187,6 +187,7 @@ class BackendController:
         self._session_epoch = 0
         self._closing = False
         self._active_operation_task: asyncio.Task[None] | None = None
+        self._packet_capture_start_task: asyncio.Task[None] | None = None
         self._shutdown_drain_seconds = max(0.0, shutdown_drain_seconds)
 
     @property
@@ -307,8 +308,10 @@ class BackendController:
 
     async def get_pending_nps_survey_json(self) -> str:
         session_epoch = self._current_session_epoch()
-        available = await self._adapter.take_pending_nps_survey()
-        self._require_current_session(session_epoch)
+        async with self._serialized_operation():
+            self._require_current_session(session_epoch)
+            available = await self._adapter.take_pending_nps_survey()
+            self._require_current_session(session_epoch)
         return json.dumps(
             {"schemaVersion": 1, "available": available},
             separators=(",", ":"),
@@ -320,8 +323,10 @@ class BackendController:
     ) -> None:
         session_epoch = self._current_session_epoch()
         response = validate_nps_survey_response(score, comments, response_type)
-        await self._adapter.submit_nps_survey(response)
-        self._require_current_session(session_epoch)
+        async with self._serialized_operation():
+            self._require_current_session(session_epoch)
+            await self._adapter.submit_nps_survey(response)
+            self._require_current_session(session_epoch)
 
     async def update_settings_json(self, patch_json: str) -> str:
         self._require_session()
@@ -547,12 +552,31 @@ class BackendController:
             or "\r" in directory_path
         ):
             raise UserVisibleValueError("Select a valid packet-capture folder")
-        await self._run_operation(
-            lambda: self._adapter.start_packet_capture(directory_path)
-        )
+        if self._operation_lock.locked():
+            raise UserVisibleRuntimeError(
+                "Another VPN operation is already in progress"
+            )
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("Packet capture requires an asyncio task")
+        self._packet_capture_start_task = task
+        try:
+            await self._run_operation(
+                lambda: self._adapter.start_packet_capture(directory_path)
+            )
+        finally:
+            if self._packet_capture_start_task is task:
+                self._packet_capture_start_task = None
 
     async def stop_packet_capture(self) -> None:
         self._require_session()
+        start_task = self._packet_capture_start_task
+        if start_task is not None and start_task is not asyncio.current_task():
+            # Stopping capture is risk-reducing. Cancel an accepted Start first
+            # and wait for the adapter's cancellation compensation before the
+            # idempotent Stop obtains the normal mutation lock.
+            start_task.cancel()
+            await asyncio.gather(start_task, return_exceptions=True)
         await self._run_operation(self._adapter.stop_packet_capture)
 
     async def submit_support_report(

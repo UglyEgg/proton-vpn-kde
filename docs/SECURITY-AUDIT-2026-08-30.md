@@ -101,6 +101,27 @@ pass is superseded and contributes no release approval. The next candidate must
 restart all six reviewers after its focused regressions and release-boundary
 wording are sealed to one clean commit.
 
+A third partial pass against `2292aff` was also superseded. Hostile and
+Subtractive found that a slow accepted packet-capture Start could outlive
+Control Center closure because the backend rejected the compensating Stop, and
+that a temporary busy/inactive snapshot could release shutdown without an
+affirmative stop outcome. Hostile and Entropy found NPS adapter side effects
+that occurred before the account-session check. Entropy also found stale NPS
+key, dismissal, connection, and foreground replies that could retire or mutate
+a replacement operation, plus a definitive NPS failure that could not be
+retried. The current candidate adds cancellation-safe Stop preemption and
+affirmative shutdown ownership, serializes destructive NPS work with session
+changes, and assigns independent generations to NPS, foreground, and
+connection operations. No result from the partial pass counts; all six reviews
+must restart on the exact clean candidate.
+
+| ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
+| --- | --- | --- | --- |
+| PV-013-001 | Medium | A slow accepted capture Start could reject Stop while close inferred safety from a temporary snapshot | **Remediated in candidate; independent verification pending** |
+| PV-013-002 | Medium | Destructive NPS reads and submissions could cross an account-session transition | **Remediated in candidate; independent verification pending** |
+| PV-013-003 | Medium | Stale NPS key or dismissal completion could retire a replacement submission, while definitive failure disabled retry | **Remediated in candidate; independent verification pending** |
+| PV-013-004 | Medium | Delayed same-owner foreground or connection replies could overwrite or finish a replacement operation | **Remediated in candidate; independent verification pending** |
+
 ## Historical 0.12.0 isolated review gate
 
 Six reviewers inspect Hostile, Subtractive, Entropy, Error-Class,

@@ -150,8 +150,6 @@ Kirigami.ScrollablePage {
                     || vpnController.state === "connecting"
                     || vpnController.state === "disconnecting"
                     || vpnController.state === "error"
-                applicationWindow().beginConnectionAction(
-                    disconnecting ? "disconnected" : "connected")
                 vpnController.activatePrimaryAction()
             }
             onSignInRequested: applicationWindow().showSignIn()

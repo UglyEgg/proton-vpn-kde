@@ -187,6 +187,13 @@ signals are accepted only from the currently authenticated unique owner. This
 extends owner pinning across the complete asynchronous result path rather than
 only the method-call destination.
 
+Same-owner foreground and connection requests also carry monotonic operation
+identities. A backend state signal can legitimately arrive before its method
+reply and make a retry available; the older reply is therefore discarded when
+its operation identity no longer owns the result. The controller emits the
+connection identity and target when it accepts the request, so one global QML
+feedback surface tracks every origin without duplicating ownership in buttons.
+
 ## Authentication and account state
 
 The adapter calls Proton's public API facade for password login, TOTP and
@@ -201,6 +208,10 @@ The frontend receives only minimum account display metadata. Authentication
 fields use a one-use encrypted and sealed descriptor transport, and provider
 exceptions are mapped to fixed public errors. Logout disconnects first and
 restores the previous Core kill-switch setting if any later step fails.
+Destructive NPS notification retrieval and NPS submission share the backend's
+session-transition serialization. They revalidate the captured session before
+and after the adapter call, so an operation waiting behind logout cannot mark
+or submit data for the replacement account.
 
 ## Server data and connection selection
 
@@ -257,18 +268,22 @@ generation only after Core accepts the selected destination. A rejected
 destination therefore remains inactive and retryable. Cancellation or a
 completion-unknown start issues a compensating stop; if Core cannot confirm
 that stop, the watchdog is already armed against the original 15-minute
-deadline. Every Core stop attempt has its own timeout, so a non-returning reply
-cannot indefinitely retain startup or backend shutdown. A mode-restricted,
-atomically replaced recovery record in the private desktop runtime directory
-preserves the original deadline across backend replacement. The replacement
-reacquires Core and retries an unconfirmed stop before publishing readiness;
-if no active connection can be reacquired, startup fails for bounded systemd
-retry rather than discarding capture ownership. Any recovery-directory entry
-also retains initialization against the ordinary no-client idle deadline until
-startup clears or validates it; malformed state therefore fails startup rather
-than being abandoned by a clean idle exit. Deadline retries continue until Core
-confirms completion. The adapter does not inspect, rename, upload, or rewrite
-PCAP data.
+deadline. A frontend Stop can preempt an accepted in-flight Start, and
+application shutdown retains cleanup ownership until the backend accepts Stop
+or an authoritative idle snapshot confirms inactivity after a
+completion-unknown reply. A temporary `busy=true`, inactive snapshot is not
+sufficient. Every Core stop attempt has its own timeout, so a non-returning
+reply cannot indefinitely retain startup or backend shutdown. A
+mode-restricted, atomically replaced recovery record in the private desktop
+runtime directory preserves the original deadline across backend replacement.
+The replacement reacquires Core and retries an unconfirmed stop before
+publishing readiness; if no active connection can be reacquired, startup fails
+for bounded systemd retry rather than discarding capture ownership. Any
+recovery-directory entry also retains initialization against the ordinary
+no-client idle deadline until startup clears or validates it; malformed state
+therefore fails startup rather than being abandoned by a clean idle exit.
+Deadline retries continue until Core confirms completion. The adapter does not
+inspect, rename, upload, or rewrite PCAP data.
 
 Direct support submission and anonymous crash reporting to Proton are disabled
 in community builds through synchronized build, frontend, and backend gates.

@@ -100,7 +100,10 @@ public:
 
 signals:
     void snapshotChanged();
-    void connectionOperationFinished(const QString &targetState,
+    void connectionOperationStarted(quint64 operationId,
+                                    const QString &targetState);
+    void connectionOperationFinished(quint64 operationId,
+                                     const QString &targetState,
                                      bool success,
                                      const QString &message);
 };
@@ -400,53 +403,79 @@ void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
     }
 
     const QVariant expectedState = QStringLiteral("connected");
-    QVERIFY(QMetaObject::invokeMethod(
-        feedback.data(), "beginForState", Q_ARG(QVariant, expectedState)));
+    quint64 operationId = 1;
+    emit controller.connectionOperationStarted(
+        operationId, expectedState.toString());
+    QCoreApplication::processEvents();
     controller.message =
         QStringLiteral("No server available in the current tier");
     emit controller.snapshotChanged();
     emit controller.connectionOperationFinished(
-        QStringLiteral("connected"), false, controller.message);
+        operationId, QStringLiteral("connected"), false, controller.message);
     QCoreApplication::processEvents();
     QVERIFY(feedback->property("messageActive").toBool());
     QCOMPARE(feedback->property("completedMessage").toString(),
              controller.message);
 
-    QVERIFY(QMetaObject::invokeMethod(
-        feedback.data(), "beginForState", Q_ARG(QVariant, expectedState)));
+    emit controller.connectionOperationStarted(
+        ++operationId, expectedState.toString());
+    QCoreApplication::processEvents();
     QVERIFY(!feedback->property("messageActive").toBool());
     controller.message.clear();
     emit controller.connectionOperationFinished(
-        QStringLiteral("connected"), true, {});
+        operationId, QStringLiteral("connected"), true, {});
     QCoreApplication::processEvents();
     QVERIFY(!feedback->property("awaitingResult").toBool());
     QVERIFY(!feedback->property("messageActive").toBool());
 
+    const quint64 supersededOperation = ++operationId;
+    emit controller.connectionOperationStarted(
+        supersededOperation, expectedState.toString());
+    emit controller.connectionOperationStarted(
+        ++operationId, expectedState.toString());
+    emit controller.connectionOperationFinished(
+        supersededOperation,
+        QStringLiteral("connected"),
+        false,
+        QStringLiteral("An older connection attempt failed"));
+    QCoreApplication::processEvents();
+    QVERIFY(feedback->property("awaitingResult").toBool());
+    QVERIFY(!feedback->property("messageActive").toBool());
+    controller.message = QStringLiteral("The current connection attempt failed");
+    emit controller.connectionOperationFinished(
+        operationId, QStringLiteral("connected"), false, controller.message);
+    QCoreApplication::processEvents();
+    QVERIFY(feedback->property("messageActive").toBool());
+    QCOMPARE(feedback->property("completedMessage").toString(),
+             controller.message);
+
     controller.state = QStringLiteral("connected");
-    QVERIFY(QMetaObject::invokeMethod(
-        feedback.data(), "beginForState", Q_ARG(QVariant, expectedState)));
+    emit controller.connectionOperationStarted(
+        ++operationId, expectedState.toString());
+    QCoreApplication::processEvents();
     controller.message = QStringLiteral("Unable to switch VPN servers");
     emit controller.snapshotChanged();
     emit controller.connectionOperationFinished(
-        QStringLiteral("connected"), false, controller.message);
+        operationId, QStringLiteral("connected"), false, controller.message);
     QCoreApplication::processEvents();
     QVERIFY(feedback->property("messageActive").toBool());
     QCOMPARE(feedback->property("completedMessage").toString(),
              controller.message);
 
     const QVariant disconnectedState = QStringLiteral("disconnected");
-    QVERIFY(QMetaObject::invokeMethod(
-        feedback.data(), "beginForState", Q_ARG(QVariant, disconnectedState)));
+    emit controller.connectionOperationStarted(
+        ++operationId, disconnectedState.toString());
+    QCoreApplication::processEvents();
     controller.message = QStringLiteral("The VPN could not be disconnected");
     emit controller.snapshotChanged();
     emit controller.connectionOperationFinished(
-        QStringLiteral("connected"), false,
+        operationId - 1, QStringLiteral("connected"), false,
         QStringLiteral("An older server switch failed"));
     QCoreApplication::processEvents();
     QVERIFY(feedback->property("awaitingResult").toBool());
     QVERIFY(!feedback->property("messageActive").toBool());
     emit controller.connectionOperationFinished(
-        QStringLiteral("disconnected"), false, controller.message);
+        operationId, QStringLiteral("disconnected"), false, controller.message);
     QCoreApplication::processEvents();
     QVERIFY(feedback->property("messageActive").toBool());
     QCOMPARE(feedback->property("completedMessage").toString(),
@@ -458,17 +487,19 @@ void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
     QVERIFY(!feedback->property("messageActive").toBool());
 
     controller.state = QStringLiteral("connected");
-    QVERIFY(QMetaObject::invokeMethod(
-        feedback.data(), "beginForState", Q_ARG(QVariant, disconnectedState)));
+    emit controller.connectionOperationStarted(
+        ++operationId, disconnectedState.toString());
+    QCoreApplication::processEvents();
     emit controller.connectionOperationFinished(
-        QStringLiteral("disconnected"), false, controller.message);
+        operationId, QStringLiteral("disconnected"), false, controller.message);
     QCoreApplication::processEvents();
     QVERIFY(feedback->property("messageActive").toBool());
     QCOMPARE(feedback->property("completedMessage").toString(),
              controller.message);
 
-    QVERIFY(QMetaObject::invokeMethod(
-        feedback.data(), "beginForState", Q_ARG(QVariant, disconnectedState)));
+    emit controller.connectionOperationStarted(
+        ++operationId, disconnectedState.toString());
+    QCoreApplication::processEvents();
     controller.backendAvailable = false;
     emit controller.snapshotChanged();
     QCoreApplication::processEvents();
@@ -506,8 +537,6 @@ void SignInPresentationTest::unavailableBackendRejectsRunnerDisconnect()
         QFAIL(qPrintable(errors.join(QLatin1Char('\n'))));
     }
 
-    QSignalSpy actionStarted(dialogs.data(),
-                             SIGNAL(connectionActionStarted(QString)));
     const QVariant action = QStringLiteral("disconnect");
     const QVariant argument = QString{};
     QVERIFY(QMetaObject::invokeMethod(
@@ -517,7 +546,6 @@ void SignInPresentationTest::unavailableBackendRejectsRunnerDisconnect()
     QVERIFY(!dialogs->property("runnerActionEnabled").toBool());
     QVERIFY(QMetaObject::invokeMethod(dialogs.data(), "acceptRunnerAction"));
     QCoreApplication::processEvents();
-    QCOMPARE(actionStarted.count(), 0);
     QCOMPARE(controller.disconnectCalls, 0);
 }
 

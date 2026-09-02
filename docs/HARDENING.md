@@ -143,6 +143,14 @@ state, and D-Bus signal handlers reject senders other than the current verified
 owner. Service-replacement regressions exercise both the Control Center and the
 resident agent.
 
+Operations that can overlap under the same verified backend owner also carry a
+monotonic operation generation. A delayed connection, authentication, survey,
+or dismissal reply cannot complete or overwrite its replacement merely because
+both calls share the same service owner. One controller-owned connection-action
+signal pair gives every QML surface the accepted operation identifier, so
+feedback lifetime is not inferred independently by whichever button initiated
+the request.
+
 At the backend ingress boundary, the actual D-Bus sender is captured before
 method dispatch. Mutations require a sender currently executing one of the
 root-owned native client paths without a denied loader environment. Claims in
@@ -165,6 +173,10 @@ Read-only settings and protection replies are also scoped to the active account
 session. A logout or account transition advances the session generation and
 rejects late replies, preventing an old session from repopulating cleared
 frontend state even though the underlying methods do not mutate Core.
+Destructive NPS survey reads and submissions are serialized with account
+mutations and recheck that generation before and after entering the official
+adapter. This prevents survey state belonging to one account from being taken
+or submitted after a replacement session becomes authoritative.
 
 The same address-versus-identity rule is applied as far as the portable Secret
 Service API permits. The downstream keyring overlay activates the selected

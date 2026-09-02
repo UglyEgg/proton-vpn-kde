@@ -206,9 +206,11 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
         || ! rg -q 'objectName: "connectionActionFeedback"' \
         "$qml_dir/ConnectionActionFeedback.qml" \
-        || ! rg -q 'function beginForState\(state\)' \
+        || ! rg -q 'function beginForOperation\(id, state\)' \
         "$qml_dir/ConnectionActionFeedback.qml" \
-        || ! rg -q 'function onConnectionOperationFinished\(targetState, success, message\)' \
+        || ! rg -q 'function onConnectionOperationStarted\(operationId, targetState\)' \
+        "$qml_dir/ConnectionActionFeedback.qml" \
+        || ! rg -q 'function onConnectionOperationFinished\(operationId, targetState,' \
         "$qml_dir/ConnectionActionFeedback.qml" \
         || [[ "$connection_feedback_owner_count" -ne 1 ]] \
         || ! rg -q 'ConnectionActionFeedback' "$qml_dir/Main.qml" \
@@ -246,8 +248,10 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/ServersPage.qml" \
         || ! rg -q 'objectName: "serverEmptyState"' \
         "$qml_dir/ServersPage.qml" \
-        || ! rg -q 'function beginConnectionAction\(expectedState\)' \
-        "$qml_dir/Main.qml" \
+        || rg -q 'beginConnectionAction|connectionActionStarted' \
+        "$qml_dir/Main.qml" "$qml_dir/MainDialogs.qml" \
+        "$qml_dir/OverviewPage.qml" "$qml_dir/LocationsPage.qml" \
+        "$qml_dir/CountryPage.qml" "$qml_dir/ServersPage.qml" \
         || ! rg -U -q 'readonly property bool browserConnectionActionEnabled:\n[[:space:]]*controller\.primaryActionEnabled && !controller\.busy' \
         "$qml_dir/Main.qml" \
         || rg -q 'vpnController\.primaryActionEnabled' \
@@ -258,20 +262,14 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/ServersPage.qml" \
         || ! rg -q 'primaryEnabled: vpnController\.primaryActionEnabled' \
         "$qml_dir/OverviewPage.qml" \
-        || ! rg -q 'beginConnectionAction' "$qml_dir/OverviewPage.qml" \
-        || ! rg -q 'beginConnectionAction' "$qml_dir/LocationsPage.qml" \
-        || ! rg -q 'beginConnectionAction' "$qml_dir/CountryPage.qml" \
-        || ! rg -q 'beginConnectionAction' "$qml_dir/ServersPage.qml" \
-        || ! rg -q 'signal connectionActionStarted\(string expectedState\)' \
-        "$qml_dir/MainDialogs.qml" \
+        || ! rg -q 'connectionOperationStarted' \
+        "$project_dir/src/VpnControllerActions.cpp" \
         || ! rg -q 'readonly property bool runnerActionEnabled' \
         "$qml_dir/MainDialogs.qml" \
         || ! rg -U -q 'readonly property bool runnerActionEnabled:\n[[:space:]]*!vpnController\.busy\n[[:space:]]*&& vpnController\.primaryActionEnabled' \
         "$qml_dir/MainDialogs.qml" \
         || ! rg -U -q 'onAccepted: \{\n[[:space:]]*const confirmedAction.*\n[[:space:]]*const confirmedArgument.*\n[[:space:]]*if \(!dialogs\.runnerActionEnabled\)' \
         "$qml_dir/MainDialogs.qml" \
-        || ! rg -q 'globalConnectionActionFeedback\.beginForState' \
-        "$qml_dir/Main.qml" \
         || ! rg -q 'mainDialogs\.supportsRecovery\(code\)' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property var recoveryErrorCodes' \
@@ -308,17 +306,6 @@ if rg -q 'packetCaptureOperationFinished' \
     echo "Packet-capture failures must use the authoritative typed state" >&2
     exit 1
 fi
-
-while IFS=: read -r action_file action_line _; do
-    action_start=$((action_line > 12 ? action_line - 12 : 1))
-    if ! sed -n "${action_start},${action_line}p" "$action_file" \
-            | rg -q 'beginConnectionAction|connectionActionStarted'; then
-        echo "Connection action lacks explicit feedback ownership: ${action_file}:${action_line}" >&2
-        exit 1
-    fi
-done < <(rg -n \
-    'vpnController\.(activatePrimaryAction|disconnect|connect(Country|Fastest|Group|Server)[A-Za-z]*)\(' \
-    "$qml_dir")
 
 if ! rg -q 'id: moreAction' "$qml_dir/ConnectionScene.qml" \
         || ! rg -q 'text: qsTr\("More options"\)' \

@@ -120,7 +120,10 @@ navigation, native back-stack return, and connected-only inline facts.
 viewports, at 1.5 scale, and in right-to-left mode. `qml-ui-hygiene` guards
 semantic theme use, mirrored navigation, focus-visible tooltips, accessible
 native interaction controls, and the absence of custom motion that could
-bypass Plasma's reduced-motion preference.
+bypass Plasma's reduced-motion preference. One application-wide
+`ConnectionActionFeedback` begins only from the controller's accepted
+connection-operation identifier and finishes only for the matching identifier;
+individual pages and buttons do not infer or duplicate that ownership.
 
 `scripts/check-qml-visual-matrix.sh` retains a six-image release-review set:
 wide light Connection, compact dark server discovery, scaled Settings, RTL

@@ -215,7 +215,10 @@ void VpnController::onServiceUnregistered(const QString &)
     m_npsSurveyChecked = false;
     m_npsSurveyAvailable = false;
     finishNpsSurveySubmission(
-        false, tr("The Proton backend service stopped"));
+        m_npsSurveyOperationGeneration,
+        false,
+        tr("The Proton backend service stopped"),
+        false);
     emit npsSurveyChanged();
     m_settings->reset(tr("The Proton backend service stopped"));
     m_splitTunneling->reset(tr("The Proton backend service stopped"));

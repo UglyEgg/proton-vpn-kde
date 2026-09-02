@@ -94,7 +94,6 @@ Kirigami.ScrollablePage {
                          : true)
             onTriggered: {
                 if (page.groupAccessible) {
-                    applicationWindow().beginConnectionAction("connected")
                     if (page.requiredCapabilities.length > 0) {
                         vpnController.connectGroupWithFeatures(
                             page.countryCode, page.groupKind, page.groupName,
@@ -226,7 +225,6 @@ Kirigami.ScrollablePage {
                                  : true)
                     onClicked: {
                         if (serverDelegate.accessible) {
-                            applicationWindow().beginConnectionAction("connected")
                             vpnController.connectServer(serverDelegate.name)
                         } else {
                             Qt.openUrlExternally("https://protonvpn.com/pricing")
