@@ -47,6 +47,14 @@ undifferentiated full-page scroll while leaving the existing controls, active
 warnings, validation, and asynchronous save behavior in place. Selecting or
 saving a setting must not reset the chosen intent or navigate away.
 
+Authentication uses one graphical stage and exactly one active step. Service
+preparation, credentials, desktop Secret Service approval, two-factor code,
+security-key interaction, security-key PIN, and authoritative-state recovery
+are mutually exclusive presentations of the existing authentication state
+machine. Safety warnings may remain above the stage, but an inactive form may
+not compete with a pending approval or recovery action. The signed-in Account
+surface uses the same centered identity cue before plan and session depth.
+
 Revealed content must not unexpectedly move the user to another page, reorder
 unrelated controls, or require memorizing a hidden choice. Preserve focus when
 content expands and give disclosure controls explicit accessible names and
@@ -83,6 +91,8 @@ right-to-left desktops.
 - `PageHeader.qml` supplies a theme-scaled icon, heading, and description.
 - `ConnectionScene.qml` presents protection state and the device-to-destination
   route with semantic Plasma colors and icons.
+- `IdentityStage.qml` supplies the shared graphical sign-in and account
+  identity hierarchy.
 - `SectionCard.qml` groups related controls in a native Kirigami card.
 - `DetailRow.qml` presents stable label/value pairs without a custom table.
 - `PlasmaListItem.qml` standardizes server and location rows, icon-only
@@ -129,4 +139,7 @@ before rendering (for example, `overview-connected` or
 Plasma color-scheme name such as `BreezeDark` when reviewing a non-default
 theme. The `settings-protection`, `settings-plasma`, and
 `settings-diagnostics` page names select each non-default Settings intent for
-visual review. Capture mode cannot create or alter a real VPN connection.
+visual review. The `sign-in` page uses the demo backend's safe logged-out mode;
+`sign-in-two-factor` stops the sealed-FD demo authentication exercise at its
+two-factor challenge. Capture mode cannot create or alter a real VPN
+connection.

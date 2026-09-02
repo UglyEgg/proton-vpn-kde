@@ -20,8 +20,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
+demo_mode="--demo"
+if [[ "$page_name" == "sign-in" || "$page_name" == "sign-in-two-factor" ]]; then
+    demo_mode="--demo-logged-out"
+fi
+
 PYTHONPATH="$project_dir/backend" \
-    /usr/bin/python3 -m proton_vpn_kde_backend --demo \
+    /usr/bin/python3 -m proton_vpn_kde_backend "$demo_mode" \
     >"$staging_dir/backend.log" 2>&1 &
 backend_pid=$!
 
@@ -43,6 +48,12 @@ owner_reply="$(gdbus call --session \
     quest.entropy.PlasmaVPN.Backend)"
 backend_owner="${owner_reply#*\'}"
 backend_owner="${backend_owner%%\'*}"
+
+if [[ "$page_name" == "sign-in-two-factor" ]]; then
+    /usr/bin/python3 "$project_dir/scripts/auth-dbus-client.py" \
+        --stop-after-challenge >/dev/null
+    page_name="sign-in"
+fi
 
 capture_color_scheme="${PROTON_KDE_CAPTURE_COLOR_SCHEME:-}"
 capture_platform_theme="${QT_QPA_PLATFORMTHEME:-generic}"

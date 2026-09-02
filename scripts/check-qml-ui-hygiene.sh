@@ -89,6 +89,22 @@ if ! rg -q 'objectName: "settingsIntentBar"' \
     exit 1
 fi
 
+if ! rg -q 'objectName: "authenticationStage"' \
+        "$qml_dir/SignInPage.qml" \
+        || ! rg -q 'readonly property int activeStep' \
+        "$qml_dir/SignInPage.qml" \
+        || ! rg -q 'objectName: "secretServiceApprovalStep"' \
+        "$qml_dir/SignInPage.qml" \
+        || ! rg -q 'page\.activeStep === page\.secretStoreStep' \
+        "$qml_dir/SignInPage.qml" \
+        || ! rg -q 'objectName: "twoFactorAuthenticationStep"' \
+        "$qml_dir/SignInPage.qml" \
+        || ! rg -q 'objectName: "securityKeyAuthenticationStep"' \
+        "$qml_dir/SignInPage.qml"; then
+    echo "Authentication must present one explicit active step, including Secret Service and security-key waits" >&2
+    exit 1
+fi
+
 if ! rg -q 'id: moreAction' "$qml_dir/ConnectionScene.qml" \
         || ! rg -q 'text: qsTr\("More options"\)' \
         "$qml_dir/ConnectionScene.qml" \

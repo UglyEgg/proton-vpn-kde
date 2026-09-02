@@ -43,11 +43,9 @@ The implementation constraints are:
 
 ### Delivery sequence
 
-1. Refine sign-in, two-factor, security-key, Secret Service approval, error,
-   and recovery presentation without altering their established sequencing.
-2. Treat Connection Inspector, release history, support status, and technical
+1. Treat Connection Inspector, release history, support status, and technical
    details as on-demand depth rather than primary navigation competition.
-3. Verify compact and wide windows, keyboard-only use, screen-reader names,
+2. Verify compact and wide windows, keyboard-only use, screen-reader names,
    1.5x text, right-to-left layout, light and dark schemes, high contrast, and
    reduced motion before repeating the full release battery.
 
@@ -60,7 +58,6 @@ replace them.
 
 | Current surface | What already works | Presentation debt to resolve |
 | --- | --- | --- |
-| Sign in and Account | Correct startup routing and explicit multi-step authentication | Present only the active authentication step while keeping Secret Service waits and recovery unmistakable |
 | Connection Inspector | Bounded, read-only, on-demand detail | Open it from connection context and secondary navigation rather than competing with daily connection tasks |
 | Release Notes, About, and reporting | Attribution, history, support boundary, and project status remain reachable | Place project information in a secondary destination; keep disabled reporting visibly unavailable without making it a primary task |
 

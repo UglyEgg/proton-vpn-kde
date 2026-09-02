@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import base64
 import fcntl
@@ -66,7 +67,7 @@ async def snapshot(interface) -> dict:
     return json.loads(await interface.call_get_snapshot())
 
 
-async def main() -> None:
+async def main(stop_after_challenge: bool = False) -> None:
     bus = await MessageBus(
         bus_type=BusType.SESSION,
         negotiate_unix_fd=True,
@@ -139,6 +140,10 @@ async def main() -> None:
     challenged = await snapshot(interface)
     assert challenged["authState"] == "two_factor"
     assert not challenged["loggedIn"]
+    if stop_after_challenge:
+        print(json.dumps(challenged, sort_keys=True))
+        bus.disconnect()
+        return
 
     code_fd = sealed_payload(
         {"code": "123456"},
@@ -296,4 +301,13 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(
+        description="Exercise demo authentication over the sealed-FD D-Bus contract"
+    )
+    parser.add_argument(
+        "--stop-after-challenge",
+        action="store_true",
+        help="leave the demo backend at the two-factor prompt for visual review",
+    )
+    args = parser.parse_args()
+    asyncio.run(main(stop_after_challenge=args.stop_after_challenge))

@@ -28,6 +28,10 @@ All notable user-visible changes are recorded here. The project follows
 - Group Settings into native icon-led Connection, Protection, Plasma, and
   Diagnostics intents instead of presenting every control in one long scroll.
   Preserve the selected intent across asynchronous setting saves.
+- Present authentication as one graphical active step at a time: service
+  preparation, credentials, Secret Service approval, two-factor, security key,
+  PIN, or safe recovery. Give the signed-in Account surface the same native
+  identity hierarchy without changing authentication behavior.
 - Add an on-demand Connection Inspector for live server capabilities,
   protection configuration, and local runtime state using only existing
   non-sensitive Core snapshots.

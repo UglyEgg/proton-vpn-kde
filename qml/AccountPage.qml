@@ -9,14 +9,22 @@ import org.kde.kirigami as Kirigami
 Kirigami.ScrollablePage {
     id: page
     title: qsTr("Account")
+    readonly property real maximumContentWidth: Kirigami.Units.gridUnit * 32
+    leftPadding: Math.max(Kirigami.Units.largeSpacing,
+                          (width - maximumContentWidth) / 2)
+    rightPadding: leftPadding
 
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
-        PageHeader {
+        IdentityStage {
+            id: accountIdentity
+            objectName: "accountIdentity"
+            iconSource: "user-identity"
             heading: vpnController.accountName
-            description: qsTr("Proton account")
-            iconName: "user-identity"
+            description: vpnController.planTitle.length > 0
+                         ? qsTr("%1 account").arg(vpnController.planTitle)
+                         : qsTr("Proton account")
         }
 
         SectionCard {
