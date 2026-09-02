@@ -99,3 +99,10 @@ if ! grep -Fqx -- \
     cat "$frontend_log" >&2
     exit 1
 fi
+
+if ! grep -Fqx -- \
+        "qml: settings-route-smoke: selected intent 1" "$frontend_log"; then
+    echo "The frontend settings update did not preserve the selected Protection intent" >&2
+    cat "$frontend_log" >&2
+    exit 1
+fi

@@ -85,6 +85,7 @@ Kirigami.ScrollablePage {
                     qsTr("Overview visualizes this device, its encrypted tunnel, and the VPN destination while keeping one obvious connection action."),
                     qsTr("Exact server, protocol, Secure Core entry, and forwarded-port facts now appear as compact icon-led controls on Connection; selecting them opens the relevant settings, Inspector, or copy action."),
                     qsTr("Server discovery now leads with one graphical fastest-suitable action, keeps selected requirements visible, and uses native icon-led checkboxes before country and exact-server browsing."),
+                    qsTr("Settings now groups controls into icon-led Connection, Protection, Plasma, and Diagnostics intents and preserves the selected intent after a setting is saved."),
                     qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")
                 ]
             }

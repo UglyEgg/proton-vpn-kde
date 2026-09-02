@@ -25,6 +25,9 @@ All notable user-visible changes are recorded here. The project follows
   active capability requirements visible, and present the existing P2P,
   Streaming, Tor, and Secure Core requirements as native icon-led checkboxes
   before country, location, and exact-server browsing.
+- Group Settings into native icon-led Connection, Protection, Plasma, and
+  Diagnostics intents instead of presenting every control in one long scroll.
+  Preserve the selected intent across asynchronous setting saves.
 - Add an on-demand Connection Inspector for live server capabilities,
   protection configuration, and local runtime state using only existing
   non-sensitive Core snapshots.

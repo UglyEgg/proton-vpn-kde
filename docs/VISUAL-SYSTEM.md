@@ -41,6 +41,12 @@ checkboxes keep P2P, Streaming, Tor, and Secure Core requirements explicit;
 search and ordinary Plasma list rows then provide country, group, pin, load,
 and exact-server depth.
 
+Settings uses one native, keyboard-accessible tab bar organized by user intent:
+Connection, Protection, Plasma, and Diagnostics. Icon-led tabs replace the
+undifferentiated full-page scroll while leaving the existing controls, active
+warnings, validation, and asynchronous save behavior in place. Selecting or
+saving a setting must not reset the chosen intent or navigate away.
+
 Revealed content must not unexpectedly move the user to another page, reorder
 unrelated controls, or require memorizing a hidden choice. Preserve focus when
 content expands and give disclosure controls explicit accessible names and
@@ -121,4 +127,6 @@ only the deterministic demo adapter to enter its simulated connected state
 before rendering (for example, `overview-connected` or
 `inspector-connected`). Set `PROTON_KDE_CAPTURE_COLOR_SCHEME` to an installed
 Plasma color-scheme name such as `BreezeDark` when reviewing a non-default
-theme. Capture mode cannot create or alter a real VPN connection.
+theme. The `settings-protection`, `settings-plasma`, and
+`settings-diagnostics` page names select each non-default Settings intent for
+visual review. Capture mode cannot create or alter a real VPN connection.

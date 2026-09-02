@@ -75,6 +75,20 @@ if ! rg -q 'objectName: "fastestServerCard"' \
     exit 1
 fi
 
+if ! rg -q 'objectName: "settingsIntentBar"' \
+        "$qml_dir/SettingsPage.qml" \
+        || ! rg -q 'Controls\.AbstractButton\.TextUnderIcon' \
+        "$qml_dir/SettingsPage.qml" \
+        || ! rg -q 'currentIndex: settingsIntentBar\.currentIndex' \
+        "$qml_dir/SettingsPage.qml" \
+        || ! rg -q 'qsTr\("Connection"\)' "$qml_dir/SettingsPage.qml" \
+        || ! rg -q 'qsTr\("Protection"\)' "$qml_dir/SettingsPage.qml" \
+        || ! rg -q 'qsTr\("Plasma"\)' "$qml_dir/SettingsPage.qml" \
+        || ! rg -q 'qsTr\("Diagnostics"\)' "$qml_dir/SettingsPage.qml"; then
+    echo "Settings must group controls into native icon-led user intents" >&2
+    exit 1
+fi
+
 if ! rg -q 'id: moreAction' "$qml_dir/ConnectionScene.qml" \
         || ! rg -q 'text: qsTr\("More options"\)' \
         "$qml_dir/ConnectionScene.qml" \

@@ -43,13 +43,11 @@ The implementation constraints are:
 
 ### Delivery sequence
 
-1. Group Settings by user intent and disclose uncommon choices beside the
-   setting they refine; keep applied changes on the same page.
-2. Refine sign-in, two-factor, security-key, Secret Service approval, error,
+1. Refine sign-in, two-factor, security-key, Secret Service approval, error,
    and recovery presentation without altering their established sequencing.
-3. Treat Connection Inspector, release history, support status, and technical
+2. Treat Connection Inspector, release history, support status, and technical
    details as on-demand depth rather than primary navigation competition.
-4. Verify compact and wide windows, keyboard-only use, screen-reader names,
+3. Verify compact and wide windows, keyboard-only use, screen-reader names,
    1.5x text, right-to-left layout, light and dark schemes, high contrast, and
    reduced motion before repeating the full release battery.
 
@@ -62,7 +60,6 @@ replace them.
 
 | Current surface | What already works | Presentation debt to resolve |
 | --- | --- | --- |
-| Settings | Complete native controls grouped into focused components | Lead with common outcomes and reveal exceptions locally instead of showing every choice with equal emphasis |
 | Sign in and Account | Correct startup routing and explicit multi-step authentication | Present only the active authentication step while keeping Secret Service waits and recovery unmistakable |
 | Connection Inspector | Bounded, read-only, on-demand detail | Open it from connection context and secondary navigation rather than competing with daily connection tasks |
 | Release Notes, About, and reporting | Attribution, history, support boundary, and project status remain reachable | Place project information in a secondary destination; keep disabled reporting visibly unavailable without making it a primary task |

@@ -203,6 +203,12 @@ Kirigami.ApplicationWindow {
     Component.onCompleted: {
         if (initialPageName === "settings") {
             root.showSettings()
+        } else if (initialPageName === "settings-protection") {
+            root.showSettings().showIntent(1)
+        } else if (initialPageName === "settings-plasma") {
+            root.showSettings().showIntent(2)
+        } else if (initialPageName === "settings-diagnostics") {
+            root.showSettings().showIntent(3)
         } else if (initialPageName === "locations") {
             root.showLocations()
         } else if (initialPageName === "inspector") {
@@ -519,6 +525,14 @@ Kirigami.ApplicationWindow {
                         || vpnController.settings.busy) {
                     return
                 }
+                const settingsPage = pageStack.currentItem
+                settingsPage.showIntent(1)
+                if (settingsPage.selectedIntent !== 1) {
+                    stop()
+                    console.error("settings-route-smoke: unable to select Protection intent")
+                    Qt.exit(2)
+                    return
+                }
                 root.settingsRouteExpectedModerateNat =
                     !vpnController.settings.moderateNat
                 vpnController.updateSetting(
@@ -536,6 +550,8 @@ Kirigami.ApplicationWindow {
                          root.currentSection)
             console.info("settings-route-smoke: stack depth",
                          pageStack.depth)
+            console.info("settings-route-smoke: selected intent",
+                         pageStack.currentItem.selectedIntent)
         }
     }
 
