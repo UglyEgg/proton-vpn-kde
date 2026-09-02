@@ -52,6 +52,7 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(QString locationSearchError READ locationSearchError NOTIFY locationsChanged)
     Q_PROPERTY(QString serverGroupsError READ serverGroupsError NOTIFY locationsChanged)
     Q_PROPERTY(QString serversError READ serversError NOTIFY locationsChanged)
+    Q_PROPERTY(QString serverLoadsError READ serverLoadsError NOTIFY locationsChanged)
     Q_PROPERTY(bool npsSurveyAvailable READ npsSurveyAvailable NOTIFY npsSurveyChanged)
     Q_PROPERTY(bool supportReportSubmissionEnabled READ supportReportSubmissionEnabled CONSTANT)
     Q_PROPERTY(bool crashReportSubmissionEnabled READ crashReportSubmissionEnabled CONSTANT)
@@ -106,6 +107,7 @@ public:
     [[nodiscard]] QString locationSearchError() const;
     [[nodiscard]] QString serverGroupsError() const;
     [[nodiscard]] QString serversError() const;
+    [[nodiscard]] QString serverLoadsError() const;
     [[nodiscard]] bool npsSurveyAvailable() const;
     [[nodiscard]] bool supportReportSubmissionEnabled() const;
     [[nodiscard]] bool crashReportSubmissionEnabled() const;
@@ -210,7 +212,9 @@ public:
 
 signals:
     void locationsChanged();
-    void connectionOperationFinished(bool success, const QString &message);
+    void connectionOperationFinished(const QString &targetState,
+                                     bool success,
+                                     const QString &message);
     void npsSurveyChanged();
     void supportReportFinished(bool success, const QString &message);
 
@@ -319,6 +323,7 @@ private:
     QString m_locationSearchError;
     QString m_serverGroupsError;
     QString m_serversError;
+    QString m_serverLoadsError;
     quint64 m_locationSearchGeneration = 0;
     QString m_locationSearchQuery;
     bool m_npsSurveyChecked = false;

@@ -158,7 +158,8 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         const bool hadBrowserErrors = !m_countriesError.isEmpty()
             || !m_locationSearchError.isEmpty()
             || !m_serverGroupsError.isEmpty()
-            || !m_serversError.isEmpty();
+            || !m_serversError.isEmpty()
+            || !m_serverLoadsError.isEmpty();
         m_countryModel->clear();
         m_serverGroupModel->clear();
         m_serverModel->clear();
@@ -178,6 +179,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_locationSearchError.clear();
         m_serverGroupsError.clear();
         m_serversError.clear();
+        m_serverLoadsError.clear();
         m_npsSurveyChecked = false;
         m_npsSurveyAvailable = false;
         emit npsSurveyChanged();
@@ -240,8 +242,8 @@ void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
 void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
 {
     const bool current = backendReplyIsCurrent(watcher);
-    const bool connectionOperation =
-        watcher->property("connectionOperation").toBool();
+    const QString connectionTarget =
+        watcher->property("connectionTargetState").toString();
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
     if (!current) {
@@ -253,8 +255,9 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
             m_message = tr(
                 "The VPN operation is still completing; refreshing its state");
             emit snapshotChanged();
-            if (connectionOperation) {
-                emit connectionOperationFinished(false, m_message);
+            if (!connectionTarget.isEmpty()) {
+                emit connectionOperationFinished(
+                    connectionTarget, false, m_message);
             }
             scheduleSnapshotRefreshRetry();
             return;
@@ -274,13 +277,14 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
             m_message = tr("The VPN operation could not be completed");
         }
         emit snapshotChanged();
-        if (connectionOperation) {
-            emit connectionOperationFinished(false, m_message);
+        if (!connectionTarget.isEmpty()) {
+            emit connectionOperationFinished(
+                connectionTarget, false, m_message);
         }
         return;
     }
-    if (connectionOperation) {
-        emit connectionOperationFinished(true, {});
+    if (!connectionTarget.isEmpty()) {
+        emit connectionOperationFinished(connectionTarget, true, {});
     }
     refresh();
 }
@@ -288,8 +292,8 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
 void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher)
 {
     const bool current = backendReplyIsCurrent(watcher);
-    const bool connectionOperation =
-        watcher->property("connectionOperation").toBool();
+    const QString connectionTarget =
+        watcher->property("connectionTargetState").toString();
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
     if (!current) {
@@ -300,8 +304,9 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
             m_message = tr(
                 "The VPN operation is still completing; refreshing its state");
             emit snapshotChanged();
-            if (connectionOperation) {
-                emit connectionOperationFinished(false, m_message);
+            if (!connectionTarget.isEmpty()) {
+                emit connectionOperationFinished(
+                    connectionTarget, false, m_message);
             }
             scheduleSnapshotRefreshRetry();
             return;
@@ -321,13 +326,14 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
             m_message = tr("The VPN operation could not be completed");
         }
         emit snapshotChanged();
-        if (connectionOperation) {
-            emit connectionOperationFinished(false, m_message);
+        if (!connectionTarget.isEmpty()) {
+            emit connectionOperationFinished(
+                connectionTarget, false, m_message);
         }
         return;
     }
-    if (connectionOperation) {
-        emit connectionOperationFinished(true, {});
+    if (!connectionTarget.isEmpty()) {
+        emit connectionOperationFinished(connectionTarget, true, {});
     }
     refresh();
 }

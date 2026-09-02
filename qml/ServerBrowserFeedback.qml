@@ -7,16 +7,9 @@ import org.kde.kirigami as Kirigami
 Column {
     id: root
 
-    required property var controller
     required property string loadError
 
-    spacing: loadErrorMessage.visible && connectionFeedback.visible
-             ? Kirigami.Units.smallSpacing : 0
     height: childrenRect.height
-
-    function beginForState(state) {
-        connectionFeedback.beginForState(state)
-    }
 
     Kirigami.InlineMessage {
         id: loadErrorMessage
@@ -26,11 +19,5 @@ Column {
         height: visible ? implicitHeight : 0
         type: Kirigami.MessageType.Error
         text: root.loadError
-    }
-
-    ConnectionActionFeedback {
-        id: connectionFeedback
-        width: root.width
-        controller: root.controller
     }
 }

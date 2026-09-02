@@ -19,14 +19,15 @@ Kirigami.ScrollablePage {
     property string initialServerFilter: ""
     property var requiredCapabilities: []
     property var groupServerContextGeneration: 0
+    readonly property string serverBrowserError:
+        vpnController.serversError.length > 0
+        ? vpnController.serversError : vpnController.serverLoadsError
 
     title: groupKind === "secure-core"
            ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
            : countryFlag + "  " + groupName
     footer: ServerBrowserFeedback {
-        id: connectionActionFeedback
-        controller: vpnController
-        loadError: vpnController.serversError
+        loadError: page.serverBrowserError
     }
 
     function serverSummary(location, entryCountry, secureCore, smartRouting,
@@ -82,7 +83,7 @@ Kirigami.ScrollablePage {
                          ? vpnController.primaryActionEnabled : true)
             onTriggered: {
                 if (page.groupAccessible) {
-                    connectionActionFeedback.beginForState("connected")
+                    applicationWindow().beginConnectionAction("connected")
                     if (page.requiredCapabilities.length > 0) {
                         vpnController.connectGroupWithFeatures(
                             page.countryCode, page.groupKind, page.groupName,
@@ -137,6 +138,7 @@ Kirigami.ScrollablePage {
         Kirigami.PlaceholderMessage {
             anchors.centerIn: parent
             visible: serverList.count === 0
+                     && page.serverBrowserError.length === 0
             text: vpnController.locationsBusy
                   ? qsTr("Loading servers…")
                   : page.requiredCapabilities.length > 0
@@ -211,7 +213,7 @@ Kirigami.ScrollablePage {
                                  ? vpnController.primaryActionEnabled : true)
                     onClicked: {
                         if (serverDelegate.accessible) {
-                            connectionActionFeedback.beginForState("connected")
+                            applicationWindow().beginConnectionAction("connected")
                             vpnController.connectServer(serverDelegate.name)
                         } else {
                             Qt.openUrlExternally("https://protonvpn.com/pricing")

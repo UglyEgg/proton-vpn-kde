@@ -122,6 +122,7 @@ void VpnController::loadServerGroups(const QString &countryCode)
     m_currentServerCountry = normalizedCode;
     if (countryChanged) {
         setBrowserError(m_serversError, {});
+        setBrowserError(m_serverLoadsError, {});
         m_serverGroupModel->clear();
         m_serverModel->clear();
         m_currentServerGroupKind.clear();
@@ -227,6 +228,7 @@ void VpnController::loadGroupServers(const QString &countryCode,
         return;
     }
     setBrowserError(m_serversError, {});
+    setBrowserError(m_serverLoadsError, {});
     const bool groupChanged = m_currentServerCountry != normalizedCode
         || m_currentServerGroupKind != normalizedKind
         || m_currentServerGroupName != normalizedName;
@@ -316,6 +318,7 @@ void VpnController::resetServerContext()
     const bool wasBusy = locationsBusy();
     setBrowserError(m_serverGroupsError, {});
     setBrowserError(m_serversError, {});
+    setBrowserError(m_serverLoadsError, {});
     m_serverGroupFilterModel->setRequiredFeatures({});
     m_currentServerCountry.clear();
     m_currentServerGroupKind.clear();
@@ -336,6 +339,7 @@ void VpnController::resetGroupServerContext()
 {
     const bool wasBusy = locationsBusy();
     setBrowserError(m_serversError, {});
+    setBrowserError(m_serverLoadsError, {});
     m_serverFilterModel->setFilterText({});
     m_serverFilterModel->setRequiredFeatures({});
     m_currentServerGroupKind.clear();
@@ -379,7 +383,7 @@ void VpnController::requestServerLoads()
     if (m_currentServerCountry.isEmpty()) {
         return;
     }
-    setBrowserError(m_serversError, {});
+    setBrowserError(m_serverLoadsError, {});
     if (!m_backendAvailable || !m_ready || !m_loggedIn) {
         return;
     }
@@ -599,13 +603,14 @@ void VpnController::handleServerLoadsReply(QDBusPendingCallWatcher *watcher)
         return;
     }
     if (reply.isError()) {
-        setBrowserError(m_serversError, tr("Unable to update server loads"));
+        setBrowserError(m_serverLoadsError,
+                        tr("Unable to update server loads"));
         dispatchPendingLocationRefreshes();
         return;
     }
     QString errorMessage;
     if (!m_serverModel->updateLoadsFromJson(reply.value(), &errorMessage)) {
-        setBrowserError(m_serversError, errorMessage);
+        setBrowserError(m_serverLoadsError, errorMessage);
     }
     dispatchPendingLocationRefreshes();
 }

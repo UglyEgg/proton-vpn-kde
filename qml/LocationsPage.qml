@@ -14,8 +14,6 @@ Kirigami.Page {
     property var requiredCapabilities: []
 
     footer: ServerBrowserFeedback {
-        id: connectionActionFeedback
-        controller: vpnController
         loadError: page.searching
                    ? vpnController.locationSearchError
                    : vpnController.countriesError
@@ -152,7 +150,7 @@ Kirigami.Page {
                                  ? vpnController.primaryActionEnabled : true)
                     onClicked: {
                         if (countryDelegate.accessible) {
-                            connectionActionFeedback.beginForState("connected")
+                            applicationWindow().beginConnectionAction("connected")
                             vpnController.connectCountry(countryDelegate.code)
                         } else {
                             Qt.openUrlExternally("https://protonvpn.com/pricing")
@@ -251,7 +249,7 @@ Kirigami.Page {
                                  && (page.requiredCapabilities.length === 0
                                      || vpnController.userTier > 0)
                         onClicked: {
-                            connectionActionFeedback.beginForState("connected")
+                            applicationWindow().beginConnectionAction("connected")
                             vpnController.connectFastestWithFeatures(
                                 page.requiredCapabilities)
                         }
@@ -315,6 +313,7 @@ Kirigami.Page {
                 Kirigami.PlaceholderMessage {
                     anchors.centerIn: parent
                     visible: countryList.count === 0
+                             && vpnController.countriesError.length === 0
                     text: vpnController.locationsBusy
                           ? qsTr("Loading countries…")
                           : qsTr("No countries available")
@@ -342,6 +341,7 @@ Kirigami.Page {
                 Kirigami.PlaceholderMessage {
                     anchors.centerIn: parent
                     visible: searchResults.count === 0
+                             && vpnController.locationSearchError.length === 0
                     text: vpnController.locationSearchBusy
                           ? qsTr("Searching…") : qsTr("No matching locations")
                     icon.name: vpnController.locationSearchBusy
@@ -444,7 +444,7 @@ Kirigami.Page {
                                     Qt.openUrlExternally(
                                         "https://protonvpn.com/pricing")
                                 } else {
-                                    connectionActionFeedback.beginForState(
+                                    applicationWindow().beginConnectionAction(
                                         "connected")
                                     vpnController.connectServer(resultDelegate.name)
                                 }

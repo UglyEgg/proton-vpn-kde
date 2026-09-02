@@ -49,7 +49,9 @@ public:
 
 signals:
     void snapshotChanged();
-    void connectionOperationFinished(bool success, const QString &message);
+    void connectionOperationFinished(const QString &targetState,
+                                     bool success,
+                                     const QString &message);
 };
 }
 
@@ -282,7 +284,8 @@ void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
     controller.message =
         QStringLiteral("No server available in the current tier");
     emit controller.snapshotChanged();
-    emit controller.connectionOperationFinished(false, controller.message);
+    emit controller.connectionOperationFinished(
+        QStringLiteral("connected"), false, controller.message);
     QCoreApplication::processEvents();
     QVERIFY(feedback->property("messageActive").toBool());
     QCOMPARE(feedback->property("completedMessage").toString(),
@@ -292,18 +295,37 @@ void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
         feedback.data(), "beginForState", Q_ARG(QVariant, expectedState)));
     QVERIFY(!feedback->property("messageActive").toBool());
     controller.message.clear();
-    emit controller.connectionOperationFinished(true, {});
+    emit controller.connectionOperationFinished(
+        QStringLiteral("connected"), true, {});
     QCoreApplication::processEvents();
     QVERIFY(!feedback->property("awaitingResult").toBool());
     QVERIFY(!feedback->property("messageActive").toBool());
 
     controller.state = QStringLiteral("connected");
+    QVERIFY(QMetaObject::invokeMethod(
+        feedback.data(), "beginForState", Q_ARG(QVariant, expectedState)));
+    controller.message = QStringLiteral("Unable to switch VPN servers");
+    emit controller.snapshotChanged();
+    emit controller.connectionOperationFinished(
+        QStringLiteral("connected"), false, controller.message);
+    QCoreApplication::processEvents();
+    QVERIFY(feedback->property("messageActive").toBool());
+    QCOMPARE(feedback->property("completedMessage").toString(),
+             controller.message);
+
     const QVariant disconnectedState = QStringLiteral("disconnected");
     QVERIFY(QMetaObject::invokeMethod(
         feedback.data(), "beginForState", Q_ARG(QVariant, disconnectedState)));
     controller.message = QStringLiteral("The VPN could not be disconnected");
     emit controller.snapshotChanged();
-    emit controller.connectionOperationFinished(false, controller.message);
+    emit controller.connectionOperationFinished(
+        QStringLiteral("connected"), false,
+        QStringLiteral("An older server switch failed"));
+    QCoreApplication::processEvents();
+    QVERIFY(feedback->property("awaitingResult").toBool());
+    QVERIFY(!feedback->property("messageActive").toBool());
+    emit controller.connectionOperationFinished(
+        QStringLiteral("disconnected"), false, controller.message);
     QCoreApplication::processEvents();
     QVERIFY(feedback->property("messageActive").toBool());
     QCOMPARE(feedback->property("completedMessage").toString(),
@@ -317,7 +339,8 @@ void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
     controller.state = QStringLiteral("connected");
     QVERIFY(QMetaObject::invokeMethod(
         feedback.data(), "beginForState", Q_ARG(QVariant, disconnectedState)));
-    emit controller.connectionOperationFinished(false, controller.message);
+    emit controller.connectionOperationFinished(
+        QStringLiteral("disconnected"), false, controller.message);
     QCoreApplication::processEvents();
     QVERIFY(feedback->property("messageActive").toBool());
     QCOMPARE(feedback->property("completedMessage").toString(),

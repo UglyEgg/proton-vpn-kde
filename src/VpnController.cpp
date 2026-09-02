@@ -159,6 +159,7 @@ QString VpnController::serverGroupsError() const
 }
 
 QString VpnController::serversError() const { return m_serversError; }
+QString VpnController::serverLoadsError() const { return m_serverLoadsError; }
 bool VpnController::npsSurveyAvailable() const { return m_npsSurveyAvailable; }
 bool VpnController::supportReportSubmissionEnabled() const
 {

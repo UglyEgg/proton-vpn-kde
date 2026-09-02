@@ -21,6 +21,12 @@ Item {
         "certificate_not_yet_valid": clockErrorDialog
     })
     readonly property var recoveryErrorCodes: Object.keys(recoveryDialogs)
+    readonly property bool runnerActionEnabled:
+        !vpnController.busy
+        && (runnerActionDialog.actionId === "disconnect"
+            ? vpnController.ready && vpnController.loggedIn
+              && vpnController.state !== "disconnected"
+            : vpnController.primaryActionEnabled)
 
     signal connectionActionStarted(string expectedState)
 
@@ -104,14 +110,17 @@ Item {
             const confirmButton = standardButton(Controls.Dialog.Yes)
             if (confirmButton !== null) {
                 confirmButton.enabled = Qt.binding(function() {
-                    return dialogs.vpnController.ready
-                           && !dialogs.vpnController.busy
+                    return dialogs.runnerActionEnabled
                 })
             }
         }
         onAccepted: {
             const confirmedAction = actionId
             const confirmedArgument = argument
+            if (!dialogs.runnerActionEnabled) {
+                clearRequest()
+                return
+            }
             clearRequest()
             if (confirmedAction === "fastest") {
                 dialogs.connectionActionStarted("connected")

@@ -19,8 +19,6 @@ Kirigami.ScrollablePage {
 
     title: countryFlag + "  " + countryName
     footer: ServerBrowserFeedback {
-        id: connectionActionFeedback
-        controller: vpnController
         loadError: vpnController.serverGroupsError
     }
 
@@ -67,7 +65,7 @@ Kirigami.ScrollablePage {
                          ? vpnController.primaryActionEnabled : true)
             onTriggered: {
                 if (page.countryAccessible) {
-                    connectionActionFeedback.beginForState("connected")
+                    applicationWindow().beginConnectionAction("connected")
                     if (page.requiredCapabilities.length > 0) {
                         vpnController.connectCountryWithFeatures(
                             page.countryCode, page.requiredCapabilities)
@@ -105,6 +103,7 @@ Kirigami.ScrollablePage {
         Kirigami.PlaceholderMessage {
             anchors.centerIn: parent
             visible: groupList.count === 0
+                     && vpnController.serverGroupsError.length === 0
             text: vpnController.locationsBusy
                   ? qsTr("Loading locations…")
                   : page.requiredCapabilities.length > 0
@@ -163,7 +162,7 @@ Kirigami.ScrollablePage {
                                  ? vpnController.primaryActionEnabled : true)
                     onClicked: {
                         if (groupDelegate.accessible) {
-                            connectionActionFeedback.beginForState("connected")
+                            applicationWindow().beginConnectionAction("connected")
                             vpnController.connectGroup(
                                 page.countryCode, groupDelegate.kind,
                                 groupDelegate.name)

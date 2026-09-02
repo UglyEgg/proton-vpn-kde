@@ -154,7 +154,8 @@ void VpnController::onServiceUnregistered(const QString &)
     const bool hadBrowserErrors = !m_countriesError.isEmpty()
         || !m_locationSearchError.isEmpty()
         || !m_serverGroupsError.isEmpty()
-        || !m_serversError.isEmpty();
+        || !m_serversError.isEmpty()
+        || !m_serverLoadsError.isEmpty();
     m_locationsBusy = false;
     m_state = QStringLiteral("unavailable");
     m_errorCode.clear();
@@ -193,6 +194,7 @@ void VpnController::onServiceUnregistered(const QString &)
     m_locationSearchError.clear();
     m_serverGroupsError.clear();
     m_serversError.clear();
+    m_serverLoadsError.clear();
     m_npsSurveyChecked = false;
     m_npsSurveyAvailable = false;
     emit npsSurveyChanged();

@@ -20,11 +20,6 @@ Kirigami.ScrollablePage {
     readonly property bool homeNavigationVisible:
         connectionScene.homeNavigationVisible
 
-    footer: ConnectionActionFeedback {
-        id: connectionActionFeedback
-        controller: vpnController
-    }
-
     Component.onCompleted: {
         if (vpnController.loggedIn && !vpnSettings.loaded) {
             vpnController.loadSettings()
@@ -155,7 +150,7 @@ Kirigami.ScrollablePage {
                     || vpnController.state === "connecting"
                     || vpnController.state === "disconnecting"
                     || vpnController.state === "error"
-                connectionActionFeedback.beginForState(
+                applicationWindow().beginConnectionAction(
                     disconnecting ? "disconnected" : "connected")
                 vpnController.activatePrimaryAction()
             }

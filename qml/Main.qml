@@ -45,6 +45,10 @@ Kirigami.ApplicationWindow {
         close.accepted = true
     }
 
+    function beginConnectionAction(expectedState) {
+        globalConnectionActionFeedback.beginForState(expectedState)
+    }
+
     function pushOwnedPage(pageComponent, properties) {
         const page = pageComponent.createObject(
             pageStack, properties === undefined ? {} : properties)
@@ -593,7 +597,7 @@ Kirigami.ApplicationWindow {
         appSettings: root.integrationSettings
         windowWidth: root.width
         onConnectionActionStarted: expectedState =>
-            globalConnectionActionFeedback.beginForState(expectedState)
+            root.beginConnectionAction(expectedState)
     }
 
     Connections {

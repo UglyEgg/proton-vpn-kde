@@ -29,13 +29,18 @@ Kirigami.InlineMessage {
     function beginForState(state) {
         expectedState = state
         startingState = controller.state
-        awaitingResult = controller.state !== expectedState
+        awaitingResult = true
         clearCompletedMessage()
+    }
+
+    function expectedStateReached() {
+        return controller.state === expectedState
+               && startingState !== expectedState
     }
 
     function reconcileSnapshot() {
         if (messageActive
-                && (controller.state === expectedState
+                && (expectedStateReached()
                     || controller.state === "error"
                     || controller.state === "unresponsive"
                     || controller.message !== sourceMessage)) {
@@ -44,7 +49,7 @@ Kirigami.InlineMessage {
         if (!awaitingResult) {
             return
         }
-        if (controller.state === expectedState
+        if (expectedStateReached()
                 || !controller.backendAvailable
                 || !controller.ready
                 || ((controller.state === "error"
@@ -54,13 +59,13 @@ Kirigami.InlineMessage {
         }
     }
 
-    function completeOperation(success, resultMessage) {
-        if (!awaitingResult) {
+    function completeOperation(targetState, success, resultMessage) {
+        if (!awaitingResult || targetState !== expectedState) {
             return
         }
         awaitingResult = false
         if (success
-                || controller.state === expectedState
+                || expectedStateReached()
                 || !controller.backendAvailable
                 || !controller.ready
                 || controller.state === "error"
@@ -80,8 +85,8 @@ Kirigami.InlineMessage {
         function onSnapshotChanged() {
             root.reconcileSnapshot()
         }
-        function onConnectionOperationFinished(success, message) {
-            root.completeOperation(success, message)
+        function onConnectionOperationFinished(targetState, success, message) {
+            root.completeOperation(targetState, success, message)
         }
     }
 }

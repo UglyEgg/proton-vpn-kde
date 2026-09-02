@@ -37,10 +37,10 @@ echo "The mechanics gate rejects changed QML operation arguments"
 
 git clone --quiet --no-hardlinks "$project_dir" "$feedback_fixture_dir"
 perl -0pi -e \
-    's/\n\s*connectionActionFeedback\.beginForState\(\n\s*"connected"\)(\n\s*vpnController\.connectServer\(resultDelegate\.name\))/\1/' \
+    's/\n\s*applicationWindow\(\)\.beginConnectionAction\(\n\s*"connected"\)(\n\s*vpnController\.connectServer\(resultDelegate\.name\))/\1/' \
     "$feedback_fixture_dir/qml/LocationsPage.qml"
 if rg -U -q \
-        'beginForState\(\n[[:space:]]*"connected"\)\n[[:space:]]*vpnController\.connectServer\(resultDelegate\.name\)' \
+        'beginConnectionAction\(\n[[:space:]]*"connected"\)\n[[:space:]]*vpnController\.connectServer\(resultDelegate\.name\)' \
         "$feedback_fixture_dir/qml/LocationsPage.qml"; then
     echo "Unable to construct the feedback-ownership negative fixture" >&2
     exit 1

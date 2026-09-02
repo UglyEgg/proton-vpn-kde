@@ -57,21 +57,24 @@ bool normalizeServerFeatures(const QStringList &features, QStringList *result)
     return true;
 }
 
-bool isConnectionOperation(const QString &method)
+QString connectionTargetState(const QString &method)
 {
-    return method == QString::fromLatin1(BackendDbus::Method::connectCountry)
+    if (method == QString::fromLatin1(BackendDbus::Method::disconnect)) {
+        return QStringLiteral("disconnected");
+    }
+    if (method == QString::fromLatin1(BackendDbus::Method::connectCountry)
         || method == QString::fromLatin1(
             BackendDbus::Method::connectCountryWithFeatures)
         || method == QString::fromLatin1(BackendDbus::Method::connectFastest)
-        || method == QString::fromLatin1(
-            BackendDbus::Method::connectFastestWithFeature)
         || method == QString::fromLatin1(
             BackendDbus::Method::connectFastestWithFeatures)
         || method == QString::fromLatin1(BackendDbus::Method::connectGroup)
         || method == QString::fromLatin1(
             BackendDbus::Method::connectGroupWithFeatures)
-        || method == QString::fromLatin1(BackendDbus::Method::connectServer)
-        || method == QString::fromLatin1(BackendDbus::Method::disconnect);
+        || method == QString::fromLatin1(BackendDbus::Method::connectServer)) {
+        return QStringLiteral("connected");
+    }
+    return {};
 }
 }
 
@@ -445,7 +448,7 @@ void VpnController::callOperation(const QString &method,
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
     stampBackendRequest(watcher);
-    watcher->setProperty("connectionOperation", isConnectionOperation(method));
+    watcher->setProperty("connectionTargetState", connectionTargetState(method));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleOperationReply);
 }
@@ -556,7 +559,7 @@ void VpnController::callControlOperation(const QString &method,
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
     stampBackendRequest(watcher);
-    watcher->setProperty("connectionOperation", isConnectionOperation(method));
+    watcher->setProperty("connectionTargetState", connectionTargetState(method));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleControlOperationReply);
 }

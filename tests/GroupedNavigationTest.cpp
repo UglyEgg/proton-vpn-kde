@@ -685,18 +685,28 @@ void GroupedNavigationTest::browserFailuresAreDistinctFromEmptyResults()
                                 QStringLiteral("Zurich"));
     QTRY_VERIFY_WITH_TIMEOUT(!controller.serversError().isEmpty(), 2000);
     QVERIFY(!controller.locationsBusy());
+    QVERIFY(controller.serverLoadsError().isEmpty());
+
+    controller.requestServerLoads();
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.locationsBusy(), 2000);
+    QVERIFY(!controller.serversError().isEmpty());
+    QVERIFY(controller.serverLoadsError().isEmpty());
+
     controller.loadGroupServers(QStringLiteral("CH"),
                                 QStringLiteral("location"),
                                 QStringLiteral("Zurich"));
     QTRY_COMPARE_WITH_TIMEOUT(controller.serverModel()->rowCount(), 2, 2000);
     QVERIFY(controller.serversError().isEmpty());
+    QVERIFY(controller.serverLoadsError().isEmpty());
 
     m_backend.loadFailures = 1;
     controller.requestServerLoads();
-    QTRY_VERIFY_WITH_TIMEOUT(!controller.serversError().isEmpty(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.serverLoadsError().isEmpty(), 2000);
+    QVERIFY(controller.serversError().isEmpty());
     QVERIFY(!controller.locationsBusy());
     controller.requestServerLoads();
-    QTRY_VERIFY_WITH_TIMEOUT(controller.serversError().isEmpty(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.serverLoadsError().isEmpty(), 2000);
+    QVERIFY(controller.serversError().isEmpty());
     QTRY_VERIFY_WITH_TIMEOUT(!controller.locationsBusy(), 2000);
     QCOMPARE(controller.message(), connectionMessage);
 }
@@ -770,7 +780,9 @@ void GroupedNavigationTest::requestsFastestServerByValidatedCapabilities()
                           QStringLiteral("streaming")}));
     QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 2000);
     QTRY_COMPARE_WITH_TIMEOUT(connectionFinished.count(), 1, 2000);
-    QVERIFY(connectionFinished.at(0).at(0).toBool());
+    QCOMPARE(connectionFinished.at(0).at(0).toString(),
+             QStringLiteral("connected"));
+    QVERIFY(connectionFinished.at(0).at(1).toBool());
 
     controller.setFastestFeatures(
         {QStringLiteral("secure-core"), QStringLiteral("p2p")});
