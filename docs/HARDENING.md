@@ -84,7 +84,10 @@ that session outside the D-Bus event loop and bounds the wait whenever a
 recovery entry exists. A locked or unanswered provider therefore causes a
 nonzero startup with the entry retained for systemd retry; the backend cannot
 publish readiness or claim supervision without first reacquiring the Core
-connection and processing the original `CLOCK_BOOTTIME` deadline.
+connection and processing the original `CLOCK_BOOTTIME` deadline. A restored
+logged-out session also fails with the entry retained because Core deliberately
+does not restore persisted connection state in that condition; its synthetic
+disconnected connector cannot authorize clearing completion-unknown recovery.
 
 The current installed backend and agent units each receive a 9.0 “UNSAFE”
 score from `systemd-analyze security --offline=yes --user`. This heuristic is

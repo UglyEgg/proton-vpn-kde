@@ -108,7 +108,8 @@ All notable user-visible changes are recorded here. The project follows
 - Prewarm Core's Secret Service session before connector construction and,
   while durable packet-capture recovery is pending, bound that provider wait
   so an unanswered prompt exits nonzero with the recovery record retained for
-  systemd retry.
+  systemd retry. Also retain the record when no session is restored rather
+  than trusting Core's intentionally synthetic logged-out disconnected state.
 - Keep capture setup inactive and retryable when Core rejects the selected
   destination before it receives a start request.
 - Teach Git that unified-diff context markers are patch syntax while retaining

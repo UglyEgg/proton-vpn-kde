@@ -458,6 +458,25 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(recovery_path.exists())
         api.get_vpn_connector.assert_not_awaited()
 
+    async def test_capture_recovery_rejects_synthetic_logged_out_connector(self):
+        api, _ = self.make_api(logged_in=False)
+        recovery_path = Path(os.environ["XDG_RUNTIME_DIR"]) / (
+            PACKET_CAPTURE_RECOVERY_FILENAME
+        )
+        PacketCaptureRecoveryJournal(recovery_path).store_deadline(
+            time.clock_gettime(time.CLOCK_BOOTTIME) - 0.01
+        )
+        adapter = ProtonCoreAdapter(api, packet_capture_recovery_path=recovery_path)
+
+        with self.assertRaisesRegex(
+            UserVisibleRuntimeError,
+            "session restoration is required",
+        ):
+            await adapter.initialize(Mock())
+
+        self.assertTrue(recovery_path.exists())
+        api.get_vpn_connector.assert_not_awaited()
+
     async def test_logged_out_start_does_not_enable_refresher(self):
         api, _ = self.make_api(logged_in=False)
         adapter = ProtonCoreAdapter(api)

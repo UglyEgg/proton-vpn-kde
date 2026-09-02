@@ -24,7 +24,7 @@ The supported Fedora package installs both Plasma and project executables below
 prefix; non-`/usr` custom-prefix layouts are not currently an accepted runtime
 configuration.
 
-CI runs all 212 isolated backend tests under Python 3.11 with the exact minimum
+CI runs all 213 isolated backend tests under Python 3.11 with the exact minimum
 `cryptography` 45.0.1 and `dbus-fast` 2.20.0 wheels. A separate source-level
 contract check downloads and extracts Proton's SHA-256-pinned Fedora 44 API
 Core 5.5.6 RPM, then verifies every public class, method, property, and exported

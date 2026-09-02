@@ -170,8 +170,9 @@ class ProtonCoreAdapter:
         # safely acquire the connection first. When a durable capture record
         # exists, bound the prewarm: an unanswered prompt must fail startup
         # nonzero with the record retained for systemd retry.
+        pending_capture_recovery = self._packet_capture.has_pending_recovery()
         session_probe = run_in_daemon_thread(self._api.is_user_logged_in)
-        if self._packet_capture.has_pending_recovery():
+        if pending_capture_recovery:
             try:
                 self._logged_in = await asyncio.wait_for(
                     session_probe,
@@ -184,6 +185,16 @@ class ProtonCoreAdapter:
                 ) from None
         else:
             self._logged_in = await session_probe
+
+        if pending_capture_recovery and not self._logged_in:
+            # Core intentionally ignores a persisted connection while logged
+            # out and reports a synthetic disconnected connector. That state
+            # cannot prove an external capture stopped, so retain the journal
+            # and fail startup for systemd retry instead of clearing it.
+            raise UserVisibleRuntimeError(
+                "Proton session restoration is required to recover an "
+                "unconfirmed packet capture"
+            )
 
         self._connector = await self._api.get_vpn_connector()
         self._connector.register(self)

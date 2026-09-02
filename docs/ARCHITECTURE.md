@@ -161,7 +161,11 @@ When a durable capture-recovery entry exists, this prewarm has a short bound:
 an unanswered provider prompt fails startup nonzero with the entry retained,
 allowing systemd to retry instead of falsely publishing readiness without a
 capture supervisor. Once the session is available, Core reuses it while the
-adapter constructs the connector and processes recovery before readiness.
+adapter constructs the connector and processes recovery before readiness. If
+no session is restored, startup also fails nonzero with the recovery entry
+retained: Core intentionally ignores persisted connection state while logged
+out, so its synthetic disconnected connector is not evidence that an external
+capture has stopped.
 
 If the backend owner disappears while the Control Center remains open, the
 frontend requests bounded D-Bus reactivation and re-establishes its lease. A
