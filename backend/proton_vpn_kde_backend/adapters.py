@@ -90,6 +90,7 @@ __all__ = [
 
 
 LOGOUT_RECOVERY_TIMEOUT_SECONDS = 5.0
+CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,18 +162,34 @@ class ProtonCoreAdapter:
 
             self._api = ProtonVPNAPI(ClientTypeMetadata(type="gui"))
 
-        self._connector = await self._api.get_vpn_connector()
-        self._connector.register(self)
-        # Packet capture is external to this process. Reacquire any durable
-        # completion-unknown generation before any potentially interactive
-        # Secret Service access or backend-readiness publication.
-        await self._packet_capture.recover(self._connector)
         # Proton SSO reaches Secret Service through a synchronous keyring API.
         # Warm the cached session away from the D-Bus asyncio thread so a
         # provider unlock prompt (KeePassXC, KWallet, etc.) cannot freeze the
-        # entire backend while waiting for user approval. Durable capture
-        # recovery is already supervised if that approval remains pending.
-        self._logged_in = await run_in_daemon_thread(self._api.is_user_logged_in)
+        # entire backend while waiting for user approval. Core also restores
+        # this session while constructing its connector, so recovery cannot
+        # safely acquire the connection first. When a durable capture record
+        # exists, bound the prewarm: an unanswered prompt must fail startup
+        # nonzero with the record retained for systemd retry.
+        session_probe = run_in_daemon_thread(self._api.is_user_logged_in)
+        if self._packet_capture.has_pending_recovery():
+            try:
+                self._logged_in = await asyncio.wait_for(
+                    session_probe,
+                    timeout=CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS,
+                )
+            except TimeoutError:
+                raise UserVisibleRuntimeError(
+                    "Proton session restoration did not finish while "
+                    "packet-capture recovery was pending"
+                ) from None
+        else:
+            self._logged_in = await session_probe
+
+        self._connector = await self._api.get_vpn_connector()
+        self._connector.register(self)
+        # Packet capture is external to this process. Reacquire any durable
+        # completion-unknown generation before backend-readiness publication.
+        await self._packet_capture.recover(self._connector)
         self._auth_state = "signed_in" if self._logged_in else "signed_out"
         validator = getattr(self._api, "validate_connection_availability", None)
         if callable(validator):

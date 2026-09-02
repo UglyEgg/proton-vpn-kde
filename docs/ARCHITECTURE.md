@@ -154,10 +154,14 @@ If Core initialization fails, the backend publishes a fixed startup-failure
 state, releases D-Bus resources, and exits nonzero. The user service can
 recover transient Secret Service, NetworkManager, or Core failures through
 `Restart=on-failure` instead of retaining a permanently unready process.
-Before the session probe can request interactive Secret Service approval, the
-adapter acquires the existing Core connector and processes any durable
-packet-capture recovery entry. An unanswered provider prompt therefore cannot
-delay the original capture safety deadline or its bounded stop retries.
+Official Core restores its Secret Service session while constructing the VPN
+connector, and that connector is required to reacquire an unconfirmed packet
+capture. The adapter therefore prewarms the session off the D-Bus event loop.
+When a durable capture-recovery entry exists, this prewarm has a short bound:
+an unanswered provider prompt fails startup nonzero with the entry retained,
+allowing systemd to retry instead of falsely publishing readiness without a
+capture supervisor. Once the session is available, Core reuses it while the
+adapter constructs the connector and processes recovery before readiness.
 
 If the backend owner disappears while the Control Center remains open, the
 frontend requests bounded D-Bus reactivation and re-establishes its lease. A

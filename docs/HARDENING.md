@@ -78,10 +78,13 @@ The privileged split-tunneling daemon remains Proton's separately packaged
 system service. These user-service settings neither grant the KDE backend new
 privileges nor modify that daemon's security policy.
 
-Persisted packet-capture recovery is processed before the first potentially
-interactive Secret Service session probe. This ordering ensures that a locked
-or unanswered provider cannot postpone supervision past the original
-`CLOCK_BOOTTIME` deadline after backend replacement.
+Official Core requires its restored Secret Service session while constructing
+the connector needed for persisted packet-capture recovery. The adapter warms
+that session outside the D-Bus event loop and bounds the wait whenever a
+recovery entry exists. A locked or unanswered provider therefore causes a
+nonzero startup with the entry retained for systemd retry; the backend cannot
+publish readiness or claim supervision without first reacquiring the Core
+connection and processing the original `CLOCK_BOOTTIME` deadline.
 
 The current installed backend and agent units each receive a 9.0 “UNSAFE”
 score from `systemd-analyze security --offline=yes --user`. This heuristic is

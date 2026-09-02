@@ -29,6 +29,7 @@ from proton_vpn_kde_backend.controller import (
     NpsSurveyResponse,
     SupportReport,
 )
+from proton_vpn_kde_backend.errors import UserVisibleRuntimeError
 
 
 def state_named(name: str):
@@ -360,17 +361,24 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await initialize_task
         connector.register.assert_any_call(adapter)
 
-    async def test_capture_recovery_precedes_secret_service_wait(self):
+    async def test_capture_recovery_uses_one_bounded_session_restore(self):
         api, connector = self.make_api()
         events: list[str] = []
         prompt_started = threading.Event()
         prompt_released = threading.Event()
+        session_loaded = threading.Event()
 
         def wait_for_provider_approval():
             events.append("secret-prompt")
             prompt_started.set()
             prompt_released.wait(timeout=2)
+            session_loaded.set()
             return True
+
+        async def initialize_connector():
+            events.append("connector")
+            self.assertTrue(session_loaded.is_set())
+            return connector
 
         async def stop_capture():
             events.append("capture-stop")
@@ -387,6 +395,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             stop_packet_capture=AsyncMock(side_effect=stop_capture),
         )
         api.is_user_logged_in = wait_for_provider_approval
+        api.get_vpn_connector = AsyncMock(side_effect=initialize_connector)
         adapter = ProtonCoreAdapter(
             api,
             packet_capture_recovery_path=recovery_path,
@@ -401,14 +410,53 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0.01)
 
             self.assertTrue(prompt_started.is_set())
-            self.assertEqual(["capture-stop", "secret-prompt"], events)
+            self.assertEqual(["secret-prompt"], events)
             self.assertFalse(initialize_task.done())
-            self.assertFalse(recovery_path.exists())
+            self.assertTrue(recovery_path.exists())
         finally:
             prompt_released.set()
 
         await initialize_task
+        self.assertEqual(["secret-prompt", "connector", "capture-stop"], events)
+        self.assertFalse(recovery_path.exists())
         connector.current_connection.stop_packet_capture.assert_awaited_once_with()
+
+    async def test_capture_recovery_retains_journal_when_session_restore_times_out(self):
+        api, _ = self.make_api()
+        prompt_started = threading.Event()
+        prompt_released = threading.Event()
+
+        def wait_for_provider_approval():
+            prompt_started.set()
+            prompt_released.wait(timeout=2)
+            return True
+
+        recovery_path = Path(os.environ["XDG_RUNTIME_DIR"]) / (
+            PACKET_CAPTURE_RECOVERY_FILENAME
+        )
+        PacketCaptureRecoveryJournal(recovery_path).store_deadline(
+            time.clock_gettime(time.CLOCK_BOOTTIME) - 0.01
+        )
+        api.is_user_logged_in = wait_for_provider_approval
+        adapter = ProtonCoreAdapter(api, packet_capture_recovery_path=recovery_path)
+
+        with patch(
+            "proton_vpn_kde_backend.adapters."
+            "CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS",
+            0.01,
+        ):
+            try:
+                with self.assertRaisesRegex(
+                    UserVisibleRuntimeError,
+                    "session restoration did not finish",
+                ):
+                    await adapter.initialize(Mock())
+            finally:
+                prompt_released.set()
+
+        self.assertTrue(prompt_started.is_set())
+        self.assertTrue(recovery_path.exists())
+        api.get_vpn_connector.assert_not_awaited()
 
     async def test_logged_out_start_does_not_enable_refresher(self):
         api, _ = self.make_api(logged_in=False)
