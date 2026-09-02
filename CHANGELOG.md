@@ -35,6 +35,9 @@ All notable user-visible changes are recorded here. The project follows
 - Keep the specific backend diagnostic visible during failed startup, expose
   restart recovery for unavailable or unresponsive services, and suppress a
   futile restart after terminal client-identity rejection.
+- Preserve the backend's exact safety guidance when authentication, settings,
+  or protection state cannot be confirmed instead of replacing it with a
+  generic recovery message.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

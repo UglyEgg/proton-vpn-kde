@@ -110,7 +110,9 @@ Kirigami.ScrollablePage {
                    : qsTr("Starting the local Proton VPN service.")
         }
         if (page.activeStep === page.recoveryStep) {
-            return qsTr("Restart the local service before authentication can safely continue.")
+            return vpnController.message.length > 0
+                   ? vpnController.message
+                   : qsTr("Restart the local service before authentication can safely continue.")
         }
         if (page.activeStep === page.secretStoreStep) {
             return qsTr("Approve any access request from your configured desktop Secret Service provider.")
@@ -329,7 +331,7 @@ Kirigami.ScrollablePage {
                 Layout.fillWidth: true
                 visible: parent.visible
                 type: Kirigami.MessageType.Warning
-                text: qsTr("Sign-in is paused until the service has restarted and the Proton account and protection state can be confirmed.")
+                text: qsTr("Sign-in is paused until the service has restarted. Follow the guidance above before reconnecting.")
             }
 
             Controls.Button {

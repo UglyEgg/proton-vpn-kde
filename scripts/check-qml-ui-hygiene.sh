@@ -119,7 +119,21 @@ backend_restart_policy_uses="$(
     rg -c 'vpnController\.backendRestartAllowed' \
         "$qml_dir/SignInPage.qml"
 )"
+recovery_state_fixture="$(
+    sed -n \
+        '/readonly property bool recoveryRequired:/,/].includes(vpnController.authState)/p' \
+        "$qml_dir/SignInPage.qml"
+)"
+for recovery_state in \
+        authentication_unknown settings_unavailable protection_unknown; do
+    if ! grep -Fq "\"$recovery_state\"" <<<"$recovery_state_fixture"; then
+        echo "Missing authentication recovery presentation for $recovery_state" >&2
+        exit 1
+    fi
+done
 if ! rg -q 'objectName: "backendStartupDiagnostic"' \
+        "$qml_dir/SignInPage.qml" \
+        || ! rg -U -q 'activeStep === page\.recoveryStep\) \{\n[[:space:]]*return vpnController\.message\.length > 0\n[[:space:]]*\? vpnController\.message' \
         "$qml_dir/SignInPage.qml" \
         || [[ "$backend_restart_policy_uses" -lt 3 ]] \
         || ! rg -q 'objectName: "restartUnresponsiveBackendAction"' \
