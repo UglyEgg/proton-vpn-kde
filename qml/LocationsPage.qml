@@ -13,6 +13,27 @@ Kirigami.Page {
     readonly property bool searching: searchField.text.trim().length > 0
     property var requiredCapabilities: []
 
+    function capabilityName(capability) {
+        const labels = {
+            "p2p": qsTr("P2P"),
+            "streaming": qsTr("Streaming"),
+            "tor": qsTr("Tor"),
+            "secure-core": qsTr("Secure Core")
+        }
+        return labels[capability] ?? capability
+    }
+
+    function capabilitySummary() {
+        if (requiredCapabilities.length === 0) {
+            return qsTr("No capability requirements")
+        }
+        const labels = []
+        for (const capability of requiredCapabilities) {
+            labels.push(capabilityName(capability))
+        }
+        return labels.join(" + ")
+    }
+
     function openCountry(code, name, flag, accessible, underMaintenance) {
         applicationWindow().pushCountry({
                 "countryCode": code,
@@ -155,57 +176,102 @@ Kirigami.Page {
         anchors.fill: parent
         spacing: Kirigami.Units.smallSpacing
 
-        PageHeader {
-            heading: qsTr("Countries and servers")
-            description: qsTr("Choose a country, city, or exact Proton server.")
-            iconName: "network-server"
-        }
+        Kirigami.AbstractCard {
+            id: fastestCard
 
-        SectionCard {
-            title: qsTr("Server capabilities")
-            description: qsTr("Check every capability a server must support. The filters follow you into countries and server groups.")
-            iconName: "speedometer"
+            objectName: "fastestServerCard"
+            Layout.fillWidth: true
 
-            ServerCapabilitySelector {
-                Layout.fillWidth: true
-                selectedFeatures: page.requiredCapabilities
-                enabled: vpnController.userTier > 0
-                onSelectionChanged: function(features) {
-                    page.requiredCapabilities = features
+            contentItem: ColumnLayout {
+                spacing: Kirigami.Units.largeSpacing
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.largeSpacing
+
+                    Rectangle {
+                        Layout.preferredWidth: Kirigami.Units.iconSizes.huge
+                        Layout.preferredHeight: Kirigami.Units.iconSizes.huge
+                        radius: width / 2
+                        color: Kirigami.Theme.backgroundColor
+                        border.width: 2
+                        border.color: Kirigami.Theme.linkColor
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: parent.width - Kirigami.Units.largeSpacing
+                            height: width
+                            radius: width / 2
+                            color: Kirigami.Theme.alternateBackgroundColor
+                        }
+
+                        Kirigami.Icon {
+                            anchors.centerIn: parent
+                            source: "speedometer"
+                            color: Kirigami.Theme.linkColor
+                            implicitWidth: Kirigami.Units.iconSizes.large
+                            implicitHeight: implicitWidth
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.Heading {
+                            Layout.fillWidth: true
+                            level: 2
+                            text: qsTr("Fastest suitable server")
+                            wrapMode: Text.WordWrap
+                        }
+
+                        Controls.Label {
+                            Layout.fillWidth: true
+                            text: page.capabilitySummary()
+                            color: page.requiredCapabilities.length > 0
+                                   ? Kirigami.Theme.linkColor
+                                   : Kirigami.Theme.disabledTextColor
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+
+                    Controls.Button {
+                        text: qsTr("Connect fastest match")
+                        icon.name: "network-connect"
+                        enabled: vpnController.primaryActionEnabled
+                                 && (page.requiredCapabilities.length === 0
+                                     || vpnController.userTier > 0)
+                        onClicked: vpnController.connectFastestWithFeatures(
+                            page.requiredCapabilities)
+                    }
                 }
-            }
 
-            RowLayout {
-                Layout.fillWidth: true
+                Kirigami.Separator {
+                    Layout.fillWidth: true
+                }
 
                 Controls.Label {
                     Layout.fillWidth: true
-                    text: vpnController.userTier === 0
-                          ? qsTr("Specialized servers require Proton VPN Plus.")
-                          : page.requiredCapabilities.length === 0
-                            ? qsTr("No capability filter; Proton Core chooses the fastest available server.")
-                            : qsTr("Only servers matching every checked capability are eligible.")
+                    text: qsTr("Must support")
+                    font.bold: true
+                }
+
+                ServerCapabilitySelector {
+                    Layout.fillWidth: true
+                    selectedFeatures: page.requiredCapabilities
+                    enabled: vpnController.userTier > 0
+                    onSelectionChanged: function(features) {
+                        page.requiredCapabilities = features
+                    }
+                }
+
+                Controls.Label {
+                    Layout.fillWidth: true
+                    visible: vpnController.userTier === 0
+                    text: qsTr("Specialized servers require Proton VPN Plus.")
                     color: Kirigami.Theme.disabledTextColor
                     wrapMode: Text.WordWrap
                 }
-
-                Controls.Button {
-                    text: qsTr("Connect fastest match")
-                    icon.name: "network-connect"
-                    enabled: vpnController.primaryActionEnabled
-                             && (page.requiredCapabilities.length === 0
-                                 || vpnController.userTier > 0)
-                    onClicked: vpnController.connectFastestWithFeatures(
-                        page.requiredCapabilities)
-                }
-            }
-
-            Controls.Label {
-                Layout.fillWidth: true
-                visible: page.requiredCapabilities.length > 0
-                text: qsTr("Countries remain visible for navigation; incompatible groups and exact servers are hidden as you browse.")
-                color: Kirigami.Theme.disabledTextColor
-                wrapMode: Text.WordWrap
             }
         }
 

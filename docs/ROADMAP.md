@@ -43,16 +43,13 @@ The implementation constraints are:
 
 ### Delivery sequence
 
-1. Make server discovery progress from fastest suitable connection, through
-   visible capability criteria, to country, city, state, and exact-server
-   selection.
-2. Group Settings by user intent and disclose uncommon choices beside the
+1. Group Settings by user intent and disclose uncommon choices beside the
    setting they refine; keep applied changes on the same page.
-3. Refine sign-in, two-factor, security-key, Secret Service approval, error,
+2. Refine sign-in, two-factor, security-key, Secret Service approval, error,
    and recovery presentation without altering their established sequencing.
-4. Treat Connection Inspector, release history, support status, and technical
+3. Treat Connection Inspector, release history, support status, and technical
    details as on-demand depth rather than primary navigation competition.
-5. Verify compact and wide windows, keyboard-only use, screen-reader names,
+4. Verify compact and wide windows, keyboard-only use, screen-reader names,
    1.5x text, right-to-left layout, light and dark schemes, high contrast, and
    reduced motion before repeating the full release battery.
 
@@ -65,7 +62,6 @@ replace them.
 
 | Current surface | What already works | Presentation debt to resolve |
 | --- | --- | --- |
-| Countries and servers | Full hierarchy, search, capability combinations, pins, and fastest match | Establish a visible path from intent to criteria to exact server and keep selected criteria recognizable |
 | Settings | Complete native controls grouped into focused components | Lead with common outcomes and reveal exceptions locally instead of showing every choice with equal emphasis |
 | Sign in and Account | Correct startup routing and explicit multi-step authentication | Present only the active authentication step while keeping Secret Service waits and recovery unmistakable |
 | Connection Inspector | Bounded, read-only, on-demand detail | Open it from connection context and secondary navigation rather than competing with daily connection tasks |

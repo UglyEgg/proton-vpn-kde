@@ -84,6 +84,7 @@ Kirigami.ScrollablePage {
                     qsTr("An upper-right gear keeps diagnostics and project information close, while native Back navigation replaces the permanent sidebar."),
                     qsTr("Overview visualizes this device, its encrypted tunnel, and the VPN destination while keeping one obvious connection action."),
                     qsTr("Exact server, protocol, Secure Core entry, and forwarded-port facts now appear as compact icon-led controls on Connection; selecting them opens the relevant settings, Inspector, or copy action."),
+                    qsTr("Server discovery now leads with one graphical fastest-suitable action, keeps selected requirements visible, and uses native icon-led checkboxes before country and exact-server browsing."),
                     qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")
                 ]
             }

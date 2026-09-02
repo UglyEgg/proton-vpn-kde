@@ -34,6 +34,13 @@ server, protocol, Secure Core entry, and forwarded-port facts remain compact,
 icon-led, and visible on the surface only when relevant. Selecting one opens the
 appropriate settings, copy action, or richer on-demand Inspector.
 
+Server discovery follows the same visual grammar without forcing list data
+into decorative cards. A single icon-led fastest-suitable surface states the
+current capability requirements and owns the primary connect action. Native
+checkboxes keep P2P, Streaming, Tor, and Secure Core requirements explicit;
+search and ordinary Plasma list rows then provide country, group, pin, load,
+and exact-server depth.
+
 Revealed content must not unexpectedly move the user to another page, reorder
 unrelated controls, or require memorizing a hidden choice. Preserve focus when
 content expands and give disclosure controls explicit accessible names and

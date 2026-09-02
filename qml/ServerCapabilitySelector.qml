@@ -31,24 +31,28 @@ Flow {
 
     Controls.CheckBox {
         text: qsTr("P2P")
+        icon.name: "folder-network"
         checked: root.selectedFeatures.indexOf("p2p") >= 0
         onToggled: root.updateFeature("p2p", checked)
     }
 
     Controls.CheckBox {
         text: qsTr("Streaming")
+        icon.name: "applications-multimedia"
         checked: root.selectedFeatures.indexOf("streaming") >= 0
         onToggled: root.updateFeature("streaming", checked)
     }
 
     Controls.CheckBox {
         text: qsTr("Tor")
+        icon.name: "security-medium"
         checked: root.selectedFeatures.indexOf("tor") >= 0
         onToggled: root.updateFeature("tor", checked)
     }
 
     Controls.CheckBox {
         text: qsTr("Secure Core")
+        icon.name: "security-high"
         checked: root.selectedFeatures.indexOf("secure-core") >= 0
         onToggled: root.updateFeature("secure-core", checked)
     }

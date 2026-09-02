@@ -21,6 +21,10 @@ All notable user-visible changes are recorded here. The project follows
   compact icon-led facts on that surface; facts and capability badges open the
   relevant settings or Inspector depth without a redundant details modal. This
   does not change connection behavior.
+- Lead server discovery with one graphical fastest-suitable action, keep its
+  active capability requirements visible, and present the existing P2P,
+  Streaming, Tor, and Secure Core requirements as native icon-led checkboxes
+  before country, location, and exact-server browsing.
 - Add an on-demand Connection Inspector for live server capabilities,
   protection configuration, and local runtime state using only existing
   non-sensitive Core snapshots.

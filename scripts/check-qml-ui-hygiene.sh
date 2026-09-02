@@ -63,6 +63,18 @@ if ! rg -q 'id: routeDiagram' "$qml_dir/ConnectionScene.qml" \
     exit 1
 fi
 
+if ! rg -q 'objectName: "fastestServerCard"' \
+        "$qml_dir/LocationsPage.qml" \
+        || ! rg -q 'qsTr\("Fastest suitable server"\)' \
+        "$qml_dir/LocationsPage.qml" \
+        || ! rg -q 'qsTr\("Must support"\)' \
+        "$qml_dir/LocationsPage.qml" \
+        || ! rg -q 'ServerCapabilitySelector' \
+        "$qml_dir/LocationsPage.qml"; then
+    echo "Server discovery must lead with a visible fastest-suitable intent and capability criteria" >&2
+    exit 1
+fi
+
 if ! rg -q 'id: moreAction' "$qml_dir/ConnectionScene.qml" \
         || ! rg -q 'text: qsTr\("More options"\)' \
         "$qml_dir/ConnectionScene.qml" \
