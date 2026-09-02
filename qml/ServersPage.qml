@@ -23,6 +23,10 @@ Kirigami.ScrollablePage {
     title: groupKind === "secure-core"
            ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
            : countryFlag + "  " + groupName
+    footer: ConnectionActionFeedback {
+        id: connectionActionFeedback
+        controller: vpnController
+    }
 
     function serverSummary(location, entryCountry, secureCore, smartRouting,
                            tor, p2p, streaming, underMaintenance) {
@@ -77,6 +81,7 @@ Kirigami.ScrollablePage {
                          ? vpnController.primaryActionEnabled : true)
             onTriggered: {
                 if (page.groupAccessible) {
+                    connectionActionFeedback.beginForState("connected")
                     if (page.requiredCapabilities.length > 0) {
                         vpnController.connectGroupWithFeatures(
                             page.countryCode, page.groupKind, page.groupName,
@@ -205,6 +210,7 @@ Kirigami.ScrollablePage {
                                  ? vpnController.primaryActionEnabled : true)
                     onClicked: {
                         if (serverDelegate.accessible) {
+                            connectionActionFeedback.beginForState("connected")
                             vpnController.connectServer(serverDelegate.name)
                         } else {
                             Qt.openUrlExternally("https://protonvpn.com/pricing")

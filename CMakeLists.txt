@@ -255,6 +255,7 @@ qt_add_qml_module(proton-vpn-kde
         qml/AccountPage.qml
         qml/AboutPage.qml
         qml/ApplicationRecoveryBanner.qml
+        qml/ConnectionActionFeedback.qml
         qml/ConnectionInspectorPage.qml
         qml/ConnectionScene.qml
         qml/CustomDnsPage.qml
@@ -856,11 +857,15 @@ if(BUILD_TESTING)
         NAME qml-ui-hygiene
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-qml-ui-hygiene.sh
     )
-    add_test(
-        NAME ux-mechanics-freeze-negative
-        COMMAND
-            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test-ux-mechanics-freeze-negative.sh
-    )
+    # This fixture clones history to mutate a reviewed delta. Release archives
+    # have no .git directory, so package %check keeps only hermetic tests.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+        add_test(
+            NAME ux-mechanics-freeze-negative
+            COMMAND
+                ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test-ux-mechanics-freeze-negative.sh
+        )
+    endif()
     set_tests_properties(installed-translation-loader-tests PROPERTIES
         ENVIRONMENT "XDG_DATA_DIRS=${PROTON_VPN_KDE_TEST_DATA_DIR}"
     )

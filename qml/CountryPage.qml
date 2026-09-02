@@ -18,6 +18,10 @@ Kirigami.ScrollablePage {
     property var serverContextGeneration: 0
 
     title: countryFlag + "  " + countryName
+    footer: ConnectionActionFeedback {
+        id: connectionActionFeedback
+        controller: vpnController
+    }
 
     function groupSummary(serverCount, accessible, underMaintenance,
                           smartRouting, tor, p2p, streaming) {
@@ -62,6 +66,7 @@ Kirigami.ScrollablePage {
                          ? vpnController.primaryActionEnabled : true)
             onTriggered: {
                 if (page.countryAccessible) {
+                    connectionActionFeedback.beginForState("connected")
                     if (page.requiredCapabilities.length > 0) {
                         vpnController.connectCountryWithFeatures(
                             page.countryCode, page.requiredCapabilities)
@@ -157,6 +162,7 @@ Kirigami.ScrollablePage {
                                  ? vpnController.primaryActionEnabled : true)
                     onClicked: {
                         if (groupDelegate.accessible) {
+                            connectionActionFeedback.beginForState("connected")
                             vpnController.connectGroup(
                                 page.countryCode, groupDelegate.kind,
                                 groupDelegate.name)

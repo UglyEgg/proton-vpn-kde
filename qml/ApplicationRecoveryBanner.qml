@@ -17,34 +17,23 @@ Kirigami.InlineMessage {
         vpnController.loggedIn
         && vpnController.state === "error"
         && !dialogErrorCodes.includes(vpnController.errorCode)
-    readonly property bool statusMessageActive:
-        vpnController.loggedIn
-        && !vpnController.busy
-        && vpnController.message.length > 0
-        && vpnController.state !== "error"
-        && vpnController.state !== "unresponsive"
     readonly property bool bannerActive:
-        recoveryActive || connectionErrorActive || statusMessageActive
+        recoveryActive || connectionErrorActive
 
     objectName: "applicationBackendRecovery"
     visible: bannerActive
     height: visible ? implicitHeight : 0
-    type: recoveryActive || connectionErrorActive
-          ? Kirigami.MessageType.Error
-          : Kirigami.MessageType.Information
+    type: Kirigami.MessageType.Error
     text: {
         if (root.recoveryActive) {
             return vpnController.message.length > 0
                    ? vpnController.message
                    : qsTr("The local Proton VPN service is not responding.")
         }
-        if (root.connectionErrorActive) {
-            const summary = root.connectionErrorText(vpnController.errorCode)
-            return summary
-                   + (vpnController.message.length > 0
-                      ? "\n" + vpnController.message : "")
-        }
-        return vpnController.message
+        const summary = root.connectionErrorText(vpnController.errorCode)
+        return summary
+               + (vpnController.message.length > 0
+                  ? "\n" + vpnController.message : "")
     }
 
     function connectionErrorText(code) {

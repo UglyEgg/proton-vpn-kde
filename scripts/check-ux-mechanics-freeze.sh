@@ -23,7 +23,20 @@ changed_files="$({
 } | LC_ALL=C sort -u)"
 
 diff_hash() {
-    git diff --no-ext-diff --no-renames --binary \
+    git \
+        -c color.ui=false \
+        -c core.abbrev=40 \
+        -c diff.algorithm=myers \
+        -c diff.context=3 \
+        -c diff.indentHeuristic=false \
+        -c diff.mnemonicPrefix=false \
+        -c diff.noprefix=false \
+        -c diff.renames=false \
+        diff --no-ext-diff --no-textconv --no-color --no-renames --binary \
+        --full-index --abbrev=40 --diff-algorithm=myers \
+        --no-indent-heuristic --unified=3 --src-prefix=a/ --dst-prefix=b/ \
+        --output-indicator-new=+ --output-indicator-old=- \
+        --output-indicator-context=' ' -O/dev/null \
         "$baseline_commit" -- "$@" | sha256sum | cut -d' ' -f1
 }
 
@@ -76,25 +89,25 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "ea76d8bf5af86823df0878c136b574b3bf42ca2006e6edbf1d4fb02733691ee6" \
+    "ac2ec255b9f4438230a5e42faa8df3757b10bf990d6b5a4db57c453ab8410566" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
-    "c501dd51a22e62bb85c587e880c6c1870db99ddc7864adb1ef8d90d168f5535f" \
+    "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "8c1aec6d9058e092862d24db352f8bae2c2e398d2c70f7fd789dea7916847063" \
+    "ffa9da88a9be1301863d18e68e0c433f3233f9daa274bd124681f4297d938584" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
-    "5fa967280d5f55544a7e7c6dc080c31ed4ba6c2e06999b46bdb9284efb330567" \
+    "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "236ed49686386f1439d8e871ed712ca3e3d3f5bceeba62b106148e4676d7ce01" \
+    "7372f0ba20fcc1aa5e08f310fe6ca675ae8053722d9ace2066442cd45972d5df" \
     "presentation recovery and measurement contract" \
     src/VpnController.h src/VpnController.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp
 assert_diff_hash \
-    "0821fadb9afc24b849a0300d7d385d950d74e005232dd1761259916ff841ddb4" \
+    "fbd0e997c923eca69018faa4098248b74769f5bc19b4e5cc52b0186f3cf484a0" \
     "QML presentation" qml
 
 qml_operation_hash="$(

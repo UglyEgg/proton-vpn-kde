@@ -146,12 +146,22 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property bool connectionErrorActive' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
-        || ! rg -q 'readonly property bool statusMessageActive' \
-        "$qml_dir/ApplicationRecoveryBanner.qml" \
         || ! rg -q 'readonly property bool bannerActive' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
-        || ! rg -q '!vpnController\.busy' \
+        || rg -q 'statusMessageActive' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'objectName: "connectionActionFeedback"' \
+        "$qml_dir/ConnectionActionFeedback.qml" \
+        || ! rg -q 'function beginForState\(state\)' \
+        "$qml_dir/ConnectionActionFeedback.qml" \
+        || ! rg -q 'ConnectionActionFeedback' "$qml_dir/OverviewPage.qml" \
+        || ! rg -q 'ConnectionActionFeedback' "$qml_dir/LocationsPage.qml" \
+        || ! rg -q 'ConnectionActionFeedback' "$qml_dir/CountryPage.qml" \
+        || ! rg -q 'ConnectionActionFeedback' "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'beginForState' "$qml_dir/OverviewPage.qml" \
+        || ! rg -q 'beginForState' "$qml_dir/LocationsPage.qml" \
+        || ! rg -q 'beginForState' "$qml_dir/CountryPage.qml" \
+        || ! rg -q 'beginForState' "$qml_dir/ServersPage.qml" \
         || ! rg -q 'mainDialogs\.supportsRecovery\(code\)' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property var recoveryErrorCodes' \

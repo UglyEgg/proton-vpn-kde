@@ -37,6 +37,7 @@ machine-specific paths, editor state, or unrelated development debris.
 
 ```bash
 scripts/check-static-analysis.sh
+scripts/check-ux-mechanics-freeze.sh
 scripts/check-python-analysis.sh
 scripts/check-native-sanitizers.sh
 scripts/check-clang-tidy.sh

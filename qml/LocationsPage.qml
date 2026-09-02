@@ -13,6 +13,11 @@ Kirigami.Page {
     readonly property bool searching: searchField.text.trim().length > 0
     property var requiredCapabilities: []
 
+    footer: ConnectionActionFeedback {
+        id: connectionActionFeedback
+        controller: vpnController
+    }
+
     function capabilityName(capability) {
         const labels = {
             "p2p": qsTr("P2P"),
@@ -144,6 +149,7 @@ Kirigami.Page {
                                  ? vpnController.primaryActionEnabled : true)
                     onClicked: {
                         if (countryDelegate.accessible) {
+                            connectionActionFeedback.beginForState("connected")
                             vpnController.connectCountry(countryDelegate.code)
                         } else {
                             Qt.openUrlExternally("https://protonvpn.com/pricing")
@@ -241,8 +247,11 @@ Kirigami.Page {
                         enabled: vpnController.primaryActionEnabled
                                  && (page.requiredCapabilities.length === 0
                                      || vpnController.userTier > 0)
-                        onClicked: vpnController.connectFastestWithFeatures(
-                            page.requiredCapabilities)
+                        onClicked: {
+                            connectionActionFeedback.beginForState("connected")
+                            vpnController.connectFastestWithFeatures(
+                                page.requiredCapabilities)
+                        }
                     }
                 }
 

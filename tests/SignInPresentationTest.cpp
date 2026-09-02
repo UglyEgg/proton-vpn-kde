@@ -63,6 +63,7 @@ private slots:
     void recoveryPreservesAuthoritativeMessage_data();
     void recoveryPreservesAuthoritativeMessage();
     void applicationRecoveryIsPersistentAndActionable();
+    void connectionActionFeedbackTracksOwnedResult();
 
 private:
     QObject *createComponent(QQmlEngine &engine, FakeVpnController &controller,
@@ -244,27 +245,81 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
 
     controller.state = QStringLiteral("disconnected");
     controller.errorCode.clear();
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!banner->property("recoveryActive").toBool());
+    QVERIFY(!banner->property("bannerActive").toBool());
+    QCOMPARE(banner->property("height").toReal(), 0.0);
+}
+
+void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
+{
+    FakeVpnController controller;
+    controller.loggedIn = true;
+    QQmlEngine engine;
+    const QString sourcePath = QStringLiteral(
+        PROTON_VPN_KDE_SOURCE_DIR "/qml/ConnectionActionFeedback.qml");
+    QQmlComponent component(&engine, QUrl::fromLocalFile(sourcePath));
+    const QVariantMap initialProperties{
+        {QStringLiteral("controller"),
+         QVariant::fromValue(static_cast<QObject *>(&controller))}};
+    QScopedPointer<QObject> feedback(
+        component.createWithInitialProperties(initialProperties));
+    if (!feedback)
+    {
+        QStringList errors;
+        for (const QQmlError &error : component.errors())
+        {
+            errors.append(error.toString());
+        }
+        QFAIL(qPrintable(errors.join(QLatin1Char('\n'))));
+    }
+
+    const QVariant expectedState = QStringLiteral("connected");
+    QVERIFY(QMetaObject::invokeMethod(
+        feedback.data(), "beginForState", Q_ARG(QVariant, expectedState)));
+    controller.busy = true;
+    emit controller.snapshotChanged();
+    controller.busy = false;
     controller.message =
         QStringLiteral("No server available in the current tier");
     emit controller.snapshotChanged();
     QCoreApplication::processEvents();
-    QVERIFY(!banner->property("recoveryActive").toBool());
-    QVERIFY(banner->property("statusMessageActive").toBool());
-    QVERIFY(banner->property("bannerActive").toBool());
-    QCOMPARE(banner->property("text").toString(), controller.message);
+    QVERIFY(feedback->property("messageActive").toBool());
+    QCOMPARE(feedback->property("completedMessage").toString(),
+             controller.message);
 
+    QVERIFY(QMetaObject::invokeMethod(
+        feedback.data(), "beginForState", Q_ARG(QVariant, expectedState)));
+    QVERIFY(!feedback->property("messageActive").toBool());
     controller.busy = true;
     emit controller.snapshotChanged();
-    QCoreApplication::processEvents();
-    QVERIFY(!banner->property("statusMessageActive").toBool());
-    QVERIFY(!banner->property("bannerActive").toBool());
-
     controller.busy = false;
+    controller.state = QStringLiteral("connected");
     controller.message.clear();
     emit controller.snapshotChanged();
     QCoreApplication::processEvents();
-    QVERIFY(!banner->property("statusMessageActive").toBool());
-    QVERIFY(!banner->property("bannerActive").toBool());
+    QVERIFY(!feedback->property("awaitingResult").toBool());
+    QVERIFY(!feedback->property("messageActive").toBool());
+
+    const QVariant disconnectedState = QStringLiteral("disconnected");
+    QVERIFY(QMetaObject::invokeMethod(
+        feedback.data(), "beginForState", Q_ARG(QVariant, disconnectedState)));
+    controller.busy = true;
+    emit controller.snapshotChanged();
+    controller.busy = false;
+    controller.message = QStringLiteral("The VPN could not be disconnected");
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(feedback->property("messageActive").toBool());
+    QCOMPARE(feedback->property("completedMessage").toString(),
+             controller.message);
+
+    controller.state = QStringLiteral("disconnected");
+    controller.message.clear();
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!feedback->property("messageActive").toBool());
 }
 
 QTEST_MAIN(SignInPresentationTest)

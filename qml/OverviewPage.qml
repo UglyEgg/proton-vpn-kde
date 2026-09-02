@@ -20,6 +20,11 @@ Kirigami.ScrollablePage {
     readonly property bool homeNavigationVisible:
         connectionScene.homeNavigationVisible
 
+    footer: ConnectionActionFeedback {
+        id: connectionActionFeedback
+        controller: vpnController
+    }
+
     Component.onCompleted: {
         if (vpnController.loggedIn && !vpnSettings.loaded) {
             vpnController.loadSettings()
@@ -145,7 +150,15 @@ Kirigami.ScrollablePage {
             p2p: vpnController.p2p
             streaming: vpnController.streaming
             smartRouting: vpnController.smartRouting
-            onPrimaryActionRequested: vpnController.activatePrimaryAction()
+            onPrimaryActionRequested: {
+                const disconnecting = page.connected
+                    || vpnController.state === "connecting"
+                    || vpnController.state === "disconnecting"
+                    || vpnController.state === "error"
+                connectionActionFeedback.beginForState(
+                    disconnecting ? "disconnected" : "connected")
+                vpnController.activatePrimaryAction()
+            }
             onSignInRequested: applicationWindow().showSignIn()
             onNavigateRequested: destination => {
                 applicationWindow().openOverviewDestination(destination)
