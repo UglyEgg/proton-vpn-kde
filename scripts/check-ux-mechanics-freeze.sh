@@ -62,6 +62,7 @@ while IFS= read -r path; do
             ;;
         CMakeLists.txt|backend/pyproject.toml|\
         backend/proton_vpn_kde_backend/__init__.py|\
+        backend/proton_vpn_kde_backend/adapters.py|\
         backend/proton_vpn_kde_backend/controller.py|\
         backend/proton_vpn_kde_backend/core_support.py|\
         backend/proton_vpn_kde_backend/dbus_contract.py|\
@@ -110,8 +111,9 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "73ae569e7a152315225c7c41636c63afcd0139762299c237518fd8cbcf765992" \
-    "backend state-ownership and completion-classification exceptions" \
+    "3636921c2165a88ef29d8e132137d2ccfe8bd131af872e486ef13629dd21d41c" \
+    "backend reviewed behavior exceptions" \
+    backend/proton_vpn_kde_backend/adapters.py \
     backend/proton_vpn_kde_backend/controller.py \
     backend/proton_vpn_kde_backend/core_support.py \
     backend/proton_vpn_kde_backend/dbus_service.py \

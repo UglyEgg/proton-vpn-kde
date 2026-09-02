@@ -98,7 +98,7 @@ An exact comparison with the previous implementation produced identical result
 fields and ordering for 12 representative location, exact-server, feature,
 broad, punctuation, and no-match queries.
 
-## Measured unreleased 0.12.0 baseline
+## Measured pre-release 0.12.0 baseline (historical)
 
 Three isolated disconnected/demo runs of the measured runtime revision
 `d2e7a74` measured 83,114, 82,629, and 82,754 KiB combined PSS, for a median of
@@ -109,7 +109,7 @@ within the cross-run page-sharing variation demonstrated by the stronger
 alternating comparison above; no runtime implementation changed between those
 measurements. These absolute figures do not replace that differential result.
 
-## Current 0.11.3 release measurement
+## Published 0.11.3 release measurement (historical)
 
 The 0.11.3 release battery repeated the measurements after the Protun reconnect
 and stale-backend-state recovery work. An isolated offscreen demo stack settled

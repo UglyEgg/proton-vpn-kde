@@ -219,14 +219,21 @@ session-side-effect fence with logout and backend shutdown. They do not acquire
 the VPN-operation lock, so survey work cannot invisibly reject connect or
 disconnect. Logout takes the VPN lock before the side-effect fence and shutdown
 drains both in the same order. Shutdown rejects queued survey work before it can
-enter the adapter while allowing an already executing side effect a bounded
-drain period. Each survey operation revalidates its captured session before and
-after the adapter call, so work waiting behind logout cannot mark or submit data
-for the replacement account. Submission and dismissal also retain frontend
+enter the adapter. Core's small synchronous mark-seen cache transaction stays
+on the event-loop thread, so task cancellation cannot strand an executor
+mutation that outlives its controller fence and races adapter teardown. Each
+survey operation revalidates its captured session before and after the adapter
+call, so work waiting behind logout cannot mark or submit data for the
+replacement account. Submission and dismissal also retain frontend
 generations until completion, but their failures do not replace foreground VPN
 guidance. Once the official submission API is invoked, an exception is
 conservatively classified as completion unknown: the frontend consumes the
 survey without retry rather than risking a duplicate side effect.
+
+FIDO2 cancellation sets both Core's assertion-cancellation event and any active
+PIN waiter, then joins the underlying assertion task before releasing the
+adapter interaction or beginning teardown. A security-key prompt therefore
+cannot leave an executor worker orphaned during service shutdown.
 
 ## Server data and connection selection
 

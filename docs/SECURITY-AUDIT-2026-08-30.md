@@ -145,6 +145,18 @@ and separates cleanup readiness from authentication-mutation readiness. The
 historical evidence is now version-labeled. No result from the partial pass
 counts; all six reviews must restart on the next exact clean candidate.
 
+A sixth partial pass against `1e3b2fa` was superseded after Entropy found that
+cancelling the coroutine around Core's synchronous NPS mark-seen cache write
+could release the side-effect fence while its executor worker continued into
+adapter teardown. Hostile independently found the same cancellation-boundary
+class in FIDO2: cancelling an assertion at a PIN prompt cleared the adapter's
+only interaction reference without releasing the blocking worker. Subtractive
+reported no blocker, but no partial result counts. The remediation keeps the
+small local mark-seen transaction on the event-loop thread and makes FIDO2
+cancellation signal and join the underlying assertion before clearing its
+interaction. It also labels older performance measurements explicitly as
+historical. All six reviews must restart on the next exact clean candidate.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
 | --- | --- | --- | --- |
 | PV-013-001 | Medium | A slow accepted capture Start could reject Stop while close inferred safety from a temporary snapshot | **Remediated in candidate; independent verification pending** |
@@ -161,6 +173,8 @@ counts; all six reviews must restart on the next exact clean candidate.
 | PV-013-012 | Medium | NPS dismissal lacked frontend completion ownership and could overwrite newer foreground guidance | **Remediated in candidate; independent verification pending** |
 | PV-013-013 | Medium | A superseded connection reply could still complete centralized feedback after logout | **Remediated in candidate; independent verification pending** |
 | PV-013-014 | Medium | Authentication-recovery states rejected risk-reducing capture Stop while capture remained active | **Remediated in candidate; independent verification pending** |
+| PV-013-015 | Medium | Cancelling an NPS mark-seen coroutine could let its executor worker mutate Core during adapter teardown | **Remediated in candidate; independent verification pending** |
+| PV-013-016 | Medium | Shutdown at a FIDO2 PIN prompt could clear the interaction without releasing and joining its blocking worker | **Remediated in candidate; independent verification pending** |
 
 ## Historical 0.12.0 isolated review gate
 

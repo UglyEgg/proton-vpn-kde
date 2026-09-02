@@ -1039,11 +1039,25 @@ class ProtonCoreAdapter:
             "Insert your security key and follow its prompts",
         )
         try:
-            try:
-                assertion = await self._api.generate_2fa_fido2_assertion(
+            assertion_task = asyncio.create_task(
+                self._api.generate_2fa_fido2_assertion(
                     interaction,
                     interaction.cancel_assertion,
                 )
+            )
+            try:
+                assertion = await asyncio.shield(assertion_task)
+            except asyncio.CancelledError:
+                # Core may be waiting in a blocking FIDO callback on an
+                # executor worker. Release that callback, then retain ownership
+                # until the actual Core task exits so adapter teardown cannot
+                # overtake it.
+                interaction.cancel()
+                try:
+                    await asyncio.shield(assertion_task)
+                except Exception:
+                    pass
+                raise
             except Exception as error:
                 if interaction.cancelled:
                     self._set_auth_status(
@@ -1081,7 +1095,8 @@ class ProtonCoreAdapter:
                 return
             await self._complete_login()
         finally:
-            self._fido_interaction = None
+            if self._fido_interaction is interaction:
+                self._fido_interaction = None
 
     async def submit_fido2_pin(self, pin: str) -> None:
         if not self._fido_interaction or not self._fido_interaction.provide_pin(pin):

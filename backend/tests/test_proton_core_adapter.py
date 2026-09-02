@@ -252,6 +252,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, _ = self.make_api()
         survey = SimpleNamespace(survey_id="survey-1", seen=False, is_active=True)
         api.refresher.notifications.get_nps_survey_notifications.return_value = [survey]
+        event_loop_thread = threading.get_ident()
+        api.set_notification_seen.side_effect = (
+            lambda _survey_id: self.assertEqual(
+                event_loop_thread, threading.get_ident()
+            )
+        )
         adapter = ProtonCoreAdapter(api)
 
         self.assertTrue(await adapter.take_pending_nps_survey())
@@ -899,6 +905,40 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.submit_2fa_fido2.assert_awaited_once_with("assertion")
         self.assertTrue(any(item.auth_state == "fido_touch" for item in snapshots))
         self.assertTrue(snapshots[-1].logged_in)
+
+    async def test_shutdown_releases_blocking_security_key_pin_worker(self):
+        api, _ = self.make_api(logged_in=False)
+        api.supports_fido2 = True
+        worker_returned = threading.Event()
+        interactions = []
+
+        async def generate_assertion(interaction, _cancel_assertion):
+            interactions.append(interaction)
+            try:
+                return await asyncio.to_thread(interaction.request_pin)
+            finally:
+                worker_returned.set()
+
+        api.generate_2fa_fido2_assertion.side_effect = generate_assertion
+        adapter = ProtonCoreAdapter(api)
+        controller = BackendController(adapter, shutdown_drain_seconds=0.01)
+        self.assertTrue(await controller.start())
+        adapter._auth_state = "two_factor"
+
+        fido_task = asyncio.create_task(controller.begin_fido2())
+        for _ in range(100):
+            if controller.snapshot.auth_state == "fido_pin":
+                break
+            await asyncio.sleep(0.01)
+        self.assertEqual("fido_pin", controller.snapshot.auth_state)
+
+        await asyncio.wait_for(controller.close(), timeout=1.0)
+
+        self.assertTrue(fido_task.cancelled())
+        self.assertEqual(1, len(interactions))
+        self.assertTrue(interactions[0].cancelled)
+        self.assertTrue(worker_returned.is_set())
+        self.assertIsNone(adapter._fido_interaction)
 
     async def test_security_key_cancel_during_submit_reconciles_late_login(self):
         api, _ = self.make_api(logged_in=False)

@@ -103,6 +103,9 @@ All notable user-visible changes are recorded here. The project follows
   are reported through a dedicated backend error class and are never retried
   automatically, including when the official API accepts a side effect before
   its completion reply is lost.
+- Keep Core's local NPS mark-seen cache transaction inside controller ownership
+  through shutdown, and cancel then join a blocking FIDO2 assertion before
+  adapter teardown so a security-key PIN prompt cannot orphan a worker.
 - Transfer server-browser ownership when a bounded topology retry is
   superseded, so a replacement country or exact-location request cannot remain
   queued behind an obsolete retry timer.
