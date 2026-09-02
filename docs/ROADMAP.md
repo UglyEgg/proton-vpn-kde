@@ -43,38 +43,28 @@ The implementation constraints are:
 
 ### Delivery sequence
 
-1. Freeze the accepted mechanics and retain the existing behavioral and
-   security battery as the release invariant.
-2. Inventory each user journey, its primary action, essential state, optional
-   depth, and recovery path before changing navigation.
-3. Simplify the application shell and Overview while retaining immediate
-   connection, protection, and account visibility.
-4. Make server discovery progress from fastest suitable connection, through
+1. Make server discovery progress from fastest suitable connection, through
    visible capability criteria, to country, city, state, and exact-server
    selection.
-5. Group Settings by user intent and disclose uncommon choices beside the
+2. Group Settings by user intent and disclose uncommon choices beside the
    setting they refine; keep applied changes on the same page.
-6. Refine sign-in, two-factor, security-key, Secret Service approval, error,
+3. Refine sign-in, two-factor, security-key, Secret Service approval, error,
    and recovery presentation without altering their established sequencing.
-7. Treat Connection Inspector, release history, support status, and technical
+4. Treat Connection Inspector, release history, support status, and technical
    details as on-demand depth rather than primary navigation competition.
-8. Verify compact and wide windows, keyboard-only use, screen-reader names,
+5. Verify compact and wide windows, keyboard-only use, screen-reader names,
    1.5x text, right-to-left layout, light and dark schemes, high contrast, and
    reduced motion before repeating the full release battery.
 
 ### Information-architecture target
 
-The initial audit found a capable but flat application shell: eight peer
-navigation entries give connection tasks, diagnostics, project information,
-and an intentionally unavailable reporting proof of concept equal visual
-weight. Individual pages are already structured around native cards, but their
-depth is generally exposed all at once. Version 0.13.0 will preserve those
-working components and alter their presentation hierarchy rather than replace
-them.
+The initial audit found capable pages already structured around native cards,
+but their depth is generally exposed all at once. Version 0.13.0 will preserve
+those working components and alter their presentation hierarchy rather than
+replace them.
 
 | Current surface | What already works | Presentation debt to resolve |
 | --- | --- | --- |
-| Overview | Clear connection state and connect action | Fold secondary server and technical detail into contextual disclosure without hiding protection state |
 | Countries and servers | Full hierarchy, search, capability combinations, pins, and fastest match | Establish a visible path from intent to criteria to exact server and keep selected criteria recognizable |
 | Settings | Complete native controls grouped into focused components | Lead with common outcomes and reveal exceptions locally instead of showing every choice with equal emphasis |
 | Sign in and Account | Correct startup routing and explicit multi-step authentication | Present only the active authentication step while keeping Secret Service waits and recovery unmistakable |

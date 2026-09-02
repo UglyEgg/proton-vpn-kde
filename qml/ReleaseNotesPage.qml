@@ -80,6 +80,8 @@ Kirigami.ScrollablePage {
                 notes: [
                     qsTr("Complexity now follows a progressive-disclosure model: essential state and the primary action come first, with relevant depth available in context."),
                     qsTr("The interface remains native Qt 6 and Kirigami, following the active Plasma color scheme, typography, spacing, icons, scaling, direction, contrast, and motion preferences."),
+                    qsTr("The sidebar prioritizes connection, server browsing, settings, and account tasks while keeping diagnostics and project information under More."),
+                    qsTr("Overview keeps one obvious connection action and reveals current-server details and the Connection Inspector only when requested."),
                     qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")
                 ]
             }

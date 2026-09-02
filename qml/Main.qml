@@ -210,6 +210,9 @@ Kirigami.ApplicationWindow {
             root.showReportIssue()
         } else if (initialPageName === "release-notes") {
             root.showReleaseNotes()
+        } else if (initialPageName === "overview-details") {
+            root.showOverview()
+            pageStack.currentItem.connectionDetailsExpanded = true
         } else if (!vpnController.ready || !vpnController.loggedIn) {
             root.showSignIn()
         } else {
@@ -407,6 +410,16 @@ Kirigami.ApplicationWindow {
                 root.showOverview()
                 break
             case 15:
+                const collapsedOverview = pageStack.currentItem
+                if (collapsedOverview.objectName !== "overviewPage"
+                        || collapsedOverview.connectionDetailsExpanded
+                        || collapsedOverview.connectionDetailsVisible) {
+                    stop()
+                    console.error("diagnostics-smoke: Overview did not begin with details collapsed")
+                    Qt.exit(2)
+                    return
+                }
+                console.info("diagnostics-smoke: Overview details collapsed")
                 root.requestRunnerAction("fastest", "")
                 if (!mainDialogs.runnerActionVisible
                         || vpnController.state !== "disconnected") {
@@ -424,6 +437,17 @@ Kirigami.ApplicationWindow {
                 if (vpnController.state !== "connected") {
                     return
                 }
+                const connectedOverview = pageStack.currentItem
+                connectedOverview.connectionDetailsExpanded = true
+                if (!connectedOverview.connectionDetailsVisible) {
+                    stop()
+                    console.error("diagnostics-smoke: Overview details could not be disclosed")
+                    Qt.exit(2)
+                    return
+                }
+                console.info("diagnostics-smoke: Overview details disclosed")
+                break
+            case 18:
                 root.requestRunnerAction("disconnect", "")
                 if (!mainDialogs.runnerActionVisible) {
                     stop()
@@ -432,10 +456,10 @@ Kirigami.ApplicationWindow {
                     return
                 }
                 break
-            case 18:
+            case 19:
                 mainDialogs.acceptRunnerAction()
                 break
-            case 19:
+            case 20:
                 if (vpnController.state !== "disconnected") {
                     return
                 }
@@ -467,6 +491,12 @@ Kirigami.ApplicationWindow {
                 root.width = wideWidth
                 break
             case 1:
+                if (!root.requireNavigationDrawerState(
+                        navigationDrawer.actions.length === 6
+                        && moreAction.children.length === 7,
+                        "navigation did not preserve three primary tasks and one secondary drill-in")) {
+                    return
+                }
                 if (!root.requireNavigationDrawerState(
                         !navigationDrawer.modal
                         && navigationDrawer.collapsible
@@ -635,14 +665,14 @@ Kirigami.ApplicationWindow {
 
         actions: [
             Kirigami.Action {
-                text: qsTr("Overview")
+                text: qsTr("Connection")
                 icon.source: root.appIconSource
                 checkable: true
                 checked: root.currentSection === "overview"
                 onTriggered: root.showOverview()
             },
             Kirigami.Action {
-                text: qsTr("Countries and servers")
+                text: qsTr("Browse servers")
                 icon.name: "network-server"
                 enabled: vpnController.loggedIn
                 checkable: true
@@ -650,12 +680,14 @@ Kirigami.ApplicationWindow {
                 onTriggered: root.showLocations()
             },
             Kirigami.Action {
-                text: qsTr("Connection Inspector")
-                icon.name: "view-statistics"
-                enabled: vpnController.loggedIn
+                text: qsTr("Settings")
+                icon.name: "settings-configure"
                 checkable: true
-                checked: root.currentSection === "inspector"
-                onTriggered: root.showConnectionInspector()
+                checked: root.currentSection === "settings"
+                onTriggered: root.showSettings()
+            },
+            Kirigami.Action {
+                separator: true
             },
             Kirigami.Action {
                 text: vpnController.loggedIn ? qsTr("Account") : qsTr("Sign in")
@@ -666,38 +698,59 @@ Kirigami.ApplicationWindow {
                              ? root.showAccount() : root.showSignIn()
             },
             Kirigami.Action {
-                text: qsTr("Settings")
-                icon.name: "settings-configure"
+                id: moreAction
+
+                text: qsTr("More")
+                icon.name: "overflow-menu"
                 checkable: true
-                checked: root.currentSection === "settings"
-                onTriggered: root.showSettings()
-            },
-            Kirigami.Action {
-                text: qsTr("Release notes")
-                icon.name: "view-pim-notes"
-                checkable: true
-                checked: root.currentSection === "release-notes"
-                onTriggered: root.showReleaseNotes()
-            },
-            Kirigami.Action {
-                text: qsTr("Report an issue")
-                icon.name: "tools-report-bug"
-                enabled: vpnController.loggedIn
-                checkable: true
-                checked: root.currentSection === "report-issue"
-                onTriggered: root.showReportIssue()
-            },
-            Kirigami.Action {
-                text: qsTr("About")
-                icon.name: "help-about"
-                checkable: true
-                checked: root.currentSection === "about"
-                onTriggered: root.showAbout()
-            },
-            Kirigami.Action {
-                text: qsTr("Close Control Center")
-                icon.name: "application-exit"
-                onTriggered: Qt.quit()
+                checked: ["inspector", "release-notes", "report-issue",
+                          "about"].includes(root.currentSection)
+                onTriggered: checked = Qt.binding(function() {
+                    return ["inspector", "release-notes", "report-issue",
+                            "about"].includes(root.currentSection)
+                })
+
+                Kirigami.Action {
+                    text: qsTr("Connection Inspector")
+                    icon.name: "view-statistics"
+                    enabled: vpnController.loggedIn
+                    checkable: true
+                    checked: root.currentSection === "inspector"
+                    onTriggered: root.showConnectionInspector()
+                }
+                Kirigami.Action {
+                    separator: true
+                }
+                Kirigami.Action {
+                    text: qsTr("Release notes")
+                    icon.name: "view-pim-notes"
+                    checkable: true
+                    checked: root.currentSection === "release-notes"
+                    onTriggered: root.showReleaseNotes()
+                }
+                Kirigami.Action {
+                    text: qsTr("Report an issue")
+                    icon.name: "tools-report-bug"
+                    enabled: vpnController.loggedIn
+                    checkable: true
+                    checked: root.currentSection === "report-issue"
+                    onTriggered: root.showReportIssue()
+                }
+                Kirigami.Action {
+                    text: qsTr("About")
+                    icon.name: "help-about"
+                    checkable: true
+                    checked: root.currentSection === "about"
+                    onTriggered: root.showAbout()
+                }
+                Kirigami.Action {
+                    separator: true
+                }
+                Kirigami.Action {
+                    text: qsTr("Close Control Center")
+                    icon.name: "application-exit"
+                    onTriggered: Qt.quit()
+                }
             }
         ]
     }

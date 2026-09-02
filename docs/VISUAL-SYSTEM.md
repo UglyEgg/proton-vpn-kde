@@ -41,7 +41,10 @@ gestures.
 ## Navigation
 
 Wide windows keep the standard Kirigami global drawer open as a resizable
-sidebar. Its current section is selected and its actions use the installed
+sidebar. Connection, Browse servers, and Settings form the primary task group;
+Account remains directly reachable, while diagnostics, release history,
+reporting status, About, and the explicit close action use one native More
+drill-in. Its current section is selected and its actions use the installed
 Plasma icon theme. Compact windows use the same drawer as an overlay, so there
 is one navigation model and one keyboard order across window sizes. Kirigami
 places the drawer on the correct edge for a right-to-left desktop. A user's
@@ -93,5 +96,6 @@ adapter, skips normal Control Center and resident-agent registration, and quits
 after one frame is saved. Adding the `-connected` suffix to a page name asks
 only the deterministic demo adapter to enter its simulated connected state
 before rendering (for example, `overview-connected` or
-`inspector-connected`). Capture mode cannot create or alter a real VPN
-connection.
+`inspector-connected`). Use `overview-details-connected` to capture the
+explicitly disclosed connection-detail state. Capture mode cannot create or
+alter a real VPN connection.

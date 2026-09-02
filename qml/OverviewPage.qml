@@ -9,10 +9,14 @@ import org.kde.kirigami as Kirigami
 Kirigami.ScrollablePage {
     id: page
 
+    objectName: "overviewPage"
     title: qsTr("Connection")
     property bool portCopied: false
+    property bool connectionDetailsExpanded: false
     property var splitSettings: vpnController.splitTunneling
     readonly property bool connected: vpnController.state === "connected"
+    readonly property bool connectionDetailsVisible:
+        connectionDetailsCard.visible
 
     Component.onCompleted: {
         if (vpnController.loggedIn && !splitSettings.loaded) {
@@ -181,6 +185,14 @@ Kirigami.ScrollablePage {
                     implicitHeight: implicitWidth
                 }
 
+                Controls.Button {
+                    visible: vpnController.loggedIn
+                    text: qsTr("Browse servers")
+                    icon.name: "network-server"
+                    flat: true
+                    onClicked: applicationWindow().showLocations()
+                }
+
                 Item {
                     Layout.fillWidth: true
                 }
@@ -208,8 +220,27 @@ Kirigami.ScrollablePage {
             }
         }
 
-        SectionCard {
+        Controls.Button {
+            id: connectionDetailsToggle
+
+            objectName: "connectionDetailsToggle"
+            Layout.alignment: Qt.AlignLeft
             visible: page.connected
+            checkable: true
+            checked: page.connectionDetailsExpanded
+            flat: true
+            text: checked ? qsTr("Hide connection details")
+                          : qsTr("Show connection details")
+            icon.name: checked ? "go-up-symbolic" : "go-down-symbolic"
+            Accessible.description: qsTr("Expand or collapse the current server and forwarded-port details")
+            onToggled: page.connectionDetailsExpanded = checked
+        }
+
+        SectionCard {
+            id: connectionDetailsCard
+
+            objectName: "connectionDetailsCard"
+            visible: page.connected && page.connectionDetailsExpanded
             title: qsTr("Connection details")
             iconName: "network-server"
 
@@ -261,14 +292,6 @@ Kirigami.ScrollablePage {
                     Controls.ToolTip.text: text
                 }
             }
-        }
-
-        SectionCard {
-            title: qsTr("Server selection")
-            description: vpnController.userTier === 0
-                         ? qsTr("Proton chooses the fastest available free server automatically.")
-                         : qsTr("Use the fastest available server or choose a country, city, or exact server.")
-            iconName: "network-server"
 
             RowLayout {
                 Layout.fillWidth: true
@@ -278,10 +301,10 @@ Kirigami.ScrollablePage {
                 }
 
                 Controls.Button {
-                    text: qsTr("Browse servers")
-                    icon.name: "network-server"
-                    enabled: vpnController.loggedIn
-                    onClicked: applicationWindow().showLocations()
+                    text: qsTr("Open Connection Inspector")
+                    icon.name: "view-statistics"
+                    flat: true
+                    onClicked: applicationWindow().showConnectionInspector()
                 }
             }
         }

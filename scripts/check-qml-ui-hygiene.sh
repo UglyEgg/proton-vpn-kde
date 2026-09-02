@@ -41,3 +41,17 @@ if ! rg -q 'root\.mirrored.*go-previous-symbolic.*go-next-symbolic' \
     echo "The shared navigation row must preserve RTL directionality" >&2
     exit 1
 fi
+
+if ! rg -q 'property bool connectionDetailsExpanded: false' \
+        "$qml_dir/OverviewPage.qml" \
+        || ! rg -q 'page\.connected && page\.connectionDetailsExpanded' \
+        "$qml_dir/OverviewPage.qml"; then
+    echo "Overview must keep technical connection details progressively disclosed" >&2
+    exit 1
+fi
+
+if ! rg -q 'id: moreAction' "$qml_dir/Main.qml" \
+        || ! rg -q 'text: qsTr\("More"\)' "$qml_dir/Main.qml"; then
+    echo "Secondary project and diagnostic actions must remain grouped" >&2
+    exit 1
+fi
