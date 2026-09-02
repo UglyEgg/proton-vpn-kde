@@ -94,7 +94,7 @@ assert_diff_hash \
     src/VpnController.h src/VpnController.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp
 assert_diff_hash \
-    "23361f6f1bc5d8e03f622db7eca426af9350f8320d80a8000530675962825ee7" \
+    "0821fadb9afc24b849a0300d7d385d950d74e005232dd1761259916ff841ddb4" \
     "QML presentation" qml
 
 qml_operation_hash="$(

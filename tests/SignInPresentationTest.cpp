@@ -243,10 +243,28 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
     QVERIFY(!banner->property("connectionErrorActive").toBool());
 
     controller.state = QStringLiteral("disconnected");
+    controller.errorCode.clear();
+    controller.message =
+        QStringLiteral("No server available in the current tier");
     emit controller.snapshotChanged();
     QCoreApplication::processEvents();
     QVERIFY(!banner->property("recoveryActive").toBool());
-    QCOMPARE(banner->property("height").toReal(), 0.0);
+    QVERIFY(banner->property("statusMessageActive").toBool());
+    QVERIFY(banner->property("bannerActive").toBool());
+    QCOMPARE(banner->property("text").toString(), controller.message);
+
+    controller.busy = true;
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!banner->property("statusMessageActive").toBool());
+    QVERIFY(!banner->property("bannerActive").toBool());
+
+    controller.busy = false;
+    controller.message.clear();
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!banner->property("statusMessageActive").toBool());
+    QVERIFY(!banner->property("bannerActive").toBool());
 }
 
 QTEST_MAIN(SignInPresentationTest)

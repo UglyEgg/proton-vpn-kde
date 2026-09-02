@@ -146,6 +146,12 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property bool connectionErrorActive' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'readonly property bool statusMessageActive' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'readonly property bool bannerActive' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q '!vpnController\.busy' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
         || ! rg -q 'mainDialogs\.supportsRecovery\(code\)' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property var recoveryErrorCodes' \

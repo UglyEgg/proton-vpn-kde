@@ -90,22 +90,6 @@ Kirigami.ScrollablePage {
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
-            visible: vpnController.state !== "unresponsive"
-                     && vpnController.state !== "error"
-                     && (!vpnController.backendAvailable
-                     || vpnController.message.length > 0
-                     || vpnController.errorCode.length > 0)
-            type: vpnController.state === "error"
-                  ? Kirigami.MessageType.Error
-                  : Kirigami.MessageType.Information
-            text: vpnController.message.length > 0
-                  ? vpnController.message
-                  : qsTr("Start the backend service to manage Proton VPN")
-
-        }
-
-        Kirigami.InlineMessage {
-            Layout.fillWidth: true
             visible: page.connected && page.splitSettings.loaded
                      && page.splitSettings.enabled
             type: Kirigami.MessageType.Information
