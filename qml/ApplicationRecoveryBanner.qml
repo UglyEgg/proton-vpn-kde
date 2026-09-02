@@ -9,6 +9,7 @@ Kirigami.InlineMessage {
 
     required property var vpnController
     required property var dialogErrorCodes
+    property bool showPacketCaptureError: true
     readonly property bool recoveryActive:
         vpnController.loggedIn
         && vpnController.state === "unresponsive"
@@ -20,7 +21,8 @@ Kirigami.InlineMessage {
     readonly property bool snapshotErrorActive:
         vpnController.snapshotError.length > 0
     readonly property bool packetCaptureErrorActive:
-        vpnController.packetCaptureError.length > 0
+        showPacketCaptureError
+        && vpnController.packetCaptureError.length > 0
     readonly property bool bannerActive:
         snapshotErrorActive || packetCaptureErrorActive
         || recoveryActive || connectionErrorActive
@@ -62,6 +64,10 @@ Kirigami.InlineMessage {
         vpnController.restartBackend()
     }
 
+    function requestSnapshotRefresh() {
+        vpnController.refresh()
+    }
+
     actions: [
         Kirigami.Action {
             objectName: "restartUnresponsiveBackendAction"
@@ -69,6 +75,14 @@ Kirigami.InlineMessage {
             icon.name: "view-refresh"
             visible: root.recoveryActive
             onTriggered: root.requestRestart()
+        },
+        Kirigami.Action {
+            objectName: "refreshInvalidSnapshotAction"
+            text: qsTr("Refresh state")
+            icon.name: "view-refresh"
+            visible: root.snapshotErrorActive
+            enabled: !root.vpnController.snapshotRefreshPending
+            onTriggered: root.requestSnapshotRefresh()
         }
     ]
 }

@@ -26,6 +26,7 @@ class FakeVpnController final : public QObject
     Q_PROPERTY(QString errorCode MEMBER errorCode NOTIFY snapshotChanged)
     Q_PROPERTY(QString message MEMBER message NOTIFY snapshotChanged)
     Q_PROPERTY(QString snapshotError MEMBER snapshotError NOTIFY snapshotChanged)
+    Q_PROPERTY(bool snapshotRefreshPending MEMBER snapshotRefreshPending NOTIFY snapshotChanged)
     Q_PROPERTY(QString packetCaptureError MEMBER packetCaptureError NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy MEMBER locationsBusy NOTIFY snapshotChanged)
     Q_PROPERTY(QString serversError MEMBER serversError NOTIFY snapshotChanged)
@@ -45,11 +46,13 @@ public:
     QString errorCode;
     QString message;
     QString snapshotError;
+    bool snapshotRefreshPending = false;
     QString packetCaptureError;
     bool locationsBusy = false;
     QString serversError;
     QString serverLoadsError = QStringLiteral("Unable to update server loads");
     int restartCalls = 0;
+    int refreshCalls = 0;
     int disconnectCalls = 0;
     QString serverFilter;
     QStringListModel emptyServerModel;
@@ -61,6 +64,7 @@ public:
     }
 
     Q_INVOKABLE void restartBackend() { ++restartCalls; }
+    Q_INVOKABLE void refresh() { ++refreshCalls; }
     Q_INVOKABLE void disableKillSwitchForLogin() { }
     Q_INVOKABLE void login(const QString &, const QString &) { }
     Q_INVOKABLE void submitTwoFactor(const QString &) { }
@@ -318,8 +322,21 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
     QCoreApplication::processEvents();
     QVERIFY(banner->property("snapshotErrorActive").toBool());
     QCOMPARE(banner->property("text").toString(), controller.snapshotError);
+    const QObject *refreshAction = banner->findChild<QObject *>(
+        QStringLiteral("refreshInvalidSnapshotAction"));
+    QVERIFY(refreshAction);
+    QVERIFY(refreshAction->property("visible").toBool());
+    QVERIFY(refreshAction->property("enabled").toBool());
+    QVERIFY(QMetaObject::invokeMethod(banner.data(), "requestSnapshotRefresh"));
+    QCOMPARE(controller.refreshCalls, 1);
+
+    controller.snapshotRefreshPending = true;
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!refreshAction->property("enabled").toBool());
 
     controller.snapshotError.clear();
+    controller.snapshotRefreshPending = false;
     controller.packetCaptureError = QStringLiteral(
         "The packet capture could not be stopped");
     emit controller.snapshotChanged();
@@ -328,6 +345,11 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
     QVERIFY(banner->property("packetCaptureErrorActive").toBool());
     QCOMPARE(banner->property("text").toString(),
              controller.packetCaptureError);
+
+    banner->setProperty("showPacketCaptureError", false);
+    QCoreApplication::processEvents();
+    QVERIFY(!banner->property("packetCaptureErrorActive").toBool());
+    QVERIFY(!banner->property("bannerActive").toBool());
 }
 
 void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()

@@ -105,6 +105,8 @@ void VpnController::onServiceRegistered(const QString &)
     m_snapshotError.clear();
     m_packetCaptureError.clear();
     m_packetCaptureExpectedActive.reset();
+    m_packetCaptureOperationPending = false;
+    m_packetCaptureStopRequested = false;
     const auto identity = ProtonVpnKde::verifyBackendIdentity(
         QDBusConnection::sessionBus(), QString::fromLatin1(BackendDbus::serviceName));
     if (!identity.trusted) {
@@ -176,6 +178,8 @@ void VpnController::onServiceUnregistered(const QString &)
     m_packetCaptureActive = false;
     m_packetCaptureError.clear();
     m_packetCaptureExpectedActive.reset();
+    m_packetCaptureOperationPending = false;
+    m_packetCaptureStopRequested = false;
     m_coreMemoryOptimized = false;
     m_coreVersion.clear();
     if (!m_clientIdentityRejected) {

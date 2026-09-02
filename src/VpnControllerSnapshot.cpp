@@ -124,6 +124,10 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_loggedIn = snapshot.value(QStringLiteral("loggedIn")).toBool();
     if (wasLoggedIn != m_loggedIn) {
         ++m_sessionGeneration;
+        m_packetCaptureError.clear();
+        m_packetCaptureExpectedActive.reset();
+        m_packetCaptureOperationPending = false;
+        m_packetCaptureStopRequested = false;
     }
     m_authState = snapshot.value(QStringLiteral("authState")).toString(
         m_loggedIn ? QStringLiteral("signed_in") : QStringLiteral("signed_out"));
@@ -215,6 +219,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         }
         dispatchPendingLocationRefreshes();
     }
+    dispatchPendingPacketCaptureStop();
 }
 
 void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
@@ -262,6 +267,9 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
     if (!current) {
         return;
     }
+    if (packetCaptureTarget.isValid()) {
+        m_packetCaptureOperationPending = false;
+    }
     if (reply.isError()) {
         m_busy = false;
         if (ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type())) {
@@ -275,11 +283,8 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
                 emit connectionOperationFinished(
                     connectionTarget, false, m_message);
             }
-            if (packetCaptureTarget.isValid()) {
-                emit packetCaptureOperationFinished(
-                    packetCaptureTarget.toBool(), false, m_message);
-            }
             scheduleSnapshotRefreshRetry();
+            dispatchPendingPacketCaptureStop();
             return;
         }
         const auto failure = ProtonVpnKde::classifyBackendCallFailure(
@@ -297,7 +302,6 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
             m_message = tr("The VPN operation could not be completed");
         }
         if (packetCaptureTarget.isValid()) {
-            m_packetCaptureExpectedActive.reset();
             m_packetCaptureError = m_message;
         }
         emit snapshotChanged();
@@ -306,20 +310,13 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
                 connectionTarget, false, m_message);
         }
         if (packetCaptureTarget.isValid()) {
-            emit packetCaptureOperationFinished(
-                packetCaptureTarget.toBool(), false, m_message);
+            refresh();
         }
+        dispatchPendingPacketCaptureStop();
         return;
     }
     if (!connectionTarget.isEmpty()) {
         emit connectionOperationFinished(connectionTarget, true, {});
-    }
-    if (packetCaptureTarget.isValid()) {
-        m_packetCaptureExpectedActive.reset();
-        m_packetCaptureError.clear();
-        emit snapshotChanged();
-        emit packetCaptureOperationFinished(
-            packetCaptureTarget.toBool(), true, {});
     }
     refresh();
 }

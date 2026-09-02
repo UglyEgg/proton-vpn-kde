@@ -66,7 +66,7 @@ while IFS= read -r path; do
         src/VpnController.cpp|src/VpnController.h|\
         src/VpnControllerActions.cpp|\
         src/VpnControllerLifecycle.cpp|src/VpnControllerLocations.cpp|\
-        src/VpnControllerSnapshot.cpp|\
+        src/VpnControllerSettings.cpp|src/VpnControllerSnapshot.cpp|\
         src/main.cpp|\
         tests/GroupedNavigationTest.cpp|tests/SignInPresentationTest.cpp)
             # Exact reviewed deltas are checked below.
@@ -106,14 +106,14 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "d99e77b2af05b01c287bb96e4b20631b276fad073825ac552b7b39f0e5a8f25f" \
+    "f2e9f90d5dd7d222d673cf0c720ca51e45f1e507542745897fb7a1b8658f06f8" \
     "frontend presentation contract" \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
     src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
-    src/VpnControllerSnapshot.cpp src/main.cpp \
+    src/VpnControllerSettings.cpp src/VpnControllerSnapshot.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp tests/SignInPresentationTest.cpp
 assert_diff_hash \
-    "51bfee7b615ead6daf43105d584cd231e821a09549d2218809296dac08ce86ec" \
+    "dc0c695af557d693c68be0aad7a71b04e3f59c0031c0c84b390de37d6104109c" \
     "QML presentation" qml
 
 qml_operation_hash="$(
@@ -125,7 +125,7 @@ qml_operation_hash="$(
         | cut -d' ' -f1
 )"
 expected_qml_operation_hash=\
-"8edff7a70970ae44bf3faa2af0da61126849266b042087050f723f3e4e8658ca"
+"15f45e3eb0119dee4e23a913b87847c38d4b755ba349e32db638771a75a5bd75"
 if [[ "$qml_operation_hash" != "$expected_qml_operation_hash" ]]; then
     echo "The reviewed 0.13 QML controller-operation inventory changed:" >&2
     printf '  expected %s\n  actual   %s\n' \

@@ -47,6 +47,7 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(int killSwitch READ killSwitch NOTIFY snapshotChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY snapshotChanged)
     Q_PROPERTY(bool snapshotRefreshPending READ snapshotRefreshPending NOTIFY snapshotChanged)
+    Q_PROPERTY(bool snapshotHealthy READ snapshotHealthy NOTIFY snapshotChanged)
     Q_PROPERTY(QString snapshotError READ snapshotError NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool locationSearchBusy READ locationSearchBusy NOTIFY locationsChanged)
@@ -104,6 +105,7 @@ public:
     [[nodiscard]] int killSwitch() const override;
     [[nodiscard]] bool busy() const override;
     [[nodiscard]] bool snapshotRefreshPending() const;
+    [[nodiscard]] bool snapshotHealthy() const;
     [[nodiscard]] QString snapshotError() const;
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] bool locationSearchBusy() const;
@@ -220,9 +222,6 @@ signals:
     void connectionOperationFinished(const QString &targetState,
                                      bool success,
                                      const QString &message);
-    void packetCaptureOperationFinished(bool targetActive,
-                                        bool success,
-                                        const QString &message);
     void npsSurveyChanged();
     void supportReportFinished(bool success, const QString &message);
 
@@ -271,6 +270,7 @@ private:
     void resetServerContext();
     void resetGroupServerContext();
     void dispatchPendingLocationRefreshes();
+    void dispatchPendingPacketCaptureStop();
     void setLocationsBusy(bool busy);
     void setBrowserError(QString &target, const QString &message);
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
@@ -364,6 +364,8 @@ private:
     bool m_packetCaptureActive = false;
     QString m_packetCaptureError;
     std::optional<bool> m_packetCaptureExpectedActive;
+    bool m_packetCaptureOperationPending = false;
+    bool m_packetCaptureStopRequested = false;
     bool m_coreMemoryOptimized = false;
     QString m_coreVersion;
     QString m_message = QStringLiteral("Waiting for the Proton backend service");

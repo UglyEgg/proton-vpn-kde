@@ -154,10 +154,23 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
         || ! rg -q 'vpnController\.snapshotError' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'objectName: "refreshInvalidSnapshotAction"' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'vpnController\.snapshotRefreshPending' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
         || ! rg -q 'readonly property bool packetCaptureErrorActive' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'property bool showPacketCaptureError' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
         || ! rg -q 'vpnController\.packetCaptureError' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'showPacketCaptureError:' "$qml_dir/Main.qml" \
+        || ! rg -q 'pageStack\.currentItem\.objectName !== "settingsPage"' \
+        "$qml_dir/Main.qml" \
+        || ! rg -q 'objectName: "settingsPage"' \
+        "$qml_dir/SettingsPage.qml" \
+        || ! rg -U -q 'Component\.onDestruction: \{\n[[:space:]]*vpnController\.stopPacketCapture\(\)' \
+        "$qml_dir/SettingsPage.qml" \
         || ! rg -q 'objectName: "packetCaptureOperationError"' \
         "$qml_dir/SettingsPage.qml" \
         || ! rg -q 'vpnController\.packetCaptureError' \
@@ -253,6 +266,21 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         || ! rg -U -q 'enabled: vpnController\.ready\n[[:space:]]*&& vpnSettings\.loaded' \
         "$qml_dir/VpnConnectionSettingsSection.qml"; then
     echo "Backend failures must preserve diagnostics and expose only valid recovery actions" >&2
+    exit 1
+fi
+
+if ! rg -q 'bool snapshotHealthy\(\) const' \
+        "$project_dir/src/VpnController.h" \
+        || ! rg -q '!snapshotHealthy\(\)' \
+        "$project_dir/src/VpnControllerActions.cpp" \
+        "$project_dir/src/VpnControllerSettings.cpp"; then
+    echo "An invalid backend snapshot must fail closed for mutating operations" >&2
+    exit 1
+fi
+
+if rg -q 'packetCaptureOperationFinished' \
+        "$project_dir/src" "$project_dir/qml" "$project_dir/tests"; then
+    echo "Packet-capture failures must use the authoritative typed state" >&2
     exit 1
 fi
 

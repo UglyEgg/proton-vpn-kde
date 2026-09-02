@@ -9,6 +9,7 @@ import org.kde.kirigami as Kirigami
 
 Kirigami.ScrollablePage {
     id: page
+    objectName: "settingsPage"
     title: qsTr("Settings")
 
     readonly property var controller: vpnController
@@ -69,9 +70,7 @@ Kirigami.ScrollablePage {
     }
 
     Component.onDestruction: {
-        if (vpnController.packetCaptureActive) {
-            vpnController.stopPacketCapture()
-        }
+        vpnController.stopPacketCapture()
         if (packetCaptureFolderDialog !== null) {
             packetCaptureFolderDialog.destroy()
         }

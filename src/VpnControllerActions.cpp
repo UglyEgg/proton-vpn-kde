@@ -127,10 +127,12 @@ void VpnController::copyForwardedPort()
 
 void VpnController::startPacketCapture(const QString &directoryPath)
 {
-    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_busy
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || !snapshotHealthy()
+        || m_busy
         || m_state != QStringLiteral("connected") || m_packetCaptureActive) {
         return;
     }
+    m_packetCaptureStopRequested = false;
     const QString normalized = directoryPath.trimmed();
     if (normalized.isEmpty() || normalized.size() > 4096
         || normalized.contains(QLatin1Char('\n'))
@@ -139,7 +141,6 @@ void VpnController::startPacketCapture(const QString &directoryPath)
         m_packetCaptureExpectedActive.reset();
         m_packetCaptureError = m_message;
         emit snapshotChanged();
-        emit packetCaptureOperationFinished(true, false, m_message);
         return;
     }
     callOperation(QString::fromLatin1(BackendDbus::Method::startPacketCapture), {normalized});
@@ -147,17 +148,39 @@ void VpnController::startPacketCapture(const QString &directoryPath)
 
 void VpnController::stopPacketCapture()
 {
+    if (m_packetCaptureOperationPending
+        && m_packetCaptureExpectedActive.has_value()
+        && !*m_packetCaptureExpectedActive) {
+        return;
+    }
+    if (!m_packetCaptureActive
+        && (!m_packetCaptureExpectedActive.has_value()
+            || !*m_packetCaptureExpectedActive)) {
+        return;
+    }
+    m_packetCaptureStopRequested = true;
+    dispatchPendingPacketCaptureStop();
+}
+
+void VpnController::dispatchPendingPacketCaptureStop()
+{
+    if (!m_packetCaptureStopRequested) {
+        return;
+    }
+    if (m_packetCaptureOperationPending
+        && m_packetCaptureExpectedActive.has_value()
+        && !*m_packetCaptureExpectedActive) {
+        m_packetCaptureStopRequested = false;
+        return;
+    }
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || !snapshotHealthy()
+        || m_busy) {
+        return;
+    }
     if (!m_packetCaptureActive) {
         return;
     }
-    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_busy) {
-        m_message = tr("The packet capture could not be stopped");
-        m_packetCaptureExpectedActive.reset();
-        m_packetCaptureError = m_message;
-        emit snapshotChanged();
-        emit packetCaptureOperationFinished(false, false, m_message);
-        return;
-    }
+    m_packetCaptureStopRequested = false;
     callOperation(QString::fromLatin1(BackendDbus::Method::stopPacketCapture));
 }
 
@@ -196,7 +219,8 @@ void VpnController::submitSupportReport(const QString &username,
         emit supportReportFinished(false, validationMessage);
         return;
     }
-    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_busy) {
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || !snapshotHealthy()
+        || m_busy) {
         emit supportReportFinished(
             false, tr("Sign in and wait for the current VPN operation to finish"));
         return;
@@ -453,13 +477,15 @@ void VpnController::setFastestFeatures(const QStringList &features)
 void VpnController::callOperation(const QString &method,
                                   const QVariantList &arguments)
 {
-    if (!m_backendAvailable || m_backendDestination.isEmpty()) {
+    if (!m_backendAvailable || m_backendDestination.isEmpty()
+        || !snapshotHealthy()) {
         return;
     }
     m_busy = true;
     m_message.clear();
     const QVariant captureTarget = packetCaptureTargetActive(method);
     if (captureTarget.isValid()) {
+        m_packetCaptureOperationPending = true;
         m_packetCaptureExpectedActive = captureTarget.toBool();
         m_packetCaptureError.clear();
     }
@@ -499,6 +525,9 @@ void VpnController::callSecretOperation(const QString &method,
                                         const QJsonObject &fields,
                                         bool updateBusy)
 {
+    if (!snapshotHealthy()) {
+        return;
+    }
     if (updateBusy) {
         m_busy = true;
         m_message.clear();
@@ -574,7 +603,8 @@ void VpnController::callSecretOperation(const QString &method,
 void VpnController::callControlOperation(const QString &method,
                                          const QVariantList &arguments)
 {
-    if (!m_backendAvailable || m_backendDestination.isEmpty()) {
+    if (!m_backendAvailable || m_backendDestination.isEmpty()
+        || !snapshotHealthy()) {
         return;
     }
     QDBusMessage message = QDBusMessage::createMethodCall(

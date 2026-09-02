@@ -124,7 +124,7 @@ bool VpnController::backendRestartAllowed() const
 {
     return !m_clientIdentityRejected;
 }
-bool VpnController::ready() const { return m_ready; }
+bool VpnController::ready() const { return m_ready && snapshotHealthy(); }
 bool VpnController::startupCompatible() const { return m_startupCompatible; }
 bool VpnController::loggedIn() const { return m_loggedIn; }
 QString VpnController::authState() const { return m_authState; }
@@ -139,6 +139,7 @@ bool VpnController::snapshotRefreshPending() const
 {
     return m_snapshotRefreshPending;
 }
+bool VpnController::snapshotHealthy() const { return m_snapshotError.isEmpty(); }
 QString VpnController::snapshotError() const { return m_snapshotError; }
 bool VpnController::locationsBusy() const
 {
@@ -202,7 +203,7 @@ QString VpnController::primaryActionText() const
 
 bool VpnController::primaryActionEnabled() const
 {
-    return m_backendAvailable && m_ready && m_loggedIn
+    return m_backendAvailable && m_ready && m_loggedIn && snapshotHealthy()
         && (!m_busy || m_state == QStringLiteral("connecting"));
 }
 
@@ -272,7 +273,7 @@ void VpnController::refresh()
 
 void VpnController::submitNpsSurvey(int score, const QString &comments)
 {
-    if (!m_npsSurveyAvailable || score < 0 || score > 10) {
+    if (!snapshotHealthy() || !m_npsSurveyAvailable || score < 0 || score > 10) {
         return;
     }
     m_npsSurveyAvailable = false;
@@ -287,7 +288,7 @@ void VpnController::submitNpsSurvey(int score, const QString &comments)
 
 void VpnController::dismissNpsSurvey()
 {
-    if (!m_npsSurveyAvailable) {
+    if (!snapshotHealthy() || !m_npsSurveyAvailable) {
         return;
     }
     m_npsSurveyAvailable = false;

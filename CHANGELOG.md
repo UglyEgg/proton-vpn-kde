@@ -62,11 +62,12 @@ All notable user-visible changes are recorded here. The project follows
   list comes from the available topology, capability requirements, text search,
   or both active filters.
 - Keep the last verified connection snapshot visible while presenting snapshot
-  validation or read failures globally, so stale connection data cannot be
-  mistaken for newly confirmed state.
+  validation or read failures globally. Pause Proton-dependent changes until a
+  valid state is confirmed and offer an explicit state refresh, so stale data
+  cannot be mistaken for newly confirmed state.
 - Give packet-capture validation, start, and stop failures a dedicated result
   channel. Keep failures visible in Diagnostics and globally after navigation,
-  including a stop that cannot be dispatched while Settings is closing.
+  and finish a deferred stop when Diagnostics closes during a pending start.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

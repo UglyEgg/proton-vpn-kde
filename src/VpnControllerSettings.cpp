@@ -51,7 +51,8 @@ void VpnController::loadSettings()
 
 void VpnController::updateSetting(const QString &name, const QVariant &value)
 {
-    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_settings->busy()) {
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || !snapshotHealthy()
+        || m_settings->busy()) {
         return;
     }
     if (name == QStringLiteral("anonymousCrashReports")
@@ -147,7 +148,7 @@ void VpnController::loadSplitTunneling()
 void VpnController::updateSplitTunneling(const QString &name,
                                          const QVariant &value)
 {
-    if (!m_backendAvailable || !m_ready || !m_loggedIn
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || !snapshotHealthy()
         || !m_splitTunneling->loaded() || m_splitTunneling->busy()) {
         return;
     }
@@ -335,7 +336,7 @@ void VpnController::loadCustomDns()
 void VpnController::updateCustomDns(const QString &name,
                                     const QVariant &value)
 {
-    if (!m_backendAvailable || !m_ready || !m_loggedIn
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || !snapshotHealthy()
         || !m_customDns->loaded() || m_customDns->busy()) {
         return;
     }

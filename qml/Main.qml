@@ -34,6 +34,9 @@ Kirigami.ApplicationWindow {
             width: parent.width
             vpnController: root.controller
             dialogErrorCodes: mainDialogs.recoveryErrorCodes
+            showPacketCaptureError:
+                pageStack.currentItem === null
+                || pageStack.currentItem.objectName !== "settingsPage"
         }
 
         ConnectionActionFeedback {
