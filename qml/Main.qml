@@ -21,7 +21,6 @@ Kirigami.ApplicationWindow {
     readonly property var integrationSettings: appSettings
 
     footer: ApplicationRecoveryBanner {
-        id: backendRecoveryBanner
         vpnController: root.controller
         dialogErrorCodes: mainDialogs.recoveryErrorCodes
     }

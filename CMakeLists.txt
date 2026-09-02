@@ -856,6 +856,11 @@ if(BUILD_TESTING)
         NAME qml-ui-hygiene
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-qml-ui-hygiene.sh
     )
+    add_test(
+        NAME ux-mechanics-freeze-negative
+        COMMAND
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test-ux-mechanics-freeze-negative.sh
+    )
     set_tests_properties(installed-translation-loader-tests PROPERTIES
         ENVIRONMENT "XDG_DATA_DIRS=${PROTON_VPN_KDE_TEST_DATA_DIR}"
     )

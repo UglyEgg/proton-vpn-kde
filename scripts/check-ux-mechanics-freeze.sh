@@ -58,7 +58,8 @@ while IFS= read -r path; do
         scripts/check-qml-ui-hygiene.sh|scripts/check-qml-visual-matrix.sh|\
         scripts/check-release-metadata.sh|scripts/check-ux-mechanics-freeze.sh|\
         scripts/smoke-qml-diagnostics.sh|scripts/smoke-qml-layout-variants.sh|\
-        scripts/smoke-settings-route.sh)
+        scripts/smoke-settings-route.sh|\
+        scripts/test-ux-mechanics-freeze-negative.sh)
             # Presentation verification and its hermetic test drivers.
             ;;
         *)
@@ -75,7 +76,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "4e2242d2f1414e8306125b963ce250b68b70bc0dd21bade8ef1ff519567f2f7b" \
+    "ea76d8bf5af86823df0878c136b574b3bf42ca2006e6edbf1d4fb02733691ee6" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "c501dd51a22e62bb85c587e880c6c1870db99ddc7864adb1ef8d90d168f5535f" \
@@ -92,6 +93,9 @@ assert_diff_hash \
     "presentation recovery and measurement contract" \
     src/VpnController.h src/VpnController.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp
+assert_diff_hash \
+    "23361f6f1bc5d8e03f622db7eca426af9350f8320d80a8000530675962825ee7" \
+    "QML presentation" qml
 
 qml_operation_hash="$(
     rg -o --no-filename \

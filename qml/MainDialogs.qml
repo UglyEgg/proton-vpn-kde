@@ -14,12 +14,13 @@ Item {
     required property real windowWidth
     readonly property bool runnerActionVisible: runnerActionDialog.visible
     readonly property bool npsVisible: npsDialog.visible
-    readonly property var recoveryErrorCodes: [
-        "maximum_sessions_reached",
-        "authentication_denied",
-        "two_factor_required",
-        "certificate_not_yet_valid"
-    ]
+    readonly property var recoveryDialogs: ({
+        "maximum_sessions_reached": sessionLimitDialog,
+        "authentication_denied": authenticationErrorDialog,
+        "two_factor_required": twoFactorRequiredDialog,
+        "certificate_not_yet_valid": clockErrorDialog
+    })
+    readonly property var recoveryErrorCodes: Object.keys(recoveryDialogs)
 
     function supportsRecovery(code) {
         return recoveryErrorCodes.includes(code)
@@ -47,26 +48,12 @@ Item {
     }
 
     function openRecovery(code) {
-        if (!supportsRecovery(code)) {
+        const recoveryDialog = recoveryDialogs[code]
+        if (recoveryDialog === undefined) {
             return false
         }
-        if (code === "maximum_sessions_reached") {
-            sessionLimitDialog.open()
-            return true
-        }
-        if (code === "authentication_denied") {
-            authenticationErrorDialog.open()
-            return true
-        }
-        if (code === "two_factor_required") {
-            twoFactorRequiredDialog.open()
-            return true
-        }
-        if (code === "certificate_not_yet_valid") {
-            clockErrorDialog.open()
-            return true
-        }
-        return false
+        recoveryDialog.open()
+        return true
     }
 
     function closeAll() {

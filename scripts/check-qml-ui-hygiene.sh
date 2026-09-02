@@ -150,6 +150,10 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property var recoveryErrorCodes' \
         "$qml_dir/MainDialogs.qml" \
+        || ! rg -q 'Object\.keys\(recoveryDialogs\)' \
+        "$qml_dir/MainDialogs.qml" \
+        || rg -q 'if \(code ===' \
+        "$qml_dir/MainDialogs.qml" \
         || rg -q 'function connectionErrorText' \
         "$qml_dir/OverviewPage.qml" \
         || ! rg -q 'running: parent\.visible && vpnController\.busy' \

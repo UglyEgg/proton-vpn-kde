@@ -8,7 +8,9 @@ All notable user-visible changes are recorded here. The project follows
 - Begin the 0.13.0 presentation-only cycle with a documented progressive-
   disclosure model grounded in native Qt 6, Kirigami, and system theming.
 - Freeze backend, networking, service, native-controller, integration, and
-  Proton-overlay mechanics against the accepted 0.12.0 revision in CI.
+  Proton-overlay mechanics against the accepted 0.12.0 revision in CI. Seal
+  the complete reviewed QML delta as well, with a negative fixture proving
+  that changed connection arguments are rejected.
 - Replace the in-app release-note walls of text with scannable grouped bullets
   and keep older release history collapsed until requested.
 - Make Connection the graphical application home: its route links directly to
