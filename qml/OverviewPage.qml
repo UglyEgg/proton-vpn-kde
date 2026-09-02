@@ -17,6 +17,7 @@ Kirigami.ScrollablePage {
     readonly property bool connected: vpnController.state === "connected"
     readonly property bool connectionDetailsVisible:
         connectionDetailsCard.visible
+    readonly property bool graphicalRouteVisible: connectionScene.routeVisible
 
     Component.onCompleted: {
         if (vpnController.loggedIn && !splitSettings.loaded) {
@@ -118,106 +119,44 @@ Kirigami.ScrollablePage {
             text: qsTr("The verified server-list memory optimizations are not active for Proton Core %1. VPN functionality is unaffected, but memory use may be higher until the overlay is refreshed or Proton includes the fixes.").arg(vpnController.coreVersion)
         }
 
-        SectionCard {
-            title: page.stateLabel(vpnController.state)
-            description: page.connected
-                         ? (vpnController.serverLocation.length > 0
-                            ? vpnController.serverLocation : vpnController.serverName)
+        ConnectionScene {
+            id: connectionScene
+
+            objectName: "connectionScene"
+            Layout.fillWidth: true
+            connectionState: vpnController.state
+            stateText: page.connected ? qsTr("Protected")
+                                      : page.stateLabel(vpnController.state)
+            summaryText: page.connected
+                         ? qsTr("Your traffic is using an encrypted VPN route")
                          : vpnController.loggedIn
-                           ? qsTr("Ready to protect this device")
+                           ? qsTr("Connect to protect this device")
                            : qsTr("Sign in to connect with your Proton account")
-            iconName: page.connected ? "security-high" : "network-vpn"
-            iconColor: page.stateColor(vpnController.state)
-
-            Flow {
-                Layout.fillWidth: true
-                visible: page.connected && (vpnController.secureCore
-                         || vpnController.tor || vpnController.p2p
-                         || vpnController.streaming
-                         || vpnController.smartRouting)
-                spacing: Kirigami.Units.smallSpacing
-
-                Kirigami.Chip {
-                    visible: vpnController.secureCore
-                    text: qsTr("Secure Core")
-                    icon.name: "security-high"
-                    closable: false
-                    interactive: false
-                }
-                Kirigami.Chip {
-                    visible: vpnController.tor
-                    text: qsTr("Tor")
-                    icon.name: "security-medium"
-                    closable: false
-                    interactive: false
-                }
-                Kirigami.Chip {
-                    visible: vpnController.p2p
-                    text: qsTr("P2P")
-                    icon.name: "folder-network"
-                    closable: false
-                    interactive: false
-                }
-                Kirigami.Chip {
-                    visible: vpnController.streaming
-                    text: qsTr("Streaming")
-                    icon.name: "applications-multimedia"
-                    closable: false
-                    interactive: false
-                }
-                Kirigami.Chip {
-                    visible: vpnController.smartRouting
-                    text: qsTr("Smart Routing")
-                    icon.name: "network-wired-activated"
-                    closable: false
-                    interactive: false
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing
-
-                Controls.BusyIndicator {
-                    running: vpnController.busy
-                    visible: running
-                    implicitWidth: Kirigami.Units.iconSizes.small
-                    implicitHeight: implicitWidth
-                }
-
-                Controls.Button {
-                    visible: vpnController.loggedIn
-                    text: qsTr("Browse servers")
-                    icon.name: "network-server"
-                    flat: true
-                    onClicked: applicationWindow().showLocations()
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                Controls.Button {
-                    visible: vpnController.ready && !vpnController.loggedIn
-                    text: qsTr("Sign in")
-                    icon.name: "system-log-in"
-                    highlighted: true
-                    onClicked: applicationWindow().showSignIn()
-                }
-
-                Controls.Button {
-                    visible: vpnController.loggedIn
-                    text: vpnController.busy ? qsTr("Working…")
-                                             : vpnController.primaryActionText
-                    icon.name: page.connected
-                               || vpnController.state === "connecting"
-                               || vpnController.state === "error"
-                               ? "network-disconnect" : "network-connect"
-                    enabled: vpnController.primaryActionEnabled
-                    highlighted: vpnController.state === "disconnected"
-                    onClicked: vpnController.activatePrimaryAction()
-                }
-            }
+            stateColor: page.stateColor(vpnController.state)
+            connected: page.connected
+            busy: vpnController.busy
+            loggedIn: vpnController.loggedIn
+            ready: vpnController.ready
+            destinationFlag: page.countryFlag(vpnController.exitCountry)
+            destinationName: vpnController.serverLocation.length > 0
+                             ? vpnController.serverLocation
+                             : vpnController.exitCountry
+            serverName: vpnController.serverName
+            primaryText: vpnController.busy ? qsTr("Working…")
+                                            : vpnController.primaryActionText
+            primaryIcon: page.connected
+                         || vpnController.state === "connecting"
+                         || vpnController.state === "error"
+                         ? "network-disconnect" : "network-connect"
+            primaryEnabled: vpnController.primaryActionEnabled
+            secureCore: vpnController.secureCore
+            tor: vpnController.tor
+            p2p: vpnController.p2p
+            streaming: vpnController.streaming
+            smartRouting: vpnController.smartRouting
+            onPrimaryActionRequested: vpnController.activatePrimaryAction()
+            onSignInRequested: applicationWindow().showSignIn()
+            onChooseLocationRequested: applicationWindow().showLocations()
         }
 
         Controls.Button {

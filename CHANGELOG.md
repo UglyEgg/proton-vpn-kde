@@ -15,6 +15,9 @@ All notable user-visible changes are recorded here. The project follows
   sidebar; place diagnostics and project information in one native secondary
   drill-in, and disclose connected-server details from Overview only when
   requested.
+- Replace Overview's conventional status card with a graphical, system-themed
+  route from this device through the encrypted tunnel to the VPN destination,
+  without changing connection behavior.
 - Add an on-demand Connection Inspector for live server capabilities,
   protection configuration, and local runtime state using only existing
   non-sensitive Core snapshots.

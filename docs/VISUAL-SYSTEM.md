@@ -26,6 +26,12 @@ patterns are:
 - plain-language error, then a safe recovery action, then technical details;
 - current connection summary, then the on-demand Inspector.
 
+Progressive disclosure is not synonymous with a stack of cards. The Connection
+surface uses a graphical route from this device, through the encrypted tunnel,
+to the VPN destination. Its protection emblem, route state, and destination
+make the outcome readable before supporting text; the exact identifiers and
+Inspector remain available on request.
+
 Revealed content must not unexpectedly move the user to another page, reorder
 unrelated controls, or require memorizing a hidden choice. Preserve focus when
 content expands and give disclosure controls explicit accessible names and
@@ -55,6 +61,8 @@ compact overlay always exposes Kirigami's standard open handle.
 ## Shared components
 
 - `PageHeader.qml` supplies a theme-scaled icon, heading, and description.
+- `ConnectionScene.qml` presents protection state and the device-to-destination
+  route with semantic Plasma colors and icons.
 - `SectionCard.qml` groups related controls in a native Kirigami card.
 - `DetailRow.qml` presents stable label/value pairs without a custom table.
 - `PlasmaListItem.qml` standardizes server and location rows, icon-only

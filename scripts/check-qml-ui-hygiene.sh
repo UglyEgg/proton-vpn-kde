@@ -50,6 +50,15 @@ if ! rg -q 'property bool connectionDetailsExpanded: false' \
     exit 1
 fi
 
+if ! rg -q 'id: routeDiagram' "$qml_dir/ConnectionScene.qml" \
+        || ! rg -q 'qsTr\("This device"\)' "$qml_dir/ConnectionScene.qml" \
+        || ! rg -q 'qsTr\("Encrypted tunnel"\)' \
+        "$qml_dir/ConnectionScene.qml" \
+        || ! rg -q 'onChooseLocationRequested' "$qml_dir/OverviewPage.qml"; then
+    echo "Overview must present the connection as a graphical device-to-destination route" >&2
+    exit 1
+fi
+
 if ! rg -q 'id: moreAction' "$qml_dir/Main.qml" \
         || ! rg -q 'text: qsTr\("More"\)' "$qml_dir/Main.qml"; then
     echo "Secondary project and diagnostic actions must remain grouped" >&2

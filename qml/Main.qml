@@ -413,12 +413,14 @@ Kirigami.ApplicationWindow {
                 const collapsedOverview = pageStack.currentItem
                 if (collapsedOverview.objectName !== "overviewPage"
                         || collapsedOverview.connectionDetailsExpanded
-                        || collapsedOverview.connectionDetailsVisible) {
+                        || collapsedOverview.connectionDetailsVisible
+                        || !collapsedOverview.graphicalRouteVisible) {
                     stop()
-                    console.error("diagnostics-smoke: Overview did not begin with details collapsed")
+                    console.error("diagnostics-smoke: Overview did not begin with a graphical route and collapsed details")
                     Qt.exit(2)
                     return
                 }
+                console.info("diagnostics-smoke: Overview graphical route")
                 console.info("diagnostics-smoke: Overview details collapsed")
                 root.requestRunnerAction("fastest", "")
                 if (!mainDialogs.runnerActionVisible

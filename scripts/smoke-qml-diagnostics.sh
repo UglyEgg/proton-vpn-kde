@@ -89,6 +89,7 @@ expected_lines["diagnostics-smoke: native interface loaded"]=1
 expected_lines["qml: navigation-drawer-smoke: complete"]=1
 expected_lines["qml: diagnostics-smoke: KRunner confirmation required"]=1
 expected_lines["qml: diagnostics-smoke: KRunner confirmed actions complete"]=1
+expected_lines["qml: diagnostics-smoke: Overview graphical route"]=1
 expected_lines["qml: diagnostics-smoke: Overview details collapsed"]=1
 expected_lines["qml: diagnostics-smoke: Overview details disclosed"]=1
 for page in \
