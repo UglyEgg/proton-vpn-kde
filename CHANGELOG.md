@@ -109,7 +109,9 @@ All notable user-visible changes are recorded here. The project follows
   while durable packet-capture recovery is pending, bound that provider wait
   so an unanswered prompt exits nonzero with the recovery record retained for
   systemd retry. Also retain the record when no session is restored rather
-  than trusting Core's intentionally synthetic logged-out disconnected state.
+  than trusting Core's intentionally synthetic logged-out disconnected state,
+  and bound connector construction so a stalled system D-Bus dependency also
+  returns recovery ownership to systemd.
 - Keep capture setup inactive and retryable when Core rejects the selected
   destination before it receives a start request.
 - Teach Git that unified-diff context markers are patch syntax while retaining

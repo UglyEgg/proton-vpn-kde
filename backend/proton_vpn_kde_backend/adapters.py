@@ -91,6 +91,7 @@ __all__ = [
 
 LOGOUT_RECOVERY_TIMEOUT_SECONDS = 5.0
 CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS = 5.0
+CAPTURE_RECOVERY_CONNECTOR_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,7 +197,20 @@ class ProtonCoreAdapter:
                 "unconfirmed packet capture"
             )
 
-        self._connector = await self._api.get_vpn_connector()
+        connector_request = self._api.get_vpn_connector()
+        if pending_capture_recovery:
+            try:
+                self._connector = await asyncio.wait_for(
+                    connector_request,
+                    timeout=CAPTURE_RECOVERY_CONNECTOR_TIMEOUT_SECONDS,
+                )
+            except TimeoutError:
+                raise UserVisibleRuntimeError(
+                    "Proton Core did not restore the VPN connection while "
+                    "packet-capture recovery was pending"
+                ) from None
+        else:
+            self._connector = await connector_request
         self._connector.register(self)
         # Packet capture is external to this process. Reacquire any durable
         # completion-unknown generation before backend-readiness publication.

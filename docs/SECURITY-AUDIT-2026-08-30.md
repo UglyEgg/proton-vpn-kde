@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 213 backend tests at 81% measured branch
+translation units under Clang-Tidy, 214 backend tests at 81% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -361,7 +361,17 @@ to stop capture. Every result from that wave is discarded. A pending recovery
 entry now requires a restored logged-in session before connector construction;
 otherwise startup exits nonzero with the entry retained. A regression verifies
 that the logged-out connector is never requested and the journal is preserved.
-The complete six-review gate must restart on the resulting exact commit.
+The resulting `af73ec9` candidate passed the same source and two-build package
+gates. Its fresh entropy review found that successful session restoration was
+followed by unbounded Core connector construction. Because a recovery journal
+deliberately retains startup, a stalled split-tunneling system D-Bus operation
+could leave the backend unready forever without arming the capture watchdog or
+exiting for systemd retry. Every result from that battery is discarded.
+Connector construction is now bounded whenever startup recovery is pending; a
+timeout exits nonzero with the journal retained. A focused regression holds
+connector construction open after successful session prewarming and verifies
+bounded failure without false readiness. The complete six-review gate must
+restart on the resulting exact commit.
 
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
@@ -391,7 +401,7 @@ The complete six-review gate must restart on the resulting exact commit.
 | PV-012-024 | Medium | Session expiry during a settings write or compensation could be overwritten with a restart-only settings-unavailable state | **Remediated by preserving the authoritative expired-session state and deferring persisted-settings reconciliation to the next sign-in; final independent verification pending** |
 | PV-012-025 | Medium | Backend shutdown could discard the only watchdog after an unconfirmed packet-capture stop, leaving a replacement unable to enforce the original deadline | **Remediated with an atomic runtime recovery record, pre-readiness Core reacquisition, and continuing deadline retries; final independent verification pending** |
 | PV-012-026 | Medium | The no-client startup idle deadline could cancel a hanging capture-recovery stop and exit cleanly, leaving the durable record without a scheduled supervisor | **Remediated by retaining initialization while any recovery entry exists and preserving nonzero failure retry; final independent verification pending** |
-| PV-012-027 | Medium | An unanswered or unavailable Secret Service session could delay recovery or make Core synthesize a disconnected state that falsely cleared the durable packet-capture journal | **Remediated with bounded prewarming, a required logged-in session before recovery connector construction, nonzero startup retry, and durable journal retention; final independent verification pending** |
+| PV-012-027 | Medium | An unanswered or unavailable Secret Service session, or stalled Core connector construction, could delay recovery indefinitely or synthesize a disconnected state that falsely cleared the durable packet-capture journal | **Remediated with bounded session and connector restoration, a required logged-in session, nonzero startup retry, and durable journal retention; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -576,7 +586,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 213 backend Python tests;
+- 214 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

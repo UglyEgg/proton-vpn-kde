@@ -477,6 +477,39 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(recovery_path.exists())
         api.get_vpn_connector.assert_not_awaited()
 
+    async def test_capture_recovery_retains_journal_when_connector_times_out(self):
+        api, _ = self.make_api()
+        connector_started = asyncio.Event()
+        connector_never_finishes = asyncio.Event()
+
+        async def wait_for_connector():
+            connector_started.set()
+            await connector_never_finishes.wait()
+
+        recovery_path = Path(os.environ["XDG_RUNTIME_DIR"]) / (
+            PACKET_CAPTURE_RECOVERY_FILENAME
+        )
+        PacketCaptureRecoveryJournal(recovery_path).store_deadline(
+            time.clock_gettime(time.CLOCK_BOOTTIME) - 0.01
+        )
+        api.get_vpn_connector = AsyncMock(side_effect=wait_for_connector)
+        adapter = ProtonCoreAdapter(api, packet_capture_recovery_path=recovery_path)
+
+        with patch(
+            "proton_vpn_kde_backend.adapters."
+            "CAPTURE_RECOVERY_CONNECTOR_TIMEOUT_SECONDS",
+            0.01,
+        ):
+            with self.assertRaisesRegex(
+                UserVisibleRuntimeError,
+                "did not restore the VPN connection",
+            ):
+                await adapter.initialize(Mock())
+
+        self.assertTrue(connector_started.is_set())
+        self.assertTrue(recovery_path.exists())
+        self.assertIsNone(adapter._connector)
+
     async def test_logged_out_start_does_not_enable_refresher(self):
         api, _ = self.make_api(logged_in=False)
         adapter = ProtonCoreAdapter(api)

@@ -47,8 +47,8 @@ supersedes the earlier three-run observation that classified the difference as
 sharing variance; the smaller positive result is still bounded and consistent
 with adding the dormant page and controller fields.
 
-The final candidate adds a repeatable same-process retention probe. It measures
-the Control Center at Overview, after opening and destroying the Inspector,
+The measured 0.12.0 baseline adds a repeatable same-process retention probe.
+It measures the Control Center at Overview, after opening and destroying the Inspector,
 then repeats that open/destroy cycle in the same process. The probe reports both
 PSS and private resident memory because PSS can change when another process
 starts or stops sharing the same Qt pages. Three runs retained 580, 580, and
@@ -98,9 +98,9 @@ An exact comparison with the previous implementation produced identical result
 fields and ordering for 12 representative location, exact-server, feature,
 broad, punctuation, and no-match queries.
 
-## Current unreleased 0.12.0 candidate measurement
+## Measured unreleased 0.12.0 baseline
 
-Three isolated disconnected/demo runs of the exact accepted runtime revision
+Three isolated disconnected/demo runs of the measured runtime revision
 `d2e7a74` measured 83,114, 82,629, and 82,754 KiB combined PSS, for a median of
 82,754 KiB (80.8 MiB). The median components were 21,570 KiB for the Python
 backend, 5,542 KiB for the resident agent, and 55,599 KiB for the Control
