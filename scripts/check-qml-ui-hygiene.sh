@@ -208,6 +208,8 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/MainDialogs.qml" \
         || ! rg -q 'readonly property bool runnerActionEnabled' \
         "$qml_dir/MainDialogs.qml" \
+        || ! rg -U -q 'readonly property bool runnerActionEnabled:\n[[:space:]]*!vpnController\.busy\n[[:space:]]*&& vpnController\.primaryActionEnabled' \
+        "$qml_dir/MainDialogs.qml" \
         || ! rg -U -q 'onAccepted: \{\n[[:space:]]*const confirmedAction.*\n[[:space:]]*const confirmedArgument.*\n[[:space:]]*if \(!dialogs\.runnerActionEnabled\)' \
         "$qml_dir/MainDialogs.qml" \
         || ! rg -q 'globalConnectionActionFeedback\.beginForState' \

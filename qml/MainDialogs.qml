@@ -23,10 +23,9 @@ Item {
     readonly property var recoveryErrorCodes: Object.keys(recoveryDialogs)
     readonly property bool runnerActionEnabled:
         !vpnController.busy
-        && (runnerActionDialog.actionId === "disconnect"
-            ? vpnController.ready && vpnController.loggedIn
-              && vpnController.state !== "disconnected"
-            : vpnController.primaryActionEnabled)
+        && vpnController.primaryActionEnabled
+        && (runnerActionDialog.actionId !== "disconnect"
+            || vpnController.state !== "disconnected")
 
     signal connectionActionStarted(string expectedState)
 

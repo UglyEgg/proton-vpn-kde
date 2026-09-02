@@ -16,6 +16,7 @@ class FakeVpnController final : public QObject
     Q_PROPERTY(bool loggedIn MEMBER loggedIn NOTIFY snapshotChanged)
     Q_PROPERTY(bool busy MEMBER busy NOTIFY snapshotChanged)
     Q_PROPERTY(bool backendAvailable MEMBER backendAvailable NOTIFY snapshotChanged)
+    Q_PROPERTY(bool primaryActionEnabled READ primaryActionEnabled NOTIFY snapshotChanged)
     Q_PROPERTY(bool backendRestartAllowed MEMBER backendRestartAllowed NOTIFY snapshotChanged)
     Q_PROPERTY(bool fido2Available MEMBER fido2Available NOTIFY snapshotChanged)
     Q_PROPERTY(int killSwitch MEMBER killSwitch NOTIFY snapshotChanged)
@@ -37,6 +38,13 @@ public:
     QString errorCode;
     QString message;
     int restartCalls = 0;
+    int disconnectCalls = 0;
+
+    [[nodiscard]] bool primaryActionEnabled() const
+    {
+        return backendAvailable && ready && loggedIn
+            && (!busy || state == QStringLiteral("connecting"));
+    }
 
     Q_INVOKABLE void restartBackend() { ++restartCalls; }
     Q_INVOKABLE void disableKillSwitchForLogin() { }
@@ -46,12 +54,22 @@ public:
     Q_INVOKABLE void cancelFido2() { }
     Q_INVOKABLE void submitFido2Pin(const QString &) { }
     Q_INVOKABLE void cancelLogin() { }
+    Q_INVOKABLE void disconnect() { ++disconnectCalls; }
 
 signals:
     void snapshotChanged();
     void connectionOperationFinished(const QString &targetState,
                                      bool success,
                                      const QString &message);
+};
+
+class FakeAppSettings final : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(QStringList fastestFeatures MEMBER fastestFeatures CONSTANT)
+
+public:
+    QStringList fastestFeatures;
 };
 }
 
@@ -67,6 +85,7 @@ private slots:
     void recoveryPreservesAuthoritativeMessage();
     void applicationRecoveryIsPersistentAndActionable();
     void connectionActionFeedbackTracksOwnedResult();
+    void unavailableBackendRejectsRunnerDisconnect();
 
 private:
     QObject *createComponent(QQmlEngine &engine, FakeVpnController &controller,
@@ -353,6 +372,51 @@ void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
     QCoreApplication::processEvents();
     QVERIFY(!feedback->property("awaitingResult").toBool());
     QVERIFY(!feedback->property("messageActive").toBool());
+}
+
+void SignInPresentationTest::unavailableBackendRejectsRunnerDisconnect()
+{
+    FakeVpnController controller;
+    controller.backendAvailable = false;
+    controller.ready = true;
+    controller.loggedIn = true;
+    controller.state = QStringLiteral("connected");
+    FakeAppSettings appSettings;
+    QQmlEngine engine;
+    const QString sourcePath = QStringLiteral(
+        PROTON_VPN_KDE_SOURCE_DIR "/qml/MainDialogs.qml");
+    QQmlComponent component(&engine, QUrl::fromLocalFile(sourcePath));
+    const QVariantMap initialProperties{
+        {QStringLiteral("vpnController"),
+         QVariant::fromValue(static_cast<QObject *>(&controller))},
+        {QStringLiteral("appSettings"),
+         QVariant::fromValue(static_cast<QObject *>(&appSettings))},
+        {QStringLiteral("windowWidth"), 800.0}};
+    QScopedPointer<QObject> dialogs(
+        component.createWithInitialProperties(initialProperties));
+    if (!dialogs)
+    {
+        QStringList errors;
+        for (const QQmlError &error : component.errors())
+        {
+            errors.append(error.toString());
+        }
+        QFAIL(qPrintable(errors.join(QLatin1Char('\n'))));
+    }
+
+    QSignalSpy actionStarted(dialogs.data(),
+                             SIGNAL(connectionActionStarted(QString)));
+    const QVariant action = QStringLiteral("disconnect");
+    const QVariant argument = QString{};
+    QVERIFY(QMetaObject::invokeMethod(
+        dialogs.data(), "requestRunnerAction",
+        Q_ARG(QVariant, action), Q_ARG(QVariant, argument)));
+    QCoreApplication::processEvents();
+    QVERIFY(!dialogs->property("runnerActionEnabled").toBool());
+    QVERIFY(QMetaObject::invokeMethod(dialogs.data(), "acceptRunnerAction"));
+    QCoreApplication::processEvents();
+    QCOMPARE(actionStarted.count(), 0);
+    QCOMPARE(controller.disconnectCalls, 0);
 }
 
 QTEST_MAIN(SignInPresentationTest)
