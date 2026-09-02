@@ -318,9 +318,10 @@ class BackendController:
     async def submit_nps_survey(
         self, score: str, comments: str, response_type: str
     ) -> None:
-        self._require_session()
+        session_epoch = self._current_session_epoch()
         response = validate_nps_survey_response(score, comments, response_type)
         await self._adapter.submit_nps_survey(response)
+        self._require_current_session(session_epoch)
 
     async def update_settings_json(self, patch_json: str) -> str:
         self._require_session()

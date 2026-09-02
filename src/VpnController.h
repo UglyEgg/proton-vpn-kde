@@ -49,6 +49,7 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(bool snapshotRefreshPending READ snapshotRefreshPending NOTIFY snapshotChanged)
     Q_PROPERTY(bool snapshotHealthy READ snapshotHealthy NOTIFY snapshotChanged)
     Q_PROPERTY(QString snapshotError READ snapshotError NOTIFY snapshotChanged)
+    Q_PROPERTY(bool snapshotRestartAllowed READ snapshotRestartAllowed NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool locationSearchBusy READ locationSearchBusy NOTIFY locationsChanged)
     Q_PROPERTY(QString countriesError READ countriesError NOTIFY locationsChanged)
@@ -57,6 +58,7 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(QString serversError READ serversError NOTIFY locationsChanged)
     Q_PROPERTY(QString serverLoadsError READ serverLoadsError NOTIFY locationsChanged)
     Q_PROPERTY(bool npsSurveyAvailable READ npsSurveyAvailable NOTIFY npsSurveyChanged)
+    Q_PROPERTY(bool npsSurveySubmissionPending READ npsSurveySubmissionPending NOTIFY npsSurveyChanged)
     Q_PROPERTY(bool supportReportSubmissionEnabled READ supportReportSubmissionEnabled CONSTANT)
     Q_PROPERTY(bool crashReportSubmissionEnabled READ crashReportSubmissionEnabled CONSTANT)
     Q_PROPERTY(QString state READ state NOTIFY snapshotChanged)
@@ -73,6 +75,7 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(bool smartRouting READ smartRouting NOTIFY snapshotChanged)
     Q_PROPERTY(bool packetCaptureActive READ packetCaptureActive NOTIFY snapshotChanged)
     Q_PROPERTY(QString packetCaptureError READ packetCaptureError NOTIFY snapshotChanged)
+    Q_PROPERTY(bool shutdownPending READ shutdownPending NOTIFY snapshotChanged)
     Q_PROPERTY(bool coreMemoryOptimized READ coreMemoryOptimized NOTIFY snapshotChanged)
     Q_PROPERTY(QString coreVersion READ coreVersion NOTIFY snapshotChanged)
     Q_PROPERTY(QString message READ message NOTIFY snapshotChanged)
@@ -107,6 +110,7 @@ public:
     [[nodiscard]] bool snapshotRefreshPending() const;
     [[nodiscard]] bool snapshotHealthy() const;
     [[nodiscard]] QString snapshotError() const;
+    [[nodiscard]] bool snapshotRestartAllowed() const;
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] bool locationSearchBusy() const;
     [[nodiscard]] QString countriesError() const;
@@ -115,6 +119,7 @@ public:
     [[nodiscard]] QString serversError() const;
     [[nodiscard]] QString serverLoadsError() const;
     [[nodiscard]] bool npsSurveyAvailable() const;
+    [[nodiscard]] bool npsSurveySubmissionPending() const;
     [[nodiscard]] bool supportReportSubmissionEnabled() const;
     [[nodiscard]] bool crashReportSubmissionEnabled() const;
     [[nodiscard]] QString state() const override;
@@ -131,6 +136,7 @@ public:
     [[nodiscard]] bool smartRouting() const;
     [[nodiscard]] bool packetCaptureActive() const;
     [[nodiscard]] QString packetCaptureError() const;
+    [[nodiscard]] bool shutdownPending() const;
     [[nodiscard]] bool coreMemoryOptimized() const;
     [[nodiscard]] QString coreVersion() const;
     [[nodiscard]] QString message() const override;
@@ -152,6 +158,7 @@ public:
     Q_INVOKABLE void copyForwardedPort();
     Q_INVOKABLE void startPacketCapture(const QString &directoryPath);
     Q_INVOKABLE void stopPacketCapture();
+    Q_INVOKABLE bool requestShutdown();
     Q_INVOKABLE void submitSupportReport(const QString &username,
                                          const QString &email,
                                          const QString &description,
@@ -223,7 +230,9 @@ signals:
                                      bool success,
                                      const QString &message);
     void npsSurveyChanged();
+    void npsSurveySubmissionFinished(bool success, const QString &message);
     void supportReportFinished(bool success, const QString &message);
+    void shutdownReady();
 
 private slots:
     void onServiceRegistered(const QString &service);
@@ -244,7 +253,10 @@ private:
     void disconnectBackendSignals();
     void setBackendAvailable(bool available);
     void stampBackendRequest(QDBusPendingCallWatcher *watcher) const;
+    void stampSessionRequest(QDBusPendingCallWatcher *watcher) const;
     [[nodiscard]] bool backendReplyIsCurrent(
+        const QDBusPendingCallWatcher *watcher) const;
+    [[nodiscard]] bool sessionReplyIsCurrent(
         const QDBusPendingCallWatcher *watcher) const;
     [[nodiscard]] bool backendSignalIsCurrent() const;
     void applySnapshot(const QString &snapshotJson);
@@ -270,7 +282,9 @@ private:
     void resetServerContext();
     void resetGroupServerContext();
     void dispatchPendingLocationRefreshes();
-    void dispatchPendingPacketCaptureStop();
+    void dispatchPendingPacketCaptureStop(bool allowUnconfirmedActive = false);
+    void completeShutdownIfSafe();
+    void finishNpsSurveySubmission(bool success, const QString &message);
     void setLocationsBusy(bool busy);
     void setBrowserError(QString &target, const QString &message);
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
@@ -311,6 +325,7 @@ private:
     quint64 m_sessionGeneration = 0;
     bool m_snapshotRefreshPending = false;
     QString m_snapshotError;
+    bool m_snapshotRestartAllowed = false;
     unsigned int m_snapshotRefreshRetryCount = 0;
     ProtonVpnKde::ClientRegistrationState m_clientRegistration;
     unsigned int m_clientRegistrationRetryCount = 0;
@@ -334,9 +349,11 @@ private:
     QString m_serversError;
     QString m_serverLoadsError;
     quint64 m_locationSearchGeneration = 0;
+    quint64 m_locationRequestGeneration = 0;
     QString m_locationSearchQuery;
     bool m_npsSurveyChecked = false;
     bool m_npsSurveyAvailable = false;
+    bool m_npsSurveySubmissionPending = false;
     bool m_countryRefreshPending = false;
     bool m_serverGroupRefreshPending = false;
     bool m_serverRefreshPending = false;
@@ -364,8 +381,10 @@ private:
     bool m_packetCaptureActive = false;
     QString m_packetCaptureError;
     std::optional<bool> m_packetCaptureExpectedActive;
+    quint64 m_packetCaptureOperationGeneration = 0;
     bool m_packetCaptureOperationPending = false;
     bool m_packetCaptureStopRequested = false;
+    bool m_shutdownPending = false;
     bool m_coreMemoryOptimized = false;
     QString m_coreVersion;
     QString m_message = QStringLiteral("Waiting for the Proton backend service");

@@ -123,6 +123,33 @@ connection_feedback_owner_count="$(
     rg -n '^[[:space:]]*ConnectionActionFeedback[[:space:]]*\{' \
         "$qml_dir" | wc -l
 )"
+settings_cleanup_calls="$(
+    rg -c 'page\.prepareForRemoval\(\)' "$qml_dir/Main.qml"
+)"
+if ! rg -q 'function prepareForRemoval\(\)' "$qml_dir/SettingsPage.qml" \
+        || ! rg -q 'Component\.onDestruction: prepareForRemoval\(\)' \
+        "$qml_dir/SettingsPage.qml" \
+        || [[ "$settings_cleanup_calls" -lt 2 ]] \
+        || ! rg -q 'close\.accepted = vpnController\.requestShutdown\(\)' \
+        "$qml_dir/Main.qml" \
+        || ! rg -q 'function requestApplicationQuit\(\)' "$qml_dir/Main.qml" \
+        || ! rg -q 'vpnController\.npsSurveySubmissionPending' \
+        "$qml_dir/MainDialogs.qml" \
+        || ! rg -q 'onNpsSurveySubmissionFinished' "$qml_dir/MainDialogs.qml" \
+        || rg -U -q 'submitNpsSurvey\([^)]*\)\n[[:space:]]*npsDialog\.submitted = true' \
+        "$qml_dir/MainDialogs.qml"; then
+    echo "Page retirement, application shutdown, and survey completion must retain explicit operation ownership" >&2
+    exit 1
+fi
+
+if ! rg -U -q 'enabled: !vpnController\.busy\n[[:space:]]*&& \(\(vpnController\.packetCaptureActive\n[[:space:]]*&& vpnController\.backendAvailable\n[[:space:]]*&& vpnController\.loggedIn\)' \
+        "$qml_dir/PrivacySettingsSection.qml" \
+        || ! rg -U -q '!vpnController\.packetCaptureActive\n[[:space:]]*&& vpnController\.ready\n[[:space:]]*&& vpnController\.state === "connected"' \
+        "$qml_dir/PrivacySettingsSection.qml"; then
+    echo "Diagnostics must fail closed for capture start while preserving an available capture stop" >&2
+    exit 1
+fi
+
 recovery_state_fixture="$(
     sed -n \
         '/readonly property bool recoveryRequired:/,/].includes(vpnController.authState)/p' \
@@ -168,8 +195,6 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         || ! rg -q 'pageStack\.currentItem\.objectName !== "settingsPage"' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'objectName: "settingsPage"' \
-        "$qml_dir/SettingsPage.qml" \
-        || ! rg -U -q 'Component\.onDestruction: \{\n[[:space:]]*vpnController\.stopPacketCapture\(\)' \
         "$qml_dir/SettingsPage.qml" \
         || ! rg -q 'objectName: "packetCaptureOperationError"' \
         "$qml_dir/SettingsPage.qml" \

@@ -11,7 +11,7 @@ independent upstream contribution, not a hidden part of this client.
 
 ## 0.13.0: progressive Plasma experience
 
-Version 0.13.0 is a presentation-only release based on the accepted 0.12.0
+Version 0.13.0 is a presentation-led release based on the accepted 0.12.0
 mechanics. Its design principle is progressive disclosure: begin with the one
 clear task or decision most people need, then reveal relevant depth in context
 as the person asks for it. The interface should feel simple on first use and
@@ -37,9 +37,12 @@ The implementation constraints are:
   plain language, with technical identifiers available one level deeper.
 - Keep advanced disclosure contextual. Do not create an undifferentiated
   Advanced page or use nested accordions as a place to hide design debt.
-- Change no backend, VPN, authentication, recovery, D-Bus, resident-agent,
-  KRunner, packaging-overlay, or Proton Core mechanics. CI compares those paths
-  with accepted revision `ec27fdc` and rejects drift.
+- Change no Proton Core, VPN networking, authentication protocol,
+  resident-agent, KRunner, or packaging-overlay mechanics. Narrow frontend and
+  backend state-ownership or recovery corrections discovered by review are
+  admitted only as exact-hashed deltas with focused regression tests. CI
+  compares all other mechanics-owned paths with accepted revision `ec27fdc`
+  and rejects unreviewed drift.
 
 ### Delivery sequence
 

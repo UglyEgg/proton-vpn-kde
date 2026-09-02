@@ -47,7 +47,7 @@ Kirigami.ApplicationWindow {
     }
 
     onClosing: close => {
-        close.accepted = true
+        close.accepted = vpnController.requestShutdown()
     }
 
     function beginConnectionAction(expectedState) {
@@ -78,14 +78,26 @@ Kirigami.ApplicationWindow {
         const remainingPages = root.ownedPages.slice()
         remainingPages.splice(index, 1)
         root.ownedPages = remainingPages
+        if (page.prepareForRemoval !== undefined) {
+            page.prepareForRemoval()
+        }
         // PageRow has detached the item, but its toolbar transition may still
         // hold bindings until the animation completes.
         page.destroy(Kirigami.Units.longDuration * 2)
     }
 
     function showPage(pageComponent, properties) {
+        root.prepareOwnedPagesForRemoval()
         pageStack.clear()
         return pushOwnedPage(pageComponent, properties)
+    }
+
+    function prepareOwnedPagesForRemoval() {
+        for (const page of root.ownedPages) {
+            if (page.prepareForRemoval !== undefined) {
+                page.prepareForRemoval()
+            }
+        }
     }
 
     function pushOverviewPage(pageComponent, section) {
@@ -114,7 +126,7 @@ Kirigami.ApplicationWindow {
         } else if (destination === "about") {
             root.pushOverviewPage(aboutPageComponent, "about")
         } else if (destination === "close") {
-            Qt.quit()
+            root.requestApplicationQuit()
         } else {
             console.error("Unknown Overview destination: " + destination)
         }
@@ -198,7 +210,14 @@ Kirigami.ApplicationWindow {
 
     function prepareForQuit() {
         mainDialogs.closeAll()
+        root.prepareOwnedPagesForRemoval()
         pageStack.clear()
+    }
+
+    function requestApplicationQuit() {
+        if (vpnController.requestShutdown()) {
+            Qt.quit()
+        }
     }
 
     function requestRunnerAction(action, argument) {
@@ -535,7 +554,7 @@ Kirigami.ApplicationWindow {
             default:
                 stop()
                 console.info("diagnostics-smoke: complete")
-                Qt.quit()
+                root.requestApplicationQuit()
                 return
             }
             ++root.diagnosticNavigationStep

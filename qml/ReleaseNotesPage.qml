@@ -65,7 +65,7 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("A presentation-only release that makes capability easier to discover without changing VPN behavior.")
+            description: qsTr("A presentation-led release that makes capability easier to discover while preserving Proton Core's VPN behavior.")
             iconName: "software-properties"
 
             Kirigami.Heading {
@@ -89,7 +89,8 @@ Kirigami.ScrollablePage {
                     qsTr("Sign-in now presents exactly one active step at a time, including credentials, two-factor, security-key, and recovery states; a delayed Secret Service prompt appears as contextual help instead of an assumed cause."),
                     qsTr("Backend startup, account-recovery, and connection failures keep their specific guidance visible throughout the relevant signed-in flow, including connected server changes, KRunner, tray, and global-shortcut requests."),
                     qsTr("Server browsing does not issue a second connection while one is active. List and load-refresh failures remain distinct from valid empty results, and empty exact-server lists explain which search or capability filters produced them."),
-                    qsTr("Snapshot failures pause Proton-dependent actions and offer an explicit refresh. Packet-capture failures remain visible, and a pending capture is stopped safely when Diagnostics closes."),
+                    qsTr("Snapshot failures pause Proton-dependent changes and offer refresh or safe service recovery. Packet-capture Stop remains available, and closing waits for an accepted capture start to be stopped."),
+                    qsTr("Server-browser replies and survey submissions now belong to the account session that created them; feedback is shown as sent only after backend acceptance."),
                     qsTr("Help, reporting availability, release history, attribution, and licensing now live in one secondary information destination instead of competing in the home menu."),
                     qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")
                 ]

@@ -6,6 +6,7 @@
 
 #include "BackendCallPolicy.h"
 #include "CustomDnsModel.h"
+#include "DbusContract.h"
 #include "LocationModels.h"
 #include "SplitTunnelingModel.h"
 #include "VpnSettingsModel.h"
@@ -94,6 +95,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     if (error.error != QJsonParseError::NoError || !document.isObject()) {
         m_message = tr("The backend returned an invalid state snapshot");
         m_snapshotError = m_message;
+        m_snapshotRestartAllowed = true;
         emit snapshotChanged();
         return;
     }
@@ -101,22 +103,27 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     const QJsonObject snapshot = document.object();
     if (snapshot.value(QStringLiteral("schemaVersion")).toInt()
         != ProtonVpnKde::snapshotSchemaVersion) {
-        m_message = tr("The backend uses an unsupported interface version");
+        m_message = tr(
+            "The backend uses an unsupported interface version. Update or reinstall Plasma VPN.");
         m_snapshotError = m_message;
+        m_snapshotRestartAllowed = false;
         emit snapshotChanged();
         return;
     }
     if (!ProtonVpnKde::validateSnapshotV1(snapshot)) {
         m_message = tr("The backend returned an incomplete state snapshot");
         m_snapshotError = m_message;
+        m_snapshotRestartAllowed = true;
         emit snapshotChanged();
         return;
     }
 
     m_snapshotError.clear();
+    m_snapshotRestartAllowed = false;
 
     const bool wasReady = m_ready;
     const bool wasLoggedIn = m_loggedIn;
+    const bool locationsWereBusy = locationsBusy();
     const QString previousState = m_state;
     m_ready = snapshot.value(QStringLiteral("ready")).toBool();
     m_startupCompatible = snapshot.value(
@@ -124,10 +131,15 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_loggedIn = snapshot.value(QStringLiteral("loggedIn")).toBool();
     if (wasLoggedIn != m_loggedIn) {
         ++m_sessionGeneration;
+        ++m_locationRequestGeneration;
+        m_locationsBusy = false;
         m_packetCaptureError.clear();
         m_packetCaptureExpectedActive.reset();
+        ++m_packetCaptureOperationGeneration;
         m_packetCaptureOperationPending = false;
         m_packetCaptureStopRequested = false;
+        finishNpsSurveySubmission(
+            false, tr("The Proton account session changed"));
     }
     m_authState = snapshot.value(QStringLiteral("authState")).toString(
         m_loggedIn ? QStringLiteral("signed_in") : QStringLiteral("signed_out"));
@@ -163,12 +175,16 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_packetCaptureExpectedActive.reset();
         m_packetCaptureError.clear();
     }
+    if (!m_packetCaptureActive
+        && (!m_packetCaptureExpectedActive.has_value()
+            || !*m_packetCaptureExpectedActive)) {
+        m_packetCaptureStopRequested = false;
+    }
     m_coreMemoryOptimized = snapshot.value(
         QStringLiteral("coreMemoryOptimized")).toBool();
     m_coreVersion = snapshot.value(QStringLiteral("coreVersion")).toString();
     m_message = snapshot.value(QStringLiteral("message")).toString();
     if (wasLoggedIn && !m_loggedIn) {
-        const bool wasLocationsBusy = locationsBusy();
         const bool hadBrowserErrors = !m_countriesError.isEmpty()
             || !m_locationSearchError.isEmpty()
             || !m_serverGroupsError.isEmpty()
@@ -200,7 +216,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_settings->reset();
         m_splitTunneling->reset();
         m_customDns->reset();
-        if (wasLocationsBusy != locationsBusy() || hadBrowserErrors) {
+        if (locationsWereBusy != locationsBusy() || hadBrowserErrors) {
             emit locationsChanged();
         }
     }
@@ -220,6 +236,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         dispatchPendingLocationRefreshes();
     }
     dispatchPendingPacketCaptureStop();
+    completeShutdownIfSafe();
 }
 
 void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
@@ -262,9 +279,16 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
         watcher->property("connectionTargetState").toString();
     const QVariant packetCaptureTarget =
         watcher->property("packetCaptureTargetActive");
+    const quint64 packetCaptureGeneration =
+        watcher->property("packetCaptureOperationGeneration").toULongLong();
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
     if (!current) {
+        return;
+    }
+    if (packetCaptureTarget.isValid()
+        && packetCaptureGeneration != m_packetCaptureOperationGeneration) {
+        refresh();
         return;
     }
     if (packetCaptureTarget.isValid()) {
@@ -284,7 +308,9 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
                     connectionTarget, false, m_message);
             }
             scheduleSnapshotRefreshRetry();
-            dispatchPendingPacketCaptureStop();
+            dispatchPendingPacketCaptureStop(
+                packetCaptureTarget.isValid()
+                && packetCaptureTarget.toBool());
             return;
         }
         const auto failure = ProtonVpnKde::classifyBackendCallFailure(
@@ -311,6 +337,10 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
         }
         if (packetCaptureTarget.isValid()) {
             refresh();
+            if (packetCaptureTarget.toBool()
+                && m_packetCaptureStopRequested) {
+                dispatchPendingPacketCaptureStop(true);
+            }
         }
         dispatchPendingPacketCaptureStop();
         return;
@@ -318,17 +348,39 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
     if (!connectionTarget.isEmpty()) {
         emit connectionOperationFinished(connectionTarget, true, {});
     }
+    if (packetCaptureTarget.isValid()) {
+        m_busy = false;
+        if (packetCaptureTarget.toBool() && m_packetCaptureStopRequested) {
+            dispatchPendingPacketCaptureStop(true);
+        } else if (!packetCaptureTarget.toBool() && m_shutdownPending) {
+            m_packetCaptureActive = false;
+            m_packetCaptureExpectedActive.reset();
+            m_packetCaptureError.clear();
+            m_packetCaptureStopRequested = false;
+            emit snapshotChanged();
+            completeShutdownIfSafe();
+        }
+    }
     refresh();
 }
 
 void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher)
 {
-    const bool current = backendReplyIsCurrent(watcher);
+    const QString secretMethod = watcher->property("secretMethod").toString();
+    const bool npsOperation = secretMethod
+        == QString::fromLatin1(
+            ProtonVpnKde::DBusContract::Backend::Method::submitNpsSurvey);
+    const bool current = npsOperation
+        ? sessionReplyIsCurrent(watcher) : backendReplyIsCurrent(watcher);
     const QString connectionTarget =
         watcher->property("connectionTargetState").toString();
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
     if (!current) {
+        if (npsOperation) {
+            finishNpsSurveySubmission(
+                false, tr("The Proton account session changed"));
+        }
         return;
     }
     if (reply.isError()) {
@@ -341,6 +393,9 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
                     connectionTarget, false, m_message);
             }
             scheduleSnapshotRefreshRetry();
+            if (npsOperation) {
+                finishNpsSurveySubmission(false, m_message);
+            }
             return;
         }
         const auto failure = ProtonVpnKde::classifyBackendCallFailure(
@@ -362,10 +417,16 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
             emit connectionOperationFinished(
                 connectionTarget, false, m_message);
         }
+        if (npsOperation) {
+            finishNpsSurveySubmission(false, m_message);
+        }
         return;
     }
     if (!connectionTarget.isEmpty()) {
         emit connectionOperationFinished(connectionTarget, true, {});
+    }
+    if (npsOperation) {
+        finishNpsSurveySubmission(true, {});
     }
     refresh();
 }

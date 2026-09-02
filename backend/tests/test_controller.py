@@ -173,6 +173,18 @@ class BlockingSessionReadAdapter(DemoCoreAdapter):
         return await super().take_pending_nps_survey()
 
 
+class BlockingNpsSubmissionAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__(nps_survey_available=True)
+        self.submission_started = asyncio.Event()
+        self.release_submission = asyncio.Event()
+
+    async def submit_nps_survey(self, response: NpsSurveyResponse) -> None:
+        self.submission_started.set()
+        await self.release_submission.wait()
+        await super().submit_nps_survey(response)
+
+
 class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.controller = BackendController(DemoCoreAdapter())
@@ -332,6 +344,21 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaisesRegex(ValueError, "0 through 10"):
             await controller.submit_nps_survey("11", "", "submit")
+
+    async def test_late_nps_submission_is_rejected_after_logout(self):
+        adapter = BlockingNpsSubmissionAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        submission = asyncio.create_task(
+            controller.submit_nps_survey("9", "Works well on Plasma", "submit")
+        )
+        await adapter.submission_started.wait()
+        await controller.logout()
+        adapter.release_submission.set()
+
+        with self.assertRaisesRegex(RuntimeError, "session changed"):
+            await submission
 
     def test_support_report_rejects_invalid_or_oversized_fields(self):
         with self.assertRaisesRegex(ValueError, "valid email"):

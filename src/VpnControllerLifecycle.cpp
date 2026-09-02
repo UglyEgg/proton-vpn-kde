@@ -36,7 +36,7 @@ void VpnController::restartBackend()
         || m_authState == QStringLiteral("settings_unavailable")
         || m_authState == QStringLiteral("protection_unknown")
         || m_state == QStringLiteral("unresponsive");
-    if (m_ready && !recoveryRequired) {
+    if (ready() && !recoveryRequired) {
         return;
     }
     m_message = tr("Restarting the Proton backend service…");
@@ -103,10 +103,14 @@ void VpnController::disconnectBackendSignals()
 void VpnController::onServiceRegistered(const QString &)
 {
     m_snapshotError.clear();
+    m_snapshotRestartAllowed = false;
     m_packetCaptureError.clear();
     m_packetCaptureExpectedActive.reset();
+    ++m_packetCaptureOperationGeneration;
     m_packetCaptureOperationPending = false;
     m_packetCaptureStopRequested = false;
+    ++m_locationRequestGeneration;
+    m_locationsBusy = false;
     const auto identity = ProtonVpnKde::verifyBackendIdentity(
         QDBusConnection::sessionBus(), QString::fromLatin1(BackendDbus::serviceName));
     if (!identity.trusted) {
@@ -146,8 +150,10 @@ void VpnController::onServiceUnregistered(const QString &)
         ++m_sessionGeneration;
     }
     m_loggedIn = false;
+    ++m_locationRequestGeneration;
     m_snapshotRefreshPending = false;
     m_snapshotError.clear();
+    m_snapshotRestartAllowed = false;
     m_authState = QStringLiteral("signed_out");
     m_accountName.clear();
     m_planTitle.clear();
@@ -178,6 +184,7 @@ void VpnController::onServiceUnregistered(const QString &)
     m_packetCaptureActive = false;
     m_packetCaptureError.clear();
     m_packetCaptureExpectedActive.reset();
+    ++m_packetCaptureOperationGeneration;
     m_packetCaptureOperationPending = false;
     m_packetCaptureStopRequested = false;
     m_coreMemoryOptimized = false;
@@ -207,6 +214,8 @@ void VpnController::onServiceUnregistered(const QString &)
     m_serverLoadsError.clear();
     m_npsSurveyChecked = false;
     m_npsSurveyAvailable = false;
+    finishNpsSurveySubmission(
+        false, tr("The Proton backend service stopped"));
     emit npsSurveyChanged();
     m_settings->reset(tr("The Proton backend service stopped"));
     m_splitTunneling->reset(tr("The Proton backend service stopped"));
@@ -215,6 +224,7 @@ void VpnController::onServiceUnregistered(const QString &)
         emit locationsChanged();
     }
     emit snapshotChanged();
+    completeShutdownIfSafe();
     scheduleClientRegistrationRetry();
 }
 

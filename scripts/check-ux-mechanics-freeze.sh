@@ -62,6 +62,8 @@ while IFS= read -r path; do
             ;;
         CMakeLists.txt|backend/pyproject.toml|\
         backend/proton_vpn_kde_backend/__init__.py|\
+        backend/proton_vpn_kde_backend/controller.py|\
+        backend/tests/test_controller.py|\
         packaging/fedora/proton-vpn-kde.spec|\
         src/VpnController.cpp|src/VpnController.h|\
         src/VpnControllerActions.cpp|\
@@ -86,7 +88,7 @@ while IFS= read -r path; do
 done <<<"$changed_files"
 
 if ((${#violations[@]} > 0)); then
-    echo "0.13 is presentation-only, but mechanics-owned files changed:" >&2
+    echo "Files outside the reviewed 0.13 change boundary changed:" >&2
     printf '  %s\n' "${violations[@]}" >&2
     echo "Move behavioral work to a separate release or deliberately rebaseline after review." >&2
     exit 1
@@ -100,20 +102,24 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
+    "8031d5d35e6121235bafa46c01578d5a0bb724f6779063c9778ee69e882c3b12" \
+    "backend session-fencing exception" \
+    backend/proton_vpn_kde_backend/controller.py backend/tests/test_controller.py
+assert_diff_hash \
     "ffa9da88a9be1301863d18e68e0c433f3233f9daa274bd124681f4297d938584" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "f2e9f90d5dd7d222d673cf0c720ca51e45f1e507542745897fb7a1b8658f06f8" \
+    "60ceb7dc68445972d8de55e6eab07840e81125ce1f351851bb3e9f818c1fa0d6" \
     "frontend presentation contract" \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
     src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
     src/VpnControllerSettings.cpp src/VpnControllerSnapshot.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp tests/SignInPresentationTest.cpp
 assert_diff_hash \
-    "dc0c695af557d693c68be0aad7a71b04e3f59c0031c0c84b390de37d6104109c" \
+    "65e6f5391c04b8687a55e8119dd02190a8181a03eea8083083af4dad3202c26b" \
     "QML presentation" qml
 
 qml_operation_hash="$(
@@ -125,7 +131,7 @@ qml_operation_hash="$(
         | cut -d' ' -f1
 )"
 expected_qml_operation_hash=\
-"15f45e3eb0119dee4e23a913b87847c38d4b755ba349e32db638771a75a5bd75"
+"0b2fa22a94663d4f93d98f9ab62e0e565ff7e16d8f13041485cbd7205bbc5d8f"
 if [[ "$qml_operation_hash" != "$expected_qml_operation_hash" ]]; then
     echo "The reviewed 0.13 QML controller-operation inventory changed:" >&2
     printf '  expected %s\n  actual   %s\n' \
@@ -133,4 +139,4 @@ if [[ "$qml_operation_hash" != "$expected_qml_operation_hash" ]]; then
     exit 1
 fi
 
-echo "0.13 UX mechanics freeze matches accepted baseline $baseline_commit"
+echo "0.13 change boundary matches accepted baseline $baseline_commit plus exact reviewed deltas"

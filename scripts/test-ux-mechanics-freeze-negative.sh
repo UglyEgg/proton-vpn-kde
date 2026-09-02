@@ -9,6 +9,7 @@ fixture_root="$(mktemp -d)"
 fixture_dir="$fixture_root/repository"
 feedback_fixture_dir="$fixture_root/feedback-repository"
 busy_fixture_dir="$fixture_root/busy-repository"
+controller_fixture_dir="$fixture_root/controller-repository"
 trap 'rm -rf -- "$fixture_root"' EXIT
 
 git clone --quiet --no-hardlinks "$project_dir" "$fixture_dir"
@@ -35,6 +36,31 @@ if ! rg -q 'QML presentation delta changed' "$gate_output"; then
 fi
 
 echo "The mechanics gate rejects changed QML operation arguments"
+
+git clone --quiet --no-hardlinks "$project_dir" "$controller_fixture_dir"
+sed -i \
+    's/m_packetCaptureStopRequested = true;/m_packetCaptureStopRequested = false;/' \
+    "$controller_fixture_dir/src/VpnControllerActions.cpp"
+if rg -q 'm_packetCaptureStopRequested = true;' \
+        "$controller_fixture_dir/src/VpnControllerActions.cpp"; then
+    echo "Unable to construct the controller-state negative fixture" >&2
+    exit 1
+fi
+
+controller_output="$fixture_root/controller-output"
+if "$controller_fixture_dir/scripts/check-ux-mechanics-freeze.sh" \
+        >"$controller_output" 2>&1; then
+    echo "The mechanics gate accepted changed capture state ownership" >&2
+    exit 1
+fi
+if ! rg -q 'frontend presentation contract delta changed' \
+        "$controller_output"; then
+    echo "The controller-state mechanics gate failed for an unexpected reason" >&2
+    sed -n '1,120p' "$controller_output" >&2
+    exit 1
+fi
+
+echo "The mechanics gate rejects changed controller state ownership"
 
 git clone --quiet --no-hardlinks "$project_dir" "$feedback_fixture_dir"
 perl -0pi -e \

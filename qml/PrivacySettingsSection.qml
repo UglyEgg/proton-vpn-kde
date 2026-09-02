@@ -27,6 +27,7 @@ SectionCard {
             checked: vpnController.crashReportSubmissionEnabled
                      && vpnSettings.anonymousCrashReports
             enabled: vpnController.crashReportSubmissionEnabled
+                     && vpnController.ready
                      && vpnSettings.loaded && !vpnSettings.busy
             onClicked: vpnController.updateSetting("anonymousCrashReports", checked)
         }
@@ -59,7 +60,8 @@ SectionCard {
             Controls.Button {
                 text: qsTr("Browse…")
                 icon.name: "folder-open"
-                enabled: !vpnController.packetCaptureActive
+                enabled: vpnController.ready
+                         && !vpnController.packetCaptureActive
                 onClicked: browseRequested()
             }
 
@@ -72,8 +74,12 @@ SectionCard {
                            : "media-record"
                 highlighted: vpnController.packetCaptureActive
                 enabled: !vpnController.busy
-                         && (vpnController.packetCaptureActive
-                             || vpnController.state === "connected")
+                         && ((vpnController.packetCaptureActive
+                              && vpnController.backendAvailable
+                              && vpnController.loggedIn)
+                             || (!vpnController.packetCaptureActive
+                                 && vpnController.ready
+                                 && vpnController.state === "connected"))
                 onClicked: {
                     if (vpnController.packetCaptureActive) {
                         vpnController.stopPacketCapture()

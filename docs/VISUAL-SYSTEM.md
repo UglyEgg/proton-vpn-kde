@@ -136,10 +136,11 @@ names and descriptions, focus-visible tooltips, and mirrored focusable rows
 guarded by the source checks above.
 
 The 0.13 release also carries a CI mechanics-freeze gate. It compares runtime,
-service, backend, integration, and Proton-overlay paths with the accepted 0.12.0
-revision. Narrow presentation-facing state in the native controller is admitted
-only as an exact-reviewed delta. A presentation change outside those sealed
-paths must leave the UX release and receive an independent behavioral review.
+service, integration, and Proton-overlay paths with the accepted 0.12.0
+revision. Narrow presentation-facing state and review-discovered ownership or
+recovery corrections are admitted only as exact-hashed, regression-tested
+deltas. Any other change outside those sealed paths must leave the UX release
+and receive an independent behavioral review.
 
 The diagnostics smoke runs against the non-networking demo backend on an
 isolated session bus. Missing offscreen-only Plasma services may produce a

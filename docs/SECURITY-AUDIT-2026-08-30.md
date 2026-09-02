@@ -15,13 +15,14 @@ desktop-action-broker, and inherited native-loader environment defects. The
 historical section below records each remediation and the final gate without
 presenting those closed findings as current vulnerabilities.
 
-The unreleased `0.13.0` branch is a presentation-only redesign over those
-accepted mechanics. Its first fresh review pass found three release-process or
-presentation defects: hidden backend recovery guidance, a fail-open mechanics
-freeze, and an Inspector-retention probe that no longer followed the real
-navigation lifecycle. Those findings are being remediated and do not change
-Proton Core or VPN networking behavior. **Version `0.13.0` remains explicitly
-not release-ready until all six isolated reviewers pass one exact remediated
+The unreleased `0.13.0` branch is a presentation-led redesign over those
+accepted mechanics. Review has also admitted narrowly scoped recovery and
+asynchronous state-ownership corrections where the new presentation exposed a
+real defect. These corrections do not alter Proton Core, VPN protocols,
+NetworkManager behavior, or the authentication protocol.
+
+**Version `0.13.0` remains explicitly not release-ready until all six isolated
+reviewers pass one exact remediated
 commit, its binary/source package set repeats the release battery, live
 acceptance succeeds, and the planned local soak completes.**
 
@@ -86,6 +87,19 @@ posture still named `0.12.0`. HPC/Performance found that the Inspector-retention
 probe reconstructed Overview rather than exercising the shipped push/back
 lifecycle. The remediated candidate must restart all six reviews; no result
 from this superseded pass counts toward release approval.
+
+A second candidate at `a109d3b` restarted the battery. Hostile, Subtractive,
+and Entropy independently found actionable state-ownership defects before the
+remaining three legs ran: recoverable snapshot failures lacked a reliable
+restart path; malformed snapshots blocked a risk-reducing packet-capture Stop;
+application or delayed page teardown could leave a capture running or stop a
+replacement page's capture; signal-before-reply ordering could transfer capture
+state to an older watcher; and location or protected survey work could outlive
+the account session that created it. Entropy also found that the mechanics gate
+claimed baseline equality while admitting exact-reviewed deltas. That partial
+pass is superseded and contributes no release approval. The next candidate must
+restart all six reviewers after its focused regressions and release-boundary
+wording are sealed to one clean commit.
 
 ## Historical 0.12.0 isolated review gate
 

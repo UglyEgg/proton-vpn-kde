@@ -19,6 +19,7 @@ Kirigami.ScrollablePage {
     property var splitSettings: vpnController.splitTunneling
     property var customDns: vpnController.customDns
     property var packetCaptureFolderDialog: null
+    property bool removalPrepared: false
     readonly property int selectedIntent: settingsIntentBar.currentIndex
 
     component SettingsIntentTab: Controls.TabButton {
@@ -49,6 +50,18 @@ Kirigami.ScrollablePage {
         packetCaptureFolderDialog.open()
     }
 
+    function prepareForRemoval() {
+        if (removalPrepared) {
+            return
+        }
+        removalPrepared = true
+        vpnController.stopPacketCapture()
+        if (packetCaptureFolderDialog !== null) {
+            packetCaptureFolderDialog.destroy()
+            packetCaptureFolderDialog = null
+        }
+    }
+
     Controls.Dialog {
         id: updateChannelDialog
         property bool enableBeta: false
@@ -69,12 +82,7 @@ Kirigami.ScrollablePage {
         onAccepted: updateChannel.setBetaEnabled(enableBeta)
     }
 
-    Component.onDestruction: {
-        vpnController.stopPacketCapture()
-        if (packetCaptureFolderDialog !== null) {
-            packetCaptureFolderDialog.destroy()
-        }
-    }
+    Component.onDestruction: prepareForRemoval()
 
     Component.onCompleted: {
         if (vpnController.ready && vpnController.loggedIn
@@ -243,7 +251,6 @@ Kirigami.ScrollablePage {
                 spacing: Kirigami.Units.largeSpacing
 
                 PrivacySettingsSection {
-                    enabled: vpnController.ready
                     vpnController: page.controller
                     vpnSettings: page.vpnSettings
                     appSettings: page.integrationSettings

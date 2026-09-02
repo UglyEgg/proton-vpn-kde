@@ -261,6 +261,8 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, window, [window] {
         QMetaObject::invokeMethod(window, "prepareForQuit");
     });
+    QObject::connect(&controller, &VpnController::shutdownReady,
+                     &app, [] { QCoreApplication::quit(); });
     if (visualSnapshot) {
         const int requestedDelay = qEnvironmentVariableIntValue(
             "PROTON_KDE_SNAPSHOT_DELAY_MS");

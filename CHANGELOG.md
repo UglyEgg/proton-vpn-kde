@@ -5,7 +5,7 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
-- Begin the 0.13.0 presentation-only cycle with a documented progressive-
+- Begin the 0.13.0 presentation-led cycle with a documented progressive-
   disclosure model grounded in native Qt 6, Kirigami, and system theming.
 - Freeze backend, networking, service, integration, and Proton-overlay mechanics
   against the accepted 0.12.0 revision in CI. Admit only exact-reviewed,
@@ -67,7 +67,16 @@ All notable user-visible changes are recorded here. The project follows
   cannot be mistaken for newly confirmed state.
 - Give packet-capture validation, start, and stop failures a dedicated result
   channel. Keep failures visible in Diagnostics and globally after navigation,
-  and finish a deferred stop when Diagnostics closes during a pending start.
+  finish a deferred stop when Diagnostics closes during a pending start, and
+  defer application exit until an accepted capture start has been stopped.
+- Preserve operation ownership when packet-capture signals arrive before method
+  replies, keep risk-reducing Stop available after a malformed snapshot, and
+  offer service restart for recoverable snapshot failures while treating an
+  unsupported interface version as an update or reinstall condition.
+- Fence browser replies and protected NPS submissions to the account session
+  that created them. Report survey success only after the backend accepts it,
+  and retire old page cleanup synchronously before a replacement Settings page
+  can start a new capture.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

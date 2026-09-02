@@ -141,6 +141,10 @@ bool VpnController::snapshotRefreshPending() const
 }
 bool VpnController::snapshotHealthy() const { return m_snapshotError.isEmpty(); }
 QString VpnController::snapshotError() const { return m_snapshotError; }
+bool VpnController::snapshotRestartAllowed() const
+{
+    return m_snapshotRestartAllowed && backendRestartAllowed();
+}
 bool VpnController::locationsBusy() const
 {
     return m_locationsBusy || m_countryRefreshPending
@@ -163,6 +167,10 @@ QString VpnController::serverGroupsError() const
 QString VpnController::serversError() const { return m_serversError; }
 QString VpnController::serverLoadsError() const { return m_serverLoadsError; }
 bool VpnController::npsSurveyAvailable() const { return m_npsSurveyAvailable; }
+bool VpnController::npsSurveySubmissionPending() const
+{
+    return m_npsSurveySubmissionPending;
+}
 bool VpnController::supportReportSubmissionEnabled() const
 {
     return PROTON_VPN_KDE_SUPPORT_REPORT_SUBMISSION_ENABLED != 0;
@@ -185,6 +193,7 @@ bool VpnController::streaming() const { return m_streaming; }
 bool VpnController::smartRouting() const { return m_smartRouting; }
 bool VpnController::packetCaptureActive() const { return m_packetCaptureActive; }
 QString VpnController::packetCaptureError() const { return m_packetCaptureError; }
+bool VpnController::shutdownPending() const { return m_shutdownPending; }
 bool VpnController::coreMemoryOptimized() const { return m_coreMemoryOptimized; }
 QString VpnController::coreVersion() const { return m_coreVersion; }
 QString VpnController::message() const { return m_message; }
@@ -236,6 +245,14 @@ void VpnController::stampBackendRequest(
     watcher->setProperty("backendDestination", m_backendDestination);
 }
 
+void VpnController::stampSessionRequest(
+    QDBusPendingCallWatcher *watcher) const
+{
+    stampBackendRequest(watcher);
+    watcher->setProperty("sessionGeneration",
+                         QVariant::fromValue<qulonglong>(m_sessionGeneration));
+}
+
 bool VpnController::backendReplyIsCurrent(
     const QDBusPendingCallWatcher *watcher) const
 {
@@ -244,6 +261,14 @@ bool VpnController::backendReplyIsCurrent(
             == m_backendGeneration
         && watcher->property("backendDestination").toString()
             == m_backendDestination;
+}
+
+bool VpnController::sessionReplyIsCurrent(
+    const QDBusPendingCallWatcher *watcher) const
+{
+    return backendReplyIsCurrent(watcher)
+        && watcher->property("sessionGeneration").toULongLong()
+            == m_sessionGeneration;
 }
 
 bool VpnController::backendSignalIsCurrent() const
@@ -273,10 +298,12 @@ void VpnController::refresh()
 
 void VpnController::submitNpsSurvey(int score, const QString &comments)
 {
-    if (!snapshotHealthy() || !m_npsSurveyAvailable || score < 0 || score > 10) {
+    if (!snapshotHealthy() || !m_npsSurveyAvailable
+        || m_npsSurveySubmissionPending || score < 0 || score > 10) {
         return;
     }
     m_npsSurveyAvailable = false;
+    m_npsSurveySubmissionPending = true;
     emit npsSurveyChanged();
     callSecretOperation(
         QString::fromLatin1(BackendDbus::Method::submitNpsSurvey),
@@ -288,7 +315,8 @@ void VpnController::submitNpsSurvey(int score, const QString &comments)
 
 void VpnController::dismissNpsSurvey()
 {
-    if (!snapshotHealthy() || !m_npsSurveyAvailable) {
+    if (!snapshotHealthy() || !m_npsSurveyAvailable
+        || m_npsSurveySubmissionPending) {
         return;
     }
     m_npsSurveyAvailable = false;
@@ -314,7 +342,7 @@ void VpnController::loadPendingNpsSurvey()
         QString::fromLatin1(BackendDbus::Method::getPendingNpsSurvey));
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 10000), this);
-    stampBackendRequest(watcher);
+    stampSessionRequest(watcher);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handlePendingNpsSurveyReply);
 }
@@ -322,7 +350,7 @@ void VpnController::loadPendingNpsSurvey()
 void VpnController::handlePendingNpsSurveyReply(
     QDBusPendingCallWatcher *watcher)
 {
-    const bool current = backendReplyIsCurrent(watcher);
+    const bool current = sessionReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
     if (!current || reply.isError() || !m_loggedIn) {
@@ -341,4 +369,15 @@ void VpnController::handlePendingNpsSurveyReply(
         m_npsSurveyAvailable = available;
         emit npsSurveyChanged();
     }
+}
+
+void VpnController::finishNpsSurveySubmission(bool success,
+                                              const QString &message)
+{
+    if (!m_npsSurveySubmissionPending) {
+        return;
+    }
+    m_npsSurveySubmissionPending = false;
+    emit npsSurveyChanged();
+    emit npsSurveySubmissionFinished(success, message);
 }
