@@ -184,7 +184,7 @@ Kirigami.ScrollablePage {
                         onClicked: vpnController.removeCustomDnsServer(
                             serverDelegate.modelData.address)
 
-                        Controls.ToolTip.visible: hovered
+                        Controls.ToolTip.visible: hovered || activeFocus
                         Controls.ToolTip.text: text
                     }
                 }

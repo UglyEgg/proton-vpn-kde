@@ -986,6 +986,17 @@ if(BUILD_TESTING)
             RUN_SERIAL TRUE
             TIMEOUT 45
         )
+        add_test(
+            NAME qml-visual-matrix
+            COMMAND
+                ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-qml-visual-matrix.sh
+                ${CMAKE_CURRENT_BINARY_DIR}
+                ${CMAKE_CURRENT_BINARY_DIR}/visual-matrix
+        )
+        set_tests_properties(qml-visual-matrix PROPERTIES
+            RUN_SERIAL TRUE
+            TIMEOUT 60
+        )
     endif()
 endif()
 

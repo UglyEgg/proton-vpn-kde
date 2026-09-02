@@ -41,6 +41,7 @@ scripts/check-python-analysis.sh
 scripts/check-native-sanitizers.sh
 scripts/check-clang-tidy.sh
 scripts/measure-inspector-retention.sh build
+scripts/check-qml-visual-matrix.sh build build/visual-matrix
 cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
 cmake --build build
 ctest --test-dir build --output-on-failure

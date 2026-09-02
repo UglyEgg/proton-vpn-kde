@@ -22,6 +22,16 @@ if rg -n '(NumberAnimation|ColorAnimation|PropertyAnimation)\s*\{' "$qml_dir"; t
     exit 1
 fi
 
+if rg -n 'Controls\.ToolTip\.visible:\s*hovered\s*$' "$qml_dir"; then
+    echo "Tooltips on keyboard-focusable controls must appear for active focus" >&2
+    exit 1
+fi
+
+if rg -n '(MouseArea|TapHandler)\s*\{' "$qml_dir"; then
+    echo "Use keyboard- and accessibility-aware native controls for interaction" >&2
+    exit 1
+fi
+
 if rg -n '(Timer|WorkerScript|WebSocket)\s*\{' \
         "$qml_dir/ConnectionInspectorPage.qml"; then
     echo "The on-demand Connection Inspector must not collect in the background" >&2

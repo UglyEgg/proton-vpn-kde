@@ -116,9 +116,24 @@ recognizable under any global color scheme.
 `qml-diagnostics-smoke` opens every primary and nested page and rejects
 application-authored QML diagnostics. It also exercises graphical home
 navigation, native back-stack return, and connected-only inline facts.
-`qml-layout-variants-smoke` repeats that path at the compact minimum, at 1.5
-scale, and in right-to-left mode.
-`qml-ui-hygiene` guards the theme and directionality rules above.
+`qml-layout-variants-smoke` repeats that path at explicit wide and compact
+viewports, at 1.5 scale, and in right-to-left mode. `qml-ui-hygiene` guards
+semantic theme use, mirrored navigation, focus-visible tooltips, accessible
+native interaction controls, and the absence of custom motion that could
+bypass Plasma's reduced-motion preference.
+
+`scripts/check-qml-visual-matrix.sh` retains a six-image release-review set:
+wide light Connection, compact dark server discovery, scaled Settings, RTL
+Help & information, a contrast-stress two-factor prompt, and reduced-motion
+Connection. The contrast-stress palette is deliberately synthetic because
+Plasma does not guarantee that a named high-contrast scheme is installed; it
+uses the KDE platform theme with black backgrounds, white text, bright semantic
+status colors, and explicit focus and hover colors. The matrix validates every
+PNG header and minimum requested viewport before reporting success and runs as
+the `qml-visual-matrix` CTest release gate. Keyboard
+and screen-reader review uses the same native control text, explicit accessible
+names and descriptions, focus-visible tooltips, and mirrored focusable rows
+guarded by the source checks above.
 
 The 0.13 release also carries a CI mechanics-freeze gate. It compares runtime,
 service, backend, native-controller, integration, and Proton-overlay paths with
@@ -144,5 +159,7 @@ theme. The `settings-protection`, `settings-plasma`, and
 `settings-diagnostics` page names select each non-default Settings intent for
 visual review. The `sign-in` page uses the demo backend's safe logged-out mode;
 `sign-in-two-factor` stops the sealed-FD demo authentication exercise at its
-two-factor challenge. Capture mode cannot create or alter a real VPN
-connection.
+two-factor challenge. `PROTON_KDE_CAPTURE_HIGH_CONTRAST=1` applies the
+synthetic contrast-stress palette, while
+`PROTON_KDE_CAPTURE_REDUCED_MOTION=1` sets Plasma's animation-duration factor
+to zero. Capture mode cannot create or alter a real VPN connection.

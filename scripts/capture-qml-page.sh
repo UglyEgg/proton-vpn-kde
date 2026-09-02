@@ -77,6 +77,69 @@ if [[ -n "$capture_color_scheme" ]]; then
     fi
 fi
 
+if [[ "${PROTON_KDE_CAPTURE_HIGH_CONTRAST:-0}" == "1" ]]; then
+    if [[ ! -f "$staging_dir/config/kdeglobals" ]]; then
+        contrast_base="/usr/share/color-schemes/BreezeDark.colors"
+        if [[ ! -f "$contrast_base" ]]; then
+            echo "Contrast fixture base scheme not found: $contrast_base" >&2
+            exit 2
+        fi
+        mkdir -p -- "$staging_dir/config"
+        cp -- "$contrast_base" "$staging_dir/config/kdeglobals"
+    fi
+    for color_group in Window View Button Tooltip Complementary Header; do
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key BackgroundNormal "0,0,0"
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key BackgroundAlternate "24,24,24"
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key ForegroundNormal "255,255,255"
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key ForegroundInactive "210,210,210"
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key ForegroundLink "0,255,255"
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key ForegroundNegative "255,128,128"
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key ForegroundNeutral "255,255,0"
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key ForegroundPositive "128,255,128"
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key DecorationFocus "0,255,255"
+        XDG_CONFIG_HOME="$staging_dir/config" \
+            kwriteconfig6 --file kdeglobals --group "Colors:$color_group" \
+            --key DecorationHover "255,255,0"
+    done
+    XDG_CONFIG_HOME="$staging_dir/config" \
+        kwriteconfig6 --file kdeglobals --group Colors:Selection \
+        --key BackgroundNormal "0,80,160"
+    XDG_CONFIG_HOME="$staging_dir/config" \
+        kwriteconfig6 --file kdeglobals --group Colors:Selection \
+        --key ForegroundNormal "255,255,255"
+    XDG_CONFIG_HOME="$staging_dir/config" \
+        kwriteconfig6 --file kdeglobals --group General \
+        --key ColorScheme "PlasmaVPNContrastStress"
+    if [[ -z "${QT_QPA_PLATFORMTHEME:-}" ]]; then
+        capture_platform_theme="kde"
+    fi
+fi
+
+if [[ "${PROTON_KDE_CAPTURE_REDUCED_MOTION:-0}" == "1" ]]; then
+    mkdir -p -- "$staging_dir/config"
+    XDG_CONFIG_HOME="$staging_dir/config" \
+        kwriteconfig6 --file kdeglobals --group KDE \
+        --key AnimationDurationFactor 0
+fi
+
 if [[ "$page_name" == *"-connected" ]]; then
     gdbus call --session \
         --dest quest.entropy.PlasmaVPN.Backend \
@@ -101,10 +164,12 @@ if [[ "$page_name" == *"-connected" ]]; then
 fi
 
 env \
+    GTK_USE_PORTAL=0 \
     QT_QPA_PLATFORM=offscreen \
     QT_QUICK_BACKEND=software \
     QT_QPA_PLATFORMTHEME="$capture_platform_theme" \
     QT_ACCESSIBILITY=0 \
+    QT_NO_XDG_DESKTOP_PORTAL=1 \
     XDG_CACHE_HOME="$staging_dir/cache" \
     XDG_CONFIG_HOME="$staging_dir/config" \
     PROTON_VPN_KDE_TEST_BACKEND_OWNER="$backend_owner" \

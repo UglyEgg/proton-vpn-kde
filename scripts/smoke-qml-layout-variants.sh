@@ -7,6 +7,10 @@ set -euo pipefail
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 build_dir="${1:-${PROTON_KDE_BUILD_DIR:-$project_dir/build}}"
 
+PROTON_KDE_DIAGNOSTIC_WIDTH=1280 \
+PROTON_KDE_DIAGNOSTIC_HEIGHT=720 \
+    "$project_dir/scripts/smoke-qml-diagnostics.sh" "$build_dir"
+
 PROTON_KDE_DIAGNOSTIC_WIDTH=480 \
 PROTON_KDE_DIAGNOSTIC_HEIGHT=640 \
     "$project_dir/scripts/smoke-qml-diagnostics.sh" "$build_dir"

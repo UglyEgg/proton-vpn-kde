@@ -178,7 +178,7 @@ Kirigami.ScrollablePage {
                         onClicked: vpnController.removeSplitTunnelingIpRange(
                             selectedIpRangeDelegate.modelData)
 
-                        Controls.ToolTip.visible: hovered
+                        Controls.ToolTip.visible: hovered || activeFocus
                         Controls.ToolTip.text: text
                     }
                 }
@@ -260,7 +260,7 @@ Kirigami.ScrollablePage {
                         onClicked: vpnController.setSplitTunnelingApplication(
                             selectedApplicationDelegate.modelData, false)
 
-                        Controls.ToolTip.visible: hovered
+                        Controls.ToolTip.visible: hovered || activeFocus
                         Controls.ToolTip.text: text
                     }
                 }
@@ -311,7 +311,7 @@ Kirigami.ScrollablePage {
             onClicked: vpnController.setSplitTunnelingApplication(
                 applicationDelegate.executable, checked)
 
-            Controls.ToolTip.visible: hovered
+            Controls.ToolTip.visible: hovered || activeFocus
             Controls.ToolTip.text:
                 applicationDelegate.applicationComment.length > 0
                 ? applicationDelegate.applicationComment + "\n"
