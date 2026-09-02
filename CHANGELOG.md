@@ -60,7 +60,8 @@ All notable user-visible changes are recorded here. The project follows
   identities. A delayed reply from an older same-backend attempt can no longer
   clear busy state, replace guidance, or complete the feedback owned by a
   newer retry; one controller signal now establishes that ownership for every
-  request origin.
+  request origin. Signing out also retires connection feedback, so a late
+  connection reply cannot surface guidance from the previous account state.
 - Distinguish failed country, search, location, server, and load reads from a
   valid empty server-browser result, with errors scoped to their owning view
   and cleared when that read is retried. Explain whether an empty exact-server
@@ -86,14 +87,19 @@ All notable user-visible changes are recorded here. The project follows
   safely behind an in-flight settings mutation, and process its reply on an
   independent operation generation. A later foreground request can no longer
   strand shutdown, and an authoritative idle snapshot now retires a
-  definitively rejected Start.
+  definitively rejected Start. Cleanup remains available in authentication,
+  settings, and protection recovery states while ordinary mutations stay
+  blocked pending backend restart.
 - Fence browser replies and protected NPS submissions to the account session
   that created them. Report survey success only after the backend accepts it,
   and retire old page cleanup synchronously before a replacement Settings page
   can start a new capture.
-- Serialize destructive NPS retrieval and submission with account transitions,
-  generation-fence both protected submission stages, and permit retry only
-  after a definitive same-session rejection. Completion-unknown submissions
+- Serialize destructive NPS retrieval and submission with account transitions
+  through a dedicated session-side-effect fence that does not invisibly block
+  connect or disconnect. Generation-fence both protected submission stages,
+  track dismissal until completion without reopening its dialog, and keep NPS
+  failures out of newer foreground guidance. Permit retry only after a
+  definitive same-session submission rejection. Completion-unknown submissions
   are reported through a dedicated backend error class and are never retried
   automatically, including when the official API accepts a side effect before
   its completion reply is lost.

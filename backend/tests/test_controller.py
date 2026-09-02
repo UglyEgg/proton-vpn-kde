@@ -81,9 +81,11 @@ class LoginRecordingAdapter(DemoCoreAdapter):
 class RecoveryMutationRecordingAdapter(DemoCoreAdapter):
     def __init__(self, auth_state: str):
         super().__init__(logged_in=False, kill_switch=2)
+        self._packet_capture_active = True
         self._auth_state = auth_state
         self._snapshot = self._build_snapshot(message="Restart required")
         self.auth_calls: list[str] = []
+        self.capture_stop_calls = 0
 
     async def login(self, username: str, password: str) -> None:
         self.auth_calls.append("login")
@@ -108,6 +110,10 @@ class RecoveryMutationRecordingAdapter(DemoCoreAdapter):
 
     async def disable_kill_switch_for_login(self) -> None:
         self.auth_calls.append("disable_kill_switch_for_login")
+
+    async def stop_packet_capture(self) -> None:
+        self.capture_stop_calls += 1
+        await super().stop_packet_capture()
 
 
 class BlockingSettingsAdapter(DemoCoreAdapter):
@@ -183,11 +189,16 @@ class BlockingNpsSubmissionAdapter(DemoCoreAdapter):
         super().__init__(nps_survey_available=True)
         self.submission_started = asyncio.Event()
         self.release_submission = asyncio.Event()
+        self.close_calls = 0
 
     async def submit_nps_survey(self, response: NpsSurveyResponse) -> None:
         self.submission_started.set()
         await self.release_submission.wait()
         await super().submit_nps_survey(response)
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        await super().close()
 
 
 class BlockingPacketCaptureAdapter(DemoCoreAdapter):
@@ -501,7 +512,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "0 through 10"):
             await controller.submit_nps_survey("11", "", "submit")
 
-    async def test_accepted_nps_submission_blocks_session_replacement(self):
+    async def test_accepted_nps_submission_serializes_session_replacement(self):
         adapter = BlockingNpsSubmissionAdapter()
         controller = BackendController(adapter)
         self.assertTrue(await controller.start())
@@ -511,17 +522,36 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         )
         await adapter.submission_started.wait()
 
-        with self.assertRaisesRegex(RuntimeError, "already in progress"):
-            await controller.logout()
+        logout = asyncio.create_task(controller.logout())
+        await asyncio.sleep(0)
+        self.assertFalse(logout.done())
         adapter.release_submission.set()
         await submission
+        await logout
 
         self.assertEqual(
             NpsSurveyResponse(score=9, comments="Works well on Plasma"),
             adapter.last_nps_response,
         )
-        await controller.logout()
         self.assertFalse(controller.snapshot.logged_in)
+
+    async def test_nps_submission_does_not_block_vpn_operations(self):
+        adapter = BlockingNpsSubmissionAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+        await controller.connect_fastest()
+
+        submission = asyncio.create_task(
+            controller.submit_nps_survey("9", "Works well on Plasma", "submit")
+        )
+        await adapter.submission_started.wait()
+
+        await controller.disconnect()
+        await controller.connect_fastest()
+        self.assertEqual("connected", controller.snapshot.state)
+
+        adapter.release_submission.set()
+        await submission
 
     async def test_nps_submission_waiting_behind_logout_has_no_side_effect(self):
         adapter = BlockingLogoutAdapter()
@@ -674,7 +704,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaisesRegex(RuntimeError, "session changed"):
                     await read_task
 
-    async def test_accepted_pending_nps_take_blocks_session_replacement(self):
+    async def test_accepted_pending_nps_take_serializes_session_replacement(self):
         adapter = BlockingSessionReadAdapter("nps")
         controller = BackendController(adapter)
         self.assertTrue(await controller.start())
@@ -683,13 +713,50 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             controller.get_pending_nps_survey_json()
         )
         await adapter.read_started.wait()
-        with self.assertRaisesRegex(RuntimeError, "already in progress"):
-            await controller.logout()
+        logout = asyncio.create_task(controller.logout())
+        await asyncio.sleep(0)
+        self.assertFalse(logout.done())
 
         adapter.release_read.set()
         self.assertIn('"available":true', await pending_survey)
-        await controller.logout()
+        await logout
         self.assertFalse(controller.snapshot.logged_in)
+
+    async def test_pending_nps_take_does_not_block_vpn_operations(self):
+        adapter = BlockingSessionReadAdapter("nps")
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        pending_survey = asyncio.create_task(
+            controller.get_pending_nps_survey_json()
+        )
+        await adapter.read_started.wait()
+
+        await controller.connect_fastest()
+        await controller.disconnect()
+        self.assertEqual("disconnected", controller.snapshot.state)
+
+        adapter.release_read.set()
+        self.assertIn('"available":true', await pending_survey)
+
+    async def test_vpn_operation_does_not_block_pending_nps_take(self):
+        adapter = CancellableOperationAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        connection = asyncio.create_task(controller.connect_fastest())
+        await adapter.started.wait()
+
+        self.assertIn(
+            '"available":false',
+            await asyncio.wait_for(
+                controller.get_pending_nps_survey_json(), timeout=1.0
+            ),
+        )
+
+        connection.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await connection
 
     async def test_pending_nps_take_waiting_behind_logout_has_no_side_effect(self):
         adapter = BlockingLogoutAdapter()
@@ -878,6 +945,10 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
                     with self.assertRaisesRegex(RuntimeError, "Restart the Proton"):
                         await operation(controller)
 
+            await controller.stop_packet_capture()
+            self.assertEqual(1, adapter.capture_stop_calls)
+            self.assertFalse(controller.snapshot.packet_capture_active)
+
             self.assertEqual([], adapter.auth_calls)
 
     async def test_logout_disables_kill_switch(self):
@@ -952,6 +1023,47 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         adapter.release_logout.set()
         await logout_task
+        await close_task
+        self.assertEqual(1, adapter.close_calls)
+
+    async def test_close_drains_an_accepted_session_side_effect(self):
+        adapter = BlockingNpsSubmissionAdapter()
+        controller = BackendController(adapter)
+        await controller.start()
+        submission = asyncio.create_task(
+            controller.submit_nps_survey("9", "Works well on Plasma", "submit")
+        )
+        await adapter.submission_started.wait()
+
+        close_task = asyncio.create_task(controller.close())
+        await asyncio.sleep(0)
+        self.assertFalse(close_task.done())
+        self.assertEqual(0, adapter.close_calls)
+
+        adapter.release_submission.set()
+        await submission
+        await close_task
+        self.assertEqual(1, adapter.close_calls)
+
+    async def test_close_rejects_a_queued_session_side_effect(self):
+        adapter = BlockingNpsSubmissionAdapter()
+        controller = BackendController(adapter)
+        await controller.start()
+        submission = asyncio.create_task(
+            controller.submit_nps_survey("9", "Works well on Plasma", "submit")
+        )
+        await adapter.submission_started.wait()
+        queued_read = asyncio.create_task(
+            controller.get_pending_nps_survey_json()
+        )
+        await asyncio.sleep(0)
+
+        close_task = asyncio.create_task(controller.close())
+        await asyncio.sleep(0)
+        adapter.release_submission.set()
+        await submission
+        with self.assertRaisesRegex(RuntimeError, "shutting down"):
+            await queued_read
         await close_task
         self.assertEqual(1, adapter.close_calls)
 

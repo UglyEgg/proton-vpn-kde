@@ -360,7 +360,8 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
         if (globalCurrent || (packetCaptureTarget.isValid() && captureCurrent)) {
             emit snapshotChanged();
         }
-        if (!connectionTarget.isEmpty() && connectionCurrent) {
+        if (!connectionTarget.isEmpty() && connectionCurrent
+            && foregroundCurrent) {
             emit connectionOperationFinished(
                 connectionGeneration, connectionTarget, false,
                 operationMessage);
@@ -381,7 +382,8 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
         }
         return;
     }
-    if (!connectionTarget.isEmpty() && connectionCurrent) {
+    if (!connectionTarget.isEmpty() && connectionCurrent
+        && foregroundCurrent) {
         emit connectionOperationFinished(
             connectionGeneration, connectionTarget, true, {});
     }
@@ -411,6 +413,8 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
     const quint64 npsGeneration =
         watcher->property("npsSubmissionGeneration").toULongLong();
     const bool npsSubmission = npsGeneration != 0;
+    const bool npsRetryAllowed =
+        watcher->property("npsRetryAllowed").toBool();
     const bool current = !secretMethod.isEmpty()
         ? sessionReplyIsCurrent(watcher) : backendReplyIsCurrent(watcher);
     const QString connectionTarget =
@@ -445,46 +449,45 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
                 == QString::fromLatin1(
                     ProtonVpnKde::DBusContract::Backend::Error::
                         npsCompletionUnknown);
-        if (transientSameOwnerFailure || npsCompletionUnknown) {
-            m_message = npsSubmission
-                ? tr("Survey submission completion is unknown; it will not be "
-                     "retried automatically")
-                : tr("The VPN operation is still completing; refreshing its state");
-            emit snapshotChanged();
-            if (!connectionTarget.isEmpty()) {
-                emit connectionOperationFinished(
-                    connectionGeneration, connectionTarget, false, m_message);
-            }
+        if (npsSubmission
+            && (transientSameOwnerFailure || npsCompletionUnknown)) {
+            const QString operationMessage = tr(
+                "Survey submission completion is unknown; it will not be "
+                "retried automatically");
             if (transientSameOwnerFailure) {
                 scheduleSnapshotRefreshRetry();
             }
-            if (npsSubmission) {
-                finishNpsSurveySubmission(
-                    npsGeneration, false, m_message, false);
-            }
+            finishNpsSurveySubmission(
+                npsGeneration, false, operationMessage, false);
             return;
         }
         const auto failure = ProtonVpnKde::classifyBackendCallFailure(
             reply.error().type(), reply.error().name());
+        QString operationMessage;
         if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
             setBackendAvailable(false);
-            m_message = tr("The Proton backend service stopped");
+            operationMessage = tr("The Proton backend service stopped");
         } else if (failure
                    == ProtonVpnKde::BackendCallFailure::InvalidSecretPayload) {
-            m_message = tr("Protected authentication data was rejected; try again");
+            operationMessage =
+                tr("Protected authentication data was rejected; try again");
         } else if (ProtonVpnKde::isSafeBackendAuthoredMessage(
                        reply.error().name(), reply.error().message())) {
-            m_message = reply.error().message();
+            operationMessage = reply.error().message();
         } else {
-            m_message = tr("The VPN operation could not be completed");
+            operationMessage =
+                tr("The VPN operation could not be completed");
         }
+        if (npsSubmission) {
+            finishNpsSurveySubmission(
+                npsGeneration, false, operationMessage, npsRetryAllowed);
+            return;
+        }
+        m_message = operationMessage;
         emit snapshotChanged();
         if (!connectionTarget.isEmpty()) {
             emit connectionOperationFinished(
                 connectionGeneration, connectionTarget, false, m_message);
-        }
-        if (npsSubmission) {
-            finishNpsSurveySubmission(npsGeneration, false, m_message);
         }
         return;
     }

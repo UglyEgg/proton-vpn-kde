@@ -41,6 +41,11 @@ Kirigami.InlineMessage {
     }
 
     function reconcileSnapshot() {
+        if (!controller.loggedIn) {
+            awaitingResult = false
+            clearCompletedMessage()
+            return
+        }
         if (messageActive
                 && (expectedStateReached()
                     || controller.state === "error"

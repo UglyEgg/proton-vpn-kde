@@ -184,9 +184,11 @@ class BackendController:
         self._split_tunneling_listeners: list[SplitTunnelingCallback] = []
         self._custom_dns_listeners: list[CustomDnsCallback] = []
         self._operation_lock = asyncio.Lock()
+        self._session_side_effect_lock = asyncio.Lock()
         self._session_epoch = 0
         self._closing = False
         self._active_operation_task: asyncio.Task[None] | None = None
+        self._active_session_side_effect_task: asyncio.Task[object] | None = None
         self._packet_capture_start_task: asyncio.Task[None] | None = None
         self._shutdown_drain_seconds = max(0.0, shutdown_drain_seconds)
 
@@ -308,7 +310,7 @@ class BackendController:
 
     async def get_pending_nps_survey_json(self) -> str:
         session_epoch = self._current_session_epoch()
-        async with self._serialized_operation():
+        async with self._serialized_session_side_effect():
             self._require_current_session(session_epoch)
             available = await self._adapter.take_pending_nps_survey()
             self._require_current_session(session_epoch)
@@ -323,7 +325,7 @@ class BackendController:
     ) -> None:
         session_epoch = self._current_session_epoch()
         response = validate_nps_survey_response(score, comments, response_type)
-        async with self._serialized_operation():
+        async with self._serialized_session_side_effect():
             self._require_current_session(session_epoch)
             await self._adapter.submit_nps_survey(response)
             self._require_current_session(session_epoch)
@@ -569,7 +571,7 @@ class BackendController:
                 self._packet_capture_start_task = None
 
     async def stop_packet_capture(self) -> None:
-        self._require_ready()
+        self._require_cleanup_ready()
         session_epoch = self._session_epoch
         start_task = self._packet_capture_start_task
         if start_task is not None and start_task is not asyncio.current_task():
@@ -678,7 +680,12 @@ class BackendController:
 
     async def logout(self) -> None:
         self._require_ready()
-        await self._run_operation(self._adapter.logout)
+
+        async def serialized_logout() -> None:
+            async with self._serialized_session_side_effect():
+                await self._adapter.logout()
+
+        await self._run_operation(serialized_logout)
 
     async def disable_kill_switch_for_login(self) -> None:
         self._require_ready()
@@ -711,9 +718,11 @@ class BackendController:
 
     async def close(self) -> None:
         # The D-Bus object is unexported before this runs, so acquiring the
-        # mutation lock first drains the accepted operation. A stuck operation
-        # is cancelled only after a bounded grace period; adapter transactions
-        # perform their own cancellation-safe state repair before unwinding.
+        # mutation lock first drains the accepted VPN operation, then the
+        # session-side-effect lock drains survey work. Logout takes the locks in
+        # this same order. A stuck task is cancelled only after a bounded grace
+        # period; adapter transactions perform their own cancellation-safe state
+        # repair before unwinding.
         self._closing = True
         try:
             await asyncio.wait_for(
@@ -727,7 +736,26 @@ class BackendController:
                 await asyncio.gather(active_operation, return_exceptions=True)
             await self._operation_lock.acquire()
         try:
-            await self._adapter.close()
+            try:
+                await asyncio.wait_for(
+                    self._session_side_effect_lock.acquire(),
+                    timeout=self._shutdown_drain_seconds,
+                )
+            except TimeoutError:
+                active_side_effect = self._active_session_side_effect_task
+                if (
+                    active_side_effect is not None
+                    and active_side_effect is not asyncio.current_task()
+                ):
+                    active_side_effect.cancel()
+                    await asyncio.gather(
+                        active_side_effect, return_exceptions=True
+                    )
+                await self._session_side_effect_lock.acquire()
+            try:
+                await self._adapter.close()
+            finally:
+                self._session_side_effect_lock.release()
         finally:
             self._operation_lock.release()
 
@@ -750,12 +778,15 @@ class BackendController:
             raise UserVisibleRuntimeError("The Proton account session changed")
 
     def _require_ready(self) -> None:
+        self._require_cleanup_ready()
+        if self._snapshot.auth_state in RECOVERY_REQUIRED_AUTH_STATES:
+            raise UserVisibleRuntimeError(RECOVERY_REQUIRED_MESSAGE)
+
+    def _require_cleanup_ready(self) -> None:
         if self._closing:
             raise UserVisibleRuntimeError("The Proton backend is shutting down")
         if not self._snapshot.ready:
             raise UserVisibleRuntimeError("The Proton backend is not ready")
-        if self._snapshot.auth_state in RECOVERY_REQUIRED_AUTH_STATES:
-            raise UserVisibleRuntimeError(RECOVERY_REQUIRED_MESSAGE)
 
     @staticmethod
     def _validate_country_code(country_code: str) -> str:
@@ -836,6 +867,21 @@ class BackendController:
             finally:
                 if self._active_operation_task is task:
                     self._active_operation_task = None
+
+    @asynccontextmanager
+    async def _serialized_session_side_effect(self) -> AsyncIterator[None]:
+        async with self._session_side_effect_lock:
+            if self._closing:
+                raise UserVisibleRuntimeError(
+                    "The Proton backend is shutting down"
+                )
+            task = asyncio.current_task()
+            self._active_session_side_effect_task = task
+            try:
+                yield
+            finally:
+                if self._active_session_side_effect_task is task:
+                    self._active_session_side_effect_task = None
 
     def _on_adapter_snapshot(self, snapshot: VpnSnapshot) -> None:
         if snapshot.logged_in != self._snapshot.logged_in:

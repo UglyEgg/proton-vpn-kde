@@ -49,6 +49,8 @@ lock. It captures the session epoch before waiting and rechecks it after lock
 acquisition, preventing cleanup from being applied to a replacement account.
 The frontend gives capture its own completion generation so a later foreground
 operation cannot discard a valid Stop reply or release shutdown early.
+Authentication, settings, and protection recovery states block ordinary
+mutations but deliberately do not block this same risk-reducing Stop path.
 Snapshot publication is also gated on completed adapter initialization. Recovery
 and connector callbacks may update internal state during startup, but clients
 cannot observe a ready session until authentication state, callbacks, and
@@ -179,13 +181,17 @@ Read-only settings and protection replies are also scoped to the active account
 session. A logout or account transition advances the session generation and
 rejects late replies, preventing an old session from repopulating cleared
 frontend state even though the underlying methods do not mutate Core.
-Destructive NPS survey reads and submissions are serialized with account
-mutations and recheck that generation before and after entering the official
-adapter. This prevents survey state belonging to one account from being taken
-or submitted after a replacement session becomes authoritative. Any exception
-after invoking the official submission API is represented by a dedicated
-completion-unknown D-Bus error and disables retry, because the upstream side
-effect may already have been accepted.
+Destructive NPS survey reads and submissions use a separate side-effect fence
+shared with logout and backend shutdown, then recheck the account generation
+before and after entering the official adapter. The fence does not own the VPN
+operation lock, preventing invisible rejection of connect or disconnect while
+still keeping survey state out of a replacement account. Frontend submission
+and dismissal generations keep their results out of newer foreground guidance;
+dismissal never reopens the prompt. Shutdown drains an executing side effect for
+a bounded interval and rejects queued work before adapter teardown. Any
+exception after invoking the official submission API is represented by a
+dedicated completion-unknown D-Bus error and disables retry, because the
+upstream side effect may already have been accepted.
 
 The same address-versus-identity rule is applied as far as the portable Secret
 Service API permits. The downstream keyring overlay activates the selected

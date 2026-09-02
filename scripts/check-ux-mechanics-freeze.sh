@@ -110,7 +110,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "ea10965fad5c4ebd6edc31fcae2e35854c3b6365b4517e50bd9999a866510994" \
+    "73ae569e7a152315225c7c41636c63afcd0139762299c237518fd8cbcf765992" \
     "backend state-ownership and completion-classification exceptions" \
     backend/proton_vpn_kde_backend/controller.py \
     backend/proton_vpn_kde_backend/core_support.py \
@@ -130,14 +130,14 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "24146e6e9af3deb0ed90489251c9c5eb9526c83793e5efe51d4b418507628807" \
+    "2c8bcc5b315fc58be3e715dba77138c57a97f5d11229ed35116b7bd6a4a9d904" \
     "frontend presentation contract" \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
     src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
     src/VpnControllerSettings.cpp src/VpnControllerSnapshot.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp tests/SignInPresentationTest.cpp
 assert_diff_hash \
-    "31e842c3596dde109b63ce030fbab556d0281001349c92dd8afe9cb5b7635774" \
+    "d210901ec3cd4c79894a28d91e44c4d0b42a61ba0342d5041da9be03f6facf79" \
     "QML presentation" qml
 
 qml_operation_hash="$(

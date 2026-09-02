@@ -267,7 +267,8 @@ private:
     void callFastestOperation(const QStringList &features);
     void callSecretOperation(const QString &method, const QJsonObject &fields,
                              bool updateBusy = true,
-                             quint64 npsSubmissionGeneration = 0);
+                             quint64 npsSubmissionGeneration = 0,
+                             bool npsRetryAllowed = true);
     void callControlOperation(const QString &method,
                               const QVariantList &arguments = {});
     void requestServerLoads();

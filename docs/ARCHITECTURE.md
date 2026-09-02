@@ -193,6 +193,8 @@ reply and make a retry available; the older reply is therefore discarded when
 its operation identity no longer owns the result. The controller emits the
 connection identity and target when it accepts the request, so one global QML
 feedback surface tracks every origin without duplicating ownership in buttons.
+A newer foreground action must still own a connection completion, and sign-out
+clears any retained connection feedback from the previous account state.
 Packet-capture requests retain a separate generation because risk-reducing
 cleanup must still settle its typed state and pending application shutdown when
 a newer foreground request exists; that cleanup does not overwrite the newer
@@ -212,13 +214,19 @@ The frontend receives only minimum account display metadata. Authentication
 fields use a one-use encrypted and sealed descriptor transport, and provider
 exceptions are mapped to fixed public errors. Logout disconnects first and
 restores the previous Core kill-switch setting if any later step fails.
-Destructive NPS notification retrieval and NPS submission share the backend's
-session-transition serialization. They revalidate the captured session before
-and after the adapter call, so an operation waiting behind logout cannot mark
-or submit data for the replacement account. Once the official submission API
-is invoked, an exception is conservatively classified as completion unknown:
-the frontend consumes the survey without retry rather than risking a duplicate
-side effect.
+Destructive NPS notification retrieval and NPS submission share a narrow
+session-side-effect fence with logout and backend shutdown. They do not acquire
+the VPN-operation lock, so survey work cannot invisibly reject connect or
+disconnect. Logout takes the VPN lock before the side-effect fence and shutdown
+drains both in the same order. Shutdown rejects queued survey work before it can
+enter the adapter while allowing an already executing side effect a bounded
+drain period. Each survey operation revalidates its captured session before and
+after the adapter call, so work waiting behind logout cannot mark or submit data
+for the replacement account. Submission and dismissal also retain frontend
+generations until completion, but their failures do not replace foreground VPN
+guidance. Once the official submission API is invoked, an exception is
+conservatively classified as completion unknown: the frontend consumes the
+survey without retry rather than risking a duplicate side effect.
 
 ## Server data and connection selection
 
@@ -285,6 +293,8 @@ completion-unknown reply. A temporary `busy=true`, inactive snapshot is not
 sufficient. Stop remains available after account-session expiry and queues
 behind an already accepted same-session mutation; the session epoch is checked
 again before Core is called so cleanup cannot cross into a replacement account.
+Authentication, settings, and protection recovery states likewise preserve
+this cleanup path while continuing to reject ordinary mutations.
 Every Core stop attempt has its own timeout, so a non-returning
 reply cannot indefinitely retain startup or backend shutdown. A
 mode-restricted, atomically replaced recovery record in the private desktop

@@ -505,6 +505,17 @@ void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
     QCoreApplication::processEvents();
     QVERIFY(!feedback->property("awaitingResult").toBool());
     QVERIFY(!feedback->property("messageActive").toBool());
+
+    controller.backendAvailable = true;
+    controller.loggedIn = true;
+    emit controller.connectionOperationStarted(
+        ++operationId, expectedState.toString());
+    QCoreApplication::processEvents();
+    controller.loggedIn = false;
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!feedback->property("awaitingResult").toBool());
+    QVERIFY(!feedback->property("messageActive").toBool());
 }
 
 void SignInPresentationTest::unavailableBackendRejectsRunnerDisconnect()

@@ -322,12 +322,16 @@ void VpnController::dismissNpsSurvey()
         return;
     }
     m_npsSurveyAvailable = false;
+    m_npsSurveySubmissionPending = true;
+    const quint64 generation = ++m_npsSurveyOperationGeneration;
     emit npsSurveyChanged();
     callSecretOperation(
         QString::fromLatin1(BackendDbus::Method::submitNpsSurvey),
         {{QStringLiteral("score"), QStringLiteral("0")},
          {QStringLiteral("comments"), QString()},
          {QStringLiteral("responseType"), QStringLiteral("dismiss")}},
+        false,
+        generation,
         false);
 }
 

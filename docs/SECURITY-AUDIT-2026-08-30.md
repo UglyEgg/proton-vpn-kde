@@ -129,6 +129,22 @@ from authoritative idle state, transfers browser retry ownership, and adds a
 non-retryable NPS completion-unknown error. No result from the partial pass
 counts; all six reviews must restart on the exact clean candidate.
 
+A fifth partial pass against `70ed630` was superseded after all three opening
+reviewers found release blockers. Subtractive and Entropy found that NPS work
+held the global VPN-operation lock without publishing busy state, allowing an
+automatic survey read or closed-dialog dismissal to reject a visible connect
+or disconnect. Entropy also found that dismissal lacked frontend completion
+ownership and that a connection reply could still complete global feedback
+after logout. Hostile found that authentication, settings, and protection
+recovery policy also rejected risk-reducing capture Stop. Review additionally
+found historical 0.12 evidence described as current later in this document.
+The remediation uses a narrow survey/logout/shutdown side-effect fence, tracks
+submission and dismissal without mutating newer foreground guidance, requires
+foreground freshness for connection completion, clears feedback at sign-out,
+and separates cleanup readiness from authentication-mutation readiness. The
+historical evidence is now version-labeled. No result from the partial pass
+counts; all six reviews must restart on the next exact clean candidate.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
 | --- | --- | --- | --- |
 | PV-013-001 | Medium | A slow accepted capture Start could reject Stop while close inferred safety from a temporary snapshot | **Remediated in candidate; independent verification pending** |
@@ -141,6 +157,10 @@ counts; all six reviews must restart on the exact clean candidate.
 | PV-013-008 | Medium | Session expiry removed the only frontend and backend path for stopping an active capture | **Remediated in candidate; independent verification pending** |
 | PV-013-009 | Medium | A superseded country or exact-server retry timer could strand replacement browser work behind a retained busy lease | **Remediated in candidate; independent verification pending** |
 | PV-013-010 | Medium | An NPS side effect accepted before an upstream exception was exposed as a retryable generic failure | **Remediated in candidate; independent verification pending** |
+| PV-013-011 | High | NPS retrieval and submission invisibly held the global VPN-operation lock and could reject connect or disconnect | **Remediated in candidate; independent verification pending** |
+| PV-013-012 | Medium | NPS dismissal lacked frontend completion ownership and could overwrite newer foreground guidance | **Remediated in candidate; independent verification pending** |
+| PV-013-013 | Medium | A superseded connection reply could still complete centralized feedback after logout | **Remediated in candidate; independent verification pending** |
+| PV-013-014 | Medium | Authentication-recovery states rejected risk-reducing capture Stop while capture remained active | **Remediated in candidate; independent verification pending** |
 
 ## Historical 0.12.0 isolated review gate
 
@@ -668,8 +688,8 @@ IPv6 leak protection, split tunneling, or Proton session storage.
 | PV-SEC-007 | Medium | Trusting the shared KRunner host granted broader backend authority than intended | **Closed** |
 
 There are no deferred or accepted-open findings among the original seven.
-The separate unreleased `0.12.0` table above remains verification-pending until
-the final six-reviewer gate closes.
+The separate `0.12.0` tables above are historical records for mechanics that
+were subsequently accepted; their superseded intermediate findings are closed.
 Defense-in-depth opportunities are listed under **Residual risk and follow-up**
 and are not represented as undisclosed vulnerabilities.
 
@@ -677,7 +697,7 @@ and are not represented as undisclosed vulnerabilities.
 
 ### Automated source verification
 
-The current remediated tree passed:
+The accepted `0.12.0` mechanics at `ec27fdc` passed:
 
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
@@ -909,7 +929,8 @@ systemd heuristic score remain documented in [Hardening](HARDENING.md).
 ## 2026-08-31 release re-review record
 
 This record describes the public `0.11.3` no-findings re-review. It is separate
-from the unreleased `0.12.0` gate above and the historical finding record below.
+from the then-unreleased, subsequently accepted `0.12.0` gate above and the
+historical finding record below.
 
 | Field | Release re-review |
 | --- | --- |

@@ -582,7 +582,8 @@ void VpnController::callFastestOperation(const QStringList &features)
 void VpnController::callSecretOperation(const QString &method,
                                         const QJsonObject &fields,
                                         bool updateBusy,
-                                        quint64 npsSubmissionGeneration)
+                                        quint64 npsSubmissionGeneration,
+                                        bool npsRetryAllowed)
 {
     const bool npsSubmission = npsSubmissionGeneration != 0;
     if (!snapshotHealthy()) {
@@ -590,7 +591,8 @@ void VpnController::callSecretOperation(const QString &method,
             finishNpsSurveySubmission(
                 npsSubmissionGeneration,
                 false,
-                tr("The current account state is unavailable"));
+                tr("The current account state is unavailable"),
+                npsRetryAllowed);
         }
         return;
     }
@@ -603,14 +605,15 @@ void VpnController::callSecretOperation(const QString &method,
         ? ++m_foregroundOperationGeneration : 0;
 
     if (!m_backendAvailable || m_backendDestination.isEmpty()) {
+        const QString failure = tr("The Proton backend is not available");
         if (updateBusy) {
             m_busy = false;
+            m_message = failure;
+            emit snapshotChanged();
         }
-        m_message = tr("The Proton backend is not available");
-        emit snapshotChanged();
         if (npsSubmission) {
             finishNpsSurveySubmission(
-                npsSubmissionGeneration, false, m_message);
+                npsSubmissionGeneration, false, failure, npsRetryAllowed);
         }
         return;
     }
@@ -630,6 +633,7 @@ void VpnController::callSecretOperation(const QString &method,
             [this, method, fields, updateBusy, backendDestination,
              backendGeneration, sessionGeneration,
              npsSubmissionGeneration,
+             npsRetryAllowed,
              foregroundGeneration](QDBusPendingCallWatcher *finished) {
         const bool npsSubmission = npsSubmissionGeneration != 0;
         const QDBusPendingReply<QString> reply = *finished;
@@ -653,14 +657,17 @@ void VpnController::callSecretOperation(const QString &method,
             return;
         }
         if (reply.isError()) {
+            const QString failure =
+                tr("Unable to initialize protected authentication");
             if (updateBusy) {
                 m_busy = false;
+                m_message = failure;
+                emit snapshotChanged();
             }
-            m_message = tr("Unable to initialize protected authentication");
-            emit snapshotChanged();
             if (npsSubmission) {
                 finishNpsSurveySubmission(
-                    npsSubmissionGeneration, false, m_message);
+                    npsSubmissionGeneration, false, failure,
+                    npsRetryAllowed);
             }
             return;
         }
@@ -670,15 +677,18 @@ void VpnController::callSecretOperation(const QString &method,
         const QDBusUnixFileDescriptor descriptor =
             SecretTransport::createSealedPayload(fields, publicKey, &errorMessage);
         if (!descriptor.isValid()) {
+            const QString failure =
+                tr("Unable to protect the authentication data: %1")
+                    .arg(errorMessage);
             if (updateBusy) {
                 m_busy = false;
+                m_message = failure;
+                emit snapshotChanged();
             }
-            m_message = tr("Unable to protect the authentication data: %1")
-                            .arg(errorMessage);
-            emit snapshotChanged();
             if (npsSubmission) {
                 finishNpsSurveySubmission(
-                    npsSubmissionGeneration, false, m_message);
+                    npsSubmissionGeneration, false, failure,
+                    npsRetryAllowed);
             }
             return;
         }
@@ -697,6 +707,7 @@ void VpnController::callSecretOperation(const QString &method,
         operationWatcher->setProperty(
             "npsSubmissionGeneration",
             QVariant::fromValue<qulonglong>(npsSubmissionGeneration));
+        operationWatcher->setProperty("npsRetryAllowed", npsRetryAllowed);
         connect(operationWatcher, &QDBusPendingCallWatcher::finished, this,
                 updateBusy ? &VpnController::handleOperationReply
                            : &VpnController::handleControlOperationReply);
