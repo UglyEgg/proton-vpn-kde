@@ -11,10 +11,10 @@ All notable user-visible changes are recorded here. The project follows
   Proton-overlay mechanics against the accepted 0.12.0 revision in CI.
 - Replace the in-app release-note walls of text with scannable grouped bullets
   and keep older release history collapsed until requested.
-- Prioritize Connection, Browse servers, Settings, and Account in the Plasma
-  sidebar; place diagnostics and project information in one native secondary
-  drill-in, and disclose connected-server details from Overview only when
-  requested.
+- Make Connection the graphical application home: its route links directly to
+  protection settings and server browsing, identity opens Account, and an
+  upper-right gear groups diagnostics and project information. Replace the
+  application sidebar with native back navigation from every destination.
 - Replace Overview's conventional status card with a graphical, system-themed
   route from this device through the encrypted tunnel to the VPN destination,
   without changing connection behavior.

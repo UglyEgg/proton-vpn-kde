@@ -18,6 +18,8 @@ Kirigami.ScrollablePage {
     readonly property bool connectionDetailsVisible:
         connectionDetailsCard.visible
     readonly property bool graphicalRouteVisible: connectionScene.routeVisible
+    readonly property bool homeNavigationVisible:
+        connectionScene.homeNavigationVisible
 
     Component.onCompleted: {
         if (vpnController.loggedIn && !splitSettings.loaded) {
@@ -137,6 +139,7 @@ Kirigami.ScrollablePage {
             busy: vpnController.busy
             loggedIn: vpnController.loggedIn
             ready: vpnController.ready
+            accountName: vpnController.accountName
             destinationFlag: page.countryFlag(vpnController.exitCountry)
             destinationName: vpnController.serverLocation.length > 0
                              ? vpnController.serverLocation
@@ -156,7 +159,9 @@ Kirigami.ScrollablePage {
             smartRouting: vpnController.smartRouting
             onPrimaryActionRequested: vpnController.activatePrimaryAction()
             onSignInRequested: applicationWindow().showSignIn()
-            onChooseLocationRequested: applicationWindow().showLocations()
+            onNavigateRequested: destination => {
+                applicationWindow().openOverviewDestination(destination)
+            }
         }
 
         Controls.Button {
@@ -243,7 +248,8 @@ Kirigami.ScrollablePage {
                     text: qsTr("Open Connection Inspector")
                     icon.name: "view-statistics"
                     flat: true
-                    onClicked: applicationWindow().showConnectionInspector()
+                    onClicked: applicationWindow().openOverviewDestination(
+                        "inspector")
                 }
             }
         }

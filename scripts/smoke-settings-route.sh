@@ -94,8 +94,8 @@ if ! grep -Fqx -- \
 fi
 
 if ! grep -Fqx -- \
-        "qml: settings-route-smoke: owned pages 1" "$frontend_log"; then
-    echo "Removed navigation pages were not destroyed" >&2
+        "qml: settings-route-smoke: stack depth 2" "$frontend_log"; then
+    echo "Settings did not retain its Connection back route" >&2
     cat "$frontend_log" >&2
     exit 1
 fi

@@ -369,7 +369,8 @@ Kirigami.ScrollablePage {
                 Controls.Button {
                     text: qsTr("Diagnostics settings")
                     icon.name: "settings-configure"
-                    onClicked: applicationWindow().showSettings()
+                    onClicked: applicationWindow().openOverviewDestination(
+                        "settings")
                 }
             }
         }

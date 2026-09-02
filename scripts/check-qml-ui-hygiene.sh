@@ -54,13 +54,17 @@ if ! rg -q 'id: routeDiagram' "$qml_dir/ConnectionScene.qml" \
         || ! rg -q 'qsTr\("This device"\)' "$qml_dir/ConnectionScene.qml" \
         || ! rg -q 'qsTr\("Encrypted tunnel"\)' \
         "$qml_dir/ConnectionScene.qml" \
-        || ! rg -q 'onChooseLocationRequested' "$qml_dir/OverviewPage.qml"; then
+        || ! rg -q 'onNavigateRequested' "$qml_dir/OverviewPage.qml"; then
     echo "Overview must present the connection as a graphical device-to-destination route" >&2
     exit 1
 fi
 
-if ! rg -q 'id: moreAction' "$qml_dir/Main.qml" \
-        || ! rg -q 'text: qsTr\("More"\)' "$qml_dir/Main.qml"; then
-    echo "Secondary project and diagnostic actions must remain grouped" >&2
+if ! rg -q 'id: moreAction' "$qml_dir/ConnectionScene.qml" \
+        || ! rg -q 'text: qsTr\("More options"\)' \
+        "$qml_dir/ConnectionScene.qml" \
+        || ! rg -q 'icon.name: "configure"' \
+        "$qml_dir/ConnectionScene.qml" \
+        || rg -q 'globalDrawer\s*:' "$qml_dir/Main.qml"; then
+    echo "Overview must own application navigation without a persistent sidebar or drawer" >&2
     exit 1
 fi

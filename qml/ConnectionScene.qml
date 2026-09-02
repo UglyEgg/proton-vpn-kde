@@ -17,6 +17,7 @@ Kirigami.AbstractCard {
     property bool busy: false
     property bool loggedIn: false
     property bool ready: false
+    property string accountName
     property string destinationFlag
     property string destinationName
     property string serverName
@@ -29,14 +30,18 @@ Kirigami.AbstractCard {
     property bool streaming: false
     property bool smartRouting: false
     readonly property bool routeVisible: routeDiagram.visible
+    readonly property bool homeNavigationVisible:
+        deviceNode.visible && destinationNode.visible
+        && moreAction.visible
+        && (!root.loggedIn || accountAction.visible)
 
     signal primaryActionRequested()
     signal signInRequested()
-    signal chooseLocationRequested()
+    signal navigateRequested(string destination)
 
     Accessible.name: qsTr("VPN connection status: %1").arg(root.stateText)
 
-    component RouteNode: ColumnLayout {
+    component RouteNode: Controls.Button {
         id: node
 
         property string iconName
@@ -45,52 +50,58 @@ Kirigami.AbstractCard {
         property string detail
         property color accentColor: Kirigami.Theme.textColor
 
+        flat: true
         Layout.preferredWidth: Kirigami.Units.gridUnit * 8
         Layout.maximumWidth: Kirigami.Units.gridUnit * 11
-        spacing: Kirigami.Units.smallSpacing
+        Accessible.name: node.heading
+        Accessible.description: node.detail
 
-        Rectangle {
-            Layout.alignment: Qt.AlignHCenter
-            implicitWidth: Kirigami.Units.iconSizes.huge
-            implicitHeight: implicitWidth
-            radius: width / 2
-            color: Kirigami.Theme.backgroundColor
-            border.width: 2
-            border.color: node.accentColor
+        contentItem: ColumnLayout {
+            spacing: Kirigami.Units.smallSpacing
 
-            Kirigami.Icon {
-                anchors.centerIn: parent
-                visible: node.symbol.length === 0
-                source: node.iconName
-                color: node.accentColor
-                implicitWidth: Kirigami.Units.iconSizes.large
+            Rectangle {
+                Layout.alignment: Qt.AlignHCenter
+                implicitWidth: Kirigami.Units.iconSizes.huge
                 implicitHeight: implicitWidth
+                radius: width / 2
+                color: Kirigami.Theme.backgroundColor
+                border.width: 2
+                border.color: node.accentColor
+
+                Kirigami.Icon {
+                    anchors.centerIn: parent
+                    visible: node.symbol.length === 0
+                    source: node.iconName
+                    color: node.accentColor
+                    implicitWidth: Kirigami.Units.iconSizes.large
+                    implicitHeight: implicitWidth
+                }
+
+                Controls.Label {
+                    anchors.centerIn: parent
+                    visible: node.symbol.length > 0
+                    text: node.symbol
+                    color: node.accentColor
+                    font.bold: true
+                    Accessible.ignored: true
+                }
+            }
+
+            Kirigami.Heading {
+                Layout.fillWidth: true
+                level: 4
+                text: node.heading
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
             }
 
             Controls.Label {
-                anchors.centerIn: parent
-                visible: node.symbol.length > 0
-                text: node.symbol
-                color: node.accentColor
-                font.bold: true
-                Accessible.ignored: true
+                Layout.fillWidth: true
+                text: node.detail
+                color: Kirigami.Theme.linkColor
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
             }
-        }
-
-        Kirigami.Heading {
-            Layout.fillWidth: true
-            level: 4
-            text: node.heading
-            horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight
-        }
-
-        Controls.Label {
-            Layout.fillWidth: true
-            text: node.detail
-            color: Kirigami.Theme.disabledTextColor
-            horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight
         }
     }
 
@@ -101,6 +112,73 @@ Kirigami.AbstractCard {
 
     contentItem: ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
+
+        RowLayout {
+            Layout.fillWidth: true
+
+            Item { Layout.fillWidth: true }
+
+            Controls.ToolButton {
+                id: moreAction
+
+                text: qsTr("More options")
+                icon.name: "configure"
+                display: Controls.AbstractButton.IconOnly
+                onClicked: moreMenu.open()
+
+                contentItem: Kirigami.Icon {
+                    source: "configure"
+                    color: Kirigami.Theme.textColor
+                    implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                    implicitHeight: implicitWidth
+                }
+
+                Controls.ToolTip.visible: hovered || activeFocus
+                Controls.ToolTip.text: moreAction.text
+
+                Controls.Menu {
+                    id: moreMenu
+
+                    y: moreAction.height
+
+                    Controls.MenuItem {
+                        text: qsTr("Connection Inspector")
+                        icon.name: "view-statistics"
+                        enabled: root.loggedIn
+                        onTriggered: root.navigateRequested("inspector")
+                    }
+
+                    Controls.MenuSeparator { }
+
+                    Controls.MenuItem {
+                        text: qsTr("Release notes")
+                        icon.name: "view-pim-notes"
+                        onTriggered: root.navigateRequested("release-notes")
+                    }
+
+                    Controls.MenuItem {
+                        text: qsTr("Report an issue")
+                        icon.name: "tools-report-bug"
+                        enabled: root.loggedIn
+                        onTriggered: root.navigateRequested("report-issue")
+                    }
+
+                    Controls.MenuItem {
+                        text: qsTr("About")
+                        icon.name: "help-about"
+                        onTriggered: root.navigateRequested("about")
+                    }
+
+                    Controls.MenuSeparator { }
+
+                    Controls.MenuItem {
+                        text: qsTr("Close Control Center")
+                        icon.name: "application-exit"
+                        onTriggered: root.navigateRequested("close")
+                    }
+                }
+            }
+        }
 
         Item {
             Layout.fillWidth: true
@@ -178,12 +256,15 @@ Kirigami.AbstractCard {
                 : qsTr("VPN route is inactive")
 
             RouteNode {
+                id: deviceNode
+
                 symbol: qsTr("You")
                 heading: qsTr("This device")
-                detail: root.connected ? qsTr("Protected") : qsTr("Regular route")
+                detail: qsTr("Protection settings")
                 accentColor: root.connected
                     ? Kirigami.Theme.positiveTextColor
                     : Kirigami.Theme.disabledTextColor
+                onClicked: root.navigateRequested("settings")
             }
 
             Item {
@@ -238,14 +319,17 @@ Kirigami.AbstractCard {
             }
 
             RouteNode {
+                id: destinationNode
+
                 symbol: root.connected ? root.destinationFlag : qsTr("VPN")
                 heading: root.connected ? root.destinationName
                                         : qsTr("VPN server")
-                detail: root.connected && root.serverName.length > 0
-                        ? root.serverName : qsTr("Fastest suitable")
+                detail: qsTr("Browse servers")
+                enabled: root.loggedIn
                 accentColor: root.connected
                     ? Kirigami.Theme.positiveTextColor
                     : Kirigami.Theme.disabledTextColor
+                onClicked: root.navigateRequested("locations")
             }
         }
 
@@ -317,12 +401,15 @@ Kirigami.AbstractCard {
             }
 
             Controls.Button {
+                id: accountAction
+
                 Layout.alignment: Qt.AlignHCenter
                 visible: root.loggedIn
-                text: qsTr("Choose a location")
-                icon.name: "mark-location"
+                text: root.accountName.length > 0
+                      ? root.accountName : qsTr("Account")
+                icon.name: "user-identity"
                 flat: true
-                onClicked: root.chooseLocationRequested()
+                onClicked: root.navigateRequested("account")
             }
         }
     }

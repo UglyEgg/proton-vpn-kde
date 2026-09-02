@@ -80,7 +80,8 @@ Kirigami.ScrollablePage {
                 notes: [
                     qsTr("Complexity now follows a progressive-disclosure model: essential state and the primary action come first, with relevant depth available in context."),
                     qsTr("The interface remains native Qt 6 and Kirigami, following the active Plasma color scheme, typography, spacing, icons, scaling, direction, contrast, and motion preferences."),
-                    qsTr("The sidebar prioritizes connection, server browsing, settings, and account tasks while keeping diagnostics and project information under More."),
+                    qsTr("Connection is now the application home: its device and destination open settings and server browsing, while identity opens Account."),
+                    qsTr("An upper-right gear keeps diagnostics and project information close, while native Back navigation replaces the permanent sidebar."),
                     qsTr("Overview visualizes this device, its encrypted tunnel, and the VPN destination while keeping one obvious connection action."),
                     qsTr("Exact connection details and the Connection Inspector remain available only when requested."),
                     qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")

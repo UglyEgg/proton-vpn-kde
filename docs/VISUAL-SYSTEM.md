@@ -46,17 +46,19 @@ gestures.
 
 ## Navigation
 
-Wide windows keep the standard Kirigami global drawer open as a resizable
-sidebar. Connection, Browse servers, and Settings form the primary task group;
-Account remains directly reachable, while diagnostics, release history,
-reporting status, About, and the explicit close action use one native More
-drill-in. Its current section is selected and its actions use the installed
-Plasma icon theme. Compact windows use the same drawer as an overlay, so there
-is one navigation model and one keyboard order across window sizes. Kirigami
-places the drawer on the correct edge for a right-to-left desktop. A user's
-wide-layout collapsed state survives a compact-window transition; returning to
-the wide layout restores both the icon sidebar and its expand control. The
-compact overlay always exposes Kirigami's standard open handle.
+The Connection surface is the application home, not one destination competing
+inside a permanent sidebar. Its device node opens protection settings, its VPN
+destination opens server browsing, and the signed-in identity opens Account.
+An icon-only gear in the upper-right opens Inspector, release, reporting,
+About, and close actions. These are native buttons and menu items with visible
+focus, tooltips where labels are hidden, and explicit accessible names.
+
+Pages opened from the home surface use Kirigami's ordinary back stack. Initial
+deep links create the same home-backed stack, so every non-authentication page
+has a visible route back to Connection. There is no application sidebar or
+drawer, and the window's standard close control plus the gear menu retain
+explicit exit paths. Kirigami places back navigation on the correct edge for
+right-to-left desktops.
 
 ## Shared components
 
@@ -81,9 +83,10 @@ recognizable under any global color scheme.
 ## Verification
 
 `qml-diagnostics-smoke` opens every primary and nested page and rejects
-application-authored QML diagnostics. It also exercises expanded, collapsed,
-compact-overlay, and restored sidebar states. `qml-layout-variants-smoke`
-repeats that path at the compact minimum, at 1.5 scale, and in right-to-left mode.
+application-authored QML diagnostics. It also exercises graphical home
+navigation, native back-stack return, and progressive connection details.
+`qml-layout-variants-smoke` repeats that path at the compact minimum, at 1.5
+scale, and in right-to-left mode.
 `qml-ui-hygiene` guards the theme and directionality rules above.
 
 The 0.13 release also carries a CI mechanics-freeze gate. It compares runtime,

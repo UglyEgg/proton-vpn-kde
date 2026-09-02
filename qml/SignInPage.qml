@@ -30,6 +30,15 @@ Kirigami.ScrollablePage {
     property string previousAuthState: vpnController.authState
     property bool secretStoreHintVisible: false
     property bool backendRetryVisible: false
+    property Kirigami.Action retryBackendAction: Kirigami.Action {
+        text: qsTr("Retry service")
+        icon.name: "view-refresh"
+        onTriggered: {
+            page.backendRetryVisible = false
+            vpnController.restartBackend()
+            page.updateBackendRetry()
+        }
+    }
 
     function updateSecretStoreHint() {
         const waiting = vpnController.busy
@@ -160,18 +169,11 @@ Kirigami.ScrollablePage {
                   ? qsTr("Preparing Proton sign-in. Your desktop secret store may ask for access before the account state is available.")
                   : qsTr("Starting the Proton VPN service…")
 
-            actions: [
-                Kirigami.Action {
-                    text: qsTr("Retry service")
-                    icon.name: "view-refresh"
-                    visible: page.backendRetryVisible
-                    onTriggered: {
-                        page.backendRetryVisible = false
-                        vpnController.restartBackend()
-                        page.updateBackendRetry()
-                    }
-                }
-            ]
+            // A hidden action still participates in InlineMessage sizing and
+            // can oscillate between its one- and two-row layouts. Add the
+            // retry action only after its timeout makes it actionable.
+            actions: page.backendRetryVisible
+                     ? [page.retryBackendAction] : []
         }
 
         PageHeader {
