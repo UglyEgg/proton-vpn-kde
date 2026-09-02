@@ -8,7 +8,7 @@ Kirigami.ApplicationWindow {
     id: root
 
     width: diagnosticWindowWidth > 0 ? diagnosticWindowWidth : 900
-    height: diagnosticWindowHeight > 0 ? diagnosticWindowHeight : 720
+    height: diagnosticWindowHeight > 0 ? diagnosticWindowHeight : 560
     minimumWidth: 480
     minimumHeight: 560
     visible: !startMinimized
@@ -217,9 +217,6 @@ Kirigami.ApplicationWindow {
             root.showReportIssue()
         } else if (initialPageName === "release-notes") {
             root.showReleaseNotes()
-        } else if (initialPageName === "overview-details") {
-            root.showOverview()
-            pageStack.currentItem.connectionDetailsExpanded = true
         } else if (!vpnController.ready || !vpnController.loggedIn) {
             root.showSignIn()
         } else {
@@ -416,18 +413,17 @@ Kirigami.ApplicationWindow {
             case 15:
                 const collapsedOverview = pageStack.currentItem
                 if (collapsedOverview.objectName !== "overviewPage"
-                        || collapsedOverview.connectionDetailsExpanded
-                        || collapsedOverview.connectionDetailsVisible
+                        || collapsedOverview.connectionFactsVisible
                         || !collapsedOverview.graphicalRouteVisible
                         || !collapsedOverview.homeNavigationVisible) {
                     stop()
-                    console.error("diagnostics-smoke: Overview did not begin with graphical home navigation and collapsed details")
+                    console.error("diagnostics-smoke: Overview did not begin with graphical home navigation and hidden inactive facts")
                     Qt.exit(2)
                     return
                 }
                 console.info("diagnostics-smoke: Overview home navigation")
                 console.info("diagnostics-smoke: Overview graphical route")
-                console.info("diagnostics-smoke: Overview details collapsed")
+                console.info("diagnostics-smoke: Overview inactive facts hidden")
                 root.openOverviewDestination("settings")
                 break
             case 16:
@@ -464,14 +460,13 @@ Kirigami.ApplicationWindow {
                     return
                 }
                 const connectedOverview = pageStack.currentItem
-                connectedOverview.connectionDetailsExpanded = true
-                if (!connectedOverview.connectionDetailsVisible) {
+                if (!connectedOverview.connectionFactsVisible) {
                     stop()
-                    console.error("diagnostics-smoke: Overview details could not be disclosed")
+                    console.error("diagnostics-smoke: Overview connection facts did not appear")
                     Qt.exit(2)
                     return
                 }
-                console.info("diagnostics-smoke: Overview details disclosed")
+                console.info("diagnostics-smoke: Overview connection facts visible")
                 break
             case 20:
                 root.requestRunnerAction("disconnect", "")

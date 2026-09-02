@@ -21,6 +21,10 @@ Kirigami.AbstractCard {
     property string destinationFlag
     property string destinationName
     property string serverName
+    property string entryCountry
+    property string protocolName
+    property int forwardedPort: 0
+    property bool portCopied: false
     property string primaryText
     property string primaryIcon
     property bool primaryEnabled: false
@@ -30,6 +34,7 @@ Kirigami.AbstractCard {
     property bool streaming: false
     property bool smartRouting: false
     readonly property bool routeVisible: routeDiagram.visible
+    readonly property bool connectionFactsVisible: connectionFacts.visible
     readonly property bool homeNavigationVisible:
         deviceNode.visible && destinationNode.visible
         && moreAction.visible
@@ -38,6 +43,7 @@ Kirigami.AbstractCard {
     signal primaryActionRequested()
     signal signInRequested()
     signal navigateRequested(string destination)
+    signal copyPortRequested()
 
     Accessible.name: qsTr("VPN connection status: %1").arg(root.stateText)
 
@@ -107,78 +113,83 @@ Kirigami.AbstractCard {
 
     component CapabilityChip: Kirigami.Chip {
         closable: false
-        interactive: false
+        interactive: true
+        Accessible.description: qsTr("Open connection inspector")
+        onClicked: root.navigateRequested("inspector")
+    }
+
+    component ConnectionFact: Kirigami.Chip {
+        closable: false
+        interactive: true
+    }
+
+    Controls.ToolButton {
+        id: moreAction
+
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: Kirigami.Units.largeSpacing
+        z: 1
+        text: qsTr("More options")
+        icon.name: "configure"
+        display: Controls.AbstractButton.IconOnly
+        onClicked: moreMenu.open()
+
+        contentItem: Kirigami.Icon {
+            source: "configure"
+            color: Kirigami.Theme.textColor
+            implicitWidth: Kirigami.Units.iconSizes.smallMedium
+            implicitHeight: implicitWidth
+        }
+
+        Controls.ToolTip.visible: hovered || activeFocus
+        Controls.ToolTip.text: moreAction.text
+
+        Controls.Menu {
+            id: moreMenu
+
+            y: moreAction.height
+
+            Controls.MenuItem {
+                text: qsTr("Connection Inspector")
+                icon.name: "view-statistics"
+                enabled: root.loggedIn
+                onTriggered: root.navigateRequested("inspector")
+            }
+
+            Controls.MenuSeparator { }
+
+            Controls.MenuItem {
+                text: qsTr("Release notes")
+                icon.name: "view-pim-notes"
+                onTriggered: root.navigateRequested("release-notes")
+            }
+
+            Controls.MenuItem {
+                text: qsTr("Report an issue")
+                icon.name: "tools-report-bug"
+                enabled: root.loggedIn
+                onTriggered: root.navigateRequested("report-issue")
+            }
+
+            Controls.MenuItem {
+                text: qsTr("About")
+                icon.name: "help-about"
+                onTriggered: root.navigateRequested("about")
+            }
+
+            Controls.MenuSeparator { }
+
+            Controls.MenuItem {
+                text: qsTr("Close Control Center")
+                icon.name: "application-exit"
+                onTriggered: root.navigateRequested("close")
+            }
+        }
     }
 
     contentItem: ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
-
-        RowLayout {
-            Layout.fillWidth: true
-
-            Item { Layout.fillWidth: true }
-
-            Controls.ToolButton {
-                id: moreAction
-
-                text: qsTr("More options")
-                icon.name: "configure"
-                display: Controls.AbstractButton.IconOnly
-                onClicked: moreMenu.open()
-
-                contentItem: Kirigami.Icon {
-                    source: "configure"
-                    color: Kirigami.Theme.textColor
-                    implicitWidth: Kirigami.Units.iconSizes.smallMedium
-                    implicitHeight: implicitWidth
-                }
-
-                Controls.ToolTip.visible: hovered || activeFocus
-                Controls.ToolTip.text: moreAction.text
-
-                Controls.Menu {
-                    id: moreMenu
-
-                    y: moreAction.height
-
-                    Controls.MenuItem {
-                        text: qsTr("Connection Inspector")
-                        icon.name: "view-statistics"
-                        enabled: root.loggedIn
-                        onTriggered: root.navigateRequested("inspector")
-                    }
-
-                    Controls.MenuSeparator { }
-
-                    Controls.MenuItem {
-                        text: qsTr("Release notes")
-                        icon.name: "view-pim-notes"
-                        onTriggered: root.navigateRequested("release-notes")
-                    }
-
-                    Controls.MenuItem {
-                        text: qsTr("Report an issue")
-                        icon.name: "tools-report-bug"
-                        enabled: root.loggedIn
-                        onTriggered: root.navigateRequested("report-issue")
-                    }
-
-                    Controls.MenuItem {
-                        text: qsTr("About")
-                        icon.name: "help-about"
-                        onTriggered: root.navigateRequested("about")
-                    }
-
-                    Controls.MenuSeparator { }
-
-                    Controls.MenuItem {
-                        text: qsTr("Close Control Center")
-                        icon.name: "application-exit"
-                        onTriggered: root.navigateRequested("close")
-                    }
-                }
-            }
-        }
 
         Item {
             Layout.fillWidth: true
@@ -282,30 +293,45 @@ Kirigami.AbstractCard {
                         : Kirigami.Theme.disabledTextColor
                 }
 
-                Rectangle {
+                Controls.ToolButton {
                     id: tunnelStateBadge
 
                     anchors.centerIn: parent
                     width: Kirigami.Units.iconSizes.medium
                            + Kirigami.Units.largeSpacing
                     height: width
-                    radius: width / 2
-                    color: Kirigami.Theme.backgroundColor
-                    border.width: 1
-                    border.color: root.connected
-                        ? Kirigami.Theme.positiveTextColor
-                        : Kirigami.Theme.disabledTextColor
+                    text: qsTr("Open connection inspector")
+                    display: Controls.AbstractButton.IconOnly
+                    enabled: root.connected
+                    onClicked: root.navigateRequested("inspector")
 
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: Kirigami.Units.smallSpacing
-                        height: width
+                    background: Rectangle {
                         radius: width / 2
-                        color: root.connected
+                        color: tunnelStateBadge.hovered
+                               || tunnelStateBadge.activeFocus
+                               ? Kirigami.Theme.alternateBackgroundColor
+                               : Kirigami.Theme.backgroundColor
+                        border.width: tunnelStateBadge.activeFocus ? 2 : 1
+                        border.color: root.connected
                             ? Kirigami.Theme.positiveTextColor
                             : Kirigami.Theme.disabledTextColor
-                        Accessible.ignored: true
                     }
+
+                    contentItem: Item {
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: Kirigami.Units.smallSpacing
+                            height: width
+                            radius: width / 2
+                            color: root.connected
+                                ? Kirigami.Theme.positiveTextColor
+                                : Kirigami.Theme.disabledTextColor
+                            Accessible.ignored: true
+                        }
+                    }
+
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: text
                 }
 
                 Controls.Label {
@@ -314,7 +340,8 @@ Kirigami.AbstractCard {
                     anchors.topMargin: Kirigami.Units.smallSpacing
                     text: root.connected ? qsTr("Encrypted tunnel")
                                          : qsTr("VPN inactive")
-                    color: Kirigami.Theme.disabledTextColor
+                    color: root.connected ? Kirigami.Theme.linkColor
+                                          : Kirigami.Theme.disabledTextColor
                 }
             }
 
@@ -330,6 +357,97 @@ Kirigami.AbstractCard {
                     ? Kirigami.Theme.positiveTextColor
                     : Kirigami.Theme.disabledTextColor
                 onClicked: root.navigateRequested("locations")
+            }
+        }
+
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: connectionFacts.visible
+                                    ? connectionFacts.childrenRect.height : 0
+            visible: root.connected && (root.serverName.length > 0
+                     || root.protocolName.length > 0
+                     || (root.secureCore && root.entryCountry.length > 0)
+                     || root.forwardedPort > 0)
+
+            Flow {
+                id: connectionFacts
+
+                objectName: "connectionFacts"
+                anchors.horizontalCenter: parent.horizontalCenter
+                readonly property int visibleFactCount:
+                    (serverFact.visible ? 1 : 0)
+                    + (protocolFact.visible ? 1 : 0)
+                    + (entryFact.visible ? 1 : 0)
+                    + (portFact.visible ? 1 : 0)
+                readonly property real idealWidth:
+                    (serverFact.visible ? serverFact.implicitWidth : 0)
+                    + (protocolFact.visible ? protocolFact.implicitWidth : 0)
+                    + (entryFact.visible ? entryFact.implicitWidth : 0)
+                    + (portFact.visible ? portFact.implicitWidth : 0)
+                    + Math.max(0, visibleFactCount - 1) * spacing
+                width: Math.min(parent.width, idealWidth)
+                spacing: Kirigami.Units.smallSpacing
+
+                ConnectionFact {
+                    id: serverFact
+
+                    visible: root.serverName.length > 0
+                    text: root.serverName
+                    icon.name: "network-server-database"
+                    Accessible.name: qsTr("Server %1").arg(root.serverName)
+                    Accessible.description: qsTr("Open connection inspector")
+                    onClicked: root.navigateRequested("inspector")
+
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: qsTr("Server · %1").arg(root.serverName)
+                }
+
+                ConnectionFact {
+                    id: protocolFact
+
+                    visible: root.protocolName.length > 0
+                    text: root.protocolName
+                    icon.name: "network-vpn"
+                    Accessible.name: qsTr("Protocol %1").arg(root.protocolName)
+                    Accessible.description: qsTr("Open VPN settings")
+                    onClicked: root.navigateRequested("settings")
+
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: qsTr("Protocol · %1").arg(root.protocolName)
+                }
+
+                ConnectionFact {
+                    id: entryFact
+
+                    visible: root.secureCore && root.entryCountry.length > 0
+                    text: qsTr("via %1").arg(root.entryCountry)
+                    icon.name: "security-high"
+                    Accessible.name: qsTr("Secure Core entry %1").arg(root.entryCountry)
+                    Accessible.description: qsTr("Open connection inspector")
+                    onClicked: root.navigateRequested("inspector")
+
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: qsTr("Secure Core entry · %1").arg(root.entryCountry)
+                }
+
+                ConnectionFact {
+                    id: portFact
+
+                    visible: root.forwardedPort > 0
+                    text: root.portCopied ? qsTr("Copied")
+                                          : root.forwardedPort.toString()
+                    icon.name: root.portCopied ? "dialog-ok" : "edit-copy"
+                    Accessible.name: root.portCopied
+                        ? qsTr("Forwarded port copied")
+                        : qsTr("Copy forwarded port %1").arg(root.forwardedPort)
+                    onClicked: root.copyPortRequested()
+
+                    Controls.ToolTip.visible: hovered || activeFocus
+                    Controls.ToolTip.text: root.portCopied
+                        ? qsTr("Copied")
+                        : qsTr("Forwarded port · %1 · Click to copy")
+                              .arg(root.forwardedPort)
+                }
             }
         }
 

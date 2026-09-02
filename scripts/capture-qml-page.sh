@@ -44,6 +44,28 @@ owner_reply="$(gdbus call --session \
 backend_owner="${owner_reply#*\'}"
 backend_owner="${backend_owner%%\'*}"
 
+capture_color_scheme="${PROTON_KDE_CAPTURE_COLOR_SCHEME:-}"
+capture_platform_theme="${QT_QPA_PLATFORMTHEME:-generic}"
+if [[ -n "$capture_color_scheme" ]]; then
+    if [[ ! "$capture_color_scheme" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        echo "Invalid Plasma color-scheme name" >&2
+        exit 2
+    fi
+    color_scheme_path="/usr/share/color-schemes/$capture_color_scheme.colors"
+    if [[ ! -f "$color_scheme_path" ]]; then
+        echo "Plasma color scheme not found: $capture_color_scheme" >&2
+        exit 2
+    fi
+    mkdir -p -- "$staging_dir/config"
+    cp -- "$color_scheme_path" "$staging_dir/config/kdeglobals"
+    XDG_CONFIG_HOME="$staging_dir/config" \
+        kwriteconfig6 --file kdeglobals --group General \
+        --key ColorScheme "$capture_color_scheme"
+    if [[ -z "${QT_QPA_PLATFORMTHEME:-}" ]]; then
+        capture_platform_theme="kde"
+    fi
+fi
+
 if [[ "$page_name" == *"-connected" ]]; then
     gdbus call --session \
         --dest quest.entropy.PlasmaVPN.Backend \
@@ -70,7 +92,7 @@ fi
 env \
     QT_QPA_PLATFORM=offscreen \
     QT_QUICK_BACKEND=software \
-    QT_QPA_PLATFORMTHEME="${QT_QPA_PLATFORMTHEME:-generic}" \
+    QT_QPA_PLATFORMTHEME="$capture_platform_theme" \
     QT_ACCESSIBILITY=0 \
     XDG_CACHE_HOME="$staging_dir/cache" \
     XDG_CONFIG_HOME="$staging_dir/config" \

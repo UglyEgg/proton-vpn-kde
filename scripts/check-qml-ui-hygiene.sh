@@ -42,11 +42,15 @@ if ! rg -q 'root\.mirrored.*go-previous-symbolic.*go-next-symbolic' \
     exit 1
 fi
 
-if ! rg -q 'property bool connectionDetailsExpanded: false' \
-        "$qml_dir/OverviewPage.qml" \
-        || ! rg -q 'page\.connected && page\.connectionDetailsExpanded' \
+if ! rg -q 'id: connectionFacts' "$qml_dir/ConnectionScene.qml" \
+        || ! rg -q 'signal copyPortRequested\(\)' \
+        "$qml_dir/ConnectionScene.qml" \
+        || ! rg -q 'onCopyPortRequested' "$qml_dir/OverviewPage.qml" \
+        || ! rg -q 'root\.navigateRequested\("inspector"\)' \
+        "$qml_dir/ConnectionScene.qml" \
+        || rg -q 'connectionDetails(Dialog|Expanded|Toggle)' \
         "$qml_dir/OverviewPage.qml"; then
-    echo "Overview must keep technical connection details progressively disclosed" >&2
+    echo "Overview must present compact connection facts and keep deeper inspection on demand" >&2
     exit 1
 fi
 

@@ -83,7 +83,7 @@ Kirigami.ScrollablePage {
                     qsTr("Connection is now the application home: its device and destination open settings and server browsing, while identity opens Account."),
                     qsTr("An upper-right gear keeps diagnostics and project information close, while native Back navigation replaces the permanent sidebar."),
                     qsTr("Overview visualizes this device, its encrypted tunnel, and the VPN destination while keeping one obvious connection action."),
-                    qsTr("Exact connection details and the Connection Inspector remain available only when requested."),
+                    qsTr("Exact server, protocol, Secure Core entry, and forwarded-port facts now appear as compact icon-led controls on Connection; selecting them opens the relevant settings, Inspector, or copy action."),
                     qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")
                 ]
             }

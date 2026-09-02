@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import QtQuick
-import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
@@ -12,16 +11,19 @@ Kirigami.ScrollablePage {
     objectName: "overviewPage"
     title: qsTr("Connection")
     property bool portCopied: false
-    property bool connectionDetailsExpanded: false
+    property var vpnSettings: vpnController.settings
     property var splitSettings: vpnController.splitTunneling
     readonly property bool connected: vpnController.state === "connected"
-    readonly property bool connectionDetailsVisible:
-        connectionDetailsCard.visible
+    readonly property bool connectionFactsVisible:
+        connectionScene.connectionFactsVisible
     readonly property bool graphicalRouteVisible: connectionScene.routeVisible
     readonly property bool homeNavigationVisible:
         connectionScene.homeNavigationVisible
 
     Component.onCompleted: {
+        if (vpnController.loggedIn && !vpnSettings.loaded) {
+            vpnController.loadSettings()
+        }
         if (vpnController.loggedIn && !splitSettings.loaded) {
             vpnController.loadSplitTunneling()
         }
@@ -76,6 +78,20 @@ Kirigami.ScrollablePage {
             "unexpected_error": qsTr("An unexpected connection error occurred")
         }
         return messages[code] ?? ""
+    }
+
+    function protocolLabel() {
+        if (!vpnSettings.loaded) {
+            return ""
+        }
+        for (let index = 0;
+             index < vpnSettings.protocolOptions.length; ++index) {
+            const protocol = vpnSettings.protocolOptions[index]
+            if (protocol.id === vpnSettings.protocol) {
+                return protocol.name
+            }
+        }
+        return vpnSettings.protocol
     }
 
     Timer {
@@ -145,6 +161,10 @@ Kirigami.ScrollablePage {
                              ? vpnController.serverLocation
                              : vpnController.exitCountry
             serverName: vpnController.serverName
+            entryCountry: vpnController.entryCountry
+            protocolName: page.protocolLabel()
+            forwardedPort: vpnController.forwardedPort
+            portCopied: page.portCopied
             primaryText: vpnController.busy ? qsTr("Working…")
                                             : vpnController.primaryActionText
             primaryIcon: page.connected
@@ -162,95 +182,10 @@ Kirigami.ScrollablePage {
             onNavigateRequested: destination => {
                 applicationWindow().openOverviewDestination(destination)
             }
-        }
-
-        Controls.Button {
-            id: connectionDetailsToggle
-
-            objectName: "connectionDetailsToggle"
-            Layout.alignment: Qt.AlignLeft
-            visible: page.connected
-            checkable: true
-            checked: page.connectionDetailsExpanded
-            flat: true
-            text: checked ? qsTr("Hide connection details")
-                          : qsTr("Show connection details")
-            icon.name: checked ? "go-up-symbolic" : "go-down-symbolic"
-            Accessible.description: qsTr("Expand or collapse the current server and forwarded-port details")
-            onToggled: page.connectionDetailsExpanded = checked
-        }
-
-        SectionCard {
-            id: connectionDetailsCard
-
-            objectName: "connectionDetailsCard"
-            visible: page.connected && page.connectionDetailsExpanded
-            title: qsTr("Connection details")
-            iconName: "network-server"
-
-            DetailRow {
-                label: qsTr("Location")
-                value: page.countryFlag(vpnController.exitCountry) + " "
-                       + (vpnController.serverLocation.length > 0
-                          ? vpnController.serverLocation
-                          : vpnController.exitCountry)
-                iconName: "mark-location"
-            }
-
-            DetailRow {
-                label: vpnController.secureCore
-                       && vpnController.entryCountry.length > 0
-                       ? qsTr("Server and entry") : qsTr("Server")
-                value: vpnController.secureCore
-                       && vpnController.entryCountry.length > 0
-                       ? qsTr("%1 via %2").arg(vpnController.serverName)
-                             .arg(vpnController.entryCountry)
-                       : vpnController.serverName
-                iconName: "network-server-database"
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                visible: vpnController.forwardedPort > 0
-                spacing: Kirigami.Units.largeSpacing
-
-                Controls.Label {
-                    Layout.fillWidth: true
-                    text: qsTr("Forwarded port")
-                    color: Kirigami.Theme.disabledTextColor
-                }
-                Controls.Label {
-                    text: vpnController.forwardedPort.toString()
-                }
-                Controls.ToolButton {
-                    icon.name: page.portCopied ? "dialog-ok" : "edit-copy"
-                    text: page.portCopied ? qsTr("Copied") : qsTr("Copy")
-                    display: Controls.AbstractButton.IconOnly
-                    onClicked: {
-                        vpnController.copyForwardedPort()
-                        page.portCopied = true
-                        copiedTimer.restart()
-                    }
-
-                    Controls.ToolTip.visible: hovered || activeFocus
-                    Controls.ToolTip.text: text
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                Controls.Button {
-                    text: qsTr("Open Connection Inspector")
-                    icon.name: "view-statistics"
-                    flat: true
-                    onClicked: applicationWindow().openOverviewDestination(
-                        "inspector")
-                }
+            onCopyPortRequested: {
+                vpnController.copyForwardedPort()
+                page.portCopied = true
+                copiedTimer.restart()
             }
         }
     }

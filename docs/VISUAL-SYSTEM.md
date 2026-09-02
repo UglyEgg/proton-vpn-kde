@@ -26,11 +26,13 @@ patterns are:
 - plain-language error, then a safe recovery action, then technical details;
 - current connection summary, then the on-demand Inspector.
 
-Progressive disclosure is not synonymous with a stack of cards. The Connection
-surface uses a graphical route from this device, through the encrypted tunnel,
-to the VPN destination. Its protection emblem, route state, and destination
-make the outcome readable before supporting text; the exact identifiers and
-Inspector remain available on request.
+Progressive disclosure is not synonymous with hiding useful facts behind a
+dialog. The Connection surface uses a graphical route from this device, through
+the encrypted tunnel, to the VPN destination. Its protection emblem, route
+state, and destination make the outcome readable before supporting text. Exact
+server, protocol, Secure Core entry, and forwarded-port facts remain compact,
+icon-led, and visible on the surface only when relevant. Selecting one opens the
+appropriate settings, copy action, or richer on-demand Inspector.
 
 Revealed content must not unexpectedly move the user to another page, reorder
 unrelated controls, or require memorizing a hidden choice. Preserve focus when
@@ -48,7 +50,10 @@ gestures.
 
 The Connection surface is the application home, not one destination competing
 inside a permanent sidebar. Its device node opens protection settings, its VPN
-destination opens server browsing, and the signed-in identity opens Account.
+destination opens server browsing, its central encrypted-tunnel control and
+server-capability facts open the Inspector, and the signed-in identity opens
+Account. The protocol fact opens settings; the forwarded-port fact copies its
+value.
 An icon-only gear in the upper-right opens Inspector, release, reporting,
 About, and close actions. These are native buttons and menu items with visible
 focus, tooltips where labels are hidden, and explicit accessible names.
@@ -84,7 +89,7 @@ recognizable under any global color scheme.
 
 `qml-diagnostics-smoke` opens every primary and nested page and rejects
 application-authored QML diagnostics. It also exercises graphical home
-navigation, native back-stack return, and progressive connection details.
+navigation, native back-stack return, and connected-only inline facts.
 `qml-layout-variants-smoke` repeats that path at the compact minimum, at 1.5
 scale, and in right-to-left mode.
 `qml-ui-hygiene` guards the theme and directionality rules above.
@@ -107,6 +112,6 @@ adapter, skips normal Control Center and resident-agent registration, and quits
 after one frame is saved. Adding the `-connected` suffix to a page name asks
 only the deterministic demo adapter to enter its simulated connected state
 before rendering (for example, `overview-connected` or
-`inspector-connected`). Use `overview-details-connected` to capture the
-explicitly disclosed connection-detail state. Capture mode cannot create or
-alter a real VPN connection.
+`inspector-connected`). Set `PROTON_KDE_CAPTURE_COLOR_SCHEME` to an installed
+Plasma color-scheme name such as `BreezeDark` when reviewing a non-default
+theme. Capture mode cannot create or alter a real VPN connection.

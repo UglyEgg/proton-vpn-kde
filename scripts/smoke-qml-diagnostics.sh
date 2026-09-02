@@ -91,8 +91,8 @@ expected_lines["qml: diagnostics-smoke: KRunner confirmed actions complete"]=1
 expected_lines["qml: diagnostics-smoke: Overview home navigation"]=1
 expected_lines["qml: diagnostics-smoke: Overview back navigation"]=1
 expected_lines["qml: diagnostics-smoke: Overview graphical route"]=1
-expected_lines["qml: diagnostics-smoke: Overview details collapsed"]=1
-expected_lines["qml: diagnostics-smoke: Overview details disclosed"]=1
+expected_lines["qml: diagnostics-smoke: Overview inactive facts hidden"]=1
+expected_lines["qml: diagnostics-smoke: Overview connection facts visible"]=1
 for page in \
     Overview Locations Country Servers Account Settings "Custom DNS" \
     "Settings reload" "Split tunneling" "Release notes" "Report issue" \

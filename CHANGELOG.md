@@ -16,8 +16,11 @@ All notable user-visible changes are recorded here. The project follows
   upper-right gear groups diagnostics and project information. Replace the
   application sidebar with native back navigation from every destination.
 - Replace Overview's conventional status card with a graphical, system-themed
-  route from this device through the encrypted tunnel to the VPN destination,
-  without changing connection behavior.
+  route from this device through the encrypted tunnel to the VPN destination.
+  Present the exact server, protocol, Secure Core entry, and forwarded port as
+  compact icon-led facts on that surface; facts and capability badges open the
+  relevant settings or Inspector depth without a redundant details modal. This
+  does not change connection behavior.
 - Add an on-demand Connection Inspector for live server capabilities,
   protection configuration, and local runtime state using only existing
   non-sensitive Core snapshots.
