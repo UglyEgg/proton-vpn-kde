@@ -106,14 +106,14 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "c82722624adf71b3c6e5824a87d698afd30c5d66ed027c39ce10d504a416a35b" \
+    "92333bf0b0ff9c24090ae63af64d4aa59d61f5ee78a0af3e55501c3650a0158a" \
     "frontend presentation contract" \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
     src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
     src/VpnControllerSnapshot.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp tests/SignInPresentationTest.cpp
 assert_diff_hash \
-    "92c6fc1abbd34d3275e821eec2a5a6c189aa1e39efb0535a54e4c51fca1386b9" \
+    "b8ecf80671443cd994fdcedc713da7cb7b45ed5f53e04192a5799d2c22583cea" \
     "QML presentation" qml
 
 qml_operation_hash="$(

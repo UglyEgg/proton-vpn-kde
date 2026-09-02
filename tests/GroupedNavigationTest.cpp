@@ -298,6 +298,7 @@ private slots:
     void retriesTransientEmptyServerGroupResponses();
     void retriesTransientEmptyServerResponse();
     void browserFailuresAreDistinctFromEmptyResults();
+    void supplementalLoadFailuresPreserveAuthoritativeEmptyResults();
     void stalePageCleanupCannotClearReplacementContexts();
     void requestsFastestServerByValidatedCapabilities();
     void supportReportSubmissionFollowsBuildPolicy();
@@ -709,6 +710,43 @@ void GroupedNavigationTest::browserFailuresAreDistinctFromEmptyResults()
     QVERIFY(controller.serversError().isEmpty());
     QTRY_VERIFY_WITH_TIMEOUT(!controller.locationsBusy(), 2000);
     QCOMPARE(controller.message(), connectionMessage);
+}
+
+void GroupedNavigationTest::supplementalLoadFailuresPreserveAuthoritativeEmptyResults()
+{
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+
+    m_backend.emptyServerResponses = 3;
+    controller.loadGroupServers(QStringLiteral("CH"),
+                                QStringLiteral("location"),
+                                QStringLiteral("Zurich"));
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.locationsBusy(), 3000);
+    QCOMPARE(controller.serverModel()->rowCount(), 0);
+    QVERIFY(controller.serversError().isEmpty());
+
+    m_backend.loadFailures = 1;
+    controller.requestServerLoads();
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.serverLoadsError().isEmpty(), 2000);
+    QCOMPARE(controller.serverModel()->rowCount(), 0);
+    QVERIFY(controller.serversError().isEmpty());
+
+    controller.loadGroupServers(QStringLiteral("CH"),
+                                QStringLiteral("location"),
+                                QStringLiteral("Zurich"));
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverModel()->rowCount(), 2, 2000);
+    controller.setServerFilter(QStringLiteral("no-such-server"));
+    QCOMPARE(controller.serverModel()->rowCount(), 0);
+
+    m_backend.loadFailures = 1;
+    controller.requestServerLoads();
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.serverLoadsError().isEmpty(), 2000);
+    QCOMPARE(controller.serverModel()->rowCount(), 0);
+    QVERIFY(controller.serversError().isEmpty());
 }
 
 void GroupedNavigationTest::stalePageCleanupCannotClearReplacementContexts()

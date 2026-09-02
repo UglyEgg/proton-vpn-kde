@@ -139,7 +139,7 @@ Kirigami.ScrollablePage {
         Kirigami.PlaceholderMessage {
             anchors.centerIn: parent
             visible: serverList.count === 0
-                     && page.serverBrowserError.length === 0
+                     && vpnController.serversError.length === 0
             text: vpnController.locationsBusy
                   ? qsTr("Loading servers…")
                   : page.requiredCapabilities.length > 0

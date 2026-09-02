@@ -186,7 +186,7 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/LocationsPage.qml" \
         || ! rg -U -q 'visible: groupList\.count === 0\n[[:space:]]*&& vpnController\.serverGroupsError\.length === 0' \
         "$qml_dir/CountryPage.qml" \
-        || ! rg -U -q 'visible: serverList\.count === 0\n[[:space:]]*&& page\.serverBrowserError\.length === 0' \
+        || ! rg -U -q 'visible: serverList\.count === 0\n[[:space:]]*&& vpnController\.serversError\.length === 0' \
         "$qml_dir/ServersPage.qml" \
         || ! rg -q 'function beginConnectionAction\(expectedState\)' \
         "$qml_dir/Main.qml" \
