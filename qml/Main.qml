@@ -21,7 +21,9 @@ Kirigami.ApplicationWindow {
     readonly property var integrationSettings: appSettings
 
     footer: ApplicationRecoveryBanner {
+        id: backendRecoveryBanner
         vpnController: root.controller
+        dialogErrorCodes: mainDialogs.recoveryErrorCodes
     }
 
     onClosing: close => {
@@ -198,13 +200,7 @@ Kirigami.ApplicationWindow {
     }
 
     function showConnectionRecoveryDialog(code) {
-        const supported = [
-            "maximum_sessions_reached",
-            "authentication_denied",
-            "two_factor_required",
-            "certificate_not_yet_valid"
-        ].includes(code)
-        if (supported) {
+        if (backendRecoveryBanner.requiresDialog(code)) {
             root.show()
             root.raise()
             root.requestActivate()

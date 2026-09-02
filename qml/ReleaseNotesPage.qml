@@ -87,7 +87,7 @@ Kirigami.ScrollablePage {
                     qsTr("Server discovery now leads with one graphical fastest-suitable action, keeps selected requirements visible, and uses native icon-led checkboxes before country and exact-server browsing."),
                     qsTr("Settings now groups controls into icon-led Connection, Protection, Plasma, and Diagnostics intents and preserves the selected intent after a setting is saved."),
                     qsTr("Sign-in now presents exactly one active step at a time, including credentials, two-factor, security-key, and recovery states; a delayed Secret Service prompt appears as contextual help instead of an assumed cause."),
-                    qsTr("Backend startup and account-recovery failures keep their specific safety guidance visible. An unresponsive service remains recoverable from every page, while restart appears only when it is valid."),
+                    qsTr("Backend startup, account-recovery, and ordinary connection failures keep their specific guidance visible on the page where they occur. An unresponsive service remains recoverable throughout the signed-in interface."),
                     qsTr("Help, reporting availability, release history, attribution, and licensing now live in one secondary information destination instead of competing in the home menu."),
                     qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")
                 ]

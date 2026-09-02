@@ -14,6 +14,16 @@ Item {
     required property real windowWidth
     readonly property bool runnerActionVisible: runnerActionDialog.visible
     readonly property bool npsVisible: npsDialog.visible
+    readonly property var recoveryErrorCodes: [
+        "maximum_sessions_reached",
+        "authentication_denied",
+        "two_factor_required",
+        "certificate_not_yet_valid"
+    ]
+
+    function supportsRecovery(code) {
+        return recoveryErrorCodes.includes(code)
+    }
 
     function requestRunnerAction(action, argument) {
         if (runnerActionDialog.visible) {
@@ -37,6 +47,9 @@ Item {
     }
 
     function openRecovery(code) {
+        if (!supportsRecovery(code)) {
+            return false
+        }
         if (code === "maximum_sessions_reached") {
             sessionLimitDialog.open()
             return true

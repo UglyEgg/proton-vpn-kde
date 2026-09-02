@@ -21,6 +21,7 @@ class FakeVpnController final : public QObject
     Q_PROPERTY(int killSwitch MEMBER killSwitch NOTIFY snapshotChanged)
     Q_PROPERTY(QString authState MEMBER authState NOTIFY snapshotChanged)
     Q_PROPERTY(QString state MEMBER state NOTIFY snapshotChanged)
+    Q_PROPERTY(QString errorCode MEMBER errorCode NOTIFY snapshotChanged)
     Q_PROPERTY(QString message MEMBER message NOTIFY snapshotChanged)
 
 public:
@@ -33,6 +34,7 @@ public:
     int killSwitch = 0;
     QString authState = QStringLiteral("signed_out");
     QString state = QStringLiteral("disconnected");
+    QString errorCode;
     QString message;
     int restartCalls = 0;
 
@@ -192,6 +194,7 @@ void SignInPresentationTest::recoveryPreservesAuthoritativeMessage()
 void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
 {
     FakeVpnController controller;
+    controller.loggedIn = true;
     controller.state = QStringLiteral("unresponsive");
     controller.backendRestartAllowed = true;
     controller.message = QStringLiteral("Restart the local service.");
@@ -199,9 +202,15 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
     const QString sourcePath = QStringLiteral(
         PROTON_VPN_KDE_SOURCE_DIR "/qml/ApplicationRecoveryBanner.qml");
     QQmlComponent component(&engine, QUrl::fromLocalFile(sourcePath));
+    const QVariantList dialogErrorCodes{
+        QStringLiteral("maximum_sessions_reached"),
+        QStringLiteral("authentication_denied"),
+        QStringLiteral("two_factor_required"),
+        QStringLiteral("certificate_not_yet_valid")};
     const QVariantMap initialProperties{
         {QStringLiteral("vpnController"),
-         QVariant::fromValue(static_cast<QObject *>(&controller))}};
+         QVariant::fromValue(static_cast<QObject *>(&controller))},
+        {QStringLiteral("dialogErrorCodes"), dialogErrorCodes}};
     QScopedPointer<QObject> banner(
         component.createWithInitialProperties(initialProperties));
     if (!banner)
@@ -218,6 +227,20 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
     QCOMPARE(banner->property("text").toString(), controller.message);
     QVERIFY(QMetaObject::invokeMethod(banner.data(), "requestRestart"));
     QCOMPARE(controller.restartCalls, 1);
+
+    controller.state = QStringLiteral("error");
+    controller.errorCode = QStringLiteral("tunnel_setup_failed");
+    controller.message = QStringLiteral("Core rejected the tunnel setup.");
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!banner->property("recoveryActive").toBool());
+    QVERIFY(banner->property("connectionErrorActive").toBool());
+    QVERIFY(banner->property("text").toString().contains(controller.message));
+
+    controller.errorCode = QStringLiteral("authentication_denied");
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!banner->property("connectionErrorActive").toBool());
 
     controller.state = QStringLiteral("disconnected");
     emit controller.snapshotChanged();

@@ -46,6 +46,10 @@ All notable user-visible changes are recorded here. The project follows
 - Keep backend-unresponsive recovery visible above every signed-in page and
   disable cached Proton-dependent settings until the service is ready again;
   local Plasma preferences and navigation remain available.
+- Keep ordinary connection failures visible above the page where the
+  connection was requested, while retaining focused dialogs for failures that
+  require a specific response and avoiding duplicate error surfaces on the
+  Connection page.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

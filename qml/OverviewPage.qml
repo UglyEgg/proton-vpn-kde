@@ -65,21 +65,6 @@ Kirigami.ScrollablePage {
         return Kirigami.Theme.neutralTextColor
     }
 
-    function connectionErrorText(code) {
-        const messages = {
-            "tunnel_setup_failed": qsTr("Tunnel setup failed"),
-            "authentication_denied": qsTr("Authentication denied"),
-            "timeout": qsTr("The connection attempt timed out"),
-            "device_disconnected": qsTr("The VPN device disconnected"),
-            "maximum_sessions_reached": qsTr("Session limit reached"),
-            "certificate_expired": qsTr("Refreshing the VPN certificate…"),
-            "certificate_not_yet_valid": qsTr("Your system clock appears to be out of sync. Update the system time and try again."),
-            "two_factor_required": qsTr("Additional account authentication is required"),
-            "unexpected_error": qsTr("An unexpected connection error occurred")
-        }
-        return messages[code] ?? ""
-    }
-
     function protocolLabel() {
         if (!vpnSettings.loaded) {
             return ""
@@ -106,19 +91,16 @@ Kirigami.ScrollablePage {
         Kirigami.InlineMessage {
             Layout.fillWidth: true
             visible: vpnController.state !== "unresponsive"
+                     && vpnController.state !== "error"
                      && (!vpnController.backendAvailable
                      || vpnController.message.length > 0
                      || vpnController.errorCode.length > 0)
             type: vpnController.state === "error"
                   ? Kirigami.MessageType.Error
                   : Kirigami.MessageType.Information
-            text: vpnController.errorCode.length > 0
-                  ? page.connectionErrorText(vpnController.errorCode)
-                    + (vpnController.message.length > 0
-                       ? "\n" + vpnController.message : "")
-                  : vpnController.message.length > 0
-                    ? vpnController.message
-                    : qsTr("Start the backend service to manage Proton VPN")
+            text: vpnController.message.length > 0
+                  ? vpnController.message
+                  : qsTr("Start the backend service to manage Proton VPN")
 
         }
 

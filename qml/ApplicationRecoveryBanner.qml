@@ -8,17 +8,46 @@ Kirigami.InlineMessage {
     id: root
 
     required property var vpnController
+    required property var dialogErrorCodes
     readonly property bool recoveryActive:
-        vpnController.state === "unresponsive"
+        vpnController.loggedIn
+        && vpnController.state === "unresponsive"
         && vpnController.backendRestartAllowed
+    readonly property bool connectionErrorActive:
+        vpnController.loggedIn
+        && vpnController.state === "error"
+        && !root.requiresDialog(vpnController.errorCode)
 
     objectName: "applicationBackendRecovery"
-    visible: recoveryActive
+    visible: recoveryActive || connectionErrorActive
     height: visible ? implicitHeight : 0
     type: Kirigami.MessageType.Error
-    text: vpnController.message.length > 0
-          ? vpnController.message
-          : qsTr("The local Proton VPN service is not responding.")
+    text: {
+        if (root.recoveryActive) {
+            return vpnController.message.length > 0
+                   ? vpnController.message
+                   : qsTr("The local Proton VPN service is not responding.")
+        }
+        const summary = root.connectionErrorText(vpnController.errorCode)
+        return summary
+               + (vpnController.message.length > 0
+                  ? "\n" + vpnController.message : "")
+    }
+
+    function requiresDialog(code) {
+        return dialogErrorCodes.includes(code)
+    }
+
+    function connectionErrorText(code) {
+        const messages = {
+            "tunnel_setup_failed": qsTr("Tunnel setup failed"),
+            "timeout": qsTr("The connection attempt timed out"),
+            "device_disconnected": qsTr("The VPN device disconnected"),
+            "certificate_expired": qsTr("Refreshing the VPN certificate…"),
+            "unexpected_error": qsTr("An unexpected connection error occurred")
+        }
+        return messages[code] ?? qsTr("VPN connection failed")
+    }
 
     function requestRestart() {
         vpnController.restartBackend()
@@ -29,6 +58,7 @@ Kirigami.InlineMessage {
             objectName: "restartUnresponsiveBackendAction"
             text: qsTr("Restart service")
             icon.name: "view-refresh"
+            visible: root.recoveryActive
             onTriggered: root.requestRestart()
         }
     ]

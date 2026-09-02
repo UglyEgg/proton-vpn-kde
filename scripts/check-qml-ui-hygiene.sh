@@ -144,14 +144,22 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
         || ! rg -q 'footer: ApplicationRecoveryBanner' \
         "$qml_dir/Main.qml" \
+        || ! rg -q 'readonly property bool connectionErrorActive' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'backendRecoveryBanner\.requiresDialog\(code\)' \
+        "$qml_dir/Main.qml" \
+        || ! rg -q 'readonly property var recoveryErrorCodes' \
+        "$qml_dir/MainDialogs.qml" \
+        || rg -q 'function connectionErrorText' \
+        "$qml_dir/OverviewPage.qml" \
         || ! rg -q 'running: parent\.visible && vpnController\.busy' \
         "$qml_dir/SignInPage.qml" \
         || ! rg -q 'readonly property bool terminalBackendFailure' \
         "$qml_dir/SignInPage.qml" \
         || ! rg -q 'enabled: vpnController\.ready' \
         "$qml_dir/SettingsPage.qml" \
-        || ! rg -q 'backendReady: vpnController\.ready' \
-        "$qml_dir/SettingsPage.qml"; then
+        || ! rg -U -q 'enabled: vpnController\.ready\n[[:space:]]*&& vpnSettings\.loaded' \
+        "$qml_dir/VpnConnectionSettingsSection.qml"; then
     echo "Backend failures must preserve diagnostics and expose only valid recovery actions" >&2
     exit 1
 fi

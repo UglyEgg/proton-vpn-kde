@@ -187,7 +187,6 @@ Kirigami.ScrollablePage {
                     vpnSettings: page.vpnSettings
                     appSettings: page.integrationSettings
                     pageWidth: page.width
-                    backendReady: vpnController.ready
                 }
 
                 FastestSettingsSection {
