@@ -146,7 +146,7 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property bool connectionErrorActive' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
-        || ! rg -q 'backendRecoveryBanner\.requiresDialog\(code\)' \
+        || ! rg -q 'mainDialogs\.supportsRecovery\(code\)' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property var recoveryErrorCodes' \
         "$qml_dir/MainDialogs.qml" \

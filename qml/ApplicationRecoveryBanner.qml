@@ -16,7 +16,7 @@ Kirigami.InlineMessage {
     readonly property bool connectionErrorActive:
         vpnController.loggedIn
         && vpnController.state === "error"
-        && !root.requiresDialog(vpnController.errorCode)
+        && !dialogErrorCodes.includes(vpnController.errorCode)
 
     objectName: "applicationBackendRecovery"
     visible: recoveryActive || connectionErrorActive
@@ -32,10 +32,6 @@ Kirigami.InlineMessage {
         return summary
                + (vpnController.message.length > 0
                   ? "\n" + vpnController.message : "")
-    }
-
-    function requiresDialog(code) {
-        return dialogErrorCodes.includes(code)
     }
 
     function connectionErrorText(code) {

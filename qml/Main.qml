@@ -200,7 +200,7 @@ Kirigami.ApplicationWindow {
     }
 
     function showConnectionRecoveryDialog(code) {
-        if (backendRecoveryBanner.requiresDialog(code)) {
+        if (mainDialogs.supportsRecovery(code)) {
             root.show()
             root.raise()
             root.requestActivate()
