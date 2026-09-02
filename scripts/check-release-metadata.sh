@@ -18,6 +18,12 @@ python_runtime_version="$(sed -n \
     "$project_dir/backend/proton_vpn_kde_backend/__init__.py")"
 release_notes_version="$(sed -n 's/^[[:space:]]*text: "\([0-9][^"]*\)"$/\1/p' \
     "$project_dir/qml/ReleaseNotesPage.qml" | head -n 1)"
+readme_posture="$(sed -n \
+    '/^## Engineering posture$/,/^## Current status$/p' \
+    "$project_dir/README.md")"
+security_posture="$(sed -n \
+    '/^## Current assessment posture$/,/^## How to read this document$/p' \
+    "$project_dir/docs/SECURITY-AUDIT-2026-08-30.md")"
 
 if [[ -z "$cmake_version" ]]; then
     echo "Unable to read the canonical CMake project version" >&2
@@ -36,6 +42,14 @@ for version_source in \
             "$python_project_version" \
             "$python_runtime_version" \
             "$release_notes_version" >&2
+        exit 1
+    fi
+done
+
+for posture in "$readme_posture" "$security_posture"; do
+    if [[ "$posture" != *"unreleased $cmake_version"* \
+            && "$posture" != *"unreleased \`$cmake_version\`"* ]]; then
+        echo "Release-facing posture does not identify unreleased $cmake_version" >&2
         exit 1
     fi
 done

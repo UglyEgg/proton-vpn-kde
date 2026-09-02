@@ -32,6 +32,9 @@ All notable user-visible changes are recorded here. The project follows
   preparation, credentials, Secret Service approval, two-factor, security key,
   PIN, or safe recovery. Give the signed-in Account surface the same native
   identity hierarchy without changing authentication behavior.
+- Keep the specific backend diagnostic visible during failed startup, expose
+  restart recovery for unavailable or unresponsive services, and suppress a
+  futile restart after terminal client-identity rejection.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

@@ -77,11 +77,11 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 | Evidence | Current status |
 | --- | --- |
-| Automated verification | The unreleased 0.12.0 source passes 37/37 CTest tests, including 215 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and a measured 75% backend branch-coverage floor |
-| Integration verification | QML diagnostics, D-Bus activation, staged installation, KRunner, and System Settings |
-| Package verification | The public baseline has exact 0.11.3-1 client and pinned overlay binary/source RPM builds, artifact-policy checks, and a combined transaction test; 0.12.0 packaging remains gated on its final reviewed commit |
-| Security assessment | Public 0.11.3: all seven historical findings closed and the 2026-08-31 re-review found no new reportable issue; the unreleased 0.12.0 gate remains pending |
-| Disconnected demo footprint | Public 0.11.3 baseline: 76.5 MiB combined PSS across backend, agent, and Control Center; the resident agent measured 4.7 MiB PSS |
+| Automated verification | The unreleased 0.13.0 source passes 38/38 CTest tests, including 215 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and 82% measured backend branch coverage |
+| Integration verification | Deterministic light, dark, compact, 1.5x, RTL, contrast-stress, and reduced-motion QML captures; D-Bus activation; staged installation; KRunner; and System Settings |
+| Package verification | A pre-final 0.13.0 candidate produced byte-identical client RPM/SRPM rebuilds; both pinned overlay pairs passed artifact policy and the combined transaction test. The remediated final commit must repeat those gates before publication |
+| Security assessment | Public 0.11.3 has all seven historical findings closed. The presentation-only 0.13.0 review is in progress against the accepted 0.12.0 mechanics and is not yet a release approval |
+| Disconnected demo footprint | Alternating like-for-like Release measurements place the 0.13.0 Control Center about 5 MiB below the accepted 0.12.0 presentation baseline; final exact-commit retention and soak evidence remain release gates |
 | Server search | 0.205–5.667 ms measured median across representative queries against an 18,138-server cache |
 
 These are scoped engineering measurements, not certification. The project has completed a maintainer-directed, AI-assisted security assessment, but it has not received an independent security audit or penetration test. Read the [security assessment](docs/SECURITY-AUDIT-2026-08-30.md) and [performance methodology](docs/PERFORMANCE.md) for the evidence and limits.

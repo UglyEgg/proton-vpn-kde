@@ -370,6 +370,7 @@ void GroupedNavigationTest::explainsRejectedClientIdentityWithoutRetrying()
                 QStringLiteral("Close and reopen"), Qt::CaseInsensitive),
             2000);
         QVERIFY(!controller.backendAvailable());
+        QVERIFY(!controller.backendRestartAllowed());
         QTest::qWait(1200);
         QCOMPARE(m_backend.registrationCalls, registrationsBefore + 1);
     }
@@ -428,6 +429,7 @@ void GroupedNavigationTest::stopsRetryingAnUnresponsiveSameOwner()
     QTRY_COMPARE_WITH_TIMEOUT(
         controller.state(), QStringLiteral("unresponsive"), 3000);
     QVERIFY(controller.backendAvailable());
+    QVERIFY(controller.backendRestartAllowed());
     QVERIFY(!controller.ready());
     QVERIFY(controller.message().contains(
         QStringLiteral("not responding"), Qt::CaseInsensitive));

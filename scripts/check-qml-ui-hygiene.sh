@@ -115,6 +115,21 @@ if ! rg -q 'objectName: "authenticationStage"' \
     exit 1
 fi
 
+backend_restart_policy_uses="$(
+    rg -c 'vpnController\.backendRestartAllowed' \
+        "$qml_dir/SignInPage.qml"
+)"
+if ! rg -q 'objectName: "backendStartupDiagnostic"' \
+        "$qml_dir/SignInPage.qml" \
+        || [[ "$backend_restart_policy_uses" -lt 3 ]] \
+        || ! rg -q 'objectName: "restartUnresponsiveBackendAction"' \
+        "$qml_dir/OverviewPage.qml" \
+        || ! rg -q 'visible: vpnController\.state === "unresponsive"' \
+        "$qml_dir/OverviewPage.qml"; then
+    echo "Backend failures must preserve diagnostics and expose only valid recovery actions" >&2
+    exit 1
+fi
+
 if ! rg -q 'id: moreAction' "$qml_dir/ConnectionScene.qml" \
         || ! rg -q 'text: qsTr\("More options"\)' \
         "$qml_dir/ConnectionScene.qml" \

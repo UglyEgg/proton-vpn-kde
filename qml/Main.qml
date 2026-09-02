@@ -90,6 +90,14 @@ Kirigami.ApplicationWindow {
         }
     }
 
+    function closeOverviewDestination() {
+        if (pageStack.depth <= 1) {
+            return false
+        }
+        pageStack.pop()
+        return true
+    }
+
     function showOverview() {
         root.currentSection = "overview"
         showPage(overviewPageComponent)

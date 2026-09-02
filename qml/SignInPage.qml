@@ -162,7 +162,8 @@ Kirigami.ScrollablePage {
     }
 
     function updateBackendRetry() {
-        const waiting = page.preparingSignIn && vpnController.backendAvailable
+        const waiting = page.preparingSignIn
+                        && vpnController.backendRestartAllowed
         if (waiting) {
             if (!backendRetryVisible && !backendRetryTimer.running) {
                 backendRetryTimer.start()
@@ -242,7 +243,8 @@ Kirigami.ScrollablePage {
         interval: 10000
         repeat: false
         onTriggered: {
-            if (page.preparingSignIn && vpnController.backendAvailable) {
+            if (page.preparingSignIn
+                    && vpnController.backendRestartAllowed) {
                 page.backendRetryVisible = true
             }
         }
@@ -282,11 +284,11 @@ Kirigami.ScrollablePage {
         }
 
         Kirigami.InlineMessage {
+            objectName: "backendStartupDiagnostic"
             Layout.fillWidth: true
             visible: vpnController.message.length > 0
                      && page.activeStep !== page.securityKeyStep
                      && page.activeStep !== page.recoveryStep
-                     && page.activeStep !== page.preparingStep
                      && page.activeStep !== page.secretStoreStep
             type: vpnController.authState === "human_verification"
                   || vpnController.authState === "fido_error"
@@ -303,7 +305,9 @@ Kirigami.ScrollablePage {
 
             Controls.BusyIndicator {
                 Layout.alignment: Qt.AlignHCenter
+                visible: running
                 running: parent.visible
+                         && vpnController.backendRestartAllowed
             }
 
             Controls.Button {

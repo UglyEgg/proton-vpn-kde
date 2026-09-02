@@ -1,4 +1,4 @@
-# Security and engineering assessment — 2026-08-30, refreshed 2026-09-01
+# Security and engineering assessment — 2026-08-30, refreshed 2026-09-02
 
 ## Current assessment posture
 
@@ -8,21 +8,31 @@ medium, and two low severity. All seven were corrected, their original failure
 modes no longer reproduce in focused tests, and the 2026-08-31 `0.11.3`
 re-review found no new reportable issue.
 
-The unreleased `0.12.0` branch adds event-driven backend lifetime and an
-on-demand Connection Inspector. Its pre-final isolated reviews and subsequent
-standard security scans found lifecycle, error-class, Secret Service identity,
-desktop-action-broker, and inherited native-loader environment defects. Every
-reported path has a focused response in the current working tree. **The
-`0.12.0` candidate remains explicitly not release-ready until six fresh
-isolated reviewers pass one exact remediated commit, its packages complete live
-acceptance, and that commit finishes the one-week local soak.**
+The accepted `0.12.0` mechanics add event-driven backend lifetime and an
+on-demand Connection Inspector. Their pre-final isolated reviews and standard
+security scans found lifecycle, error-class, Secret Service identity,
+desktop-action-broker, and inherited native-loader environment defects. The
+historical section below records each remediation and the final gate without
+presenting those closed findings as current vulnerabilities.
 
-The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 215 backend tests at 82% measured branch
-coverage, and all 37 CTest targets both normally and under address, leak, and
-undefined-behavior sanitizers. These results validate the working tree; they do
-not substitute for the exact-commit review, package, live-acceptance, or soak
-gates.
+The unreleased `0.13.0` branch is a presentation-only redesign over those
+accepted mechanics. Its first fresh review pass found three release-process or
+presentation defects: hidden backend recovery guidance, a fail-open mechanics
+freeze, and an Inspector-retention probe that no longer followed the real
+navigation lifecycle. Those findings are being remediated and do not change
+Proton Core or VPN networking behavior. **Version `0.13.0` remains explicitly
+not release-ready until all six isolated reviewers pass one exact remediated
+commit, its binary/source package set repeats the release battery, live
+acceptance succeeds, and the planned local soak completes.**
+
+The pre-remediation `0.13.0` snapshot `1d88e35` passed Mypy, Ruff, all 35
+production translation units under Clang-Tidy, 215 backend tests at 82%
+measured branch coverage, and all 38 CTest targets both normally and under
+address, leak, and undefined-behavior sanitizers. Its binary/source RPM set was
+byte-reproducible, both overlay pairs passed their package policies, and the
+combined transaction test succeeded. These results are retained as
+pre-remediation evidence and must be repeated on the exact final commit; they
+do not substitute for live acceptance or soak gates.
 
 The public `0.11.3` source passed Mypy, Ruff, Clang-Tidy across all 34
 production translation units, and the complete native test suite under address,
@@ -48,8 +58,10 @@ attestation, certification, or warranty of security.
 
 ## How to read this document
 
-- **Current assessment posture** and **0.12.0 isolated review gate** describe
+- **Current assessment posture** and **0.13.0 isolated review gate** describe
   the unreleased branch and make its release decision explicit.
+- **Historical 0.12.0 isolated review gate** records superseded review cycles
+  and closed findings; it is not a list of current vulnerabilities.
 - **Current controls**, **Verification**, and **Residual risk** describe the
   source controls shared by the public baseline and current branch; versioned
   package evidence is labeled separately.
@@ -60,7 +72,22 @@ attestation, certification, or warranty of security.
 - Snapshot identifiers document what was reviewed; they are preserved in their
   tool-generated form and are not release signatures.
 
-## 0.12.0 isolated review gate
+## 0.13.0 isolated review gate
+
+Six fresh reviewers inspect Hostile, Subtractive, Entropy, Error-Class,
+HPC/Performance, and Hardening/Security concerns independently. Reviewers do
+not receive another reviewer's findings or perform multiple legs sequentially.
+
+The first pass against `1d88e35` is superseded because it produced actionable
+findings. Error-Class found that terminal or unavailable backend states could
+hide their diagnostic and recovery affordance. Entropy found that the
+presentation mechanics gate accepted unmatched files and that release-facing
+posture still named `0.12.0`. HPC/Performance found that the Inspector-retention
+probe reconstructed Overview rather than exercising the shipped push/back
+lifecycle. The remediated candidate must restart all six reviews; no result
+from this superseded pass counts toward release approval.
+
+## Historical 0.12.0 isolated review gate
 
 Six reviewers inspect Hostile, Subtractive, Entropy, Error-Class,
 HPC/Performance, and Hardening/Security concerns independently. Reviewers do

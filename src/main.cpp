@@ -283,6 +283,10 @@ int main(int argc, char *argv[])
     }
     if (inspectorRetention) {
         auto samples = std::make_shared<InspectorRetentionSamples>();
+        if (!QMetaObject::invokeMethod(window, "showOverview")) {
+            qCritical() << "Unable to prepare the Inspector measurement";
+            return 1;
+        }
         QTimer::singleShot(2000, window,
                            [window, &engine, &app, samples] {
             const auto baseline = selfMemorySample();
@@ -291,8 +295,9 @@ int main(int argc, char *argv[])
                 app.exit(1);
                 return;
             }
-            if (!QMetaObject::invokeMethod(window,
-                                           "showConnectionInspector")) {
+            if (!QMetaObject::invokeMethod(
+                    window, "openOverviewDestination",
+                    Q_ARG(QVariant, QVariant(QStringLiteral("inspector"))))) {
                 qCritical() << "Unable to open the Inspector measurement";
                 app.exit(1);
                 return;
@@ -302,7 +307,8 @@ int main(int argc, char *argv[])
                                [window, &engine, &app, samples] {
                 const auto firstOpen = selfMemorySample();
                 if (!firstOpen
-                    || !QMetaObject::invokeMethod(window, "showOverview")) {
+                    || !QMetaObject::invokeMethod(
+                        window, "closeOverviewDestination")) {
                     qCritical() << "Unable to close the Inspector measurement";
                     app.exit(1);
                     return;
@@ -316,7 +322,9 @@ int main(int argc, char *argv[])
                     const auto firstClosed = selfMemorySample();
                     if (!firstClosed
                         || !QMetaObject::invokeMethod(
-                            window, "showConnectionInspector")) {
+                            window, "openOverviewDestination",
+                            Q_ARG(QVariant,
+                                  QVariant(QStringLiteral("inspector"))))) {
                         qCritical() << "Unable to repeat Inspector measurement";
                         app.exit(1);
                         return;
@@ -326,8 +334,8 @@ int main(int argc, char *argv[])
                                        [window, &engine, &app, samples] {
                         const auto secondOpen = selfMemorySample();
                         if (!secondOpen
-                            || !QMetaObject::invokeMethod(window,
-                                                          "showOverview")) {
+                            || !QMetaObject::invokeMethod(
+                                window, "closeOverviewDestination")) {
                             qCritical() << "Unable to finish Inspector measurement";
                             app.exit(1);
                             return;

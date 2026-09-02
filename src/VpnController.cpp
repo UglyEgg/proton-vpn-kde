@@ -120,6 +120,10 @@ VpnController::~VpnController()
 }
 
 bool VpnController::backendAvailable() const { return m_backendAvailable; }
+bool VpnController::backendRestartAllowed() const
+{
+    return !m_clientIdentityRejected;
+}
 bool VpnController::ready() const { return m_ready; }
 bool VpnController::startupCompatible() const { return m_startupCompatible; }
 bool VpnController::loggedIn() const { return m_loggedIn; }

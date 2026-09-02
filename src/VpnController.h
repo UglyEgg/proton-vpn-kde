@@ -33,6 +33,7 @@ class VpnController final : public VpnConnectionController,
 {
     Q_OBJECT
     Q_PROPERTY(bool backendAvailable READ backendAvailable NOTIFY backendAvailableChanged)
+    Q_PROPERTY(bool backendRestartAllowed READ backendRestartAllowed NOTIFY snapshotChanged)
     Q_PROPERTY(bool ready READ ready NOTIFY snapshotChanged)
     Q_PROPERTY(bool startupCompatible READ startupCompatible NOTIFY snapshotChanged)
     Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY snapshotChanged)
@@ -82,6 +83,7 @@ public:
     ~VpnController() override;
 
     [[nodiscard]] bool backendAvailable() const override;
+    [[nodiscard]] bool backendRestartAllowed() const;
     [[nodiscard]] bool ready() const override;
     [[nodiscard]] bool startupCompatible() const;
     [[nodiscard]] bool loggedIn() const override;
