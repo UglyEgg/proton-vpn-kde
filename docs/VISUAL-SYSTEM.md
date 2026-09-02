@@ -4,6 +4,40 @@ The Control Center is a responsive Kirigami desktop application. These rules
 govern presentation only. Proton Core remains the owner of account policy,
 networking, protocols, NetworkManager, DNS, kill switch, and split tunneling.
 
+## Native Plasma contract
+
+Qt 6, Kirigami, and KDE Frameworks are the interface toolkit, not a themed
+compatibility layer. Use standard controls and semantic Plasma assets so the
+desktop remains responsible for color scheme, typography, spacing, icon theme,
+font scaling, contrast, right-to-left layout, accessibility, and reduced-motion
+preferences. A custom visual treatment must still behave like a good Plasma
+citizen in every supported system theme.
+
+## Progressive disclosure
+
+The first layer of each page answers three questions: what is the current
+state, what is the primary action, and what—if anything—requires attention.
+Additional controls appear only where they refine that task. The preferred
+patterns are:
+
+- summary, then optional details;
+- fastest suitable connection, then visible criteria, then an exact server;
+- common setting, then its contextual exceptions;
+- plain-language error, then a safe recovery action, then technical details;
+- current connection summary, then the on-demand Inspector.
+
+Revealed content must not unexpectedly move the user to another page, reorder
+unrelated controls, or require memorizing a hidden choice. Preserve focus when
+content expands and give disclosure controls explicit accessible names and
+states.
+
+Progressive disclosure never applies to whether the VPN is connected, whether
+protection is active, the consequence of connecting or disconnecting, an
+authentication request, destructive behavior, or a failure requiring action.
+Do not accumulate uncommon controls in a generic Advanced page, stack nested
+accordions, or replace discoverable native controls with unlabelled custom
+gestures.
+
 ## Navigation
 
 Wide windows keep the standard Kirigami global drawer open as a resizable
@@ -40,6 +74,11 @@ application-authored QML diagnostics. It also exercises expanded, collapsed,
 compact-overlay, and restored sidebar states. `qml-layout-variants-smoke`
 repeats that path at the compact minimum, at 1.5 scale, and in right-to-left mode.
 `qml-ui-hygiene` guards the theme and directionality rules above.
+
+The 0.13 release also carries a CI mechanics-freeze gate. It compares runtime,
+service, backend, native-controller, integration, and Proton-overlay paths with
+the accepted 0.12.0 revision. A presentation change that crosses that boundary
+must leave the UX release and receive an independent behavioral review.
 
 The diagnostics smoke runs against the non-networking demo backend on an
 isolated session bus. Missing offscreen-only Plasma services may produce a

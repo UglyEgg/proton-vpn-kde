@@ -7,8 +7,8 @@
 %global _buildhost reproducible.invalid
 
 Name:           proton-vpn-kde
-Version:        0.12.0
-Release:        0.29%{?dist}
+Version:        0.13.0
+Release:        0.1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -133,6 +133,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.1
+- Begin the presentation-only progressive Plasma interface cycle.
+- Add a CI gate that freezes the accepted 0.12.0 runtime mechanics.
+- Make in-app release history concise and progressively disclosed.
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.29
 - Suppress pre-readiness adapter snapshots during Core initialization.
 - Publish one authoritative state after session services are ready.

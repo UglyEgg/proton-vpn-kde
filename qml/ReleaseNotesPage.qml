@@ -9,6 +9,51 @@ import org.kde.kirigami as Kirigami
 Kirigami.ScrollablePage {
     title: qsTr("Release Notes")
 
+    component ReleaseNoteGroup: ColumnLayout {
+        id: group
+
+        property string heading
+        property int headingLevel: 3
+        property var notes: []
+
+        Layout.fillWidth: true
+        spacing: Kirigami.Units.smallSpacing
+
+        Kirigami.Heading {
+            Layout.fillWidth: true
+            level: group.headingLevel
+            text: group.heading
+            wrapMode: Text.WordWrap
+        }
+
+        Repeater {
+            model: group.notes
+
+            delegate: RowLayout {
+                id: noteDelegate
+
+                required property string modelData
+
+                Layout.fillWidth: true
+                Layout.leftMargin: Kirigami.Units.smallSpacing
+                spacing: Kirigami.Units.smallSpacing
+
+                Controls.Label {
+                    Layout.alignment: Qt.AlignTop
+                    text: "\u2022"
+                    color: Kirigami.Theme.highlightColor
+                    Accessible.ignored: true
+                }
+
+                Controls.Label {
+                    Layout.fillWidth: true
+                    text: noteDelegate.modelData
+                    wrapMode: Text.WordWrap
+                }
+            }
+        }
+    }
+
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
@@ -20,231 +65,211 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
+            description: qsTr("A presentation-only release that makes capability easier to discover without changing VPN behavior.")
             iconName: "software-properties"
 
-        Kirigami.Heading {
-            level: 1
-            text: "0.12.0"
+            Kirigami.Heading {
+                Layout.fillWidth: true
+                level: 3
+                text: "0.13.0"
+            }
+
+            ReleaseNoteGroup {
+                heading: qsTr("A calmer interface foundation")
+                headingLevel: 4
+                notes: [
+                    qsTr("Complexity now follows a progressive-disclosure model: essential state and the primary action come first, with relevant depth available in context."),
+                    qsTr("The interface remains native Qt 6 and Kirigami, following the active Plasma color scheme, typography, spacing, icons, scaling, direction, contrast, and motion preferences."),
+                    qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")
+                ]
+            }
         }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Inspect the current tunnel, server capabilities, protection settings, and local runtime from a new read-only Connection Inspector. The page is created only when opened, collects no traffic or history, and has no background timer; it also recovers its protection models after a backend restart. Backend client lifetime is now driven by D-Bus owner-loss events and a one-shot idle deadline instead of periodic polling. Account changes cannot publish stale settings or server data, repeated refreshes are coalesced, and every asynchronous frontend reply is bound to the exact authenticated backend generation. Reconnect work remains cancellable and retryable through long outages, including failed observer registration and cleanup. Packet-capture starts are transactional: a rejected destination remains retryable, cancellation or an uncertain Core reply triggers a compensating stop, every stop attempt is bounded, and the watchdog is armed against the original safety deadline before compensation begins. Late login, two-factor, security-key, cancellation, and logout failures are reconciled with Proton Core before the interface reports account state, and reconnect preferences cannot race sign-out. Sign-out and backend shutdown now restore protection and session state before propagating cancellation. If account, kill-switch, or backend state cannot be confirmed, sign-in pauses and offers an explicit restart instead of accepting another credential operation; repeated same-owner timeouts end in a bounded unresponsive state. Session expiry always returns to sign-in even if local observer cleanup fails. A long-running operation no longer falsely marks a still-running backend offline; the client refreshes its authoritative state and retains safe recovery guidance. Tray, global-shortcut, and KRunner connection changes require explicit Control Center confirmation. The packaged keyring overlay selects the desktop's same-user Secret Service provider and pins session traffic to its unique D-Bus owner, including providers already started by the desktop. Packaged backend, agent, and Control Center activation now remove native-loader and runtime search overrides before application code loads, using one generated policy shared with client checks and package verification. Project-owned helper and fallback launches now use fixed packaged paths rather than inherited executable search order. Proton Core continues to own all VPN networking behavior.")
+        Controls.Button {
+            id: previousReleasesToggle
+
+            Layout.alignment: Qt.AlignLeft
+            checkable: true
+            text: checked
+                ? qsTr("Hide previous releases")
+                : qsTr("Show previous releases")
+            icon.name: checked ? "go-up-symbolic" : "go-down-symbolic"
+            Accessible.description: qsTr("Expand or collapse release notes for versions before 0.13.0")
         }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+        SectionCard {
+            visible: previousReleasesToggle.checked
+            title: qsTr("Previous releases")
+            description: qsTr("Earlier user-facing changes. The complete engineering history remains in CHANGELOG.md.")
+            iconName: "view-history"
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.11.3"
-        }
+            ReleaseNoteGroup {
+                heading: "0.12.0"
+                headingLevel: 3
+                notes: []
+            }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Restore reliable Plasma reconnects without depending on a missing Protun secret-agent plugin. When the Proton backend stops, the Control Center now clears stale account and tunnel state instead of continuing to appear signed in. If desktop Secret Service session restoration stalls, Sign in presents an explicit service retry rather than leaving an inert screen.")
-        }
+            ReleaseNoteGroup {
+                heading: qsTr("Connection insight")
+                headingLevel: 4
+                notes: [
+                    qsTr("The new on-demand Connection Inspector shows the current server, its capabilities, protection settings, and local runtime state."),
+                    qsTr("The Inspector collects no traffic or history and performs no background polling.")
+                ]
+            }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            ReleaseNoteGroup {
+                heading: qsTr("Lean desktop integration")
+                headingLevel: 4
+                notes: [
+                    qsTr("Backend lifetime now follows D-Bus ownership events and a one-shot idle deadline instead of periodic polling."),
+                    qsTr("Repeated refreshes are coalesced, and stale replies are discarded after account or backend changes.")
+                ]
+            }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.11.2"
-        }
+            ReleaseNoteGroup {
+                heading: qsTr("Stronger recovery")
+                headingLevel: 4
+                notes: [
+                    qsTr("Reconnect work remains cancellable and retryable across suspend, long outages, backend restarts, and package upgrades."),
+                    qsTr("Packet capture now uses transactional start, bounded stop attempts, and durable recovery from interrupted shutdown.")
+                ]
+            }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Choose a color mark, light symbol, or dark symbol for the Control Center and resident Plasma tray icon. The shared preference applies immediately and is also available in Plasma System Settings. Release Notes uses a distinct bound-notebook symbol in collapsed navigation. KRunner connection requests now require explicit Control Center confirmation and the shared plug-in host is not trusted by the VPN backend. Direct Proton support-report submission is disabled in unofficial builds; the reporting page remains an inactive proof of concept and directs client problems to the community tracker. Server browsing now retries transiently empty groups without requiring a manual refresh. Background-control shutdown distinguishes leaving a tunnel connected from waiting for a confirmed disconnect. The Control Center recovers from unexpected backend exits and clearly requests a restart when it was left open across a package upgrade.")
-        }
+            ReleaseNoteGroup {
+                heading: qsTr("Coherent account state")
+                headingLevel: 4
+                notes: [
+                    qsTr("Sign-in, two-factor, security-key, sign-out, expiry, and cancellation paths reconcile with Proton Core before changing the interface."),
+                    qsTr("When account, protection, or backend state cannot be confirmed, the client pauses safely and offers explicit recovery guidance.")
+                ]
+            }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            ReleaseNoteGroup {
+                heading: qsTr("Hardened local boundaries")
+                headingLevel: 4
+                notes: [
+                    qsTr("Tray, global-shortcut, and KRunner connection requests require explicit Control Center confirmation."),
+                    qsTr("Secret Service traffic is pinned to the selected same-user provider, and packaged launchers sanitize runtime search paths. Proton Core continues to own VPN networking.")
+                ]
+            }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.11.1"
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Present an original Plasma VPN identity, make the Proton VPN-compatible community relationship explicit, and add reproducible public-release guidance. The application mark is now embedded, and Settings remains open after configuration changes.")
-        }
+            ReleaseNoteGroup {
+                heading: "0.11.3"
+                notes: [
+                    qsTr("Restore reliable Plasma reconnects without depending on a missing Protun secret-agent plug-in."),
+                    qsTr("Clear stale account and tunnel state when the Proton backend stops."),
+                    qsTr("Offer an explicit service retry when Secret Service restoration stalls during sign-in.")
+                ]
+            }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.10.2"
-        }
+            ReleaseNoteGroup {
+                heading: "0.11.2"
+                notes: [
+                    qsTr("Add shared color, light-symbol, and dark-symbol icon choices for the Control Center, tray, and System Settings."),
+                    qsTr("Require explicit confirmation for KRunner requests and keep Proton support and crash submission disabled in unofficial builds."),
+                    qsTr("Retry transiently empty server groups and distinguish leaving a tunnel connected from waiting for a confirmed disconnect."),
+                    qsTr("Recover cleanly from unexpected backend exits and explain when a package upgrade requires a restart.")
+                ]
+            }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Keep Settings open after applying VPN configuration changes instead of unexpectedly returning to Overview.")
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            ReleaseNoteGroup {
+                heading: "0.11.1"
+                notes: [
+                    qsTr("Introduce the original Plasma VPN identity and make the Proton VPN-compatible community relationship explicit."),
+                    qsTr("Embed the application mark and keep Settings open after configuration changes.")
+                ]
+            }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.10.1"
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Open directly to sign-in when no Proton session is available, prevent credentials from racing backend startup, and explain when the desktop secret store may be awaiting access approval.")
-        }
+            ReleaseNoteGroup {
+                heading: "0.10.2"
+                notes: [qsTr("Keep Settings open after applying VPN changes instead of returning unexpectedly to Overview.")]
+            }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.10.0"
-        }
+            ReleaseNoteGroup {
+                heading: "0.10.1"
+                notes: [qsTr("Open directly to sign-in when needed, serialize credentials with backend startup, and explain pending secret-store approval.")]
+            }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Adopt a responsive Plasma navigation sidebar, native Kirigami cards, compact location actions, semantic colors and typography, and layout checks for compact windows, scaled text, and right-to-left desktops.")
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            ReleaseNoteGroup {
+                heading: "0.10.0"
+                notes: [qsTr("Adopt responsive Plasma navigation, Kirigami cards, compact actions, semantic styling, and compact, scaled-text, and RTL layout checks.")]
+            }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.9.0"
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Keep tray controls, shortcuts, notifications, favorites, and auto-connect in a lean Plasma agent while the full Control Center opens only when needed and exits when closed. Closing the window does not disconnect the VPN.")
-        }
+            ReleaseNoteGroup {
+                heading: "0.9.0"
+                notes: [qsTr("Move tray controls, shortcuts, notifications, favorites, and auto-connect into a lean resident agent while keeping the full Control Center on demand.")]
+            }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.8.8"
-        }
+            ReleaseNoteGroup {
+                heading: "0.8.8"
+                notes: [qsTr("Add every-page runtime diagnostics and warn when the installed Proton Core lacks the verified server-list memory optimizations.")]
+            }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Remove native page-navigation and shutdown diagnostics, add an automated every-page runtime check, and warn when the installed Proton Core no longer contains the verified server-list memory optimizations. VPN behavior remains owned by Proton Core.")
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            ReleaseNoteGroup {
+                heading: "0.8.7"
+                notes: [qsTr("Harden the on-demand backend with fixed service paths, privilege controls, and interpreter and loader environment cleanup.")]
+            }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.8.7"
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Harden the on-demand backend with absolute service paths, prevention of privilege gain, and explicit interpreter and loader environment cleanup while preserving Proton networking and user-selected capture folders.")
-        }
+            ReleaseNoteGroup {
+                heading: "0.8.6"
+                notes: [qsTr("Make full-cache country, city, and server search effectively instantaneous with a compact local projection.")]
+            }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.8.6"
-        }
+            ReleaseNoteGroup {
+                heading: "0.8.2"
+                notes: [qsTr("Keep one Proton backend active, supervise connected tunnels, release Core when idle, and build location data only when opened.")]
+            }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Make full-cache country, city, and server search effectively instantaneous with a compact projection that keeps live VPN state in Proton's official core.")
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            ReleaseNoteGroup {
+                heading: "0.8.1"
+                notes: [qsTr("Restart the D-Bus backend after package upgrades so frontend and backend interfaces remain synchronized.")]
+            }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.8.2"
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Keep exactly one Proton backend active, preserve supervision while connected, and release the full Python core shortly after the last Plasma client exits while disconnected. Location data is now constructed only when it is opened.")
-        }
+            ReleaseNoteGroup {
+                heading: "0.8.0"
+                notes: [qsTr("Add native custom DNS editing with IPv4 and IPv6 validation and explicit NetShield conflict handling.")]
+            }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.8.1"
-        }
+            ReleaseNoteGroup {
+                heading: "0.7.0"
+                notes: [qsTr("Add native split-tunneling controls and a Plasma application chooser backed by KDE's application catalog.")]
+            }
 
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Restart the D-Bus backend after package upgrades so the frontend and backend interface remain synchronized.")
-        }
+            Kirigami.Separator { Layout.fillWidth: true }
 
-        Kirigami.Heading {
-            level: 2
-            text: "0.8.0"
-        }
-
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Add native custom DNS editing with IPv4 and IPv6 validation and explicit NetShield conflict handling.")
-        }
-
-        Kirigami.Heading {
-            level: 2
-            text: "0.7.0"
-        }
-
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Add native split-tunneling controls and a Plasma application chooser backed by KDE's application catalog.")
-        }
-
-        Kirigami.Heading {
-            level: 2
-            text: "0.6.0"
-        }
-
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: qsTr("Add conflict-aware native controls for Proton VPN connection and privacy settings.")
-        }
+            ReleaseNoteGroup {
+                heading: "0.6.0"
+                notes: [qsTr("Add conflict-aware native controls for Proton VPN connection and privacy settings.")]
+            }
         }
     }
 }
