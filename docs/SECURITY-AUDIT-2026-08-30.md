@@ -18,7 +18,7 @@ isolated reviewers pass one exact remediated commit, its packages complete live
 acceptance, and that commit finishes the one-week local soak.**
 
 The current source verification passed Mypy, Ruff, all 35 production
-translation units under Clang-Tidy, 210 backend tests at 81% measured branch
+translation units under Clang-Tidy, 211 backend tests at 81% measured branch
 coverage, and all 37 CTest targets both normally and under address, leak, and
 undefined-behavior sanitizers. These results validate the working tree; they do
 not substitute for the exact-commit review, package, live-acceptance, or soak
@@ -332,6 +332,18 @@ systemd retry. Focused tests combine the real journal with no frontend lease and
 a delayed initialization. The complete six-review gate must restart on the new
 exact commit.
 
+The next exact candidate at `75322a9` passed source, native, sanitizer,
+Clang-Tidy, and two-build byte-reproducible package gates. Its first fresh
+review wave found that Core session restoration could open an unanswered
+Secret Service prompt before durable packet-capture recovery ran. Startup
+retention kept the process alive but did not arm the recovery watchdog, so the
+original `CLOCK_BOOTTIME` deadline could pass without a stop attempt. Every
+result from that wave is discarded. The adapter now acquires and registers the
+Core connector and completes durable recovery before the potentially
+interactive session probe. A focused regression holds provider approval open
+after an expired journal deadline and proves that Core receives the stop first.
+The complete six-review gate must restart on the resulting exact commit.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current working-tree status |
 | --- | --- | --- | --- |
 | PV-012-001 | Medium | Account-scoped location and NPS reads could complete after logout | **Remediated; final independent verification pending** |
@@ -360,6 +372,7 @@ exact commit.
 | PV-012-024 | Medium | Session expiry during a settings write or compensation could be overwritten with a restart-only settings-unavailable state | **Remediated by preserving the authoritative expired-session state and deferring persisted-settings reconciliation to the next sign-in; final independent verification pending** |
 | PV-012-025 | Medium | Backend shutdown could discard the only watchdog after an unconfirmed packet-capture stop, leaving a replacement unable to enforce the original deadline | **Remediated with an atomic runtime recovery record, pre-readiness Core reacquisition, and continuing deadline retries; final independent verification pending** |
 | PV-012-026 | Medium | The no-client startup idle deadline could cancel a hanging capture-recovery stop and exit cleanly, leaving the durable record without a scheduled supervisor | **Remediated by retaining initialization while any recovery entry exists and preserving nonzero failure retry; final independent verification pending** |
+| PV-012-027 | Medium | An unanswered Secret Service session-restoration prompt could delay durable packet-capture recovery beyond its original safety deadline | **Remediated by processing Core connector recovery before the interactive session probe; final independent verification pending** |
 
 **Final result:** pending six fresh isolated reviews of the remediated snapshot.
 This pending line is a release gate, not an open vulnerability claim.
@@ -544,7 +557,7 @@ The current remediated tree passed:
 - 37 of 37 CTest tests, including native controllers, QML, D-Bus activation,
   staged installation, authentication, lifetime, KRunner, System Settings, and
   API-Core overlay coverage;
-- 210 backend Python tests;
+- 211 backend Python tests;
 - static analysis, shell analysis, documentation-link validation, release
   metadata synchronization, and patch-whitespace validation;
 - an optional build without direct KF6 status-notifier integration;

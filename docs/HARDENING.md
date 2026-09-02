@@ -78,6 +78,11 @@ The privileged split-tunneling daemon remains Proton's separately packaged
 system service. These user-service settings neither grant the KDE backend new
 privileges nor modify that daemon's security policy.
 
+Persisted packet-capture recovery is processed before the first potentially
+interactive Secret Service session probe. This ordering ensures that a locked
+or unanswered provider cannot postpone supervision past the original
+`CLOCK_BOOTTIME` deadline after backend replacement.
+
 The current installed backend and agent units each receive a 9.0 “UNSAFE”
 score from `systemd-analyze security --offline=yes --user`. This heuristic is
 not a vulnerability verdict and heavily penalizes capabilities that an

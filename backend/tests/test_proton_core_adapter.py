@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import threading
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
@@ -21,6 +22,7 @@ from proton_vpn_kde_backend.adapters import (
 )
 from proton_vpn_kde_backend.capture_recovery import (
     PACKET_CAPTURE_RECOVERY_FILENAME,
+    PacketCaptureRecoveryJournal,
 )
 from proton_vpn_kde_backend.controller import (
     BackendController,
@@ -357,6 +359,56 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         await initialize_task
         connector.register.assert_any_call(adapter)
+
+    async def test_capture_recovery_precedes_secret_service_wait(self):
+        api, connector = self.make_api()
+        events: list[str] = []
+        prompt_started = threading.Event()
+        prompt_released = threading.Event()
+
+        def wait_for_provider_approval():
+            events.append("secret-prompt")
+            prompt_started.set()
+            prompt_released.wait(timeout=2)
+            return True
+
+        async def stop_capture():
+            events.append("capture-stop")
+
+        recovery_path = Path(os.environ["XDG_RUNTIME_DIR"]) / (
+            PACKET_CAPTURE_RECOVERY_FILENAME
+        )
+        PacketCaptureRecoveryJournal(recovery_path).store_deadline(
+            time.clock_gettime(time.CLOCK_BOOTTIME) - 0.01
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = SimpleNamespace(
+            server_name="US-IL#42",
+            stop_packet_capture=AsyncMock(side_effect=stop_capture),
+        )
+        api.is_user_logged_in = wait_for_provider_approval
+        adapter = ProtonCoreAdapter(
+            api,
+            packet_capture_recovery_path=recovery_path,
+            packet_capture_stop_attempt_seconds=0.01,
+        )
+
+        initialize_task = asyncio.create_task(adapter.initialize(Mock()))
+        try:
+            for _ in range(100):
+                if prompt_started.is_set():
+                    break
+                await asyncio.sleep(0.01)
+
+            self.assertTrue(prompt_started.is_set())
+            self.assertEqual(["capture-stop", "secret-prompt"], events)
+            self.assertFalse(initialize_task.done())
+            self.assertFalse(recovery_path.exists())
+        finally:
+            prompt_released.set()
+
+        await initialize_task
+        connector.current_connection.stop_packet_capture.assert_awaited_once_with()
 
     async def test_logged_out_start_does_not_enable_refresher(self):
         api, _ = self.make_api(logged_in=False)

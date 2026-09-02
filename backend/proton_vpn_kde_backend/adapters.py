@@ -161,17 +161,19 @@ class ProtonCoreAdapter:
 
             self._api = ProtonVPNAPI(ClientTypeMetadata(type="gui"))
 
-        # Proton SSO reaches Secret Service through a synchronous keyring API.
-        # Warm the cached session away from the D-Bus asyncio thread so a
-        # provider unlock prompt (KeePassXC, KWallet, etc.) cannot freeze the
-        # entire backend while waiting for user approval.
-        self._logged_in = await run_in_daemon_thread(self._api.is_user_logged_in)
-        self._auth_state = "signed_in" if self._logged_in else "signed_out"
         self._connector = await self._api.get_vpn_connector()
         self._connector.register(self)
         # Packet capture is external to this process. Reacquire any durable
-        # completion-unknown generation before advertising backend readiness.
+        # completion-unknown generation before any potentially interactive
+        # Secret Service access or backend-readiness publication.
         await self._packet_capture.recover(self._connector)
+        # Proton SSO reaches Secret Service through a synchronous keyring API.
+        # Warm the cached session away from the D-Bus asyncio thread so a
+        # provider unlock prompt (KeePassXC, KWallet, etc.) cannot freeze the
+        # entire backend while waiting for user approval. Durable capture
+        # recovery is already supervised if that approval remains pending.
+        self._logged_in = await run_in_daemon_thread(self._api.is_user_logged_in)
+        self._auth_state = "signed_in" if self._logged_in else "signed_out"
         validator = getattr(self._api, "validate_connection_availability", None)
         if callable(validator):
             self._startup_compatible = bool(validator())
