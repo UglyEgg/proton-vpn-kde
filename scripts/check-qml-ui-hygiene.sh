@@ -103,15 +103,15 @@ if ! rg -q 'objectName: "authenticationStage"' \
         "$qml_dir/SignInPage.qml" \
         || ! rg -q 'readonly property int activeStep' \
         "$qml_dir/SignInPage.qml" \
-        || ! rg -q 'objectName: "secretServiceApprovalStep"' \
+        || ! rg -q 'objectName: "signingInStep"' \
         "$qml_dir/SignInPage.qml" \
-        || ! rg -q 'page\.activeStep === page\.secretStoreStep' \
+        || ! rg -q 'page\.activeStep === page\.signingInStep' \
         "$qml_dir/SignInPage.qml" \
         || ! rg -q 'objectName: "twoFactorAuthenticationStep"' \
         "$qml_dir/SignInPage.qml" \
         || ! rg -q 'objectName: "securityKeyAuthenticationStep"' \
         "$qml_dir/SignInPage.qml"; then
-    echo "Authentication must present one explicit active step, including Secret Service and security-key waits" >&2
+    echo "Authentication must present one explicit active step, including sign-in progress and security-key waits" >&2
     exit 1
 fi
 
@@ -137,9 +137,21 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/SignInPage.qml" \
         || [[ "$backend_restart_policy_uses" -lt 3 ]] \
         || ! rg -q 'objectName: "restartUnresponsiveBackendAction"' \
-        "$qml_dir/OverviewPage.qml" \
-        || ! rg -q 'visible: vpnController\.state === "unresponsive"' \
-        "$qml_dir/OverviewPage.qml"; then
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'objectName: "applicationBackendRecovery"' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'vpnController\.state === "unresponsive"' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'footer: ApplicationRecoveryBanner' \
+        "$qml_dir/Main.qml" \
+        || ! rg -q 'running: parent\.visible && vpnController\.busy' \
+        "$qml_dir/SignInPage.qml" \
+        || ! rg -q 'readonly property bool terminalBackendFailure' \
+        "$qml_dir/SignInPage.qml" \
+        || ! rg -q 'enabled: vpnController\.ready' \
+        "$qml_dir/SettingsPage.qml" \
+        || ! rg -q 'backendReady: vpnController\.ready' \
+        "$qml_dir/SettingsPage.qml"; then
     echo "Backend failures must preserve diagnostics and expose only valid recovery actions" >&2
     exit 1
 fi

@@ -11,6 +11,7 @@ SectionCard {
     required property var vpnSettings
     required property var appSettings
     required property real pageWidth
+    required property bool backendReady
 
     title: qsTr("VPN connection")
     description: qsTr("Choose how and when this device connects.")
@@ -27,7 +28,7 @@ SectionCard {
             textRole: "name"
             valueRole: "id"
             currentIndex: vpnSettings.protocolIndex
-            enabled: vpnSettings.loaded && !vpnSettings.busy
+            enabled: backendReady && vpnSettings.loaded && !vpnSettings.busy
                      && vpnSettings.protocolEditable
             onActivated: vpnController.updateSetting("protocol", currentValue)
         }
@@ -69,7 +70,7 @@ SectionCard {
             textRole: "name"
             valueRole: "id"
             currentIndex: vpnSettings.killSwitch
-            enabled: vpnSettings.loaded && !vpnSettings.busy
+            enabled: backendReady && vpnSettings.loaded && !vpnSettings.busy
                      && vpnSettings.killSwitchEditable
             onActivated: vpnController.updateSetting("killSwitch", currentValue)
         }

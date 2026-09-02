@@ -254,6 +254,7 @@ qt_add_qml_module(proton-vpn-kde
         qml/Main.qml
         qml/AccountPage.qml
         qml/AboutPage.qml
+        qml/ApplicationRecoveryBanner.qml
         qml/ConnectionInspectorPage.qml
         qml/ConnectionScene.qml
         qml/CustomDnsPage.qml
@@ -820,6 +821,36 @@ if(BUILD_TESTING)
     add_test(
         NAME installed-translation-loader-tests
         COMMAND installed-translation-loader-tests
+    )
+    qt_add_executable(sign-in-presentation-tests
+        tests/SignInPresentationTest.cpp
+    )
+    set_target_properties(sign-in-presentation-tests PROPERTIES
+        QT_QML_MODULE_NO_IMPORT_SCAN TRUE
+    )
+    target_link_libraries(sign-in-presentation-tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::Test
+        Qt6::Widgets
+    )
+    target_compile_definitions(sign-in-presentation-tests PRIVATE
+        PROTON_VPN_KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_compile_options(sign-in-presentation-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(
+        NAME sign-in-presentation-tests
+        COMMAND sign-in-presentation-tests
+    )
+    set_tests_properties(sign-in-presentation-tests PROPERTIES
+        ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QPA_PLATFORMTHEME=generic;QT_ACCESSIBILITY=0"
+        TIMEOUT 15
     )
     add_test(
         NAME qml-ui-hygiene

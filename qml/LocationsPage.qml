@@ -80,7 +80,7 @@ Kirigami.Page {
         Kirigami.Action {
             text: qsTr("Refresh")
             icon.name: "view-refresh"
-            enabled: !vpnController.locationsBusy
+            enabled: vpnController.ready && !vpnController.locationsBusy
             onTriggered: vpnController.loadCountries()
         }
     ]

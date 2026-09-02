@@ -78,13 +78,16 @@ Kirigami.ScrollablePage {
     }
 
     Component.onCompleted: {
-        if (vpnController.loggedIn && !vpnSettings.loaded) {
+        if (vpnController.ready && vpnController.loggedIn
+                && !vpnSettings.loaded) {
             vpnController.loadSettings()
         }
-        if (vpnController.loggedIn && !splitSettings.loaded) {
+        if (vpnController.ready && vpnController.loggedIn
+                && !splitSettings.loaded) {
             vpnController.loadSplitTunneling()
         }
-        if (vpnController.loggedIn && !customDns.loaded) {
+        if (vpnController.ready && vpnController.loggedIn
+                && !customDns.loaded) {
             vpnController.loadCustomDns()
         }
         updateChannel.refresh()
@@ -93,15 +96,18 @@ Kirigami.ScrollablePage {
     Connections {
         target: vpnController
         function onSnapshotChanged() {
-            if (vpnController.loggedIn && !page.vpnSettings.loaded
+            if (vpnController.ready && vpnController.loggedIn
+                    && !page.vpnSettings.loaded
                     && !page.vpnSettings.busy) {
                 vpnController.loadSettings()
             }
-            if (vpnController.loggedIn && !page.splitSettings.loaded
+            if (vpnController.ready && vpnController.loggedIn
+                    && !page.splitSettings.loaded
                     && !page.splitSettings.busy) {
                 vpnController.loadSplitTunneling()
             }
-            if (vpnController.loggedIn && !page.customDns.loaded
+            if (vpnController.ready && vpnController.loggedIn
+                    && !page.customDns.loaded
                     && !page.customDns.busy) {
                 vpnController.loadCustomDns()
             }
@@ -181,6 +187,7 @@ Kirigami.ScrollablePage {
                     vpnSettings: page.vpnSettings
                     appSettings: page.integrationSettings
                     pageWidth: page.width
+                    backendReady: vpnController.ready
                 }
 
                 FastestSettingsSection {
@@ -192,12 +199,14 @@ Kirigami.ScrollablePage {
                 spacing: Kirigami.Units.largeSpacing
 
                 ProtectionSettingsSection {
+                    enabled: vpnController.ready
                     vpnController: page.controller
                     vpnSettings: page.vpnSettings
                     pageWidth: page.width
                 }
 
                 CustomDnsSettingsSection {
+                    enabled: vpnController.ready
                     vpnController: page.controller
                     vpnSettings: page.vpnSettings
                     customDns: page.customDns
@@ -206,6 +215,7 @@ Kirigami.ScrollablePage {
                 }
 
                 SplitTunnelingSettingsSection {
+                    enabled: vpnController.ready
                     vpnController: page.controller
                     vpnSettings: page.vpnSettings
                     splitSettings: page.splitSettings
@@ -227,6 +237,7 @@ Kirigami.ScrollablePage {
                 spacing: Kirigami.Units.largeSpacing
 
                 PrivacySettingsSection {
+                    enabled: vpnController.ready
                     vpnController: page.controller
                     vpnSettings: page.vpnSettings
                     appSettings: page.integrationSettings

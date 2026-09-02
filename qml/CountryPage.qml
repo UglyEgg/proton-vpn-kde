@@ -76,7 +76,7 @@ Kirigami.ScrollablePage {
         Kirigami.Action {
             text: qsTr("Refresh")
             icon.name: "view-refresh"
-            enabled: !vpnController.locationsBusy
+            enabled: vpnController.ready && !vpnController.locationsBusy
             onTriggered: vpnController.loadServerGroups(page.countryCode)
         }
     ]

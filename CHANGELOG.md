@@ -38,6 +38,14 @@ All notable user-visible changes are recorded here. The project follows
 - Preserve the backend's exact safety guidance when authentication, settings,
   or protection state cannot be confirmed instead of replacing it with a
   generic recovery message.
+- Describe the complete authentication operation as sign-in progress rather
+  than assuming every wait belongs to Secret Service, stop its progress
+  indicator when completion becomes unknown, and keep any authoritative
+  backend guidance visible. Present rejected client identity as a terminal
+  failure instead of continued startup.
+- Keep backend-unresponsive recovery visible above every signed-in page and
+  disable cached Proton-dependent settings until the service is ready again;
+  local Plasma preferences and navigation remain available.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

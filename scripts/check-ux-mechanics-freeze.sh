@@ -51,7 +51,7 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/__init__.py|\
         packaging/fedora/proton-vpn-kde.spec|\
         src/VpnController.cpp|src/VpnController.h|src/main.cpp|\
-        tests/GroupedNavigationTest.cpp)
+        tests/GroupedNavigationTest.cpp|tests/SignInPresentationTest.cpp)
             # Exact reviewed deltas are checked below.
             ;;
         scripts/auth-dbus-client.py|scripts/capture-qml-page.sh|\
@@ -75,7 +75,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "9ce52e483f5b8828835ffe608ecd092f7310445480bdbec6f18ac4c651e40ccb" \
+    "4e2242d2f1414e8306125b963ce250b68b70bc0dd21bade8ef1ff519567f2f7b" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "c501dd51a22e62bb85c587e880c6c1870db99ddc7864adb1ef8d90d168f5535f" \

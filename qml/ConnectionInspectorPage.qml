@@ -16,7 +16,7 @@ Kirigami.ScrollablePage {
     readonly property bool connected: vpnController.state === "connected"
 
     function ensureInspectorModels() {
-        if (!vpnController.loggedIn) {
+        if (!vpnController.ready || !vpnController.loggedIn) {
             return
         }
         if (!page.vpnSettings.loaded && !page.vpnSettings.busy) {
@@ -31,10 +31,10 @@ Kirigami.ScrollablePage {
     }
 
     function refreshInspector() {
-        vpnController.refresh()
-        if (!vpnController.loggedIn) {
+        if (!vpnController.ready || !vpnController.loggedIn) {
             return
         }
+        vpnController.refresh()
         if (!page.vpnSettings.busy) {
             vpnController.loadSettings()
         }
@@ -345,7 +345,7 @@ Kirigami.ScrollablePage {
                 Controls.Button {
                     text: qsTr("Refresh")
                     icon.name: "view-refresh"
-                    enabled: vpnController.backendAvailable
+                    enabled: vpnController.ready
                              && !vpnController.busy
                              && !vpnController.snapshotRefreshPending
                     onClicked: page.refreshInspector()

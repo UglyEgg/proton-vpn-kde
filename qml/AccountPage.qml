@@ -74,7 +74,7 @@ Kirigami.ScrollablePage {
                 Controls.Button {
                     text: vpnController.busy ? qsTr("Signing out…") : qsTr("Sign out")
                     icon.name: "system-log-out"
-                    enabled: !vpnController.busy
+                    enabled: vpnController.ready && !vpnController.busy
                     onClicked: logoutDialog.open()
                 }
             }

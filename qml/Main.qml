@@ -20,6 +20,10 @@ Kirigami.ApplicationWindow {
     readonly property var controller: vpnController
     readonly property var integrationSettings: appSettings
 
+    footer: ApplicationRecoveryBanner {
+        vpnController: root.controller
+    }
+
     onClosing: close => {
         close.accepted = true
     }

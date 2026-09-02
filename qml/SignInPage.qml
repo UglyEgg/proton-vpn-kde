@@ -16,13 +16,15 @@ Kirigami.ScrollablePage {
 
     readonly property int preparingStep: 0
     readonly property int recoveryStep: 1
-    readonly property int secretStoreStep: 2
+    readonly property int signingInStep: 2
     readonly property int credentialStep: 3
     readonly property int twoFactorStep: 4
     readonly property int securityKeyStep: 5
     readonly property int securityKeyPinStep: 6
 
     readonly property bool preparingSignIn: !vpnController.ready
+    readonly property bool terminalBackendFailure:
+        page.preparingSignIn && !vpnController.backendRestartAllowed
     readonly property bool recoveryRequired: [
         "authentication_unknown", "settings_unavailable", "protection_unknown"
     ].includes(vpnController.authState)
@@ -40,7 +42,7 @@ Kirigami.ScrollablePage {
             return page.recoveryStep
         }
         if (vpnController.authState === "signing_in") {
-            return page.secretStoreStep
+            return page.signingInStep
         }
         if (page.twoFactorVisible) {
             return page.twoFactorStep
@@ -57,12 +59,13 @@ Kirigami.ScrollablePage {
         page.activeStep === page.credentialStep
     readonly property string activeStepIcon: {
         if (page.activeStep === page.preparingStep) {
-            return "view-refresh"
+            return page.terminalBackendFailure ? "dialog-error"
+                                               : "view-refresh"
         }
         if (page.activeStep === page.recoveryStep) {
             return "dialog-warning"
         }
-        if (page.activeStep === page.secretStoreStep) {
+        if (page.activeStep === page.signingInStep) {
             return "document-encrypt"
         }
         if (page.activeStep === page.securityKeyStep) {
@@ -78,13 +81,15 @@ Kirigami.ScrollablePage {
     }
     readonly property string activeStepHeading: {
         if (page.activeStep === page.preparingStep) {
-            return qsTr("Preparing sign-in")
+            return page.terminalBackendFailure
+                   ? qsTr("Sign-in unavailable")
+                   : qsTr("Preparing sign-in")
         }
         if (page.activeStep === page.recoveryStep) {
             return qsTr("Account state unavailable")
         }
-        if (page.activeStep === page.secretStoreStep) {
-            return qsTr("Waiting for your secret store")
+        if (page.activeStep === page.signingInStep) {
+            return qsTr("Signing in")
         }
         if (page.activeStep === page.twoFactorStep) {
             return qsTr("Two-factor authentication")
@@ -105,6 +110,11 @@ Kirigami.ScrollablePage {
     }
     readonly property string activeStepDescription: {
         if (page.activeStep === page.preparingStep) {
+            if (page.terminalBackendFailure) {
+                return vpnController.message.length > 0
+                       ? vpnController.message
+                       : qsTr("The local client could not be authorized.")
+            }
             return vpnController.backendAvailable
                    ? qsTr("Confirming the saved account and protection state.")
                    : qsTr("Starting the local Proton VPN service.")
@@ -114,8 +124,8 @@ Kirigami.ScrollablePage {
                    ? vpnController.message
                    : qsTr("Restart the local service before authentication can safely continue.")
         }
-        if (page.activeStep === page.secretStoreStep) {
-            return qsTr("Approve any access request from your configured desktop Secret Service provider.")
+        if (page.activeStep === page.signingInStep) {
+            return qsTr("Completing authentication and preparing your Proton VPN session.")
         }
         if (page.activeStep === page.twoFactorStep) {
             return qsTr("Complete the additional security check for this account.")
@@ -291,7 +301,7 @@ Kirigami.ScrollablePage {
             visible: vpnController.message.length > 0
                      && page.activeStep !== page.securityKeyStep
                      && page.activeStep !== page.recoveryStep
-                     && page.activeStep !== page.secretStoreStep
+                     && !page.terminalBackendFailure
             type: vpnController.authState === "human_verification"
                   || vpnController.authState === "fido_error"
                   ? Kirigami.MessageType.Warning
@@ -306,6 +316,7 @@ Kirigami.ScrollablePage {
             spacing: Kirigami.Units.largeSpacing
 
             Controls.BusyIndicator {
+                objectName: "backendPreparationProgress"
                 Layout.alignment: Qt.AlignHCenter
                 visible: running
                 running: parent.visible
@@ -344,21 +355,22 @@ Kirigami.ScrollablePage {
         }
 
         ColumnLayout {
-            objectName: "secretServiceApprovalStep"
+            objectName: "signingInStep"
             Layout.fillWidth: true
-            visible: page.activeStep === page.secretStoreStep
+            visible: page.activeStep === page.signingInStep
             spacing: Kirigami.Units.largeSpacing
 
             Controls.BusyIndicator {
+                objectName: "authenticationProgress"
                 Layout.alignment: Qt.AlignHCenter
-                running: parent.visible
+                running: parent.visible && vpnController.busy
             }
 
             Kirigami.InlineMessage {
                 Layout.fillWidth: true
                 visible: page.secretStoreHintVisible
                 type: Kirigami.MessageType.Information
-                text: qsTr("Still waiting. Check for an access prompt from KeePassXC, KWallet, or your configured Secret Service provider.")
+                text: qsTr("If your desktop Secret Service requests access, approve it in KeePassXC, KWallet, or your configured provider.")
             }
         }
 
