@@ -18,9 +18,10 @@ Kirigami.ScrollablePage {
     property var serverContextGeneration: 0
 
     title: countryFlag + "  " + countryName
-    footer: ConnectionActionFeedback {
+    footer: ServerBrowserFeedback {
         id: connectionActionFeedback
         controller: vpnController
+        loadError: vpnController.serverGroupsError
     }
 
     function groupSummary(serverCount, accessible, underMaintenance,

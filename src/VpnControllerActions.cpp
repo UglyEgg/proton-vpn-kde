@@ -56,6 +56,23 @@ bool normalizeServerFeatures(const QStringList &features, QStringList *result)
     }
     return true;
 }
+
+bool isConnectionOperation(const QString &method)
+{
+    return method == QString::fromLatin1(BackendDbus::Method::connectCountry)
+        || method == QString::fromLatin1(
+            BackendDbus::Method::connectCountryWithFeatures)
+        || method == QString::fromLatin1(BackendDbus::Method::connectFastest)
+        || method == QString::fromLatin1(
+            BackendDbus::Method::connectFastestWithFeature)
+        || method == QString::fromLatin1(
+            BackendDbus::Method::connectFastestWithFeatures)
+        || method == QString::fromLatin1(BackendDbus::Method::connectGroup)
+        || method == QString::fromLatin1(
+            BackendDbus::Method::connectGroupWithFeatures)
+        || method == QString::fromLatin1(BackendDbus::Method::connectServer)
+        || method == QString::fromLatin1(BackendDbus::Method::disconnect);
+}
 }
 
 void VpnController::activatePrimaryAction()
@@ -428,6 +445,7 @@ void VpnController::callOperation(const QString &method,
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
     stampBackendRequest(watcher);
+    watcher->setProperty("connectionOperation", isConnectionOperation(method));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleOperationReply);
 }
@@ -538,6 +556,7 @@ void VpnController::callControlOperation(const QString &method,
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
     stampBackendRequest(watcher);
+    watcher->setProperty("connectionOperation", isConnectionOperation(method));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleControlOperationReply);
 }

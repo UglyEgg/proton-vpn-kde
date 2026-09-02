@@ -151,6 +151,10 @@ void VpnController::onServiceUnregistered(const QString &)
     m_killSwitch = 0;
     m_busy = false;
     const bool wasLocationsBusy = locationsBusy();
+    const bool hadBrowserErrors = !m_countriesError.isEmpty()
+        || !m_locationSearchError.isEmpty()
+        || !m_serverGroupsError.isEmpty()
+        || !m_serversError.isEmpty();
     m_locationsBusy = false;
     m_state = QStringLiteral("unavailable");
     m_errorCode.clear();
@@ -185,13 +189,17 @@ void VpnController::onServiceUnregistered(const QString &)
     m_locationSearchQuery.clear();
     ++m_locationSearchGeneration;
     m_locationSearchBusy = false;
+    m_countriesError.clear();
+    m_locationSearchError.clear();
+    m_serverGroupsError.clear();
+    m_serversError.clear();
     m_npsSurveyChecked = false;
     m_npsSurveyAvailable = false;
     emit npsSurveyChanged();
     m_settings->reset(tr("The Proton backend service stopped"));
     m_splitTunneling->reset(tr("The Proton backend service stopped"));
     m_customDns->reset(tr("The Proton backend service stopped"));
-    if (wasLocationsBusy != locationsBusy()) {
+    if (wasLocationsBusy != locationsBusy() || hadBrowserErrors) {
         emit locationsChanged();
     }
     emit snapshotChanged();

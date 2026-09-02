@@ -275,6 +275,7 @@ qt_add_qml_module(proton-vpn-kde
         qml/ReleaseNotesPage.qml
         qml/SectionCard.qml
         qml/ServerCapabilitySelector.qml
+        qml/ServerBrowserFeedback.qml
         qml/ServersPage.qml
         qml/SettingsPage.qml
         qml/SignInPage.qml

@@ -142,7 +142,7 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
         || ! rg -q 'vpnController\.state === "unresponsive"' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
-        || ! rg -q 'footer: ApplicationRecoveryBanner' \
+        || ! rg -q 'id: applicationRecoveryBanner' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property bool connectionErrorActive' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
@@ -154,14 +154,30 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/ConnectionActionFeedback.qml" \
         || ! rg -q 'function beginForState\(state\)' \
         "$qml_dir/ConnectionActionFeedback.qml" \
+        || ! rg -q 'function onConnectionOperationFinished\(success, message\)' \
+        "$qml_dir/ConnectionActionFeedback.qml" \
         || ! rg -q 'ConnectionActionFeedback' "$qml_dir/OverviewPage.qml" \
-        || ! rg -q 'ConnectionActionFeedback' "$qml_dir/LocationsPage.qml" \
-        || ! rg -q 'ConnectionActionFeedback' "$qml_dir/CountryPage.qml" \
-        || ! rg -q 'ConnectionActionFeedback' "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'ServerBrowserFeedback' "$qml_dir/LocationsPage.qml" \
+        || ! rg -q 'ServerBrowserFeedback' "$qml_dir/CountryPage.qml" \
+        || ! rg -q 'ServerBrowserFeedback' "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'objectName: "serverBrowserLoadError"' \
+        "$qml_dir/ServerBrowserFeedback.qml" \
+        || ! rg -q 'vpnController\.countriesError' \
+        "$qml_dir/LocationsPage.qml" \
+        || ! rg -q 'vpnController\.locationSearchError' \
+        "$qml_dir/LocationsPage.qml" \
+        || ! rg -q 'vpnController\.serverGroupsError' \
+        "$qml_dir/CountryPage.qml" \
+        || ! rg -q 'vpnController\.serversError' \
+        "$qml_dir/ServersPage.qml" \
         || ! rg -q 'beginForState' "$qml_dir/OverviewPage.qml" \
         || ! rg -q 'beginForState' "$qml_dir/LocationsPage.qml" \
         || ! rg -q 'beginForState' "$qml_dir/CountryPage.qml" \
         || ! rg -q 'beginForState' "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'signal connectionActionStarted\(string expectedState\)' \
+        "$qml_dir/MainDialogs.qml" \
+        || ! rg -q 'globalConnectionActionFeedback\.beginForState' \
+        "$qml_dir/Main.qml" \
         || ! rg -q 'mainDialogs\.supportsRecovery\(code\)' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property var recoveryErrorCodes' \
@@ -183,6 +199,17 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
     echo "Backend failures must preserve diagnostics and expose only valid recovery actions" >&2
     exit 1
 fi
+
+while IFS=: read -r action_file action_line _; do
+    action_start=$((action_line > 12 ? action_line - 12 : 1))
+    if ! sed -n "${action_start},${action_line}p" "$action_file" \
+            | rg -q 'beginForState|connectionActionStarted'; then
+        echo "Connection action lacks explicit feedback ownership: ${action_file}:${action_line}" >&2
+        exit 1
+    fi
+done < <(rg -n \
+    'vpnController\.(activatePrimaryAction|disconnect|connect(Country|Fastest|Group|Server)[A-Za-z]*)\(' \
+    "$qml_dir")
 
 if ! rg -q 'id: moreAction' "$qml_dir/ConnectionScene.qml" \
         || ! rg -q 'text: qsTr\("More options"\)' \

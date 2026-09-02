@@ -48,11 +48,14 @@ All notable user-visible changes are recorded here. The project follows
 - Keep backend-unresponsive recovery visible above every signed-in page and
   disable cached Proton-dependent settings until the service is ready again;
   local Plasma preferences and navigation remain available.
-- Keep ordinary connection failures visible above the page where the
-  connection was requested, while retaining focused dialogs for failures that
-  require a specific response. Keep completed operation guidance visible when
-  Core correctly leaves the connection disconnected, and avoid duplicate
-  status surfaces on the Connection page.
+- Keep ordinary connection failures visible at every request origin, including
+  server search, KRunner, tray, and global shortcuts, while retaining focused
+  dialogs for failures that require a specific response. Keep completed
+  operation guidance visible when Core correctly leaves the connection
+  disconnected, and avoid duplicate status surfaces on the Connection page.
+- Distinguish failed country, search, location, server, and load reads from a
+  valid empty server-browser result, with errors scoped to their owning view
+  and cleared when that read is retried.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

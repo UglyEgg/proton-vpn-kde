@@ -22,6 +22,8 @@ Item {
     })
     readonly property var recoveryErrorCodes: Object.keys(recoveryDialogs)
 
+    signal connectionActionStarted(string expectedState)
+
     function supportsRecovery(code) {
         return recoveryErrorCodes.includes(code)
     }
@@ -112,17 +114,22 @@ Item {
             const confirmedArgument = argument
             clearRequest()
             if (confirmedAction === "fastest") {
+                dialogs.connectionActionStarted("connected")
                 dialogs.vpnController.connectFastestWithFeatures(
                     dialogs.appSettings.fastestFeatures)
             } else if (confirmedAction === "disconnect") {
+                dialogs.connectionActionStarted("disconnected")
                 dialogs.vpnController.disconnect()
             } else if (confirmedAction === "country") {
+                dialogs.connectionActionStarted("connected")
                 dialogs.vpnController.connectCountry(confirmedArgument)
             } else if (confirmedAction === "server") {
+                dialogs.connectionActionStarted("connected")
                 dialogs.vpnController.connectServer(confirmedArgument)
             } else if (confirmedAction === "group") {
                 try {
                     const group = JSON.parse(confirmedArgument)
+                    dialogs.connectionActionStarted("connected")
                     dialogs.vpnController.connectGroup(
                         group.countryCode, group.kind, group.name)
                 } catch (error) {

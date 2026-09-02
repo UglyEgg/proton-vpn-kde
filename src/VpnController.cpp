@@ -145,6 +145,20 @@ bool VpnController::locationsBusy() const
         || m_serverGroupRefreshPending || m_serverRefreshPending;
 }
 bool VpnController::locationSearchBusy() const { return m_locationSearchBusy; }
+
+QString VpnController::countriesError() const { return m_countriesError; }
+
+QString VpnController::locationSearchError() const
+{
+    return m_locationSearchError;
+}
+
+QString VpnController::serverGroupsError() const
+{
+    return m_serverGroupsError;
+}
+
+QString VpnController::serversError() const { return m_serversError; }
 bool VpnController::npsSurveyAvailable() const { return m_npsSurveyAvailable; }
 bool VpnController::supportReportSubmissionEnabled() const
 {

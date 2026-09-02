@@ -23,9 +23,10 @@ Kirigami.ScrollablePage {
     title: groupKind === "secure-core"
            ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
            : countryFlag + "  " + groupName
-    footer: ConnectionActionFeedback {
+    footer: ServerBrowserFeedback {
         id: connectionActionFeedback
         controller: vpnController
+        loadError: vpnController.serversError
     }
 
     function serverSummary(location, entryCountry, secureCore, smartRouting,

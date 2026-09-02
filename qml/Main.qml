@@ -20,9 +20,25 @@ Kirigami.ApplicationWindow {
     readonly property var controller: vpnController
     readonly property var integrationSettings: appSettings
 
-    footer: ApplicationRecoveryBanner {
-        vpnController: root.controller
-        dialogErrorCodes: mainDialogs.recoveryErrorCodes
+    footer: Column {
+        width: root.width
+        spacing: applicationRecoveryBanner.visible
+                 && globalConnectionActionFeedback.visible
+                 ? Kirigami.Units.smallSpacing : 0
+        height: childrenRect.height
+
+        ApplicationRecoveryBanner {
+            id: applicationRecoveryBanner
+            width: parent.width
+            vpnController: root.controller
+            dialogErrorCodes: mainDialogs.recoveryErrorCodes
+        }
+
+        ConnectionActionFeedback {
+            id: globalConnectionActionFeedback
+            width: parent.width
+            controller: root.controller
+        }
     }
 
     onClosing: close => {
@@ -576,6 +592,8 @@ Kirigami.ApplicationWindow {
         vpnController: root.controller
         appSettings: root.integrationSettings
         windowWidth: root.width
+        onConnectionActionStarted: expectedState =>
+            globalConnectionActionFeedback.beginForState(expectedState)
     }
 
     Connections {

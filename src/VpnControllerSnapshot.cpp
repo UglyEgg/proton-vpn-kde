@@ -155,6 +155,10 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_message = snapshot.value(QStringLiteral("message")).toString();
     if (wasLoggedIn && !m_loggedIn) {
         const bool wasLocationsBusy = locationsBusy();
+        const bool hadBrowserErrors = !m_countriesError.isEmpty()
+            || !m_locationSearchError.isEmpty()
+            || !m_serverGroupsError.isEmpty()
+            || !m_serversError.isEmpty();
         m_countryModel->clear();
         m_serverGroupModel->clear();
         m_serverModel->clear();
@@ -170,13 +174,17 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_locationSearchQuery.clear();
         ++m_locationSearchGeneration;
         m_locationSearchBusy = false;
+        m_countriesError.clear();
+        m_locationSearchError.clear();
+        m_serverGroupsError.clear();
+        m_serversError.clear();
         m_npsSurveyChecked = false;
         m_npsSurveyAvailable = false;
         emit npsSurveyChanged();
         m_settings->reset();
         m_splitTunneling->reset();
         m_customDns->reset();
-        if (wasLocationsBusy != locationsBusy()) {
+        if (wasLocationsBusy != locationsBusy() || hadBrowserErrors) {
             emit locationsChanged();
         }
     }
@@ -232,6 +240,8 @@ void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
 void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
 {
     const bool current = backendReplyIsCurrent(watcher);
+    const bool connectionOperation =
+        watcher->property("connectionOperation").toBool();
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
     if (!current) {
@@ -243,6 +253,9 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
             m_message = tr(
                 "The VPN operation is still completing; refreshing its state");
             emit snapshotChanged();
+            if (connectionOperation) {
+                emit connectionOperationFinished(false, m_message);
+            }
             scheduleSnapshotRefreshRetry();
             return;
         }
@@ -261,7 +274,13 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
             m_message = tr("The VPN operation could not be completed");
         }
         emit snapshotChanged();
+        if (connectionOperation) {
+            emit connectionOperationFinished(false, m_message);
+        }
         return;
+    }
+    if (connectionOperation) {
+        emit connectionOperationFinished(true, {});
     }
     refresh();
 }
@@ -269,6 +288,8 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
 void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher)
 {
     const bool current = backendReplyIsCurrent(watcher);
+    const bool connectionOperation =
+        watcher->property("connectionOperation").toBool();
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
     if (!current) {
@@ -279,6 +300,9 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
             m_message = tr(
                 "The VPN operation is still completing; refreshing its state");
             emit snapshotChanged();
+            if (connectionOperation) {
+                emit connectionOperationFinished(false, m_message);
+            }
             scheduleSnapshotRefreshRetry();
             return;
         }
@@ -297,7 +321,13 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
             m_message = tr("The VPN operation could not be completed");
         }
         emit snapshotChanged();
+        if (connectionOperation) {
+            emit connectionOperationFinished(false, m_message);
+        }
         return;
+    }
+    if (connectionOperation) {
+        emit connectionOperationFinished(true, {});
     }
     refresh();
 }

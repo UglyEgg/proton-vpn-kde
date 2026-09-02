@@ -63,7 +63,11 @@ while IFS= read -r path; do
         CMakeLists.txt|backend/pyproject.toml|\
         backend/proton_vpn_kde_backend/__init__.py|\
         packaging/fedora/proton-vpn-kde.spec|\
-        src/VpnController.cpp|src/VpnController.h|src/main.cpp|\
+        src/VpnController.cpp|src/VpnController.h|\
+        src/VpnControllerActions.cpp|\
+        src/VpnControllerLifecycle.cpp|src/VpnControllerLocations.cpp|\
+        src/VpnControllerSnapshot.cpp|\
+        src/main.cpp|\
         tests/GroupedNavigationTest.cpp|tests/SignInPresentationTest.cpp)
             # Exact reviewed deltas are checked below.
             ;;
@@ -89,7 +93,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "ac2ec255b9f4438230a5e42faa8df3757b10bf990d6b5a4db57c453ab8410566" \
+    "eb07ba5f573264d3a6a1add2d65cabedf45b1dcba4bed912dc9f9017d06442de" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
@@ -102,12 +106,14 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "7372f0ba20fcc1aa5e08f310fe6ca675ae8053722d9ace2066442cd45972d5df" \
-    "presentation recovery and measurement contract" \
-    src/VpnController.h src/VpnController.cpp src/main.cpp \
-    tests/GroupedNavigationTest.cpp
+    "fdf61c1af27bf18f186feeb18437fd67672884d100d3f33ed3fc89262384ae71" \
+    "frontend presentation contract" \
+    src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
+    src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
+    src/VpnControllerSnapshot.cpp src/main.cpp \
+    tests/GroupedNavigationTest.cpp tests/SignInPresentationTest.cpp
 assert_diff_hash \
-    "fbd0e997c923eca69018faa4098248b74769f5bc19b4e5cc52b0186f3cf484a0" \
+    "608800428426f77092a60f01e6324566585bb8e24e3742ea63c167655b0c3021" \
     "QML presentation" qml
 
 qml_operation_hash="$(

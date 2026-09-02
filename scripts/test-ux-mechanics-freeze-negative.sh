@@ -7,6 +7,7 @@ set -euo pipefail
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fixture_root="$(mktemp -d)"
 fixture_dir="$fixture_root/repository"
+feedback_fixture_dir="$fixture_root/feedback-repository"
 trap 'rm -rf -- "$fixture_root"' EXIT
 
 git clone --quiet --no-hardlinks "$project_dir" "$fixture_dir"
@@ -33,3 +34,29 @@ if ! rg -q 'QML presentation delta changed' "$gate_output"; then
 fi
 
 echo "The mechanics gate rejects changed QML operation arguments"
+
+git clone --quiet --no-hardlinks "$project_dir" "$feedback_fixture_dir"
+perl -0pi -e \
+    's/\n\s*connectionActionFeedback\.beginForState\(\n\s*"connected"\)(\n\s*vpnController\.connectServer\(resultDelegate\.name\))/\1/' \
+    "$feedback_fixture_dir/qml/LocationsPage.qml"
+if rg -U -q \
+        'beginForState\(\n[[:space:]]*"connected"\)\n[[:space:]]*vpnController\.connectServer\(resultDelegate\.name\)' \
+        "$feedback_fixture_dir/qml/LocationsPage.qml"; then
+    echo "Unable to construct the feedback-ownership negative fixture" >&2
+    exit 1
+fi
+
+feedback_output="$fixture_root/feedback-output"
+if "$feedback_fixture_dir/scripts/check-qml-ui-hygiene.sh" \
+        >"$feedback_output" 2>&1; then
+    echo "The UI hygiene gate accepted an unowned connection action" >&2
+    exit 1
+fi
+if ! rg -q 'Connection action lacks explicit feedback ownership' \
+        "$feedback_output"; then
+    echo "The UI hygiene gate failed for an unexpected reason" >&2
+    sed -n '1,120p' "$feedback_output" >&2
+    exit 1
+fi
+
+echo "The UI hygiene gate rejects unowned connection actions"

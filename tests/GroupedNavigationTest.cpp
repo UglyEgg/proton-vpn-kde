@@ -35,8 +35,15 @@ public:
     int snapshotCalls = 0;
     int settingsCalls = 0;
     int settingsUpdateCalls = 0;
+    int searchCalls = 0;
+    int loadCalls = 0;
+    int countryFailures = 0;
+    int searchFailures = 0;
+    int loadFailures = 0;
     int emptyGroupResponses = 0;
     int emptyServerResponses = 0;
+    int invalidGroupResponses = 0;
+    int invalidServerResponses = 0;
     bool rejectRegistration = false;
     bool delayLogout = false;
     bool ready = true;
@@ -107,6 +114,12 @@ public slots:
     {
         ++countryCalls;
         browseCallOrder.append(QStringLiteral("countries"));
+        if (countryFailures > 0) {
+            --countryFailures;
+            sendErrorReply(QDBusError::Failed,
+                           QStringLiteral("country read failed"));
+            return {};
+        }
         return QStringLiteral(R"json({
             "schemaVersion":1,
             "countries":[
@@ -114,6 +127,19 @@ public slots:
                 {"code":"US","serverCount":5,"accessible":true}
             ]
         })json");
+    }
+
+    QString SearchLocations(const QString &)
+    {
+        ++searchCalls;
+        if (searchFailures > 0) {
+            --searchFailures;
+            sendErrorReply(QDBusError::Failed,
+                           QStringLiteral("location search failed"));
+            return {};
+        }
+        return QStringLiteral(
+            R"json({"schemaVersion":1,"results":[]})json");
     }
 
     void ConnectFastestWithFeature(const QString &feature)
@@ -187,6 +213,11 @@ public slots:
             return QStringLiteral(
                 R"json({"schemaVersion":1,"groups":[]})json");
         }
+        if (invalidGroupResponses > 0) {
+            --invalidGroupResponses;
+            return QStringLiteral(
+                R"json({"schemaVersion":2,"groups":[]})json");
+        }
         return QStringLiteral(R"json({
             "schemaVersion":1,
             "groups":[
@@ -212,6 +243,11 @@ public slots:
             return QStringLiteral(
                 R"json({"schemaVersion":1,"servers":[]})json");
         }
+        if (invalidServerResponses > 0) {
+            --invalidServerResponses;
+            return QStringLiteral(
+                R"json({"schemaVersion":2,"servers":[]})json");
+        }
         return QStringLiteral(R"json({
             "schemaVersion":1,
             "servers":[
@@ -219,6 +255,24 @@ public slots:
                  "p2p":true,"streaming":true},
                 {"name":"CH#202","location":"Zurich","load":51,
                  "p2p":true}
+            ]
+        })json");
+    }
+
+    QString GetServerLoads(const QString &)
+    {
+        ++loadCalls;
+        if (loadFailures > 0) {
+            --loadFailures;
+            sendErrorReply(QDBusError::Failed,
+                           QStringLiteral("server load read failed"));
+            return {};
+        }
+        return QStringLiteral(R"json({
+            "schemaVersion":1,
+            "loads":[
+                {"name":"CH#101","load":31},
+                {"name":"CH#202","load":52}
             ]
         })json");
     }
@@ -243,6 +297,7 @@ private slots:
     void loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint();
     void retriesTransientEmptyServerGroupResponses();
     void retriesTransientEmptyServerResponse();
+    void browserFailuresAreDistinctFromEmptyResults();
     void stalePageCleanupCannotClearReplacementContexts();
     void requestsFastestServerByValidatedCapabilities();
     void supportReportSubmissionFollowsBuildPolicy();
@@ -587,6 +642,65 @@ void GroupedNavigationTest::retriesTransientEmptyServerGroupResponses()
     QVERIFY(!controller.locationsBusy());
 }
 
+void GroupedNavigationTest::browserFailuresAreDistinctFromEmptyResults()
+{
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+    const QString connectionMessage = controller.message();
+
+    m_backend.countryFailures = 1;
+    controller.loadCountries();
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.countriesError().isEmpty(), 2000);
+    QVERIFY(!controller.locationsBusy());
+    QCOMPARE(controller.countryModel()->rowCount(), 0);
+    QCOMPARE(controller.message(), connectionMessage);
+
+    controller.loadCountries();
+    QTRY_COMPARE_WITH_TIMEOUT(controller.countryModel()->rowCount(), 2, 2000);
+    QVERIFY(controller.countriesError().isEmpty());
+
+    m_backend.searchFailures = 1;
+    controller.searchLocations(QStringLiteral("ch"));
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.locationSearchError().isEmpty(), 2000);
+    QVERIFY(!controller.locationSearchBusy());
+    controller.searchLocations(QStringLiteral("ch"));
+    QTRY_VERIFY_WITH_TIMEOUT(controller.locationSearchError().isEmpty(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.locationSearchBusy(), 2000);
+
+    m_backend.invalidGroupResponses = 1;
+    controller.loadServerGroups(QStringLiteral("CH"));
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.serverGroupsError().isEmpty(), 2000);
+    QVERIFY(!controller.locationsBusy());
+    controller.loadServerGroups(QStringLiteral("CH"));
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverGroupModel()->rowCount(), 2, 2000);
+    QVERIFY(controller.serverGroupsError().isEmpty());
+
+    m_backend.invalidServerResponses = 1;
+    controller.loadGroupServers(QStringLiteral("CH"),
+                                QStringLiteral("location"),
+                                QStringLiteral("Zurich"));
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.serversError().isEmpty(), 2000);
+    QVERIFY(!controller.locationsBusy());
+    controller.loadGroupServers(QStringLiteral("CH"),
+                                QStringLiteral("location"),
+                                QStringLiteral("Zurich"));
+    QTRY_COMPARE_WITH_TIMEOUT(controller.serverModel()->rowCount(), 2, 2000);
+    QVERIFY(controller.serversError().isEmpty());
+
+    m_backend.loadFailures = 1;
+    controller.requestServerLoads();
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.serversError().isEmpty(), 2000);
+    QVERIFY(!controller.locationsBusy());
+    controller.requestServerLoads();
+    QTRY_VERIFY_WITH_TIMEOUT(controller.serversError().isEmpty(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.locationsBusy(), 2000);
+    QCOMPARE(controller.message(), connectionMessage);
+}
+
 void GroupedNavigationTest::stalePageCleanupCannotClearReplacementContexts()
 {
     m_backend.publishSession(true, true);
@@ -641,6 +755,12 @@ void GroupedNavigationTest::requestsFastestServerByValidatedCapabilities()
     QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
     QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
     QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+    QSignalSpy connectionFinished(
+        &controller, &VpnController::connectionOperationFinished);
+
+    controller.setReconnectionEnabled(false);
+    QTest::qWait(50);
+    QCOMPARE(connectionFinished.count(), 0);
 
     controller.connectFastestWithFeatures(
         {QStringLiteral(" Streaming "), QStringLiteral("P2P")});
@@ -649,6 +769,8 @@ void GroupedNavigationTest::requestsFastestServerByValidatedCapabilities()
              QStringList({QStringLiteral("p2p"),
                           QStringLiteral("streaming")}));
     QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(connectionFinished.count(), 1, 2000);
+    QVERIFY(connectionFinished.at(0).at(0).toBool());
 
     controller.setFastestFeatures(
         {QStringLiteral("secure-core"), QStringLiteral("p2p")});

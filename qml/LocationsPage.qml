@@ -13,9 +13,12 @@ Kirigami.Page {
     readonly property bool searching: searchField.text.trim().length > 0
     property var requiredCapabilities: []
 
-    footer: ConnectionActionFeedback {
+    footer: ServerBrowserFeedback {
         id: connectionActionFeedback
         controller: vpnController
+        loadError: page.searching
+                   ? vpnController.locationSearchError
+                   : vpnController.countriesError
     }
 
     function capabilityName(capability) {
@@ -441,6 +444,8 @@ Kirigami.Page {
                                     Qt.openUrlExternally(
                                         "https://protonvpn.com/pricing")
                                 } else {
+                                    connectionActionFeedback.beginForState(
+                                        "connected")
                                     vpnController.connectServer(resultDelegate.name)
                                 }
                             }

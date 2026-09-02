@@ -48,6 +48,10 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(bool snapshotRefreshPending READ snapshotRefreshPending NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool locationSearchBusy READ locationSearchBusy NOTIFY locationsChanged)
+    Q_PROPERTY(QString countriesError READ countriesError NOTIFY locationsChanged)
+    Q_PROPERTY(QString locationSearchError READ locationSearchError NOTIFY locationsChanged)
+    Q_PROPERTY(QString serverGroupsError READ serverGroupsError NOTIFY locationsChanged)
+    Q_PROPERTY(QString serversError READ serversError NOTIFY locationsChanged)
     Q_PROPERTY(bool npsSurveyAvailable READ npsSurveyAvailable NOTIFY npsSurveyChanged)
     Q_PROPERTY(bool supportReportSubmissionEnabled READ supportReportSubmissionEnabled CONSTANT)
     Q_PROPERTY(bool crashReportSubmissionEnabled READ crashReportSubmissionEnabled CONSTANT)
@@ -98,6 +102,10 @@ public:
     [[nodiscard]] bool snapshotRefreshPending() const;
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] bool locationSearchBusy() const;
+    [[nodiscard]] QString countriesError() const;
+    [[nodiscard]] QString locationSearchError() const;
+    [[nodiscard]] QString serverGroupsError() const;
+    [[nodiscard]] QString serversError() const;
     [[nodiscard]] bool npsSurveyAvailable() const;
     [[nodiscard]] bool supportReportSubmissionEnabled() const;
     [[nodiscard]] bool crashReportSubmissionEnabled() const;
@@ -202,6 +210,7 @@ public:
 
 signals:
     void locationsChanged();
+    void connectionOperationFinished(bool success, const QString &message);
     void npsSurveyChanged();
     void supportReportFinished(bool success, const QString &message);
 
@@ -251,6 +260,7 @@ private:
     void resetGroupServerContext();
     void dispatchPendingLocationRefreshes();
     void setLocationsBusy(bool busy);
+    void setBrowserError(QString &target, const QString &message);
     void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
     void handleControlOperationReply(QDBusPendingCallWatcher *watcher);
@@ -305,6 +315,10 @@ private:
     bool m_busy = false;
     bool m_locationsBusy = false;
     bool m_locationSearchBusy = false;
+    QString m_countriesError;
+    QString m_locationSearchError;
+    QString m_serverGroupsError;
+    QString m_serversError;
     quint64 m_locationSearchGeneration = 0;
     QString m_locationSearchQuery;
     bool m_npsSurveyChecked = false;
