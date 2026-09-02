@@ -168,6 +168,10 @@ armed. A stall therefore exits nonzero with the journal retained. If no session
 is restored, startup does the same: Core intentionally ignores persisted
 connection state while logged out, so its synthetic disconnected connector is
 not evidence that an external capture has stopped.
+Connector, capture-recovery, and reconnector callbacks remain private during
+this startup transaction. The controller receives one authoritative snapshot
+only after authentication state, refresher callbacks, and session services are
+fully initialized; no intermediate callback can advertise readiness.
 
 If the backend owner disappears while the Control Center remains open, the
 frontend requests bounded D-Bus reactivation and re-establishes its lease. A

@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.12.0
-Release:        0.28%{?dist}
+Release:        0.29%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -133,6 +133,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.29
+- Suppress pre-readiness adapter snapshots during Core initialization.
+- Publish one authoritative state after session services are ready.
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.28
 - Bound Core connector restoration while capture recovery is pending.
 - Retain the journal for nonzero retry when a system D-Bus dependency stalls.

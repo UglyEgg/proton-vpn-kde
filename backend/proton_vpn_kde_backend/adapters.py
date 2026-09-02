@@ -123,6 +123,7 @@ class ProtonCoreAdapter:
         self._connector: Any = None
         self._callback: SnapshotCallback | None = None
         self._server_data_callback: ServerDataCallback | None = None
+        self._initialized = False
         self._logged_in = False
         self._reconnector: AsyncReconnector | None = None
         self._reconnection_enabled = True
@@ -153,6 +154,7 @@ class ProtonCoreAdapter:
         callback: SnapshotCallback,
         server_data_callback: ServerDataCallback | None = None,
     ) -> VpnSnapshot:
+        self._initialized = False
         self._callback = callback
         self._server_data_callback = server_data_callback
         self._core_memory_optimized = _core_memory_optimizations_active()
@@ -253,7 +255,12 @@ class ProtonCoreAdapter:
         if self._logged_in:
             await self._enable_session_services()
 
-        return self._snapshot_from_state(self._connector.current_state)
+        snapshot = self._snapshot_from_state(self._connector.current_state)
+        # Connector, capture-recovery, and refresher callbacks may run while
+        # Core is still initializing. Keep their state updates internal until
+        # the controller receives this single authoritative ready snapshot.
+        self._initialized = True
+        return snapshot
 
     async def connect_fastest(self) -> None:
         server_list = await self._get_server_list()
@@ -1188,12 +1195,12 @@ class ProtonCoreAdapter:
             await self._api.refresher.disable()
 
     def status_update(self, state: Any) -> None:
-        if self._callback:
+        if self._initialized and self._callback:
             self._callback(self._snapshot_from_state(state))
 
     def _on_reconnector_status(self, message: str) -> None:
         self._status_message = message
-        if self._callback and self._connector:
+        if self._initialized and self._callback and self._connector:
             self._callback(self._snapshot_from_state(self._connector.current_state))
 
     def _on_server_list_updated(self) -> None:
@@ -1577,7 +1584,7 @@ class ProtonCoreAdapter:
         self._publish_snapshot()
 
     def _publish_snapshot(self) -> None:
-        if self._callback and self._connector:
+        if self._initialized and self._callback and self._connector:
             self._callback(self._snapshot_from_state(self._connector.current_state))
 
     def _handle_authentication_error(

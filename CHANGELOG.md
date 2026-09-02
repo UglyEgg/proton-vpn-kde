@@ -112,6 +112,9 @@ All notable user-visible changes are recorded here. The project follows
   than trusting Core's intentionally synthetic logged-out disconnected state,
   and bound connector construction so a stalled system D-Bus dependency also
   returns recovery ownership to systemd.
+- Suppress connector, recovery, and reconnector snapshot callbacks until Core
+  initialization has completed, so clients receive one authoritative ready
+  state instead of a transient partially initialized session.
 - Keep capture setup inactive and retryable when Core rejects the selected
   destination before it receives a start request.
 - Teach Git that unified-diff context markers are patch syntax while retaining

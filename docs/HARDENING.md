@@ -43,6 +43,10 @@ is not eligible for the ordinary no-client idle exit, so a hanging bounded stop
 cannot be canceled into an unsupervised clean shutdown. The recovered watchdog
 retains the original deadline and continues bounded attempts after that deadline
 until Core confirms completion.
+Snapshot publication is also gated on completed adapter initialization. Recovery
+and connector callbacks may update internal state during startup, but clients
+cannot observe a ready session until authentication state, callbacks, and
+session services are coherent.
 
 The 0.11.3 release-battery inspection confirmed that all four ELF files in the
 exact locally built `proton-vpn-kde-0.11.3-1.fc44` RPM are position-independent

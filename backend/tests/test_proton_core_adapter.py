@@ -421,6 +421,53 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(recovery_path.exists())
         connector.current_connection.stop_packet_capture.assert_awaited_once_with()
 
+    async def test_capture_recovery_does_not_publish_before_initialization(self):
+        api, connector = self.make_api()
+        refresher_started = asyncio.Event()
+        refresher_released = asyncio.Event()
+        snapshots = []
+
+        async def hold_refresher_enable():
+            refresher_started.set()
+            await refresher_released.wait()
+
+        recovery_path = Path(os.environ["XDG_RUNTIME_DIR"]) / (
+            PACKET_CAPTURE_RECOVERY_FILENAME
+        )
+        PacketCaptureRecoveryJournal(recovery_path).store_deadline(
+            time.clock_gettime(time.CLOCK_BOOTTIME) - 0.01
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = SimpleNamespace(
+            server_name="US-IL#42",
+            stop_packet_capture=AsyncMock(),
+        )
+        api.refresher.enable.side_effect = hold_refresher_enable
+        adapter = ProtonCoreAdapter(
+            api,
+            packet_capture_recovery_path=recovery_path,
+            packet_capture_stop_attempt_seconds=0.01,
+        )
+
+        initialize_task = asyncio.create_task(adapter.initialize(snapshots.append))
+        await asyncio.wait_for(refresher_started.wait(), timeout=1)
+
+        self.assertFalse(initialize_task.done())
+        self.assertFalse(recovery_path.exists())
+        self.assertEqual([], snapshots)
+        adapter.status_update(connector.current_state)
+        adapter._on_reconnector_status("Reconnecting")
+        self.assertEqual([], snapshots)
+
+        refresher_released.set()
+        snapshot = await initialize_task
+        self.assertTrue(snapshot.ready)
+        self.assertTrue(snapshot.logged_in)
+        self.assertEqual("signed_in", snapshot.auth_state)
+
+        adapter.status_update(connector.current_state)
+        self.assertEqual([snapshot], snapshots)
+
     async def test_capture_recovery_retains_journal_when_session_restore_times_out(self):
         api, _ = self.make_api()
         prompt_started = threading.Event()
