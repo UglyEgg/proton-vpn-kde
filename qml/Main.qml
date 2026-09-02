@@ -401,8 +401,16 @@ Kirigami.ApplicationWindow {
                 root.showReportIssue()
                 break
             case 11:
-                console.info("diagnostics-smoke: About")
-                root.showAbout()
+                const informationPage = root.showAbout()
+                if (informationPage === null
+                        || informationPage.objectName
+                           !== "secondaryInformationHub") {
+                    stop()
+                    console.error("diagnostics-smoke: secondary information hub unavailable")
+                    Qt.exit(2)
+                    return
+                }
+                console.info("diagnostics-smoke: Help and information")
                 break
             case 12:
                 console.info("diagnostics-smoke: Sign in")

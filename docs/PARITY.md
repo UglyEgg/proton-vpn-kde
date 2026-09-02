@@ -40,7 +40,7 @@ Proton's official core.
 | Troubleshooting capture | Choose folder and start/stop capture for supported protocols | Native folder chooser, consent warning, and official protocol capture implementation | Complete |
 | Issue reporting | Submit support form with optional logs | Reviewed proof of concept retained behind a default-off build capability; community-client reports go to the project tracker | Deliberately disabled |
 | Anonymous crash reporting | Optional automatic reports to Proton's Sentry endpoint | Default-off build capability; community builds normalize the official Core preference off and direct client crashes to the project tracker | Deliberately disabled |
-| Release information | About and release-notes views | Native About and Release Notes pages | Complete |
+| Release information | About and release-notes views | Native Help & information hub with on-demand Release Notes | Complete |
 | Update channel | Stable/Beta repository choice | Exact-package Polkit action; Discover remains responsible for updates | Native equivalent |
 | Account/help links | Create, manage, support, upgrade, and setup guidance | Official URLs opened through the desktop URL handler | Complete |
 | NPS survey | Cached Proton survey, seen state, submit, and dismiss | Same official notification and response APIs with sealed optional comments | Complete |

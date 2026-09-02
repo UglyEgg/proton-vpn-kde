@@ -160,20 +160,7 @@ Kirigami.AbstractCard {
             Controls.MenuSeparator { }
 
             Controls.MenuItem {
-                text: qsTr("Release notes")
-                icon.name: "view-pim-notes"
-                onTriggered: root.navigateRequested("release-notes")
-            }
-
-            Controls.MenuItem {
-                text: qsTr("Report an issue")
-                icon.name: "tools-report-bug"
-                enabled: root.loggedIn
-                onTriggered: root.navigateRequested("report-issue")
-            }
-
-            Controls.MenuItem {
-                text: qsTr("About")
+                text: qsTr("Help & information")
                 icon.name: "help-about"
                 onTriggered: root.navigateRequested("about")
             }

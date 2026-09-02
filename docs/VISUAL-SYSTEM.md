@@ -75,9 +75,12 @@ destination opens server browsing, its central encrypted-tunnel control and
 server-capability facts open the Inspector, and the signed-in identity opens
 Account. The protocol fact opens settings; the forwarded-port fact copies its
 value.
-An icon-only gear in the upper-right opens Inspector, release, reporting,
-About, and close actions. These are native buttons and menu items with visible
-focus, tooltips where labels are hidden, and explicit accessible names.
+An icon-only gear in the upper-right opens the contextual Inspector, one Help
+& information destination, and the close action. The information destination
+makes community status and reporting availability visible before disclosing
+release history, attribution, licensing, and Proton service links. These are
+native buttons, menu items, and list rows with visible focus, tooltips where
+labels are hidden, and explicit accessible names.
 
 Pages opened from the home surface use Kirigami's ordinary back stack. Initial
 deep links create the same home-backed stack, so every non-authentication page

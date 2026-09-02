@@ -32,6 +32,10 @@ All notable user-visible changes are recorded here. The project follows
   preparation, credentials, Secret Service approval, two-factor, security key,
   PIN, or safe recovery. Give the signed-in Account surface the same native
   identity hierarchy without changing authentication behavior.
+- Consolidate release history, reporting availability, project status,
+  attribution, and licensing behind one graphical Help & information
+  destination. Keep the connection Inspector contextual and remove redundant
+  project routes from the home gear menu.
 - Add an on-demand Connection Inspector for live server capabilities,
   protection configuration, and local runtime state using only existing
   non-sensitive Core snapshots.

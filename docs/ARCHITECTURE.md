@@ -238,6 +238,13 @@ discarded instead of repopulating cleared state. Closing the page destroys it.
 It has no timer, traffic access, history store, remote telemetry, or networking
 authority, and a source gate rejects background-collector types in the page.
 
+The home gear keeps the Inspector contextual and exposes one Help &
+information page for non-operational project depth. That page states the
+community support boundary before linking to separately owned release-history
+and reporting pages. These pages use the same dynamically owned back stack, so
+opening deeper information returns first to the hub and then to Connection;
+direct visual and desktop deep links remain available for deterministic tests.
+
 The IPv6 setting controls whether supported IPv6 traffic is carried inside the
 VPN tunnel. It does not disable Core's separate connection-scoped IPv6 leak
 protection. NetworkManager may therefore show Core's `pvpn-killswitch-ipv6`

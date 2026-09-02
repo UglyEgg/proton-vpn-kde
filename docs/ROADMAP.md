@@ -43,23 +43,11 @@ The implementation constraints are:
 
 ### Delivery sequence
 
-1. Treat Connection Inspector, release history, support status, and technical
-   details as on-demand depth rather than primary navigation competition.
-2. Verify compact and wide windows, keyboard-only use, screen-reader names,
+1. Verify compact and wide windows, keyboard-only use, screen-reader names,
    1.5x text, right-to-left layout, light and dark schemes, high contrast, and
    reduced motion before repeating the full release battery.
 
 ### Information-architecture target
-
-The initial audit found capable pages already structured around native cards,
-but their depth is generally exposed all at once. Version 0.13.0 will preserve
-those working components and alter their presentation hierarchy rather than
-replace them.
-
-| Current surface | What already works | Presentation debt to resolve |
-| --- | --- | --- |
-| Connection Inspector | Bounded, read-only, on-demand detail | Open it from connection context and secondary navigation rather than competing with daily connection tasks |
-| Release Notes, About, and reporting | Attribution, history, support boundary, and project status remain reachable | Place project information in a secondary destination; keep disabled reporting visibly unavailable without making it a primary task |
 
 | User intent | First layer | Disclosed depth |
 | --- | --- | --- |
@@ -69,10 +57,6 @@ replace them.
 | Understand a problem | Plain-language state and one safe recovery action | Technical error, component status, and diagnostics |
 | Inspect a connection | Short live summary | The existing read-only Connection Inspector |
 | Manage identity | Sign-in requirement or current account | Two-factor, security key, plan, and sign-out actions |
-
-Release Notes, About, support status, and other project information remain
-available but move out of the primary task hierarchy. Exact navigation changes
-will follow the journey inventory rather than precede it.
 
 ## Post-release stabilization
 

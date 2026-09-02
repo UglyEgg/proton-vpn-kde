@@ -96,7 +96,8 @@ expected_lines["qml: diagnostics-smoke: Overview connection facts visible"]=1
 for page in \
     Overview Locations Country Servers Account Settings "Custom DNS" \
     "Settings reload" "Split tunneling" "Release notes" "Report issue" \
-    About "Sign in" "Connection Inspector" "Overview reload"; do
+    "Help and information" "Sign in" "Connection Inspector" \
+    "Overview reload"; do
     expected_lines["qml: diagnostics-smoke: $page"]=1
 done
 expected_lines["qml: diagnostics-smoke: complete"]=1

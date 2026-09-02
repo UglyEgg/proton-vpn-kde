@@ -110,7 +110,17 @@ if ! rg -q 'id: moreAction' "$qml_dir/ConnectionScene.qml" \
         "$qml_dir/ConnectionScene.qml" \
         || ! rg -q 'icon.name: "configure"' \
         "$qml_dir/ConnectionScene.qml" \
+        || ! rg -q 'text: qsTr\("Help & information"\)' \
+        "$qml_dir/ConnectionScene.qml" \
+        || rg -q 'onTriggered: root\.navigateRequested\("(release-notes|report-issue)"\)' \
+        "$qml_dir/ConnectionScene.qml" \
+        || ! rg -q 'objectName: "secondaryInformationHub"' \
+        "$qml_dir/AboutPage.qml" \
+        || ! rg -q 'applicationWindow\(\)\.openOverviewDestination\(' \
+        "$qml_dir/AboutPage.qml" \
+        || ! rg -q '"release-notes"' "$qml_dir/AboutPage.qml" \
+        || ! rg -q '"report-issue"' "$qml_dir/AboutPage.qml" \
         || rg -q 'globalDrawer\s*:' "$qml_dir/Main.qml"; then
-    echo "Overview must own application navigation without a persistent sidebar or drawer" >&2
+    echo "Overview must keep one secondary information hub without a persistent sidebar or redundant project routes" >&2
     exit 1
 fi
