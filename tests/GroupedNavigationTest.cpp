@@ -37,6 +37,8 @@ public:
     int settingsUpdateCalls = 0;
     int searchCalls = 0;
     int loadCalls = 0;
+    int packetCaptureStartCalls = 0;
+    int packetCaptureStopCalls = 0;
     int countryFailures = 0;
     int searchFailures = 0;
     int loadFailures = 0;
@@ -49,8 +51,11 @@ public:
     bool ready = true;
     bool loggedIn = true;
     bool failNextSettingsUpdateAsNoReply = false;
+    bool failNextPacketCaptureOperation = false;
+    bool packetCaptureActive = false;
     int settingsNetShield = 0;
     int snapshotNoReplyFailures = 0;
+    QString connectionState = QStringLiteral("disconnected");
     QString lastCountry;
     QString lastGroupKind;
     QString lastGroupName;
@@ -106,8 +111,14 @@ public slots:
                            QStringLiteral("transient snapshot timeout"));
             return {};
         }
-        return ProtonVpnKde::TestData::completeSnapshot(
-            QStringLiteral("disconnected"), loggedIn, ready);
+        QJsonDocument document = QJsonDocument::fromJson(
+            ProtonVpnKde::TestData::completeSnapshot(
+                connectionState, loggedIn, ready).toUtf8());
+        QJsonObject snapshot = document.object();
+        snapshot.insert(QStringLiteral("packetCaptureActive"),
+                        packetCaptureActive);
+        return QString::fromUtf8(
+            QJsonDocument(snapshot).toJson(QJsonDocument::Compact));
     }
 
     QString GetCountries()
@@ -276,6 +287,30 @@ public slots:
             ]
         })json");
     }
+
+    void StartPacketCapture(const QString &)
+    {
+        ++packetCaptureStartCalls;
+        if (failNextPacketCaptureOperation) {
+            failNextPacketCaptureOperation = false;
+            sendErrorReply(QDBusError::Failed,
+                           QStringLiteral("packet capture start failed"));
+            return;
+        }
+        packetCaptureActive = true;
+    }
+
+    void StopPacketCapture()
+    {
+        ++packetCaptureStopCalls;
+        if (failNextPacketCaptureOperation) {
+            failNextPacketCaptureOperation = false;
+            sendErrorReply(QDBusError::Failed,
+                           QStringLiteral("packet capture stop failed"));
+            return;
+        }
+        packetCaptureActive = false;
+    }
 };
 }
 
@@ -291,6 +326,8 @@ private slots:
     void clearsCachedSessionWhenBackendStops();
     void ignoresOperationReplyFromReplacedBackend();
     void retriesSnapshotAfterTransientSameOwnerFailure();
+    void invalidSnapshotOwnsGlobalHealthError();
+    void packetCaptureFailuresHaveTypedCompletionState();
     void reconcilesSettingsAfterCompletionUnknownMutation();
     void stopsRetryingAnUnresponsiveSameOwner();
     void queuesInitialBrowserLoadUntilBackendIsReady();
@@ -468,6 +505,101 @@ void GroupedNavigationTest::retriesSnapshotAfterTransientSameOwnerFailure()
         m_backend.snapshotCalls, snapshotCallsBefore + 2, 2500);
     QVERIFY(controller.backendAvailable());
     QVERIFY(controller.ready());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.snapshotError().isEmpty(), 2000);
+}
+
+void GroupedNavigationTest::invalidSnapshotOwnsGlobalHealthError()
+{
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+
+    controller.applySnapshot(ProtonVpnKde::TestData::completeSnapshot(
+        QStringLiteral("connected")));
+    QCOMPARE(controller.state(), QStringLiteral("connected"));
+    QVERIFY(controller.snapshotError().isEmpty());
+
+    const QStringList invalidSnapshots{
+        QStringLiteral("{"),
+        QStringLiteral(R"json({"schemaVersion":2})json"),
+        QStringLiteral(R"json({"schemaVersion":1})json"),
+    };
+    for (const QString &snapshot : invalidSnapshots) {
+        controller.applySnapshot(snapshot);
+        QCOMPARE(controller.state(), QStringLiteral("connected"));
+        QVERIFY(!controller.snapshotError().isEmpty());
+
+        controller.applySnapshot(ProtonVpnKde::TestData::completeSnapshot(
+            QStringLiteral("connected")));
+        QVERIFY(controller.snapshotError().isEmpty());
+    }
+}
+
+void GroupedNavigationTest::packetCaptureFailuresHaveTypedCompletionState()
+{
+    m_backend.connectionState = QStringLiteral("connected");
+    m_backend.packetCaptureActive = false;
+    m_backend.failNextPacketCaptureOperation = false;
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        controller.state(), QStringLiteral("connected"), 2000);
+    QSignalSpy completion(
+        &controller,
+        &VpnController::packetCaptureOperationFinished);
+
+    const int startCallsBeforeInvalidPath = m_backend.packetCaptureStartCalls;
+    controller.startPacketCapture(QStringLiteral("\n"));
+    QCOMPARE(m_backend.packetCaptureStartCalls, startCallsBeforeInvalidPath);
+    QCOMPARE(completion.count(), 1);
+    QCOMPARE(completion.constLast().at(0).toBool(), true);
+    QCOMPARE(completion.constLast().at(1).toBool(), false);
+    QVERIFY(!controller.packetCaptureError().isEmpty());
+    completion.clear();
+
+    m_backend.failNextPacketCaptureOperation = true;
+    controller.startPacketCapture(QStringLiteral("/tmp"));
+    QTRY_COMPARE_WITH_TIMEOUT(completion.count(), 1, 2000);
+    QCOMPARE(completion.constLast().at(0).toBool(), true);
+    QCOMPARE(completion.constLast().at(1).toBool(), false);
+    QVERIFY(!controller.packetCaptureError().isEmpty());
+    QVERIFY(!controller.packetCaptureActive());
+
+    controller.startPacketCapture(QStringLiteral("/tmp"));
+    QTRY_COMPARE_WITH_TIMEOUT(completion.count(), 2, 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.packetCaptureActive(), 2000);
+    QCOMPARE(completion.constLast().at(0).toBool(), true);
+    QCOMPARE(completion.constLast().at(1).toBool(), true);
+    QVERIFY(controller.packetCaptureError().isEmpty());
+
+    m_backend.failNextPacketCaptureOperation = true;
+    controller.stopPacketCapture();
+    QTRY_COMPARE_WITH_TIMEOUT(completion.count(), 3, 2000);
+    QCOMPARE(completion.constLast().at(0).toBool(), false);
+    QCOMPARE(completion.constLast().at(1).toBool(), false);
+    QVERIFY(!controller.packetCaptureError().isEmpty());
+    QVERIFY(controller.packetCaptureActive());
+
+    const int stopCallsBeforeBusyTeardown = m_backend.packetCaptureStopCalls;
+    controller.m_busy = true;
+    controller.stopPacketCapture();
+    QCOMPARE(m_backend.packetCaptureStopCalls, stopCallsBeforeBusyTeardown);
+    QCOMPARE(completion.count(), 4);
+    QCOMPARE(completion.constLast().at(0).toBool(), false);
+    QCOMPARE(completion.constLast().at(1).toBool(), false);
+    QVERIFY(!controller.packetCaptureError().isEmpty());
+
+    controller.m_busy = false;
+    controller.stopPacketCapture();
+    QTRY_COMPARE_WITH_TIMEOUT(completion.count(), 5, 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.packetCaptureActive(), 2000);
+    QCOMPARE(completion.constLast().at(1).toBool(), true);
+    QVERIFY(controller.packetCaptureError().isEmpty());
+
+    m_backend.connectionState = QStringLiteral("disconnected");
+    m_backend.packetCaptureActive = false;
 }
 
 void GroupedNavigationTest::stopsRetryingAnUnresponsiveSameOwner()

@@ -58,7 +58,15 @@ All notable user-visible changes are recorded here. The project follows
   Connection page.
 - Distinguish failed country, search, location, server, and load reads from a
   valid empty server-browser result, with errors scoped to their owning view
-  and cleared when that read is retried.
+  and cleared when that read is retried. Explain whether an empty exact-server
+  list comes from the available topology, capability requirements, text search,
+  or both active filters.
+- Keep the last verified connection snapshot visible while presenting snapshot
+  validation or read failures globally, so stale connection data cannot be
+  mistaken for newly confirmed state.
+- Give packet-capture validation, start, and stop failures a dedicated result
+  channel. Keep failures visible in Diagnostics and globally after navigation,
+  including a stop that cannot be dispatched while Settings is closing.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

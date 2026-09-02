@@ -131,6 +131,14 @@ Kirigami.ScrollablePage {
             text: vpnSettings.message
         }
 
+        Kirigami.InlineMessage {
+            objectName: "packetCaptureOperationError"
+            Layout.fillWidth: true
+            visible: vpnController.packetCaptureError.length > 0
+            type: Kirigami.MessageType.Error
+            text: vpnController.packetCaptureError
+        }
+
         RowLayout {
             Layout.fillWidth: true
             visible: vpnController.loggedIn && vpnSettings.busy

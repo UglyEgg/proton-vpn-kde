@@ -93,6 +93,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         snapshotJson.toUtf8(), &error);
     if (error.error != QJsonParseError::NoError || !document.isObject()) {
         m_message = tr("The backend returned an invalid state snapshot");
+        m_snapshotError = m_message;
         emit snapshotChanged();
         return;
     }
@@ -101,14 +102,18 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     if (snapshot.value(QStringLiteral("schemaVersion")).toInt()
         != ProtonVpnKde::snapshotSchemaVersion) {
         m_message = tr("The backend uses an unsupported interface version");
+        m_snapshotError = m_message;
         emit snapshotChanged();
         return;
     }
     if (!ProtonVpnKde::validateSnapshotV1(snapshot)) {
         m_message = tr("The backend returned an incomplete state snapshot");
+        m_snapshotError = m_message;
         emit snapshotChanged();
         return;
     }
+
+    m_snapshotError.clear();
 
     const bool wasReady = m_ready;
     const bool wasLoggedIn = m_loggedIn;
@@ -149,6 +154,11 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     m_smartRouting = snapshot.value(QStringLiteral("smartRouting")).toBool();
     m_packetCaptureActive = snapshot.value(
         QStringLiteral("packetCaptureActive")).toBool();
+    if (m_packetCaptureExpectedActive.has_value()
+        && m_packetCaptureActive == *m_packetCaptureExpectedActive) {
+        m_packetCaptureExpectedActive.reset();
+        m_packetCaptureError.clear();
+    }
     m_coreMemoryOptimized = snapshot.value(
         QStringLiteral("coreMemoryOptimized")).toBool();
     m_coreVersion = snapshot.value(QStringLiteral("coreVersion")).toString();
@@ -227,6 +237,7 @@ void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
             setBackendAvailable(false);
         }
         m_message = tr("Unable to read backend state");
+        m_snapshotError = m_message;
         emit snapshotChanged();
         if (transientSameOwnerFailure) {
             scheduleSnapshotRefreshRetry();
@@ -244,6 +255,8 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
     const bool current = backendReplyIsCurrent(watcher);
     const QString connectionTarget =
         watcher->property("connectionTargetState").toString();
+    const QVariant packetCaptureTarget =
+        watcher->property("packetCaptureTargetActive");
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
     if (!current) {
@@ -254,10 +267,17 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
         if (ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type())) {
             m_message = tr(
                 "The VPN operation is still completing; refreshing its state");
+            if (packetCaptureTarget.isValid()) {
+                m_packetCaptureError = m_message;
+            }
             emit snapshotChanged();
             if (!connectionTarget.isEmpty()) {
                 emit connectionOperationFinished(
                     connectionTarget, false, m_message);
+            }
+            if (packetCaptureTarget.isValid()) {
+                emit packetCaptureOperationFinished(
+                    packetCaptureTarget.toBool(), false, m_message);
             }
             scheduleSnapshotRefreshRetry();
             return;
@@ -276,15 +296,30 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
         } else {
             m_message = tr("The VPN operation could not be completed");
         }
+        if (packetCaptureTarget.isValid()) {
+            m_packetCaptureExpectedActive.reset();
+            m_packetCaptureError = m_message;
+        }
         emit snapshotChanged();
         if (!connectionTarget.isEmpty()) {
             emit connectionOperationFinished(
                 connectionTarget, false, m_message);
         }
+        if (packetCaptureTarget.isValid()) {
+            emit packetCaptureOperationFinished(
+                packetCaptureTarget.toBool(), false, m_message);
+        }
         return;
     }
     if (!connectionTarget.isEmpty()) {
         emit connectionOperationFinished(connectionTarget, true, {});
+    }
+    if (packetCaptureTarget.isValid()) {
+        m_packetCaptureExpectedActive.reset();
+        m_packetCaptureError.clear();
+        emit snapshotChanged();
+        emit packetCaptureOperationFinished(
+            packetCaptureTarget.toBool(), true, {});
     }
     refresh();
 }

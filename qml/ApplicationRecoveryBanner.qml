@@ -17,14 +17,25 @@ Kirigami.InlineMessage {
         vpnController.loggedIn
         && vpnController.state === "error"
         && !dialogErrorCodes.includes(vpnController.errorCode)
+    readonly property bool snapshotErrorActive:
+        vpnController.snapshotError.length > 0
+    readonly property bool packetCaptureErrorActive:
+        vpnController.packetCaptureError.length > 0
     readonly property bool bannerActive:
-        recoveryActive || connectionErrorActive
+        snapshotErrorActive || packetCaptureErrorActive
+        || recoveryActive || connectionErrorActive
 
     objectName: "applicationBackendRecovery"
     visible: bannerActive
     height: visible ? implicitHeight : 0
     type: Kirigami.MessageType.Error
     text: {
+        if (root.snapshotErrorActive) {
+            return vpnController.snapshotError
+        }
+        if (root.packetCaptureErrorActive) {
+            return vpnController.packetCaptureError
+        }
         if (root.recoveryActive) {
             return vpnController.message.length > 0
                    ? vpnController.message

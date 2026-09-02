@@ -76,6 +76,17 @@ QString connectionTargetState(const QString &method)
     }
     return {};
 }
+
+QVariant packetCaptureTargetActive(const QString &method)
+{
+    if (method == QString::fromLatin1(BackendDbus::Method::startPacketCapture)) {
+        return true;
+    }
+    if (method == QString::fromLatin1(BackendDbus::Method::stopPacketCapture)) {
+        return false;
+    }
+    return {};
+}
 }
 
 void VpnController::activatePrimaryAction()
@@ -125,7 +136,10 @@ void VpnController::startPacketCapture(const QString &directoryPath)
         || normalized.contains(QLatin1Char('\n'))
         || normalized.contains(QLatin1Char('\r'))) {
         m_message = tr("Select a valid packet-capture folder");
+        m_packetCaptureExpectedActive.reset();
+        m_packetCaptureError = m_message;
         emit snapshotChanged();
+        emit packetCaptureOperationFinished(true, false, m_message);
         return;
     }
     callOperation(QString::fromLatin1(BackendDbus::Method::startPacketCapture), {normalized});
@@ -133,8 +147,15 @@ void VpnController::startPacketCapture(const QString &directoryPath)
 
 void VpnController::stopPacketCapture()
 {
-    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_busy
-        || !m_packetCaptureActive) {
+    if (!m_packetCaptureActive) {
+        return;
+    }
+    if (!m_backendAvailable || !m_ready || !m_loggedIn || m_busy) {
+        m_message = tr("The packet capture could not be stopped");
+        m_packetCaptureExpectedActive.reset();
+        m_packetCaptureError = m_message;
+        emit snapshotChanged();
+        emit packetCaptureOperationFinished(false, false, m_message);
         return;
     }
     callOperation(QString::fromLatin1(BackendDbus::Method::stopPacketCapture));
@@ -437,6 +458,11 @@ void VpnController::callOperation(const QString &method,
     }
     m_busy = true;
     m_message.clear();
+    const QVariant captureTarget = packetCaptureTargetActive(method);
+    if (captureTarget.isValid()) {
+        m_packetCaptureExpectedActive = captureTarget.toBool();
+        m_packetCaptureError.clear();
+    }
     emit snapshotChanged();
 
     QDBusMessage message = QDBusMessage::createMethodCall(
@@ -449,6 +475,7 @@ void VpnController::callOperation(const QString &method,
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
     stampBackendRequest(watcher);
     watcher->setProperty("connectionTargetState", connectionTargetState(method));
+    watcher->setProperty("packetCaptureTargetActive", captureTarget);
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &VpnController::handleOperationReply);
 }

@@ -139,6 +139,7 @@ bool VpnController::snapshotRefreshPending() const
 {
     return m_snapshotRefreshPending;
 }
+QString VpnController::snapshotError() const { return m_snapshotError; }
 bool VpnController::locationsBusy() const
 {
     return m_locationsBusy || m_countryRefreshPending
@@ -182,6 +183,7 @@ bool VpnController::p2p() const { return m_p2p; }
 bool VpnController::streaming() const { return m_streaming; }
 bool VpnController::smartRouting() const { return m_smartRouting; }
 bool VpnController::packetCaptureActive() const { return m_packetCaptureActive; }
+QString VpnController::packetCaptureError() const { return m_packetCaptureError; }
 bool VpnController::coreMemoryOptimized() const { return m_coreMemoryOptimized; }
 QString VpnController::coreVersion() const { return m_coreVersion; }
 QString VpnController::message() const { return m_message; }

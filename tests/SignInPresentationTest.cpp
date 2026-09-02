@@ -5,6 +5,7 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QScopedPointer>
+#include <QStringListModel>
 #include <QtTest>
 
 namespace
@@ -24,6 +25,12 @@ class FakeVpnController final : public QObject
     Q_PROPERTY(QString state MEMBER state NOTIFY snapshotChanged)
     Q_PROPERTY(QString errorCode MEMBER errorCode NOTIFY snapshotChanged)
     Q_PROPERTY(QString message MEMBER message NOTIFY snapshotChanged)
+    Q_PROPERTY(QString snapshotError MEMBER snapshotError NOTIFY snapshotChanged)
+    Q_PROPERTY(QString packetCaptureError MEMBER packetCaptureError NOTIFY snapshotChanged)
+    Q_PROPERTY(bool locationsBusy MEMBER locationsBusy NOTIFY snapshotChanged)
+    Q_PROPERTY(QString serversError MEMBER serversError NOTIFY snapshotChanged)
+    Q_PROPERTY(QString serverLoadsError MEMBER serverLoadsError NOTIFY snapshotChanged)
+    Q_PROPERTY(QAbstractItemModel *serverModel READ serverModel CONSTANT)
 
 public:
     bool ready = true;
@@ -37,8 +44,15 @@ public:
     QString state = QStringLiteral("disconnected");
     QString errorCode;
     QString message;
+    QString snapshotError;
+    QString packetCaptureError;
+    bool locationsBusy = false;
+    QString serversError;
+    QString serverLoadsError = QStringLiteral("Unable to update server loads");
     int restartCalls = 0;
     int disconnectCalls = 0;
+    QString serverFilter;
+    QStringListModel emptyServerModel;
 
     [[nodiscard]] bool primaryActionEnabled() const
     {
@@ -55,6 +69,26 @@ public:
     Q_INVOKABLE void submitFido2Pin(const QString &) { }
     Q_INVOKABLE void cancelLogin() { }
     Q_INVOKABLE void disconnect() { ++disconnectCalls; }
+    Q_INVOKABLE void setServerFeatureFilter(const QStringList &) { }
+    Q_INVOKABLE quint64 claimGroupServerContext(
+        const QString &, const QString &, const QString &) { return 1; }
+    Q_INVOKABLE void releaseGroupServerContext(quint64) { }
+    Q_INVOKABLE void loadGroupServers(
+        const QString &, const QString &, const QString &) { }
+    Q_INVOKABLE void setServerFilter(const QString &filter)
+    {
+        serverFilter = filter;
+    }
+    Q_INVOKABLE void connectGroup(
+        const QString &, const QString &, const QString &) { }
+    Q_INVOKABLE void connectGroupWithFeatures(
+        const QString &, const QString &, const QString &, const QStringList &) { }
+    Q_INVOKABLE void connectServer(const QString &) { }
+
+    [[nodiscard]] QAbstractItemModel *serverModel()
+    {
+        return &emptyServerModel;
+    }
 
 signals:
     void snapshotChanged();
@@ -70,6 +104,9 @@ class FakeAppSettings final : public QObject
 
 public:
     QStringList fastestFeatures;
+
+    Q_INVOKABLE bool isServerPinned(const QString &) const { return false; }
+    Q_INVOKABLE void togglePinnedServer(const QString &) { }
 };
 }
 
@@ -86,6 +123,8 @@ private slots:
     void applicationRecoveryIsPersistentAndActionable();
     void connectionActionFeedbackTracksOwnedResult();
     void unavailableBackendRejectsRunnerDisconnect();
+    void serverEmptyStateExplainsActiveFilters_data();
+    void serverEmptyStateExplainsActiveFilters();
 
 private:
     QObject *createComponent(QQmlEngine &engine, FakeVpnController &controller,
@@ -272,6 +311,23 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
     QVERIFY(!banner->property("recoveryActive").toBool());
     QVERIFY(!banner->property("bannerActive").toBool());
     QCOMPARE(banner->property("height").toReal(), 0.0);
+
+    controller.snapshotError = QStringLiteral(
+        "The backend returned an incomplete state snapshot");
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(banner->property("snapshotErrorActive").toBool());
+    QCOMPARE(banner->property("text").toString(), controller.snapshotError);
+
+    controller.snapshotError.clear();
+    controller.packetCaptureError = QStringLiteral(
+        "The packet capture could not be stopped");
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!banner->property("snapshotErrorActive").toBool());
+    QVERIFY(banner->property("packetCaptureErrorActive").toBool());
+    QCOMPARE(banner->property("text").toString(),
+             controller.packetCaptureError);
 }
 
 void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
@@ -417,6 +473,103 @@ void SignInPresentationTest::unavailableBackendRejectsRunnerDisconnect()
     QCoreApplication::processEvents();
     QCOMPARE(actionStarted.count(), 0);
     QCOMPARE(controller.disconnectCalls, 0);
+}
+
+void SignInPresentationTest::serverEmptyStateExplainsActiveFilters_data()
+{
+    QTest::addColumn<QString>("filter");
+    QTest::addColumn<QStringList>("capabilities");
+    QTest::addColumn<QString>("expectedMessage");
+
+    QTest::newRow("authoritative-empty")
+        << QString{} << QStringList{}
+        << QStringLiteral("No servers available");
+    QTest::newRow("capability-empty")
+        << QString{} << QStringList{QStringLiteral("p2p")}
+        << QStringLiteral("No servers match the selected capabilities");
+    QTest::newRow("search-empty")
+        << QStringLiteral("no-such-server") << QStringList{}
+        << QStringLiteral("No servers match your search");
+    QTest::newRow("combined-empty")
+        << QStringLiteral("no-such-server")
+        << QStringList{QStringLiteral("p2p")}
+        << QStringLiteral(
+               "No servers match your search and selected capabilities");
+}
+
+void SignInPresentationTest::serverEmptyStateExplainsActiveFilters()
+{
+    QFETCH(QString, filter);
+    QFETCH(QStringList, capabilities);
+    QFETCH(QString, expectedMessage);
+
+    FakeVpnController controller;
+    controller.loggedIn = true;
+    FakeAppSettings appSettings;
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("vpnController"), &controller);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("appSettings"), &appSettings);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testFilter"), filter);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("testCapabilities"), capabilities);
+
+    static const QByteArray harness = R"qml(
+import QtQuick
+import org.kde.kirigami as Kirigami
+import "." as Local
+
+Kirigami.ApplicationWindow {
+    visible: false
+    width: 640
+    height: 720
+    property bool browserConnectionActionEnabled: true
+    function beginConnectionAction(expectedState) { }
+
+    Local.ServersPage {
+        objectName: "serverPage"
+        anchors.fill: parent
+        countryCode: "CH"
+        countryName: "Switzerland"
+        countryFlag: "CH"
+        groupKind: "location"
+        groupName: "Zurich"
+        groupAccessible: true
+        groupUnderMaintenance: false
+        initialServerFilter: testFilter
+        requiredCapabilities: testCapabilities
+    }
+}
+)qml";
+    const QUrl harnessUrl = QUrl::fromLocalFile(QStringLiteral(
+        PROTON_VPN_KDE_SOURCE_DIR "/qml/ServerEmptyStateHarness.qml"));
+    QQmlComponent component(&engine);
+    component.setData(harness, harnessUrl);
+    QScopedPointer<QObject> window(component.create());
+    if (!window)
+    {
+        QStringList errors;
+        for (const QQmlError &error : component.errors())
+        {
+            errors.append(error.toString());
+        }
+        QFAIL(qPrintable(errors.join(QLatin1Char('\n'))));
+    }
+    QCoreApplication::processEvents();
+
+    const QObject *page =
+        window->findChild<QObject *>(QStringLiteral("serverPage"));
+    QVERIFY(page);
+    const QObject *placeholder =
+        window->findChild<QObject *>(QStringLiteral("serverEmptyState"));
+    QVERIFY(placeholder);
+    QVERIFY(placeholder->property("visible").toBool());
+    QCOMPARE(placeholder->property("text").toString(), expectedMessage);
+    QCOMPARE(page->property("serverBrowserError").toString(),
+             controller.serverLoadsError);
+    QCOMPARE(controller.serverFilter, filter);
 }
 
 QTEST_MAIN(SignInPresentationTest)

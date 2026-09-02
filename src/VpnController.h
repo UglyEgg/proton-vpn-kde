@@ -14,6 +14,7 @@
 #include <QObject>
 #include <QString>
 #include <QVariant>
+#include <optional>
 
 class QDBusPendingCallWatcher;
 class QDBusServiceWatcher;
@@ -46,6 +47,7 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(int killSwitch READ killSwitch NOTIFY snapshotChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY snapshotChanged)
     Q_PROPERTY(bool snapshotRefreshPending READ snapshotRefreshPending NOTIFY snapshotChanged)
+    Q_PROPERTY(QString snapshotError READ snapshotError NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy READ locationsBusy NOTIFY locationsChanged)
     Q_PROPERTY(bool locationSearchBusy READ locationSearchBusy NOTIFY locationsChanged)
     Q_PROPERTY(QString countriesError READ countriesError NOTIFY locationsChanged)
@@ -69,6 +71,7 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(bool streaming READ streaming NOTIFY snapshotChanged)
     Q_PROPERTY(bool smartRouting READ smartRouting NOTIFY snapshotChanged)
     Q_PROPERTY(bool packetCaptureActive READ packetCaptureActive NOTIFY snapshotChanged)
+    Q_PROPERTY(QString packetCaptureError READ packetCaptureError NOTIFY snapshotChanged)
     Q_PROPERTY(bool coreMemoryOptimized READ coreMemoryOptimized NOTIFY snapshotChanged)
     Q_PROPERTY(QString coreVersion READ coreVersion NOTIFY snapshotChanged)
     Q_PROPERTY(QString message READ message NOTIFY snapshotChanged)
@@ -101,6 +104,7 @@ public:
     [[nodiscard]] int killSwitch() const override;
     [[nodiscard]] bool busy() const override;
     [[nodiscard]] bool snapshotRefreshPending() const;
+    [[nodiscard]] QString snapshotError() const;
     [[nodiscard]] bool locationsBusy() const;
     [[nodiscard]] bool locationSearchBusy() const;
     [[nodiscard]] QString countriesError() const;
@@ -124,6 +128,7 @@ public:
     [[nodiscard]] bool streaming() const;
     [[nodiscard]] bool smartRouting() const;
     [[nodiscard]] bool packetCaptureActive() const;
+    [[nodiscard]] QString packetCaptureError() const;
     [[nodiscard]] bool coreMemoryOptimized() const;
     [[nodiscard]] QString coreVersion() const;
     [[nodiscard]] QString message() const override;
@@ -215,6 +220,9 @@ signals:
     void connectionOperationFinished(const QString &targetState,
                                      bool success,
                                      const QString &message);
+    void packetCaptureOperationFinished(bool targetActive,
+                                        bool success,
+                                        const QString &message);
     void npsSurveyChanged();
     void supportReportFinished(bool success, const QString &message);
 
@@ -302,6 +310,7 @@ private:
     quint64 m_backendGeneration = 0;
     quint64 m_sessionGeneration = 0;
     bool m_snapshotRefreshPending = false;
+    QString m_snapshotError;
     unsigned int m_snapshotRefreshRetryCount = 0;
     ProtonVpnKde::ClientRegistrationState m_clientRegistration;
     unsigned int m_clientRegistrationRetryCount = 0;
@@ -353,6 +362,8 @@ private:
     bool m_streaming = false;
     bool m_smartRouting = false;
     bool m_packetCaptureActive = false;
+    QString m_packetCaptureError;
+    std::optional<bool> m_packetCaptureExpectedActive;
     bool m_coreMemoryOptimized = false;
     QString m_coreVersion;
     QString m_message = QStringLiteral("Waiting for the Proton backend service");

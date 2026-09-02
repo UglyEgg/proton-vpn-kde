@@ -102,6 +102,9 @@ void VpnController::disconnectBackendSignals()
 
 void VpnController::onServiceRegistered(const QString &)
 {
+    m_snapshotError.clear();
+    m_packetCaptureError.clear();
+    m_packetCaptureExpectedActive.reset();
     const auto identity = ProtonVpnKde::verifyBackendIdentity(
         QDBusConnection::sessionBus(), QString::fromLatin1(BackendDbus::serviceName));
     if (!identity.trusted) {
@@ -142,6 +145,7 @@ void VpnController::onServiceUnregistered(const QString &)
     }
     m_loggedIn = false;
     m_snapshotRefreshPending = false;
+    m_snapshotError.clear();
     m_authState = QStringLiteral("signed_out");
     m_accountName.clear();
     m_planTitle.clear();
@@ -170,6 +174,8 @@ void VpnController::onServiceUnregistered(const QString &)
     m_streaming = false;
     m_smartRouting = false;
     m_packetCaptureActive = false;
+    m_packetCaptureError.clear();
+    m_packetCaptureExpectedActive.reset();
     m_coreMemoryOptimized = false;
     m_coreVersion.clear();
     if (!m_clientIdentityRejected) {

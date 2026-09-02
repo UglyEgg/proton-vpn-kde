@@ -150,6 +150,18 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/Main.qml" \
         || ! rg -q 'readonly property bool connectionErrorActive' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'readonly property bool snapshotErrorActive' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'vpnController\.snapshotError' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'readonly property bool packetCaptureErrorActive' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'vpnController\.packetCaptureError' \
+        "$qml_dir/ApplicationRecoveryBanner.qml" \
+        || ! rg -q 'objectName: "packetCaptureOperationError"' \
+        "$qml_dir/SettingsPage.qml" \
+        || ! rg -q 'vpnController\.packetCaptureError' \
+        "$qml_dir/SettingsPage.qml" \
         || ! rg -q 'readonly property bool bannerActive' \
         "$qml_dir/ApplicationRecoveryBanner.qml" \
         || rg -q 'statusMessageActive' \
@@ -187,6 +199,14 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         || ! rg -U -q 'visible: groupList\.count === 0\n[[:space:]]*&& vpnController\.serverGroupsError\.length === 0' \
         "$qml_dir/CountryPage.qml" \
         || ! rg -U -q 'visible: serverList\.count === 0\n[[:space:]]*&& vpnController\.serversError\.length === 0' \
+        "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'readonly property bool serverSearchActive' \
+        "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'readonly property string emptyServerMessage' \
+        "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'No servers match your search' \
+        "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'objectName: "serverEmptyState"' \
         "$qml_dir/ServersPage.qml" \
         || ! rg -q 'function beginConnectionAction\(expectedState\)' \
         "$qml_dir/Main.qml" \
