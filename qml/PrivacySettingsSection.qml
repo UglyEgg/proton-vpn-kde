@@ -76,7 +76,7 @@ SectionCard {
                 enabled: !vpnController.busy
                          && ((vpnController.packetCaptureActive
                               && vpnController.backendAvailable
-                              && vpnController.loggedIn)
+                              && vpnController.ready)
                              || (!vpnController.packetCaptureActive
                                  && vpnController.ready
                                  && vpnController.state === "connected"))

@@ -82,6 +82,11 @@ All notable user-visible changes are recorded here. The project follows
   Core's existing cancellation compensation, and require affirmative inactive
   confirmation before application shutdown. A temporary busy/inactive snapshot
   can no longer allow an unconfirmed capture to outlive the Control Center.
+- Keep packet-capture cleanup available after account-session expiry, queue it
+  safely behind an in-flight settings mutation, and process its reply on an
+  independent operation generation. A later foreground request can no longer
+  strand shutdown, and an authoritative idle snapshot now retires a
+  definitively rejected Start.
 - Fence browser replies and protected NPS submissions to the account session
   that created them. Report survey success only after the backend accepts it,
   and retire old page cleanup synchronously before a replacement Settings page
@@ -89,7 +94,12 @@ All notable user-visible changes are recorded here. The project follows
 - Serialize destructive NPS retrieval and submission with account transitions,
   generation-fence both protected submission stages, and permit retry only
   after a definitive same-session rejection. Completion-unknown submissions
-  are reported explicitly and are never retried automatically.
+  are reported through a dedicated backend error class and are never retried
+  automatically, including when the official API accepts a side effect before
+  its completion reply is lost.
+- Transfer server-browser ownership when a bounded topology retry is
+  superseded, so a replacement country or exact-location request cannot remain
+  queued behind an obsolete retry timer.
 - Consolidate release history, reporting availability, project status,
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant

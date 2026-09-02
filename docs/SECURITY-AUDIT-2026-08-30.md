@@ -115,12 +115,32 @@ changes, and assigns independent generations to NPS, foreground, and
 connection operations. No result from the partial pass counts; all six reviews
 must restart on the exact clean candidate.
 
+A fourth partial pass against `d89f2b9` was superseded after Hostile,
+Subtractive, and Entropy independently found six state-ownership and error-
+classification defects. A current capture Stop reply could be discarded when
+a newer foreground request existed; Stop could be rejected behind another
+mutation or become unavailable after session expiry; a rejected Start could
+retain false cleanup ownership; a superseded server-browser retry could retain
+the global browser lease; and an official NPS submission that accepted its side
+effect before raising remained presented as safely retryable. The remediated
+candidate gives capture completion an independent generation, queues
+risk-reducing Stop with a session-epoch recheck, clears rejected Start ownership
+from authoritative idle state, transfers browser retry ownership, and adds a
+non-retryable NPS completion-unknown error. No result from the partial pass
+counts; all six reviews must restart on the exact clean candidate.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
 | --- | --- | --- | --- |
 | PV-013-001 | Medium | A slow accepted capture Start could reject Stop while close inferred safety from a temporary snapshot | **Remediated in candidate; independent verification pending** |
 | PV-013-002 | Medium | Destructive NPS reads and submissions could cross an account-session transition | **Remediated in candidate; independent verification pending** |
 | PV-013-003 | Medium | Stale NPS key or dismissal completion could retire a replacement submission, while definitive failure disabled retry | **Remediated in candidate; independent verification pending** |
 | PV-013-004 | Medium | Delayed same-owner foreground or connection replies could overwrite or finish a replacement operation | **Remediated in candidate; independent verification pending** |
+| PV-013-005 | Medium | A late current capture Stop reply could be discarded solely because a newer foreground operation existed | **Remediated in candidate; independent verification pending** |
+| PV-013-006 | Medium | Capture Stop could be rejected behind an unrelated mutation instead of queuing for same-session cleanup | **Remediated in candidate; independent verification pending** |
+| PV-013-007 | Medium | A definitively rejected capture Start could retain expected-active ownership and wedge application shutdown | **Remediated in candidate; independent verification pending** |
+| PV-013-008 | Medium | Session expiry removed the only frontend and backend path for stopping an active capture | **Remediated in candidate; independent verification pending** |
+| PV-013-009 | Medium | A superseded country or exact-server retry timer could strand replacement browser work behind a retained busy lease | **Remediated in candidate; independent verification pending** |
+| PV-013-010 | Medium | An NPS side effect accepted before an upstream exception was exposed as a retryable generic failure | **Remediated in candidate; independent verification pending** |
 
 ## Historical 0.12.0 isolated review gate
 

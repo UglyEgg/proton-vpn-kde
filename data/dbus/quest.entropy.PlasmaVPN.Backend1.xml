@@ -18,6 +18,8 @@
                 value="quest.entropy.PlasmaVPN.Error.InvalidSplitTunneling"/>
     <annotation name="quest.entropy.PlasmaVPN.Error.InvalidSupportReport"
                 value="quest.entropy.PlasmaVPN.Error.InvalidSupportReport"/>
+    <annotation name="quest.entropy.PlasmaVPN.Error.NpsCompletionUnknown"
+                value="quest.entropy.PlasmaVPN.Error.NpsCompletionUnknown"/>
     <annotation name="quest.entropy.PlasmaVPN.Error.OperationFailed"
                 value="quest.entropy.PlasmaVPN.Error.OperationFailed"/>
     <annotation name="quest.entropy.PlasmaVPN.Error.Unauthorized"

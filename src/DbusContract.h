@@ -75,6 +75,7 @@ inline constexpr char invalidSettings[] = "quest.entropy.PlasmaVPN.Error.Invalid
 inline constexpr char invalidSplitTunneling[] =
     "quest.entropy.PlasmaVPN.Error.InvalidSplitTunneling";
 inline constexpr char invalidSupportReport[] = "quest.entropy.PlasmaVPN.Error.InvalidSupportReport";
+inline constexpr char npsCompletionUnknown[] = "quest.entropy.PlasmaVPN.Error.NpsCompletionUnknown";
 inline constexpr char operationFailed[] = "quest.entropy.PlasmaVPN.Error.OperationFailed";
 inline constexpr char unauthorized[] = "quest.entropy.PlasmaVPN.Error.Unauthorized";
 }

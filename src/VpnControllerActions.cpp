@@ -174,7 +174,7 @@ void VpnController::dispatchPendingPacketCaptureStop(bool allowUnconfirmedActive
         && !*m_packetCaptureExpectedActive) {
         return;
     }
-    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
+    if (!m_backendAvailable || !m_ready) {
         return;
     }
     if (!m_packetCaptureError.isEmpty() && !allowUnconfirmedActive) {

@@ -15,12 +15,16 @@ from proton_vpn_kde_backend.controller import BackendController
 from proton_vpn_kde_backend.dbus_service import (
     INVALID_SUPPORT_REPORT_ERROR,
     INVALID_SETTINGS_ERROR,
+    NPS_COMPLETION_UNKNOWN_ERROR,
     OPERATION_FAILED_ERROR,
     OPERATION_FAILED_MESSAGE,
     SUPPORT_REPORT_DISABLED_MESSAGE,
     VpnDbusService,
 )
-from proton_vpn_kde_backend.errors import UserVisibleValueError
+from proton_vpn_kde_backend.errors import (
+    NpsCompletionUnknownError,
+    UserVisibleValueError,
+)
 
 
 SENTINEL = "credential=must-not-cross-dbus /workspace/private.py"
@@ -177,6 +181,30 @@ class VpnDbusServiceTests(unittest.IsolatedAsyncioTestCase):
             raised.exception.text,
         )
         self.assertNotIn(SENTINEL, str(raised.exception))
+
+    async def test_nps_completion_unknown_has_a_non_retryable_error_class(self):
+        service, controller = make_service()
+        controller.submit_nps_survey = AsyncMock(
+            side_effect=NpsCompletionUnknownError(
+                "accepted before private upstream details"
+            )
+        )
+        service._read_secret = Mock(  # type: ignore[method-assign]
+            return_value={
+                "score": "9",
+                "comments": "Works well on Plasma",
+                "responseType": "submit",
+            }
+        )
+
+        with self.assertRaises(DBusError) as raised:
+            await type(service).submit_nps_survey.__wrapped__(service, 0)
+
+        self.assertEqual(NPS_COMPLETION_UNKNOWN_ERROR, raised.exception.type)
+        self.assertEqual(
+            "Survey submission completion could not be confirmed",
+            raised.exception.text,
+        )
 
     async def test_support_report_submission_is_disabled_by_default(self):
         service, controller = make_service()

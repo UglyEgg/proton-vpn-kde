@@ -77,7 +77,7 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 | Evidence | Current status |
 | --- | --- |
-| Automated verification | The unreleased 0.13.0 source passes 40/40 checkout CTest tests and 39/39 tests from a clean source archive, including 221 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and 82% measured backend branch coverage |
+| Automated verification | The unreleased 0.13.0 source passes 40/40 checkout CTest tests and 39/39 tests from a clean source archive, including 226 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and 82% measured backend branch coverage |
 | Integration verification | Deterministic light, dark, compact, 1.5x, RTL, contrast-stress, and reduced-motion QML captures; D-Bus activation; staged installation; KRunner; and System Settings |
 | Package verification | A pre-final 0.13.0 candidate produced byte-identical client RPM/SRPM rebuilds; both pinned overlay pairs passed artifact policy and the combined transaction test. The remediated final commit must repeat those gates before publication |
 | Security assessment | Public 0.11.3 has all seven historical findings closed. The presentation-led 0.13.0 review is in progress against the accepted 0.12.0 mechanics plus exact-reviewed state-ownership corrections and is not yet a release approval |

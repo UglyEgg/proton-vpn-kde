@@ -187,9 +187,13 @@ bool VpnController::scheduleServerGroupRetry(const QString &countryCode,
          sessionGeneration, locationRequestGeneration] {
             if (backendGeneration != m_backendGeneration
                 || sessionGeneration != m_sessionGeneration
-                || locationRequestGeneration != m_locationRequestGeneration
-                || countryCode != m_currentServerCountry
+                || locationRequestGeneration != m_locationRequestGeneration) {
+                return;
+            }
+            if (countryCode != m_currentServerCountry
                 || !m_backendAvailable || !m_ready || !m_loggedIn) {
+                setLocationsBusy(false);
+                dispatchPendingLocationRefreshes();
                 return;
             }
             requestServerGroups(countryCode, retryCount + 1);
@@ -315,12 +319,16 @@ bool VpnController::scheduleGroupServerRetry(const QString &countryCode,
          locationRequestGeneration] {
             if (backendGeneration != m_backendGeneration
                 || sessionGeneration != m_sessionGeneration
-                || locationRequestGeneration != m_locationRequestGeneration
-                || requestGeneration != m_serverRequestGeneration
+                || locationRequestGeneration != m_locationRequestGeneration) {
+                return;
+            }
+            if (requestGeneration != m_serverRequestGeneration
                 || countryCode != m_currentServerCountry
                 || groupKind != m_currentServerGroupKind
                 || groupName != m_currentServerGroupName
                 || !m_backendAvailable || !m_ready || !m_loggedIn) {
+                setLocationsBusy(false);
+                dispatchPendingLocationRefreshes();
                 return;
             }
             requestGroupServers(countryCode, groupKind, groupName,

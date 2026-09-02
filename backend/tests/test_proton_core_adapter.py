@@ -29,7 +29,10 @@ from proton_vpn_kde_backend.controller import (
     NpsSurveyResponse,
     SupportReport,
 )
-from proton_vpn_kde_backend.errors import UserVisibleRuntimeError
+from proton_vpn_kde_backend.errors import (
+    NpsCompletionUnknownError,
+    UserVisibleRuntimeError,
+)
 
 
 def state_named(name: str):
@@ -262,6 +265,20 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(10, response.user_score)
         self.assertEqual("Excellent", response.user_comments)
         self.assertEqual("SUBMIT", response.response_type.name)
+
+    async def test_nps_upstream_failure_is_completion_unknown(self):
+        api, _ = self.make_api()
+        api.submit_nps_response.side_effect = RuntimeError(
+            "accepted before the response was lost"
+        )
+        adapter = ProtonCoreAdapter(api)
+
+        with self.assertRaises(NpsCompletionUnknownError):
+            await adapter.submit_nps_survey(
+                NpsSurveyResponse(score=9, comments="Works well on Plasma")
+            )
+
+        api.submit_nps_response.assert_awaited_once()
 
     async def test_initialize_reuses_core_and_subscribes_without_connecting(self):
         api, connector = self.make_api()

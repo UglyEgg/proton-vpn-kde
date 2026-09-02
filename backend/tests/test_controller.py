@@ -214,6 +214,27 @@ class BlockingPacketCaptureAdapter(DemoCoreAdapter):
         await super().stop_packet_capture()
 
 
+class BlockingSettingsMutationAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__()
+        self.settings_update_started = asyncio.Event()
+        self.release_settings_update = asyncio.Event()
+        self.capture_stop_calls = 0
+        self._packet_capture_active = True
+        self._snapshot = self._build_snapshot(
+            state="connected", server_name="US#FASTEST"
+        )
+
+    async def update_settings(self, patch):
+        self.settings_update_started.set()
+        await self.release_settings_update.wait()
+        return await super().update_settings(patch)
+
+    async def stop_packet_capture(self) -> None:
+        self.capture_stop_calls += 1
+        await super().stop_packet_capture()
+
+
 class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.controller = BackendController(DemoCoreAdapter())
@@ -376,6 +397,71 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, adapter.capture_stop_calls)
         self.assertFalse(adapter._packet_capture_active)
         self.assertFalse(controller.snapshot.busy)
+
+    async def test_capture_stop_queues_behind_same_session_settings_mutation(self):
+        adapter = BlockingSettingsMutationAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        settings_update = asyncio.create_task(
+            controller.update_settings_json('{"ipv6":true}')
+        )
+        await adapter.settings_update_started.wait()
+        capture_stop = asyncio.create_task(controller.stop_packet_capture())
+        await asyncio.sleep(0)
+
+        self.assertFalse(capture_stop.done())
+        self.assertEqual(0, adapter.capture_stop_calls)
+        adapter.release_settings_update.set()
+        await settings_update
+        await capture_stop
+
+        self.assertEqual(1, adapter.capture_stop_calls)
+        self.assertFalse(controller.snapshot.packet_capture_active)
+
+    async def test_queued_capture_stop_rejects_replacement_session(self):
+        adapter = BlockingSettingsMutationAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        settings_update = asyncio.create_task(
+            controller.update_settings_json('{"ipv6":true}')
+        )
+        await adapter.settings_update_started.wait()
+        capture_stop = asyncio.create_task(controller.stop_packet_capture())
+        await asyncio.sleep(0)
+        adapter._logged_in = False
+        adapter._auth_state = "signed_out"
+        adapter._publish(
+            adapter._build_snapshot(
+                state="connected", server_name="US#FASTEST"
+            )
+        )
+
+        adapter.release_settings_update.set()
+        await settings_update
+        with self.assertRaisesRegex(RuntimeError, "session changed"):
+            await capture_stop
+        self.assertEqual(0, adapter.capture_stop_calls)
+        self.assertTrue(adapter._packet_capture_active)
+
+    async def test_capture_stop_remains_available_after_session_expiry(self):
+        adapter = BlockingSettingsMutationAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+        adapter._logged_in = False
+        adapter._auth_state = "expired"
+        adapter._publish(
+            adapter._build_snapshot(
+                state="connected", server_name="US#FASTEST"
+            )
+        )
+
+        await controller.stop_packet_capture()
+
+        self.assertEqual(1, adapter.capture_stop_calls)
+        self.assertFalse(controller.snapshot.logged_in)
+        self.assertFalse(controller.snapshot.packet_capture_active)
 
     async def test_support_report_is_validated_and_submitted(self):
         description = "A sufficiently detailed description of the VPN issue I found."

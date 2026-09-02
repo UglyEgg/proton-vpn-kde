@@ -569,7 +569,8 @@ class BackendController:
                 self._packet_capture_start_task = None
 
     async def stop_packet_capture(self) -> None:
-        self._require_session()
+        self._require_ready()
+        session_epoch = self._session_epoch
         start_task = self._packet_capture_start_task
         if start_task is not None and start_task is not asyncio.current_task():
             # Stopping capture is risk-reducing. Cancel an accepted Start first
@@ -577,7 +578,11 @@ class BackendController:
             # idempotent Stop obtains the normal mutation lock.
             start_task.cancel()
             await asyncio.gather(start_task, return_exceptions=True)
-        await self._run_operation(self._adapter.stop_packet_capture)
+        # Stop is risk-reducing cleanup. Queue it behind an unrelated mutation
+        # instead of rejecting it, but never apply it after account replacement.
+        async with self._serialized_operation():
+            self._require_unchanged_session(session_epoch)
+            await self._execute_operation(self._adapter.stop_packet_capture)
 
     async def submit_support_report(
         self,
@@ -736,7 +741,12 @@ class BackendController:
         return self._session_epoch
 
     def _require_current_session(self, session_epoch: int) -> None:
-        if session_epoch != self._session_epoch or not self._snapshot.logged_in:
+        self._require_unchanged_session(session_epoch)
+        if not self._snapshot.logged_in:
+            raise UserVisibleRuntimeError("The Proton account session changed")
+
+    def _require_unchanged_session(self, session_epoch: int) -> None:
+        if session_epoch != self._session_epoch:
             raise UserVisibleRuntimeError("The Proton account session changed")
 
     def _require_ready(self) -> None:
@@ -781,34 +791,40 @@ class BackendController:
             )
 
         async with self._serialized_operation():
-            self._publish(replace(self._snapshot, busy=True, message=""))
-            try:
-                await operation()
-            except asyncio.CancelledError:
-                self._publish(replace(self._snapshot, busy=False))
-                raise
-            except UserVisibleError as error:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message=bounded_user_message(
-                            error, "The VPN operation could not be completed"
-                        ),
-                    )
+            await self._execute_operation(operation)
+
+    async def _execute_operation(
+        self, operation: Callable[[], Awaitable[None]]
+    ) -> None:
+        """Run one operation while the caller owns the serialization lock."""
+        self._publish(replace(self._snapshot, busy=True, message=""))
+        try:
+            await operation()
+        except asyncio.CancelledError:
+            self._publish(replace(self._snapshot, busy=False))
+            raise
+        except UserVisibleError as error:
+            self._publish(
+                replace(
+                    self._snapshot,
+                    busy=False,
+                    message=bounded_user_message(
+                        error, "The VPN operation could not be completed"
+                    ),
                 )
-                raise
-            except Exception:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message="The VPN operation could not be completed",
-                    )
+            )
+            raise
+        except Exception:
+            self._publish(
+                replace(
+                    self._snapshot,
+                    busy=False,
+                    message="The VPN operation could not be completed",
                 )
-                raise
-            else:
-                self._publish(replace(self._snapshot, busy=False))
+            )
+            raise
+        else:
+            self._publish(replace(self._snapshot, busy=False))
 
     @asynccontextmanager
     async def _serialized_operation(self) -> AsyncIterator[None]:

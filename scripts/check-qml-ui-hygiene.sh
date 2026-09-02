@@ -142,7 +142,7 @@ if ! rg -q 'function prepareForRemoval\(\)' "$qml_dir/SettingsPage.qml" \
     exit 1
 fi
 
-if ! rg -U -q 'enabled: !vpnController\.busy\n[[:space:]]*&& \(\(vpnController\.packetCaptureActive\n[[:space:]]*&& vpnController\.backendAvailable\n[[:space:]]*&& vpnController\.loggedIn\)' \
+if ! rg -U -q 'enabled: !vpnController\.busy\n[[:space:]]*&& \(\(vpnController\.packetCaptureActive\n[[:space:]]*&& vpnController\.backendAvailable\n[[:space:]]*&& vpnController\.ready\)' \
         "$qml_dir/PrivacySettingsSection.qml" \
         || ! rg -U -q '!vpnController\.packetCaptureActive\n[[:space:]]*&& vpnController\.ready\n[[:space:]]*&& vpnController\.state === "connected"' \
         "$qml_dir/PrivacySettingsSection.qml"; then

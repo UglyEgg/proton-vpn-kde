@@ -193,6 +193,10 @@ reply and make a retry available; the older reply is therefore discarded when
 its operation identity no longer owns the result. The controller emits the
 connection identity and target when it accepts the request, so one global QML
 feedback surface tracks every origin without duplicating ownership in buttons.
+Packet-capture requests retain a separate generation because risk-reducing
+cleanup must still settle its typed state and pending application shutdown when
+a newer foreground request exists; that cleanup does not overwrite the newer
+request's global busy state or guidance.
 
 ## Authentication and account state
 
@@ -211,14 +215,20 @@ restores the previous Core kill-switch setting if any later step fails.
 Destructive NPS notification retrieval and NPS submission share the backend's
 session-transition serialization. They revalidate the captured session before
 and after the adapter call, so an operation waiting behind logout cannot mark
-or submit data for the replacement account.
+or submit data for the replacement account. Once the official submission API
+is invoked, an exception is conservatively classified as completion unknown:
+the frontend consumes the survey without retry rather than risking a duplicate
+side effect.
 
 ## Server data and connection selection
 
 Country, location-group, and exact-server reads are serialized at the frontend
 boundary. Requests carry generations so replies for obsolete navigation targets
 are discarded. A bounded retry covers Core's short topology-replacement window
-without turning a genuinely empty group into an infinite refresh loop.
+without turning a genuinely empty group into an infinite refresh loop. If the
+user selects a replacement target while that timer owns the browser, the timer
+releases its busy lease and dispatches the queued current target instead of
+silently abandoning both requests.
 
 Global search uses an immutable scalar projection per Core topology generation.
 It stores normalized display fields but no Proton server objects. Current load,
@@ -272,7 +282,10 @@ deadline. A frontend Stop can preempt an accepted in-flight Start, and
 application shutdown retains cleanup ownership until the backend accepts Stop
 or an authoritative idle snapshot confirms inactivity after a
 completion-unknown reply. A temporary `busy=true`, inactive snapshot is not
-sufficient. Every Core stop attempt has its own timeout, so a non-returning
+sufficient. Stop remains available after account-session expiry and queues
+behind an already accepted same-session mutation; the session epoch is checked
+again before Core is called so cleanup cannot cross into a replacement account.
+Every Core stop attempt has its own timeout, so a non-returning
 reply cannot indefinitely retain startup or backend shutdown. A
 mode-restricted, atomically replaced recovery record in the private desktop
 runtime directory preserves the original deadline across backend replacement.

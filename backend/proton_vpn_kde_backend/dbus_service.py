@@ -36,6 +36,7 @@ from .client_authorization import (
     current_request_sender,
 )
 from .errors import (
+    NpsCompletionUnknownError,
     UserVisibleError,
     UserVisibleRuntimeError,
     bounded_user_message,
@@ -60,6 +61,7 @@ INVALID_SETTINGS_ERROR = Error.INVALID_SETTINGS
 INVALID_SPLIT_TUNNELING_ERROR = Error.INVALID_SPLIT_TUNNELING
 INVALID_CUSTOM_DNS_ERROR = Error.INVALID_CUSTOM_DNS
 INVALID_SUPPORT_REPORT_ERROR = Error.INVALID_SUPPORT_REPORT
+NPS_COMPLETION_UNKNOWN_ERROR = Error.NPS_COMPLETION_UNKNOWN
 OPERATION_FAILED_ERROR = Error.OPERATION_FAILED
 OPERATION_FAILED_MESSAGE = "The VPN operation could not be completed"
 SUPPORT_REPORT_DISABLED_MESSAGE = (
@@ -90,6 +92,11 @@ def dbus_error_boundary(
                     raise DBusError(
                         UNAUTHORIZED_ERROR,
                         UNAUTHORIZED_MESSAGE,
+                    ) from None
+                except NpsCompletionUnknownError:
+                    raise DBusError(
+                        NPS_COMPLETION_UNKNOWN_ERROR,
+                        "Survey submission completion could not be confirmed",
                     ) from None
                 except UserVisibleError as error:
                     raise DBusError(

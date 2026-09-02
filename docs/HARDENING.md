@@ -43,6 +43,12 @@ is not eligible for the ordinary no-client idle exit, so a hanging bounded stop
 cannot be canceled into an unsupervised clean shutdown. The recovered watchdog
 retains the original deadline and continues bounded attempts after that deadline
 until Core confirms completion.
+Risk-reducing Stop remains callable after account-session expiry and waits
+behind an already accepted mutation rather than failing on the global operation
+lock. It captures the session epoch before waiting and rechecks it after lock
+acquisition, preventing cleanup from being applied to a replacement account.
+The frontend gives capture its own completion generation so a later foreground
+operation cannot discard a valid Stop reply or release shutdown early.
 Snapshot publication is also gated on completed adapter initialization. Recovery
 and connector callbacks may update internal state during startup, but clients
 cannot observe a ready session until authentication state, callbacks, and
@@ -176,7 +182,10 @@ frontend state even though the underlying methods do not mutate Core.
 Destructive NPS survey reads and submissions are serialized with account
 mutations and recheck that generation before and after entering the official
 adapter. This prevents survey state belonging to one account from being taken
-or submitted after a replacement session becomes authoritative.
+or submitted after a replacement session becomes authoritative. Any exception
+after invoking the official submission API is represented by a dedicated
+completion-unknown D-Bus error and disables retry, because the upstream side
+effect may already have been accepted.
 
 The same address-versus-identity rule is applied as far as the portable Secret
 Service API permits. The downstream keyring overlay activates the selected

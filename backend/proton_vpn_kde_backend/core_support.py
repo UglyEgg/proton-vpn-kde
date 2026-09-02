@@ -13,7 +13,7 @@ from typing import Any
 
 from . import __version__
 from .controller import NpsSurveyResponse, SupportReport
-from .errors import UserVisibleRuntimeError
+from .errors import NpsCompletionUnknownError, UserVisibleRuntimeError
 from .support import collect_support_logs
 
 
@@ -78,6 +78,6 @@ async def submit_nps_survey(api: Any, response: NpsSurveyResponse) -> None:
             )
         )
     except Exception:
-        raise UserVisibleRuntimeError(
-            "Proton could not submit the survey response"
+        raise NpsCompletionUnknownError(
+            "Survey submission completion could not be confirmed"
         ) from None

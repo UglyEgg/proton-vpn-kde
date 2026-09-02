@@ -63,8 +63,16 @@ while IFS= read -r path; do
         CMakeLists.txt|backend/pyproject.toml|\
         backend/proton_vpn_kde_backend/__init__.py|\
         backend/proton_vpn_kde_backend/controller.py|\
+        backend/proton_vpn_kde_backend/core_support.py|\
+        backend/proton_vpn_kde_backend/dbus_contract.py|\
+        backend/proton_vpn_kde_backend/dbus_service.py|\
+        backend/proton_vpn_kde_backend/errors.py|\
         backend/tests/test_controller.py|\
+        backend/tests/test_dbus_service.py|\
+        backend/tests/test_proton_core_adapter.py|\
+        data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
         packaging/fedora/proton-vpn-kde.spec|\
+        src/DbusContract.h|\
         src/VpnController.cpp|src/VpnController.h|\
         src/VpnControllerActions.cpp|\
         src/VpnControllerLifecycle.cpp|src/VpnControllerLocations.cpp|\
@@ -102,9 +110,19 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "7c87e2a4c4693ad37235a7e515261ea08679d129a49dd28453ed6720017bc9f5" \
-    "backend session-fencing exception" \
-    backend/proton_vpn_kde_backend/controller.py backend/tests/test_controller.py
+    "ea10965fad5c4ebd6edc31fcae2e35854c3b6365b4517e50bd9999a866510994" \
+    "backend state-ownership and completion-classification exceptions" \
+    backend/proton_vpn_kde_backend/controller.py \
+    backend/proton_vpn_kde_backend/core_support.py \
+    backend/proton_vpn_kde_backend/dbus_service.py \
+    backend/proton_vpn_kde_backend/errors.py \
+    backend/tests/test_controller.py backend/tests/test_dbus_service.py \
+    backend/tests/test_proton_core_adapter.py
+assert_diff_hash \
+    "f3dca36c733c8e515912de42c91c4c7c2faea9f1412ebcc5184b6c1bd8b19bff" \
+    "D-Bus completion-classification contract" \
+    data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
+    backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
     "ffa9da88a9be1301863d18e68e0c433f3233f9daa274bd124681f4297d938584" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
@@ -112,14 +130,14 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "18ad750d70a323fff59f7b63b1281fef23930b8d5f3b8f4d76c7a59af0ec576c" \
+    "24146e6e9af3deb0ed90489251c9c5eb9526c83793e5efe51d4b418507628807" \
     "frontend presentation contract" \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
     src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
     src/VpnControllerSettings.cpp src/VpnControllerSnapshot.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp tests/SignInPresentationTest.cpp
 assert_diff_hash \
-    "4dc0d4d8ff00dd94b96a402793a81e7a742376d04f77f3c0d0095801faa46e9e" \
+    "31e842c3596dde109b63ce030fbab556d0281001349c92dd8afe9cb5b7635774" \
     "QML presentation" qml
 
 qml_operation_hash="$(

@@ -22,6 +22,10 @@ class SessionExpiredError(UserVisibleRuntimeError):
     """A Proton session expiry already published as signed-out state."""
 
 
+class NpsCompletionUnknownError(UserVisibleRuntimeError):
+    """The upstream survey side effect may have completed."""
+
+
 def bounded_user_message(error: UserVisibleError, fallback: str) -> str:
     """Return only bounded, printable text explicitly marked safe for users."""
 

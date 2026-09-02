@@ -134,10 +134,8 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         ++m_locationRequestGeneration;
         m_locationsBusy = false;
         m_packetCaptureError.clear();
-        m_packetCaptureExpectedActive.reset();
         ++m_packetCaptureOperationGeneration;
         m_packetCaptureOperationPending = false;
-        m_packetCaptureStopRequested = false;
         finishNpsSurveySubmission(
             m_npsSurveyOperationGeneration,
             false,
@@ -178,6 +176,14 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         && m_packetCaptureActive == *m_packetCaptureExpectedActive) {
         m_packetCaptureExpectedActive.reset();
         m_packetCaptureError.clear();
+    }
+    if (!m_packetCaptureOperationPending && !m_busy
+        && !m_packetCaptureActive
+        && m_packetCaptureExpectedActive.value_or(false)) {
+        // An authoritative idle snapshot after a settled Start failure proves
+        // that no capture cleanup remains, even though the requested positive
+        // state was never reached.
+        m_packetCaptureExpectedActive.reset();
     }
     if (!m_packetCaptureOperationPending && !m_busy
         && !m_packetCaptureActive
@@ -295,67 +301,74 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
     if (!current) {
         return;
     }
-    if (foregroundGeneration != 0
-        && foregroundGeneration != m_foregroundOperationGeneration) {
-        return;
-    }
-    if (!connectionTarget.isEmpty()
-        && connectionGeneration != m_connectionOperationGeneration) {
-        return;
-    }
-    if (packetCaptureTarget.isValid()
-        && packetCaptureGeneration != m_packetCaptureOperationGeneration) {
+    const bool foregroundCurrent = foregroundGeneration == 0
+        || foregroundGeneration == m_foregroundOperationGeneration;
+    const bool connectionCurrent = connectionTarget.isEmpty()
+        || connectionGeneration == m_connectionOperationGeneration;
+    const bool captureCurrent = !packetCaptureTarget.isValid()
+        || packetCaptureGeneration == m_packetCaptureOperationGeneration;
+    if (packetCaptureTarget.isValid() && !captureCurrent) {
         refresh();
         return;
     }
-    if (packetCaptureTarget.isValid()) {
+    if (!connectionTarget.isEmpty() && !connectionCurrent) {
+        return;
+    }
+    if (!packetCaptureTarget.isValid() && connectionTarget.isEmpty()
+        && !foregroundCurrent) {
+        return;
+    }
+    const bool globalCurrent = foregroundCurrent && connectionCurrent
+        && captureCurrent;
+    if (packetCaptureTarget.isValid() && captureCurrent) {
         m_packetCaptureOperationPending = false;
     }
     if (reply.isError()) {
-        m_busy = false;
-        if (ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type())) {
-            m_message = tr(
+        const bool transientSameOwnerFailure =
+            ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type());
+        QString operationMessage;
+        if (transientSameOwnerFailure) {
+            operationMessage = tr(
                 "The VPN operation is still completing; refreshing its state");
-            if (packetCaptureTarget.isValid()) {
-                m_packetCaptureError = m_message;
-            }
-            emit snapshotChanged();
-            if (!connectionTarget.isEmpty()) {
-                emit connectionOperationFinished(
-                    connectionGeneration, connectionTarget, false, m_message);
-            }
-            scheduleSnapshotRefreshRetry();
-            if (!packetCaptureTarget.isValid()
-                || packetCaptureTarget.toBool()) {
-                dispatchPendingPacketCaptureStop(
-                    packetCaptureTarget.isValid()
-                    && packetCaptureTarget.toBool());
-            }
-            return;
-        }
-        const auto failure = ProtonVpnKde::classifyBackendCallFailure(
-            reply.error().type(), reply.error().name());
-        if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
-            setBackendAvailable(false);
-            m_message = tr("The Proton backend service stopped");
-        } else if (failure
-                   == ProtonVpnKde::BackendCallFailure::InvalidSecretPayload) {
-            m_message = tr("Protected authentication data was rejected; try again");
-        } else if (ProtonVpnKde::isSafeBackendAuthoredMessage(
-                       reply.error().name(), reply.error().message())) {
-            m_message = reply.error().message();
         } else {
-            m_message = tr("The VPN operation could not be completed");
+            const auto failure = ProtonVpnKde::classifyBackendCallFailure(
+                reply.error().type(), reply.error().name());
+            if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
+                operationMessage = tr("The Proton backend service stopped");
+                if (globalCurrent) {
+                    setBackendAvailable(false);
+                }
+            } else if (failure
+                       == ProtonVpnKde::BackendCallFailure::InvalidSecretPayload) {
+                operationMessage = tr(
+                    "Protected authentication data was rejected; try again");
+            } else if (ProtonVpnKde::isSafeBackendAuthoredMessage(
+                           reply.error().name(), reply.error().message())) {
+                operationMessage = reply.error().message();
+            } else {
+                operationMessage = tr(
+                    "The VPN operation could not be completed");
+            }
         }
-        if (packetCaptureTarget.isValid()) {
-            m_packetCaptureError = m_message;
+        if (globalCurrent) {
+            m_busy = false;
+            m_message = operationMessage;
         }
-        emit snapshotChanged();
-        if (!connectionTarget.isEmpty()) {
+        if (packetCaptureTarget.isValid() && captureCurrent) {
+            m_packetCaptureError = operationMessage;
+        }
+        if (globalCurrent || (packetCaptureTarget.isValid() && captureCurrent)) {
+            emit snapshotChanged();
+        }
+        if (!connectionTarget.isEmpty() && connectionCurrent) {
             emit connectionOperationFinished(
-                connectionGeneration, connectionTarget, false, m_message);
+                connectionGeneration, connectionTarget, false,
+                operationMessage);
         }
-        if (packetCaptureTarget.isValid()) {
+        if (transientSameOwnerFailure) {
+            scheduleSnapshotRefreshRetry();
+        }
+        if (packetCaptureTarget.isValid() && captureCurrent) {
             refresh();
             if (packetCaptureTarget.toBool()
                 && m_packetCaptureStopRequested) {
@@ -368,12 +381,14 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
         }
         return;
     }
-    if (!connectionTarget.isEmpty()) {
+    if (!connectionTarget.isEmpty() && connectionCurrent) {
         emit connectionOperationFinished(
             connectionGeneration, connectionTarget, true, {});
     }
-    if (packetCaptureTarget.isValid()) {
-        m_busy = false;
+    if (packetCaptureTarget.isValid() && captureCurrent) {
+        if (globalCurrent) {
+            m_busy = false;
+        }
         if (packetCaptureTarget.toBool() && m_packetCaptureStopRequested) {
             dispatchPendingPacketCaptureStop(true);
         } else if (!packetCaptureTarget.toBool()) {
@@ -423,7 +438,14 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
         return;
     }
     if (reply.isError()) {
-        if (ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type())) {
+        const bool transientSameOwnerFailure =
+            ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type());
+        const bool npsCompletionUnknown = npsSubmission
+            && reply.error().name()
+                == QString::fromLatin1(
+                    ProtonVpnKde::DBusContract::Backend::Error::
+                        npsCompletionUnknown);
+        if (transientSameOwnerFailure || npsCompletionUnknown) {
             m_message = npsSubmission
                 ? tr("Survey submission completion is unknown; it will not be "
                      "retried automatically")
@@ -433,7 +455,9 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
                 emit connectionOperationFinished(
                     connectionGeneration, connectionTarget, false, m_message);
             }
-            scheduleSnapshotRefreshRetry();
+            if (transientSameOwnerFailure) {
+                scheduleSnapshotRefreshRetry();
+            }
             if (npsSubmission) {
                 finishNpsSurveySubmission(
                     npsGeneration, false, m_message, false);
