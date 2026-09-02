@@ -190,6 +190,16 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/ServersPage.qml" \
         || ! rg -q 'function beginConnectionAction\(expectedState\)' \
         "$qml_dir/Main.qml" \
+        || ! rg -U -q 'readonly property bool browserConnectionActionEnabled:\n[[:space:]]*controller\.primaryActionEnabled && !controller\.busy' \
+        "$qml_dir/Main.qml" \
+        || rg -q 'vpnController\.primaryActionEnabled' \
+        "$qml_dir/LocationsPage.qml" "$qml_dir/CountryPage.qml" \
+        "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'browserConnectionActionEnabled' \
+        "$qml_dir/LocationsPage.qml" "$qml_dir/CountryPage.qml" \
+        "$qml_dir/ServersPage.qml" \
+        || ! rg -q 'primaryEnabled: vpnController\.primaryActionEnabled' \
+        "$qml_dir/OverviewPage.qml" \
         || ! rg -q 'beginConnectionAction' "$qml_dir/OverviewPage.qml" \
         || ! rg -q 'beginConnectionAction' "$qml_dir/LocationsPage.qml" \
         || ! rg -q 'beginConnectionAction' "$qml_dir/CountryPage.qml" \

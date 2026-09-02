@@ -53,7 +53,9 @@ All notable user-visible changes are recorded here. The project follows
   server search, KRunner, tray, and global shortcuts, while retaining focused
   dialogs for failures that require a specific response. Keep completed
   operation guidance visible when Core correctly leaves the connection
-  disconnected, and avoid duplicate status surfaces on the Connection page.
+  disconnected, prevent server-browser actions from re-entering while another
+  connection operation is active, and avoid duplicate status surfaces on the
+  Connection page.
 - Distinguish failed country, search, location, server, and load reads from a
   valid empty server-browser result, with errors scoped to their owning view
   and cleared when that read is retried.

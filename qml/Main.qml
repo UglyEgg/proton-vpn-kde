@@ -19,6 +19,8 @@ Kirigami.ApplicationWindow {
     pageStack.defaultColumnWidth: pageStack.width
     readonly property var controller: vpnController
     readonly property var integrationSettings: appSettings
+    readonly property bool browserConnectionActionEnabled:
+        controller.primaryActionEnabled && !controller.busy
 
     footer: Column {
         width: root.width

@@ -62,7 +62,8 @@ Kirigami.ScrollablePage {
                        ? "network-connect" : "internet-web-browser"
             enabled: !page.countryUnderMaintenance
                      && (page.countryAccessible
-                         ? vpnController.primaryActionEnabled : true)
+                         ? applicationWindow().browserConnectionActionEnabled
+                         : true)
             onTriggered: {
                 if (page.countryAccessible) {
                     applicationWindow().beginConnectionAction("connected")
@@ -159,7 +160,8 @@ Kirigami.ScrollablePage {
                     display: Controls.AbstractButton.IconOnly
                     enabled: !groupDelegate.underMaintenance
                              && (groupDelegate.accessible
-                                 ? vpnController.primaryActionEnabled : true)
+                                 ? applicationWindow().browserConnectionActionEnabled
+                                 : true)
                     onClicked: {
                         if (groupDelegate.accessible) {
                             applicationWindow().beginConnectionAction("connected")

@@ -147,7 +147,8 @@ Kirigami.Page {
                     display: Controls.AbstractButton.IconOnly
                     enabled: !countryDelegate.underMaintenance
                              && (countryDelegate.accessible
-                                 ? vpnController.primaryActionEnabled : true)
+                                 ? applicationWindow().browserConnectionActionEnabled
+                                 : true)
                     onClicked: {
                         if (countryDelegate.accessible) {
                             applicationWindow().beginConnectionAction("connected")
@@ -245,7 +246,7 @@ Kirigami.Page {
                     Controls.Button {
                         text: qsTr("Connect fastest match")
                         icon.name: "network-connect"
-                        enabled: vpnController.primaryActionEnabled
+                        enabled: applicationWindow().browserConnectionActionEnabled
                                  && (page.requiredCapabilities.length === 0
                                      || vpnController.userTier > 0)
                         onClicked: {
@@ -437,8 +438,9 @@ Kirigami.Page {
                                        ? "internet-web-browser" : "network-connect"
                             display: Controls.AbstractButton.IconOnly
                             enabled: !resultDelegate.underMaintenance
-                                     && (resultDelegate.kind !== "server"
-                                         || vpnController.primaryActionEnabled)
+                                     && (!resultDelegate.accessible
+                                         || resultDelegate.kind !== "server"
+                                         || applicationWindow().browserConnectionActionEnabled)
                             onClicked: {
                                 if (!resultDelegate.accessible) {
                                     Qt.openUrlExternally(
