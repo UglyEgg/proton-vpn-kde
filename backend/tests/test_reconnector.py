@@ -120,6 +120,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         authentication_epoch_source=None,
         authentication_epoch_validator=None,
         authentication_error_callback=None,
+        connection_attempt=None,
     ):
         connection = SimpleNamespace(
             server_id="server-id",
@@ -133,6 +134,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             unregister=Mock(),
             get_vpn_server=Mock(return_value="vpn-server"),
             connect=AsyncMock(),
+            disconnect=AsyncMock(),
         )
         server_list = SimpleNamespace(get_by_id=Mock(return_value="logical-server"))
         refresher = SimpleNamespace(
@@ -151,6 +153,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             authentication_epoch_source=authentication_epoch_source,
             authentication_epoch_validator=authentication_epoch_validator,
             authentication_error_callback=authentication_error_callback,
+            connection_attempt=connection_attempt,
         )
         return reconnector, connector, refresher, messages
 
@@ -179,6 +182,59 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             "vpn-server", "wireguard", "networkmanager"
         )
         self.assertIn("Reconnecting…", messages)
+        await reconnector.disable()
+
+    async def test_adapter_owned_attempt_replaces_direct_connector_call(self):
+        attempt = AsyncMock(return_value=True)
+        reconnector, connector, _, _ = self.make_reconnector(
+            authentication_epoch_source=lambda: 7,
+            authentication_epoch_validator=lambda epoch: epoch == 7,
+            connection_attempt=attempt,
+        )
+
+        reconnector.enable()
+        await self.let_tasks_run()
+
+        attempt.assert_awaited_once_with(
+            "vpn-server", "wireguard", "networkmanager", 7
+        )
+        connector.connect.assert_not_awaited()
+        await reconnector.disable()
+
+    async def test_stale_standalone_success_is_compensated(self):
+        current = True
+
+        async def connect(*_args):
+            nonlocal current
+            current = False
+
+        reconnector, connector, _, _ = self.make_reconnector(
+            authentication_epoch_source=lambda: 7,
+            authentication_epoch_validator=lambda _epoch: current,
+        )
+        connector.connect.side_effect = connect
+
+        reconnector.enable()
+        await self.let_tasks_run()
+
+        connector.connect.assert_awaited_once()
+        connector.disconnect.assert_awaited_once_with()
+        await reconnector.disable()
+
+    async def test_nested_suspend_owners_cannot_resume_each_other(self):
+        reconnector, connector, _, _ = self.make_reconnector()
+        connector.current_state = state_named("Disconnected")
+        reconnector.enable()
+
+        await reconnector.suspend()
+        await reconnector.suspend()
+        reconnector.resume()
+
+        self.assertTrue(reconnector._suspended)
+        self.assertEqual(1, reconnector._suspend_count)
+        reconnector.resume()
+        self.assertFalse(reconnector._suspended)
+        self.assertEqual(0, reconnector._suspend_count)
         await reconnector.disable()
 
     async def test_authentication_error_is_not_retried(self):

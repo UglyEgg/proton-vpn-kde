@@ -64,6 +64,7 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/__init__.py|\
         backend/proton_vpn_kde_backend/adapters.py|\
         backend/proton_vpn_kde_backend/async_utils.py|\
+        backend/proton_vpn_kde_backend/client_authorization.py|\
         backend/proton_vpn_kde_backend/controller.py|\
         backend/proton_vpn_kde_backend/core_compatibility.py|\
         backend/proton_vpn_kde_backend/core_snapshot.py|\
@@ -72,14 +73,18 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/dbus_service.py|\
         backend/proton_vpn_kde_backend/errors.py|\
         backend/proton_vpn_kde_backend/fido_interaction.py|\
+        backend/proton_vpn_kde_backend/lifetime.py|\
         backend/proton_vpn_kde_backend/reconnector.py|\
-        backend/tests/test_async_utils.py|backend/tests/test_controller.py|\
+        backend/tests/test_async_utils.py|\
+        backend/tests/test_client_authorization.py|\
+        backend/tests/test_controller.py|\
         backend/tests/test_dbus_service.py|\
+        backend/tests/test_lifetime.py|\
         backend/tests/test_proton_core_adapter.py|\
         backend/tests/test_reconnector.py|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
         packaging/fedora/proton-vpn-kde.spec|\
-        src/AgentVpnClient.cpp|src/AgentVpnClient.h|\
+        src/AgentVpnClient.cpp|src/AgentVpnClient.h|src/TrayIntegration.cpp|\
         src/DbusContract.h|\
         src/VpnController.cpp|src/VpnController.h|\
         src/VpnControllerActions.cpp|\
@@ -119,10 +124,11 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "ae5501054949b3dbe0659197c7d5b764d568b78e8eb36869ebc77f3e60e232a1" \
+    "357fda4063a7c26b94f4c9cb2856685f33163a225a2ce9702ef759479b34b607" \
     "backend reviewed behavior exceptions" \
     backend/proton_vpn_kde_backend/adapters.py \
     backend/proton_vpn_kde_backend/async_utils.py \
+    backend/proton_vpn_kde_backend/client_authorization.py \
     backend/proton_vpn_kde_backend/controller.py \
     backend/proton_vpn_kde_backend/core_compatibility.py \
     backend/proton_vpn_kde_backend/core_snapshot.py \
@@ -130,9 +136,12 @@ assert_diff_hash \
     backend/proton_vpn_kde_backend/dbus_service.py \
     backend/proton_vpn_kde_backend/errors.py \
     backend/proton_vpn_kde_backend/fido_interaction.py \
+    backend/proton_vpn_kde_backend/lifetime.py \
     backend/proton_vpn_kde_backend/reconnector.py \
-    backend/tests/test_async_utils.py backend/tests/test_controller.py \
+    backend/tests/test_async_utils.py \
+    backend/tests/test_client_authorization.py backend/tests/test_controller.py \
     backend/tests/test_dbus_service.py \
+    backend/tests/test_lifetime.py \
     backend/tests/test_proton_core_adapter.py backend/tests/test_reconnector.py
 assert_diff_hash \
     "f3dca36c733c8e515912de42c91c4c7c2faea9f1412ebcc5184b6c1bd8b19bff" \
@@ -146,9 +155,9 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "27dc84a0e14591d95de61897cceb15866aa76f1c288db09dfc097b090d83e547" \
+    "d86348e478192506a61271ad12fb38c0b4037cc91315787cc185c3cbee10888c" \
     "frontend presentation contract" \
-    src/AgentVpnClient.cpp src/AgentVpnClient.h \
+    src/AgentVpnClient.cpp src/AgentVpnClient.h src/TrayIntegration.cpp \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
     src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
     src/VpnControllerSettings.cpp src/VpnControllerSnapshot.cpp src/main.cpp \

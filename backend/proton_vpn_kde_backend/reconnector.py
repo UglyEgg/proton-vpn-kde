@@ -22,6 +22,7 @@ DelayFactory = Callable[[int], float]
 AuthenticationEpochSource = Callable[[], int]
 AuthenticationEpochValidator = Callable[[int], bool]
 AuthenticationErrorCallback = Callable[[Exception, int], Awaitable[None]]
+ConnectionAttempt = Callable[[Any, Any, Any, int], Awaitable[bool]]
 
 
 logger = logging.getLogger(__name__)
@@ -139,6 +140,7 @@ class AsyncReconnector:
         authentication_epoch_source: AuthenticationEpochSource | None = None,
         authentication_epoch_validator: AuthenticationEpochValidator | None = None,
         authentication_error_callback: AuthenticationErrorCallback | None = None,
+        connection_attempt: ConnectionAttempt | None = None,
     ):
         self._connector = connector
         self._refresher = refresher
@@ -149,12 +151,14 @@ class AsyncReconnector:
         self._authentication_epoch_source = authentication_epoch_source
         self._authentication_epoch_validator = authentication_epoch_validator
         self._authentication_error_callback = authentication_error_callback
+        self._connection_attempt = connection_attempt
         self._retry_task: asyncio.Task | None = None
         self._retry_pending = False
         self._retry_counter = 0
         self._retry_generation = 0
         self._enabled = False
         self._suspended = False
+        self._suspend_count = 0
 
     @property
     def enabled(self) -> bool:
@@ -197,22 +201,32 @@ class AsyncReconnector:
         finally:
             if self._retry_task is retry_task and retry_task is not None:
                 self._retry_task = None
+            self._suspend_count = 0
+            self._suspended = False
             await self._session_probe.close()
         if unregister_error is not None:
             raise unregister_error
 
     async def suspend(self) -> None:
         """Quiesce retry work while preserving the registered observer."""
+        self._suspend_count += 1
         self._suspended = True
         retry_task = self._reset()
         try:
             await self._join_retry(retry_task)
+        except BaseException:
+            self.resume()
+            raise
         finally:
             if self._retry_task is retry_task and retry_task is not None:
                 self._retry_task = None
 
     def resume(self) -> None:
         """Resume retry observation after an intentional control operation."""
+        if self._suspend_count:
+            self._suspend_count -= 1
+        if self._suspend_count:
+            return
         self._suspended = False
         if self._enabled:
             self.status_update(self._connector.current_state)
@@ -346,9 +360,26 @@ class AsyncReconnector:
                 return False
             self._retry_counter += 1
             self._status_callback("Reconnecting…")
-            await self._connector.connect(
-                vpn_server, connection.protocol, connection.backend
-            )
+            if self._connection_attempt is not None:
+                if not await self._connection_attempt(
+                    vpn_server,
+                    connection.protocol,
+                    connection.backend,
+                    authentication_epoch,
+                ):
+                    return False
+            else:
+                await self._connector.connect(
+                    vpn_server, connection.protocol, connection.backend
+                )
+                if (
+                    self._authentication_epoch_validator is not None
+                    and not self._authentication_epoch_validator(authentication_epoch)
+                ):
+                    # The standalone reconnector retains the same fail-closed
+                    # rule as the adapter-owned production coordinator.
+                    await self._connector.disconnect()
+                    return False
         except asyncio.CancelledError:
             raise
         except Exception as error:

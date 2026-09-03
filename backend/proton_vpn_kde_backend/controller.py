@@ -174,6 +174,7 @@ class BackendController:
         *,
         crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
         shutdown_drain_seconds: float = 5.0,
+        packet_capture_shutdown_seconds: float = 20.0,
     ):
         self._adapter = adapter
         self._crash_report_submission_enabled = crash_report_submission_enabled
@@ -192,6 +193,7 @@ class BackendController:
         self._settings_lock = asyncio.Lock()
         self._session_epoch = 0
         self._closing = False
+        self._operation_busy = False
         self._active_operation_task: asyncio.Task[None] | None = None
         self._active_operation_kind: str | None = None
         self._preemptive_disconnect_tasks: set[asyncio.Task[None]] = set()
@@ -199,6 +201,9 @@ class BackendController:
         self._active_settings_task: asyncio.Task[object] | None = None
         self._packet_capture_start_task: asyncio.Task[None] | None = None
         self._shutdown_drain_seconds = max(0.0, shutdown_drain_seconds)
+        self._packet_capture_shutdown_seconds = max(
+            0.0, packet_capture_shutdown_seconds
+        )
 
     @property
     def snapshot(self) -> VpnSnapshot:
@@ -752,10 +757,20 @@ class BackendController:
             if task is None:
                 raise RuntimeError("Disconnect requires an asyncio task")
             self._preemptive_disconnect_tasks.add(task)
+            self._publish(replace(self._snapshot, busy=True))
             try:
                 await self._adapter.disconnect()
             finally:
                 self._preemptive_disconnect_tasks.discard(task)
+                self._publish(
+                    replace(
+                        self._snapshot,
+                        busy=(
+                            self._operation_busy
+                            or bool(self._preemptive_disconnect_tasks)
+                        ),
+                    )
+                )
             return
         await self._run_operation(self._adapter.disconnect)
 
@@ -776,72 +791,113 @@ class BackendController:
         # adapter transactions perform their own cancellation-safe state repair
         # before unwinding.
         self._closing = True
-        preemptive_tasks = tuple(self._preemptive_disconnect_tasks)
-        if preemptive_tasks:
-            _, pending_preemptions = await asyncio.wait(
-                preemptive_tasks,
-                timeout=self._shutdown_drain_seconds,
+        current_task = asyncio.current_task()
+        capture_task = self._packet_capture_start_task
+        if (
+            capture_task is not None
+            and capture_task is not current_task
+            and not capture_task.done()
+        ):
+            # Capture Start owns mandatory, durable compensation that can take
+            # three bounded Core stop attempts. Cancel it immediately and give
+            # that safety protocol its explicit worst-case budget before the
+            # ordinary mutation drain begins.
+            capture_deadline = (
+                asyncio.get_running_loop().time()
+                + self._packet_capture_shutdown_seconds
             )
-            for task in pending_preemptions:
-                task.cancel()
-            if pending_preemptions:
-                await asyncio.wait(
-                    pending_preemptions,
-                    timeout=self._shutdown_drain_seconds,
-                )
-        try:
-            await asyncio.wait_for(
-                self._operation_lock.acquire(),
-                timeout=self._shutdown_drain_seconds,
+            await self._cancel_and_join_tasks(
+                {capture_task}, capture_deadline
             )
-        except TimeoutError:
-            active_operation = self._active_operation_task
-            if active_operation is not None and active_operation is not asyncio.current_task():
-                active_operation.cancel()
-                await asyncio.gather(active_operation, return_exceptions=True)
-            await self._operation_lock.acquire()
+
+        accepted_tasks = {
+            task
+            for task in (
+                *self._preemptive_disconnect_tasks,
+                self._active_operation_task,
+                self._active_settings_task,
+                self._active_session_side_effect_task,
+            )
+            if task is not None and task is not current_task and not task.done()
+        }
+        deadline = (
+            asyncio.get_running_loop().time() + self._shutdown_drain_seconds
+        )
+        await self._drain_accepted_tasks(accepted_tasks, deadline)
+
+        acquired_locks: list[asyncio.Lock] = []
         try:
-            try:
-                await asyncio.wait_for(
-                    self._settings_lock.acquire(),
-                    timeout=self._shutdown_drain_seconds,
-                )
-            except TimeoutError:
-                active_settings = self._active_settings_task
-                if (
-                    active_settings is not None
-                    and active_settings is not asyncio.current_task()
-                ):
-                    active_settings.cancel()
-                    await asyncio.gather(
-                        active_settings, return_exceptions=True
-                    )
-                await self._settings_lock.acquire()
-            try:
-                try:
-                    await asyncio.wait_for(
-                        self._session_side_effect_lock.acquire(),
-                        timeout=self._shutdown_drain_seconds,
-                    )
-                except TimeoutError:
-                    active_side_effect = self._active_session_side_effect_task
-                    if (
-                        active_side_effect is not None
-                        and active_side_effect is not asyncio.current_task()
-                    ):
-                        active_side_effect.cancel()
-                        await asyncio.gather(
-                            active_side_effect, return_exceptions=True
-                        )
-                    await self._session_side_effect_lock.acquire()
-                try:
-                    await self._adapter.close()
-                finally:
-                    self._session_side_effect_lock.release()
-            finally:
-                self._settings_lock.release()
+            for lock in (
+                self._operation_lock,
+                self._settings_lock,
+                self._session_side_effect_lock,
+            ):
+                await self._acquire_before_deadline(lock, deadline)
+                acquired_locks.append(lock)
+            await self._adapter.close()
         finally:
-            self._operation_lock.release()
+            for lock in reversed(acquired_locks):
+                lock.release()
+
+    @staticmethod
+    async def _cancel_and_join_tasks(
+        tasks: set[asyncio.Task],
+        deadline: float,
+    ) -> None:
+        for task in tasks:
+            task.cancel()
+        remaining = max(
+            0.0, deadline - asyncio.get_running_loop().time()
+        )
+        pending = tasks
+        if remaining:
+            _, pending = await asyncio.wait(tasks, timeout=remaining)
+        if pending:
+            raise TimeoutError(
+                "VPN safety cleanup did not stop before its shutdown deadline"
+            )
+
+    async def _drain_accepted_tasks(
+        self,
+        tasks: set[asyncio.Task],
+        deadline: float,
+    ) -> None:
+        """Drain accepted work under one grace/cancellation deadline."""
+        if not tasks:
+            return
+        loop = asyncio.get_running_loop()
+        remaining = max(0.0, deadline - loop.time())
+        _, pending = await asyncio.wait(tasks, timeout=remaining / 2)
+        for task in pending:
+            task.cancel()
+        if pending:
+            remaining = max(0.0, deadline - loop.time())
+            if remaining:
+                _, pending = await asyncio.wait(pending, timeout=remaining)
+        if pending:
+            raise TimeoutError(
+                "Accepted VPN work did not stop before the shutdown deadline"
+            )
+
+    @staticmethod
+    async def _acquire_before_deadline(
+        lock: asyncio.Lock,
+        deadline: float,
+    ) -> None:
+        if not lock.locked():
+            await lock.acquire()
+            return
+        remaining = deadline - asyncio.get_running_loop().time()
+        if remaining <= 0:
+            raise TimeoutError(
+                "VPN lifecycle ownership outlived the shutdown deadline"
+            )
+        try:
+            await asyncio.wait_for(lock.acquire(), timeout=remaining)
+        except TimeoutError:
+            raise TimeoutError(
+                "VPN lifecycle ownership outlived the shutdown deadline"
+            ) from None
 
     def _require_session(self) -> None:
         self._require_ready()
@@ -917,17 +973,25 @@ class BackendController:
         self, operation: Callable[[], Awaitable[None]]
     ) -> None:
         """Run one operation while the caller owns the serialization lock."""
+        self._operation_busy = True
         self._publish(replace(self._snapshot, busy=True, message=""))
         try:
             await operation()
         except asyncio.CancelledError:
-            self._publish(replace(self._snapshot, busy=False))
-            raise
-        except UserVisibleError as error:
+            self._operation_busy = False
             self._publish(
                 replace(
                     self._snapshot,
-                    busy=False,
+                    busy=bool(self._preemptive_disconnect_tasks),
+                )
+            )
+            raise
+        except UserVisibleError as error:
+            self._operation_busy = False
+            self._publish(
+                replace(
+                    self._snapshot,
+                    busy=bool(self._preemptive_disconnect_tasks),
                     message=bounded_user_message(
                         error, "The VPN operation could not be completed"
                     ),
@@ -935,16 +999,23 @@ class BackendController:
             )
             raise
         except Exception:
+            self._operation_busy = False
             self._publish(
                 replace(
                     self._snapshot,
-                    busy=False,
+                    busy=bool(self._preemptive_disconnect_tasks),
                     message="The VPN operation could not be completed",
                 )
             )
             raise
         else:
-            self._publish(replace(self._snapshot, busy=False))
+            self._operation_busy = False
+            self._publish(
+                replace(
+                    self._snapshot,
+                    busy=bool(self._preemptive_disconnect_tasks),
+                )
+            )
 
     @asynccontextmanager
     async def _serialized_operation(
@@ -952,6 +1023,10 @@ class BackendController:
     ) -> AsyncIterator[None]:
         await self._wait_for_preemptive_disconnects()
         async with self._operation_lock:
+            if self._closing:
+                raise UserVisibleRuntimeError(
+                    "The Proton backend is shutting down"
+                )
             task = asyncio.current_task()
             self._active_operation_task = task
             self._active_operation_kind = operation_kind

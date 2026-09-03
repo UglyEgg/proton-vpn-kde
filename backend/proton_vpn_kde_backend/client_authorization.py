@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 from collections.abc import Awaitable, Callable, Iterable
 import os
@@ -34,6 +35,7 @@ INVALID_SECRET_ERROR = Error.INVALID_SECRET_PAYLOAD
 INVALID_SECRET_MESSAGE = "The protected payload is invalid or no longer valid"
 INVALID_ARGUMENTS_ERROR = "org.freedesktop.DBus.Error.InvalidArgs"
 INVALID_ARGUMENTS_MESSAGE = "Unexpected Unix file descriptors"
+DEFAULT_AUTHORIZATION_TIMEOUT_SECONDS = 5.0
 _NAME_OWNER_MATCH = (
     "sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',"
     "path='/org/freedesktop/DBus',member='NameOwnerChanged'"
@@ -80,6 +82,7 @@ class ClientAuthorizer:
         enforce_identity: bool = True,
         identity_probe: IdentityProbe | None = None,
         owner_probe: OwnerProbe | None = None,
+        authorization_timeout: float = DEFAULT_AUTHORIZATION_TIMEOUT_SECONDS,
     ) -> None:
         self._bus = bus
         self._trusted_executables = frozenset(
@@ -88,6 +91,7 @@ class ClientAuthorizer:
         self._enforce_identity = enforce_identity
         self._identity_probe = identity_probe or self._probe_identity
         self._owner_probe = owner_probe or self._name_has_owner
+        self._authorization_timeout = max(0.0, authorization_timeout)
         self._authorized: set[str] = set()
         self._pending_authorizations: dict[str, int] = {}
         self._revoked_while_pending: set[str] = set()
@@ -140,10 +144,14 @@ class ClientAuthorizer:
         )
         try:
             if self._enforce_identity:
-                if not await self._identity_probe(sender):
-                    raise PermissionError(UNAUTHORIZED_MESSAGE)
-                if not await self._owner_probe(sender):
-                    raise PermissionError(UNAUTHORIZED_MESSAGE)
+                try:
+                    async with asyncio.timeout(self._authorization_timeout):
+                        if not await self._identity_probe(sender):
+                            raise PermissionError(UNAUTHORIZED_MESSAGE)
+                        if not await self._owner_probe(sender):
+                            raise PermissionError(UNAUTHORIZED_MESSAGE)
+                except TimeoutError:
+                    raise PermissionError(UNAUTHORIZED_MESSAGE) from None
             if sender in self._revoked_while_pending:
                 raise PermissionError(UNAUTHORIZED_MESSAGE)
             self._authorized.add(sender)

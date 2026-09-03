@@ -175,6 +175,75 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({}, lifetime._client_generations)
         self.assertEqual({}, lifetime._pending_client_registrations)
 
+    async def test_pending_registration_owns_lifetime_and_failure_starts_fresh_grace(self):
+        lifetime, _, stopped, _ = self.make_lifetime(timeout=0.04)
+        task = asyncio.create_task(lifetime.run())
+        await asyncio.sleep(0.03)
+
+        generation = lifetime.registration_generation(":1.42")
+        await asyncio.sleep(0.03)
+
+        self.assertFalse(stopped.is_set())
+        lifetime.cancel_registration(":1.42", generation)
+        await asyncio.sleep(0.02)
+        self.assertFalse(stopped.is_set())
+
+        await asyncio.wait_for(task, timeout=0.1)
+        self.assertTrue(stopped.is_set())
+
+    async def test_pending_registration_success_survives_old_deadline(self):
+        lifetime, _, stopped, _ = self.make_lifetime(timeout=0.04)
+        task = asyncio.create_task(lifetime.run())
+        await asyncio.sleep(0.03)
+
+        generation = lifetime.registration_generation(":1.42")
+        await asyncio.sleep(0.03)
+        lifetime.register_authorized_client(":1.42", generation)
+        await asyncio.sleep(0.05)
+
+        self.assertFalse(stopped.is_set())
+        self.assertEqual(frozenset({":1.42"}), lifetime.clients)
+        lifetime.unregister_client(":1.42")
+        await asyncio.wait_for(task, timeout=0.1)
+
+    async def test_tombstoned_pending_registrations_share_provisional_ownership(self):
+        lifetime, _, stopped, _ = self.make_lifetime(timeout=0.02)
+        first = lifetime.registration_generation(":1.42")
+        second = lifetime.registration_generation(":1.42")
+        task = asyncio.create_task(lifetime.run())
+
+        lifetime.unregister_client(":1.42")
+        lifetime.register_authorized_client(":1.42", first)
+        await asyncio.sleep(0.03)
+
+        self.assertFalse(stopped.is_set())
+        self.assertEqual(frozenset(), lifetime.clients)
+        lifetime.cancel_registration(":1.42", second)
+        await asyncio.wait_for(task, timeout=0.1)
+        self.assertEqual({}, lifetime._client_generations)
+        self.assertEqual({}, lifetime._pending_client_registrations)
+
+    async def test_registration_probe_is_bounded_and_releases_provisional_lease(self):
+        never_finishes = asyncio.Event()
+
+        async def owner_probe(_name: str) -> bool:
+            await never_finishes.wait()
+            return True
+
+        controller = FakeController(VpnSnapshot(ready=True, state="disconnected"))
+        lifetime = BackendLifetime(
+            controller,  # type: ignore[arg-type]
+            asyncio.Event(),
+            owner_probe,
+            registration_timeout=0.01,
+        )
+
+        with self.assertRaisesRegex(ValueError, "could not be confirmed"):
+            await lifetime.register_client(":1.42")
+
+        self.assertEqual({}, lifetime._client_generations)
+        self.assertEqual({}, lifetime._pending_client_registrations)
+
     async def test_owner_loss_releases_frontend_before_exit(self):
         lifetime, _, stopped, owners = self.make_lifetime()
         owners.add(":1.42")

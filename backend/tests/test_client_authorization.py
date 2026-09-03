@@ -166,6 +166,29 @@ class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(authorizer.authorized_senders)
         probe.assert_not_awaited()
 
+    async def test_authorization_timeout_clears_provisional_identity_state(self):
+        never_finishes = asyncio.Event()
+
+        async def identity_probe(_sender: str) -> bool:
+            await never_finishes.wait()
+            return True
+
+        authorizer = ClientAuthorizer(
+            None,
+            (),
+            identity_probe=identity_probe,
+            owner_probe=AsyncMock(return_value=True),
+            authorization_timeout=0.01,
+        )
+        authorizer.message_handler(method_message("AuthorizeClient"))
+
+        with self.assertRaises(PermissionError):
+            await authorizer.authorize(":1.40")
+
+        self.assertFalse(authorizer.authorized_senders)
+        self.assertFalse(authorizer._pending_authorizations)
+        self.assertFalse(authorizer._revoked_while_pending)
+
     async def test_authenticated_sender_can_mutate_but_another_caller_cannot(self):
         authorizer = ClientAuthorizer(
             None,

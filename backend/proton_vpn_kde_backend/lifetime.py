@@ -19,6 +19,7 @@ from .errors import UserVisibleValueError
 
 NameOwnerProbe = Callable[[str], Awaitable[bool]]
 _UNIQUE_BUS_NAME = re.compile(r"^:[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$")
+DEFAULT_REGISTRATION_TIMEOUT_SECONDS = 5.0
 
 
 async def name_has_owner(bus, name: str) -> bool:
@@ -61,11 +62,13 @@ class BackendLifetime:
         owner_probe: NameOwnerProbe,
         *,
         idle_timeout: float = 10.0,
+        registration_timeout: float = DEFAULT_REGISTRATION_TIMEOUT_SECONDS,
     ) -> None:
         self._controller = controller
         self._stopped = stopped
         self._owner_probe = owner_probe
         self._idle_timeout = max(0.0, idle_timeout)
+        self._registration_timeout = max(0.0, registration_timeout)
         self._clients: set[str] = set()
         # RegisterClient verifies ownership asynchronously.  Remember a
         # per-name retirement generation so an UnregisterClient that overtakes
@@ -83,7 +86,16 @@ class BackendLifetime:
     async def register_client(self, unique_name: str) -> None:
         generation = self.registration_generation(unique_name)
         try:
-            if not await self._owner_probe(unique_name):
+            try:
+                owned = await asyncio.wait_for(
+                    self._owner_probe(unique_name),
+                    timeout=self._registration_timeout,
+                )
+            except TimeoutError:
+                raise UserVisibleValueError(
+                    "The frontend D-Bus owner could not be confirmed"
+                ) from None
+            if not owned:
                 raise UserVisibleValueError(
                     "The frontend D-Bus name has no owner"
                 )
@@ -98,6 +110,11 @@ class BackendLifetime:
         self._pending_client_registrations[unique_name] = (
             self._pending_client_registrations.get(unique_name, 0) + 1
         )
+        # Authorization is part of lease acquisition.  Treat it as
+        # provisional ownership so the idle deadline cannot overtake a valid
+        # client while its D-Bus identity is still being verified.
+        self._idle_since = None
+        self._changed.set()
         return self._client_generations.get(unique_name, 0)
 
     def cancel_registration(self, unique_name: str, generation: int) -> None:
@@ -125,6 +142,8 @@ class BackendLifetime:
             self._client_generations[unique_name] = (
                 self._client_generations.get(unique_name, 0) + 1
             )
+            self._idle_since = None
+            self._changed.set()
         else:
             self._client_generations.pop(unique_name, None)
         if unique_name not in self._clients:
@@ -138,8 +157,12 @@ class BackendLifetime:
         if pending <= 1:
             self._pending_client_registrations.pop(unique_name, None)
             self._client_generations.pop(unique_name, None)
-            return
-        self._pending_client_registrations[unique_name] = pending - 1
+        else:
+            self._pending_client_registrations[unique_name] = pending - 1
+        # A failed or tombstoned final registration starts a fresh full idle
+        # grace.  Never resume the deadline that existed before acquisition.
+        self._idle_since = None
+        self._changed.set()
 
     async def run(self) -> None:
         while not self._stopped.is_set():
@@ -163,7 +186,7 @@ class BackendLifetime:
                 pass
 
     def _may_exit(self, snapshot: VpnSnapshot) -> bool:
-        if self._clients:
+        if self._clients or self._pending_client_registrations:
             return False
         if not snapshot.ready:
             return (

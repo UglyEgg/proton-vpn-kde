@@ -1434,7 +1434,10 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         release_connect.set()
         await asyncio.wait_for(logout_task, timeout=1)
-        connector.disconnect.assert_awaited_once_with()
+        # The completion-unknown retry is compensated first. Logout then
+        # performs its normal idempotent teardown because this mock does not
+        # publish the resulting Disconnected state.
+        self.assertEqual(2, connector.disconnect.await_count)
         api.logout.assert_awaited_once_with()
 
     async def test_disconnect_waits_for_reconnect_worker_before_returning(self):
@@ -1458,7 +1461,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         release_connect.set()
         await asyncio.wait_for(disconnect_task, timeout=1)
-        connector.disconnect.assert_awaited_once_with()
+        self.assertEqual(2, connector.disconnect.await_count)
         self.assertIsNone(adapter._reconnector._retry_task)
         self.assertTrue(adapter._reconnector.enabled)
         await adapter._reconnector.disable()
@@ -2046,6 +2049,118 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             await connect
         connector.get_vpn_server.assert_not_called()
         connector.connect.assert_not_awaited()
+
+    async def test_manual_connect_retires_and_joins_automatic_attempt(self):
+        api, connector = self.make_api()
+        logical_server = object()
+        server_list = SimpleNamespace(
+            get_fastest=Mock(return_value=logical_server),
+            get_by_id=Mock(return_value=logical_server),
+        )
+        api.refresher.get_up_to_date_server_list.return_value = server_list
+        api.refresher.server_list = server_list
+        api.refresher.client_config = "client-config"
+        auto_started = asyncio.Event()
+        auto_cancelled = asyncio.Event()
+        release_auto = asyncio.Event()
+        active_calls = 0
+        maximum_active_calls = 0
+        connect_calls = 0
+
+        async def connect(*_args, **_kwargs):
+            nonlocal active_calls, maximum_active_calls, connect_calls
+            connect_calls += 1
+            active_calls += 1
+            maximum_active_calls = max(maximum_active_calls, active_calls)
+            try:
+                if connect_calls == 1:
+                    auto_started.set()
+                    try:
+                        await asyncio.Future()
+                    except asyncio.CancelledError:
+                        auto_cancelled.set()
+                        await release_auto.wait()
+                connector.current_state = state_named("Connected")
+            finally:
+                active_calls -= 1
+
+        async def disconnect():
+            connector.current_state = state_named("Disconnected")
+
+        connector.connect.side_effect = connect
+        connector.disconnect.side_effect = disconnect
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        connector.current_connection = SimpleNamespace(
+            server_id="server-id",
+            server_name="",
+            protocol="wireguard",
+            backend="networkmanager",
+        )
+        connector.current_state = state_named("Error")
+        adapter._reconnector._delay_factory = lambda _attempt: 0
+        adapter._reconnector.status_update(connector.current_state)
+        await auto_started.wait()
+
+        manual = asyncio.create_task(adapter.connect_fastest())
+        await auto_cancelled.wait()
+        await asyncio.sleep(0)
+        self.assertFalse(manual.done())
+        self.assertEqual(1, maximum_active_calls)
+
+        release_auto.set()
+        await asyncio.wait_for(manual, timeout=1)
+
+        self.assertEqual(2, connect_calls)
+        self.assertEqual(1, maximum_active_calls)
+        connector.disconnect.assert_awaited_once_with()
+        self.assertEqual("Connected", type(connector.current_state).__name__)
+
+    async def test_expiry_after_connect_success_compensates_stale_tunnel(self):
+        api, connector = self.make_api()
+        logical_server = object()
+        api.refresher.get_up_to_date_server_list.return_value = SimpleNamespace(
+            get_fastest=Mock(return_value=logical_server)
+        )
+        settings = api.load_settings.return_value
+        connect_started = asyncio.Event()
+        release_connect = asyncio.Event()
+
+        async def delayed_connect(*_args, **_kwargs):
+            connect_started.set()
+            await release_connect.wait()
+            connector.current_state = state_named("Connected")
+
+        async def disconnect():
+            connector.current_state = state_named("Disconnected")
+
+        connector.connect.side_effect = delayed_connect
+        connector.disconnect.side_effect = disconnect
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        api.load_settings.side_effect = [
+            settings,
+            type("ProtonAPIAuthenticationNeeded", (Exception,), {})(),
+        ]
+
+        connect = asyncio.create_task(adapter.connect_fastest())
+        await connect_started.wait()
+        expiry = asyncio.create_task(adapter.get_settings())
+        for _ in range(20):
+            if not adapter._logged_in:
+                break
+            await asyncio.sleep(0)
+        self.assertFalse(adapter._logged_in)
+
+        release_connect.set()
+        with self.assertRaisesRegex(RuntimeError, "session changed"):
+            await connect
+        with self.assertRaisesRegex(RuntimeError, "session expired"):
+            await expiry
+
+        connector.disconnect.assert_awaited_once_with()
+        self.assertEqual("Disconnected", type(connector.current_state).__name__)
+        self.assertFalse(adapter._logged_in)
 
     async def test_capability_intersection_uses_official_filter_and_score(self):
         from proton.vpn.session.servers import ServerFeatureEnum

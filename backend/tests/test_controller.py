@@ -46,6 +46,27 @@ class CancellableOperationAdapter(DemoCoreAdapter):
         await asyncio.Future()
 
 
+class CancellationResistantOperationAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__()
+        self.started = asyncio.Event()
+        self.cancelled = asyncio.Event()
+        self.release = asyncio.Event()
+        self.close_calls = 0
+
+    async def connect_fastest(self) -> None:
+        self.started.set()
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            self.cancelled.set()
+            await self.release.wait()
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        await super().close()
+
+
 class BlockingPreemptiveDisconnectAdapter(DemoCoreAdapter):
     def __init__(self):
         super().__init__()
@@ -405,6 +426,8 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         await adapter.disconnect_started.wait()
         await connection
 
+        self.assertTrue(controller.snapshot.busy)
+
         logout = asyncio.create_task(controller.logout())
         await asyncio.sleep(0)
         self.assertFalse(adapter.logout_started.is_set())
@@ -413,6 +436,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         await disconnect
         await logout
         self.assertTrue(adapter.logout_started.is_set())
+        self.assertFalse(controller.snapshot.busy)
 
     async def test_close_waits_for_preemptive_disconnect(self):
         adapter = BlockingPreemptiveDisconnectAdapter()
@@ -1251,6 +1275,26 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(operation.cancelled())
         self.assertFalse(controller.snapshot.busy)
+
+    async def test_close_fails_within_one_deadline_for_cancellation_resistant_work(self):
+        adapter = CancellationResistantOperationAdapter()
+        controller = BackendController(adapter, shutdown_drain_seconds=0.04)
+        await controller.start()
+        operation = asyncio.create_task(controller.connect_fastest())
+        await adapter.started.wait()
+
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        with self.assertRaisesRegex(TimeoutError, "shutdown deadline"):
+            await controller.close()
+        elapsed = loop.time() - started
+
+        self.assertLess(elapsed, 0.08)
+        self.assertTrue(adapter.cancelled.is_set())
+        self.assertEqual(0, adapter.close_calls)
+
+        adapter.release.set()
+        await operation
 
 
 if __name__ == "__main__":
