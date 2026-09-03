@@ -21,6 +21,14 @@ asynchronous state-ownership corrections where the new presentation exposed a
 real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
+The current remediation candidate additionally closes three related ownership
+classes before the six-reviewer gate restarts: manual connection targets own
+retry suspension before topology lookup; inherited Python context grants no
+reentrant lifecycle authority without explicit owned-task delegation; and a
+Core executor worker cannot retain an old backend process past its finite
+terminal shutdown boundary. These are current candidate controls, not accepted
+release evidence, until all isolated reviews and final package/live gates pass.
+
 **Version `0.13.0` remains explicitly not release-ready until all six isolated
 reviewers pass one exact remediated
 commit, its binary/source package set repeats the release battery, live

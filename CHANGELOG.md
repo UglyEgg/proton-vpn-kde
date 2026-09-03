@@ -113,6 +113,21 @@ All notable user-visible changes are recorded here. The project follows
 - Join a cancelled automatic-reconnect worker before disconnect, logout, or
   Core teardown, and rearm a replacement retry when a newer error arrives while
   cancellation cleanup is still completing.
+- Give every manual connection target ownership of automatic-reconnect
+  suspension before its first topology read. A retry already waiting on delay,
+  network, or session readiness is retired before lookup proceeds, and no new
+  retry can adopt or overtake that manual target.
+- Restrict reentrant authentication and connection-lifecycle authority to the
+  owning task and four explicitly delegated settings/logout recovery tasks.
+  Arbitrary child tasks can no longer inherit lock ownership through Python
+  context propagation, and recovery deadlines no longer create implicit child
+  tasks on older supported Python versions.
+- Give backend process exit a finite boundary beyond asyncio task cancellation.
+  After orderly D-Bus and controller cleanup, completed Core executor workers
+  are joined; a worker that still owns the process triggers a logged nonzero
+  terminal exit before it can mutate NetworkManager or persistence beside a
+  replacement backend. The systemd user unit also carries a bounded stop
+  deadline as defense in depth.
 - Wait for dbus-fast to finish disconnecting the logind readiness probe before
   releasing its lifecycle ownership.
 - Suspend and join automatic reconnect before an ordinary user disconnect can

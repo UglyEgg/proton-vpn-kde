@@ -84,6 +84,7 @@ while IFS= read -r path; do
         backend/tests/test_main.py|\
         backend/tests/test_proton_core_adapter.py|\
         backend/tests/test_reconnector.py|\
+        data/proton-vpn-kde-backend.service.in|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
         packaging/fedora/proton-vpn-kde.spec|\
         src/AgentVpnClient.cpp|src/AgentVpnClient.h|src/TrayIntegration.cpp|\
@@ -99,9 +100,10 @@ while IFS= read -r path; do
             ;;
         scripts/auth-dbus-client.py|scripts/capture-qml-page.sh|\
         scripts/check-qml-ui-hygiene.sh|scripts/check-qml-visual-matrix.sh|\
-        scripts/check-release-metadata.sh|scripts/check-ux-mechanics-freeze.sh|\
+        scripts/check-release-metadata.sh|scripts/check-rpm-artifact.sh|\
+        scripts/check-ux-mechanics-freeze.sh|\
         scripts/smoke-qml-diagnostics.sh|scripts/smoke-qml-layout-variants.sh|\
-        scripts/smoke-settings-route.sh|\
+        scripts/smoke-settings-route.sh|scripts/smoke-staged-install.sh|\
         scripts/test-ux-mechanics-freeze-negative.sh)
             # Presentation verification and its hermetic test drivers.
             ;;
@@ -126,7 +128,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "11c609daa311358368202e022ae9106e9a1bad858484d00197597389017a86b1" \
+    "85b10361f403fc1bc76019fb1ed23d5f1eed70972d7655990957032f49a69d04" \
     "backend reviewed behavior exceptions" \
     backend/proton_vpn_kde_backend/__main__.py \
     backend/proton_vpn_kde_backend/adapters.py \
@@ -147,6 +149,11 @@ assert_diff_hash \
     backend/tests/test_lifetime.py \
     backend/tests/test_main.py \
     backend/tests/test_proton_core_adapter.py backend/tests/test_reconnector.py
+assert_diff_hash \
+    "6853514cd1a978a1a03779c19743c68710ee45b63d475df5912eb45b685c6a8a" \
+    "finite process-stop packaging" \
+    data/proton-vpn-kde-backend.service.in \
+    scripts/check-rpm-artifact.sh scripts/smoke-staged-install.sh
 assert_diff_hash \
     "f3dca36c733c8e515912de42c91c4c7c2faea9f1412ebcc5184b6c1bd8b19bff" \
     "D-Bus completion-classification contract" \

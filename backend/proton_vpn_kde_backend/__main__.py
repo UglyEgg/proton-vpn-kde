@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 import logging
 import os
 import signal as unix_signal
-from typing import Any
+import threading
+import time
+from typing import Any, NoReturn
 
 from dbus_fast.aio import MessageBus
 from dbus_fast.constants import BusType, NameFlag, RequestNameReply
@@ -29,6 +31,8 @@ DEFAULT_IDLE_TIMEOUT_SECONDS = 10.0
 RUN_SHUTDOWN_SECONDS = 30.0
 TASK_CANCELLATION_GRACE_SECONDS = 0.25
 PROCESS_TASK_SHUTDOWN_SECONDS = 1.0
+PROCESS_THREAD_SHUTDOWN_SECONDS = 0.25
+INCOMPLETE_SHUTDOWN_EXIT_CODE = 1
 logger = logging.getLogger(__name__)
 
 
@@ -353,8 +357,46 @@ async def _retire_process_tasks(timeout: float) -> set[asyncio.Task[Any]]:
             }
 
 
-def _run_service(coroutine: Coroutine[Any, Any, int]) -> int:
-    """Run the service with a finite final task-retirement budget."""
+def _new_non_daemon_threads(
+    baseline: frozenset[threading.Thread],
+) -> list[threading.Thread]:
+    current = threading.current_thread()
+    return [
+        thread
+        for thread in threading.enumerate()
+        if thread is not current
+        and thread not in baseline
+        and thread.is_alive()
+        and not thread.daemon
+    ]
+
+
+def _retire_process_threads(
+    baseline: frozenset[threading.Thread], timeout: float
+) -> list[threading.Thread]:
+    """Join service-created process owners to a finite fixed point."""
+    deadline = time.monotonic() + max(0.0, timeout)
+    while True:
+        pending = _new_non_daemon_threads(baseline)
+        if not pending:
+            return []
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return pending
+        for thread in pending:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            thread.join(remaining)
+
+
+def _run_service(
+    coroutine: Coroutine[Any, Any, int],
+    *,
+    terminal_exit: Callable[[int], NoReturn] = os._exit,
+) -> int:
+    """Run the service with finite task and process-owner retirement."""
+    baseline_threads = frozenset(threading.enumerate())
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     abandoned_task_ids: set[int] = set()
@@ -388,7 +430,22 @@ def _run_service(coroutine: Coroutine[Any, Any, int]) -> int:
                 )
         finally:
             asyncio.set_event_loop(None)
-            loop.close()
+            try:
+                loop.close()
+            finally:
+                lingering_threads = _retire_process_threads(
+                    baseline_threads, PROCESS_THREAD_SHUTDOWN_SECONDS
+                )
+                if lingering_threads:
+                    logger.critical(
+                        "Process exit forced with %d non-daemon service thread(s) "
+                        "still running: %s",
+                        len(lingering_threads),
+                        ", ".join(
+                            sorted({thread.name for thread in lingering_threads})
+                        ),
+                    )
+                    terminal_exit(INCOMPLETE_SHUTDOWN_EXIT_CODE)
 
 
 def main() -> None:

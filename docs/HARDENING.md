@@ -22,6 +22,16 @@ The backend's project-owned `ip` readiness probe and dormant `journalctl`
 collector also use their absolute Fedora package paths rather than the inherited
 desktop `PATH`. The production idle deadline is fixed; only explicit demo mode
 honors the short test override.
+Orderly backend shutdown closes public ingress, drains accepted work under one
+absolute deadline, disconnects D-Bus, and closes the asyncio loop. It then
+joins service-created non-daemon threads for a final bounded grace period.
+This covers current and future official-Core default-executor calls rather than
+maintaining a fragile list of persistence and NetworkManager methods. If a
+worker still retains process lifetime, the backend logs the condition and exits
+immediately with a nonzero status so it cannot later mutate shared state beside
+a replacement instance. `TimeoutStopSec=35s` gives systemd a longer external
+bound around the complete orderly protocol; `Restart=on-failure` then permits a
+fresh D-Bus activation after a forced terminal exit.
 They are defense-in-depth within the threat boundary below, not a claim that an
 unprivileged process can attest another same-user process cryptographically.
 Support-report temporary files remain mode-restricted and bounded by the

@@ -172,6 +172,8 @@ grep -Fxq 'SUPPORT_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
 grep -Fxq 'CRASH_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
 grep -Fqx "$expected_unset_environment" \
     "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-backend.service"
+grep -Fqx 'TimeoutStopSec=35s' \
+    "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-backend.service"
 grep -Fqx "$expected_unset_environment" \
     "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-agent.service"
 grep -Fqx "$expected_unset_environment" \

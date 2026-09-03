@@ -7,7 +7,11 @@ import asyncio
 from collections.abc import Callable
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
+import textwrap
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -98,6 +102,91 @@ class BackendMainTests(unittest.TestCase):
         self.assertEqual(9, result)
         self.assertTrue(descendant_started)
         self.assertIn("cancellation-resistant", "\n".join(captured.output))
+
+    def test_process_runner_allows_a_completed_default_executor_worker(self):
+        async def service():
+            await asyncio.get_running_loop().run_in_executor(None, lambda: None)
+            return 11
+
+        self.assertEqual(11, backend_main._run_service(service()))
+
+    def test_process_runner_forces_exit_for_a_blocked_default_executor_worker(self):
+        backend_path = str(Path(__file__).resolve().parents[1])
+        environment = dict(os.environ)
+        existing_python_path = environment.get("PYTHONPATH")
+        environment["PYTHONPATH"] = (
+            f"{backend_path}{os.pathsep}{existing_python_path}"
+            if existing_python_path
+            else backend_path
+        )
+        program = textwrap.dedent(
+            """
+            import asyncio
+            import threading
+
+            from proton_vpn_kde_backend.__main__ import _run_service
+
+            worker_started = threading.Event()
+            never_release = threading.Event()
+
+            def blocking_core_operation():
+                worker_started.set()
+                never_release.wait()
+
+            async def service():
+                future = asyncio.get_running_loop().run_in_executor(
+                    None, blocking_core_operation
+                )
+                while not worker_started.is_set():
+                    await asyncio.sleep(0)
+                future.cancel()
+                return 0
+
+            _run_service(service())
+            print("runner returned with a live process owner", flush=True)
+            """
+        )
+
+        completed = subprocess.run(
+            [sys.executable, "-c", program],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+            env=environment,
+        )
+
+        self.assertEqual(
+            backend_main.INCOMPLETE_SHUTDOWN_EXIT_CODE, completed.returncode
+        )
+        self.assertNotIn("runner returned", completed.stdout)
+        self.assertIn("Process exit forced", completed.stderr)
+
+    def test_thread_retirement_reaches_workers_spawned_by_workers(self):
+        baseline = frozenset(threading.enumerate())
+        child_started = threading.Event()
+        release_child = threading.Event()
+
+        def child():
+            child_started.set()
+            release_child.wait()
+
+        def parent():
+            time.sleep(0.01)
+            threading.Thread(target=child, name="core-child").start()
+
+        parent_thread = threading.Thread(target=parent, name="core-parent")
+        parent_thread.start()
+
+        try:
+            lingering = backend_main._retire_process_threads(baseline, 0.05)
+            self.assertTrue(child_started.is_set())
+            self.assertFalse(parent_thread.is_alive())
+            self.assertEqual(["core-child"], [thread.name for thread in lingering])
+        finally:
+            release_child.set()
+            for thread in backend_main._new_non_daemon_threads(baseline):
+                thread.join(timeout=1.0)
 
 
 class BackendRetirementTests(unittest.IsolatedAsyncioTestCase):

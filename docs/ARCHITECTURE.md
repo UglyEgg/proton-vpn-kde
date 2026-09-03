@@ -154,6 +154,13 @@ If Core initialization fails, the backend publishes a fixed startup-failure
 state, releases D-Bus resources, and exits nonzero. The user service can
 recover transient Secret Service, NetworkManager, or Core failures through
 `Restart=on-failure` instead of retaining a permanently unready process.
+Shutdown first retires accepted asyncio work under one absolute deadline and
+drops the D-Bus name. It then joins service-created non-daemon threads after
+closing the event loop. A Core executor worker that remains blocked past that
+final grace period causes an immediate nonzero process exit, preventing an old,
+name-less backend from later completing persistence or NetworkManager work
+beside its replacement. The systemd user unit's stop deadline is longer than
+the complete orderly shutdown budget and remains a final external bound.
 Official Core restores its Secret Service session while constructing the VPN
 connector, and that connector is required to reacquire an unconfirmed packet
 capture. The adapter therefore prewarms the session off the D-Bus event loop.
@@ -221,8 +228,11 @@ captures the adapter authentication epoch before entering Core. An
 authentication failure may publish signed-out state and disable session
 services only while that epoch still owns the active session; a stale failure
 remains a failed request but cannot mutate a replacement account. The boundary
-is reentrant for child tasks created by Core settings transactions and rejects
-an inherited token after its owning transition has ended.
+is reentrant for the owning task and explicitly registered settings/logout
+recovery children only. Context inherited by an arbitrary child task grants no
+authority; that task queues as an independent owner. Recovery deadlines execute
+in their registered owner instead of relying on Python-version-specific
+implicit task creation.
 
 The frontend receives only minimum account display metadata. Authentication
 fields use a one-use encrypted and sealed descriptor transport, and provider
@@ -372,7 +382,11 @@ can be dispatched. An ordinary Disconnect temporarily suspends scheduling,
 cancels and joins the owned retry, invokes Core only after that retry has
 quiesced, then restores observation. A newer Error received while an older
 retry unwinds rearms from the new generation whether the old cancellation is
-suppressed or propagated. The resident agent likewise treats the recovery
+suppressed or propagated. Every manual connection route acquires the same
+owned suspension before its first server-list read and retains it through Core
+connection completion. A delayed automatic attempt therefore cannot adopt a
+newer manual intent, and an Error arriving during target lookup cannot schedule
+a competing retry. The resident agent likewise treats the recovery
 preference as applied only after the current backend owner acknowledges it; a
 failed or stale policy reply cannot release a queued connection action. Its
 connection calls, queued actions, and transient lifetime leases also carry one

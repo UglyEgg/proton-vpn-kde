@@ -1534,6 +1534,84 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(adapter._reconnector.enabled)
         await adapter._reconnector.disable()
 
+    async def test_reentrant_locks_do_not_treat_child_tasks_as_the_owner(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        lock_contexts = (
+            ("authentication", adapter._serialized_authentication_transition),
+            ("connection", adapter._serialized_connection_lifecycle),
+        )
+
+        for lock_name, lock_context in lock_contexts:
+            with self.subTest(lock=lock_name):
+                child_entered = asyncio.Event()
+
+                async def child(
+                    context=lock_context, entered=child_entered
+                ):
+                    async with context():
+                        entered.set()
+
+                async with lock_context():
+                    # Same-task nesting is the only supported re-entrant case.
+                    async with lock_context():
+                        pass
+                    child_task = asyncio.create_task(child())
+                    await asyncio.sleep(0)
+                    entered_while_parent_owned = child_entered.is_set()
+
+                await asyncio.wait_for(child_task, timeout=1.0)
+                self.assertFalse(entered_while_parent_owned)
+                self.assertTrue(child_entered.is_set())
+
+    async def test_owned_authentication_delegate_does_not_authorize_siblings(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        delegate_entered = asyncio.Event()
+        sibling_entered = asyncio.Event()
+
+        async def reenter(entered: asyncio.Event):
+            async with adapter._serialized_authentication_transition():
+                entered.set()
+
+        async with adapter._serialized_authentication_transition():
+            delegate = adapter._create_owned_child_task(
+                reenter(delegate_entered), authentication=True
+            )
+            sibling = asyncio.create_task(reenter(sibling_entered))
+            await asyncio.wait_for(delegate, timeout=1.0)
+            await asyncio.sleep(0)
+            sibling_bypassed_owner = sibling_entered.is_set()
+
+        await asyncio.wait_for(sibling, timeout=1.0)
+        self.assertTrue(delegate_entered.is_set())
+        self.assertFalse(sibling_bypassed_owner)
+        self.assertTrue(sibling_entered.is_set())
+
+    async def test_owned_connection_delegate_does_not_authorize_siblings(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        delegate_entered = asyncio.Event()
+        sibling_entered = asyncio.Event()
+
+        async def reenter(entered: asyncio.Event):
+            async with adapter._serialized_connection_lifecycle():
+                entered.set()
+
+        async with adapter._serialized_connection_lifecycle():
+            delegate = adapter._create_owned_child_task(
+                reenter(delegate_entered), connection=True
+            )
+            sibling = asyncio.create_task(reenter(sibling_entered))
+            await asyncio.wait_for(delegate, timeout=1.0)
+            await asyncio.sleep(0)
+            sibling_bypassed_owner = sibling_entered.is_set()
+
+        await asyncio.wait_for(sibling, timeout=1.0)
+        self.assertTrue(delegate_entered.is_set())
+        self.assertFalse(sibling_bypassed_owner)
+        self.assertTrue(sibling_entered.is_set())
+
     async def test_every_lifecycle_suspension_releases_when_lock_wait_is_cancelled(self):
         operation_factories = (
             ("disconnect", lambda adapter: adapter.disconnect()),
@@ -2289,6 +2367,200 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
                 connector.get_vpn_server.assert_not_called()
                 connector.connect.assert_not_awaited()
+
+    async def test_every_manual_route_owns_each_automatic_retry_preflight(self):
+        """Manual intent retires retries before lookup and blocks replacements."""
+        routes = (
+            ("fastest", lambda adapter: adapter.connect_fastest()),
+            (
+                "fastest-features",
+                lambda adapter: adapter.connect_fastest_with_features(("p2p",)),
+            ),
+            ("country", lambda adapter: adapter.connect_country("CH")),
+            (
+                "country-features",
+                lambda adapter: adapter.connect_country_with_features(
+                    "CH", ("p2p",)
+                ),
+            ),
+            (
+                "group",
+                lambda adapter: adapter.connect_group(
+                    "CH", "location", "Zurich"
+                ),
+            ),
+            (
+                "group-features",
+                lambda adapter: adapter.connect_group_with_features(
+                    "CH", "location", "Zurich", ("p2p",)
+                ),
+            ),
+            ("server", lambda adapter: adapter.connect_server("CH#10")),
+        )
+
+        for phase in ("delay", "network", "session"):
+            for route_name, connect_route in routes:
+                with self.subTest(phase=phase, route=route_name):
+                    api, connector = self.make_api()
+                    logical_server = object()
+                    server_list = SimpleNamespace(
+                        logicals=[logical_server],
+                        user_tier=2,
+                        get_fastest=Mock(return_value=logical_server),
+                        get_fastest_in_country=Mock(return_value=logical_server),
+                        get_by_name=Mock(return_value=logical_server),
+                        get_by_id=Mock(return_value=logical_server),
+                        get_available_servers=Mock(return_value=[logical_server]),
+                        get_fastest_server=Mock(return_value=logical_server),
+                    )
+                    lookup_started = asyncio.Event()
+                    release_lookup = asyncio.Event()
+                    preflight_started = asyncio.Event()
+                    preflight_cancelled = asyncio.Event()
+                    release_preflight = asyncio.Event()
+
+                    async def delayed_server_list(
+                        started=lookup_started,
+                        release=release_lookup,
+                        result=server_list,
+                    ):
+                        started.set()
+                        await release.wait()
+                        return result
+
+                    async def blocking_preflight(
+                        started=preflight_started,
+                        cancelled=preflight_cancelled,
+                        release=release_preflight,
+                    ):
+                        started.set()
+                        try:
+                            await asyncio.Future()
+                        except asyncio.CancelledError:
+                            cancelled.set()
+                            await release.wait()
+                        return True
+
+                    async def connect(*_args, target=connector, **_kwargs):
+                        target.current_state = state_named("Connected")
+
+                    adapter = ProtonCoreAdapter(api)
+                    await adapter.initialize(Mock())
+                    adapter._country = Mock(
+                        return_value=SimpleNamespace(servers=[logical_server])
+                    )
+                    adapter._server_group = Mock(
+                        return_value=SimpleNamespace(servers=[logical_server])
+                    )
+                    adapter._fastest_matching = Mock(return_value=logical_server)
+                    api.refresher.get_up_to_date_server_list.side_effect = (
+                        delayed_server_list
+                    )
+                    api.refresher.server_list = server_list
+                    api.refresher.client_config = "client-config"
+                    connector.connect.side_effect = connect
+                    connector.current_connection = SimpleNamespace(
+                        server_id="server-id",
+                        server_name="",
+                        protocol="wireguard",
+                        backend="networkmanager",
+                    )
+                    connector.current_state = state_named("Error")
+
+                    reconnector = adapter._reconnector
+                    self.assertIsNotNone(reconnector)
+                    reconnector._delay_factory = (
+                        (lambda _attempt: 3600)
+                        if phase == "delay"
+                        else (lambda _attempt: 0)
+                    )
+                    if phase == "network":
+                        reconnector._network_probe = blocking_preflight
+                    else:
+                        reconnector._network_probe = AsyncMock(return_value=True)
+                    if phase == "session":
+                        reconnector._session_probe = SimpleNamespace(
+                            is_unlocked=blocking_preflight,
+                            close=AsyncMock(),
+                        )
+                    else:
+                        reconnector._session_probe = SimpleNamespace(
+                            is_unlocked=AsyncMock(return_value=True),
+                            close=AsyncMock(),
+                        )
+
+                    reconnector.status_update(connector.current_state)
+                    if phase == "delay":
+                        await asyncio.sleep(0)
+                    else:
+                        await preflight_started.wait()
+
+                    manual = asyncio.create_task(connect_route(adapter))
+                    try:
+                        if phase != "delay":
+                            await preflight_cancelled.wait()
+                            self.assertFalse(lookup_started.is_set())
+                            self.assertEqual(0, connector.connect.await_count)
+                            release_preflight.set()
+
+                        await lookup_started.wait()
+                        reconnector.status_update(connector.current_state)
+                        self.assertIsNone(reconnector._retry_task)
+                        self.assertEqual(0, connector.connect.await_count)
+
+                        release_lookup.set()
+                        await asyncio.wait_for(manual, timeout=1.0)
+                        self.assertEqual(1, connector.connect.await_count)
+                    finally:
+                        release_preflight.set()
+                        release_lookup.set()
+                        if not manual.done():
+                            manual.cancel()
+                        try:
+                            await manual
+                        except asyncio.CancelledError:
+                            pass
+                        await adapter.close()
+
+    async def test_newer_manual_target_retires_an_older_target_lookup(self):
+        api, connector = self.make_api()
+        older_server = object()
+        newer_server = object()
+        server_list = SimpleNamespace(
+            get_fastest=Mock(return_value=older_server),
+            get_by_name=Mock(return_value=newer_server),
+        )
+        older_lookup_started = asyncio.Event()
+        release_older_lookup = asyncio.Event()
+        lookup_count = 0
+
+        async def server_lookup():
+            nonlocal lookup_count
+            lookup_count += 1
+            if lookup_count == 1:
+                older_lookup_started.set()
+                await release_older_lookup.wait()
+            return server_list
+
+        api.refresher.get_up_to_date_server_list.side_effect = server_lookup
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        older = asyncio.create_task(adapter.connect_fastest())
+        await older_lookup_started.wait()
+        newer = asyncio.create_task(adapter.connect_server("CH#10"))
+        await asyncio.wait_for(newer, timeout=1.0)
+
+        release_older_lookup.set()
+        await asyncio.wait_for(older, timeout=1.0)
+
+        connector.get_vpn_server.assert_called_once_with(
+            newer_server, "client-config"
+        )
+        connector.connect.assert_awaited_once_with(
+            "vpn-server", protocol="wireguard"
+        )
+        await adapter.close()
 
     async def test_unknown_refresher_cleanup_is_normalized_before_reenable(self):
         api, connector = self.make_api(logged_in=False)

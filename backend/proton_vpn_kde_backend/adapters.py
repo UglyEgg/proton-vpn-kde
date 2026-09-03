@@ -6,13 +6,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Awaitable
+from collections.abc import AsyncIterator, Awaitable, Coroutine
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
 
 from .async_utils import await_owned, run_in_daemon_thread
 from .demo_adapter import DemoCoreAdapter
@@ -99,6 +99,7 @@ __all__ = [
 LOGOUT_RECOVERY_TIMEOUT_SECONDS = 5.0
 CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS = 5.0
 CAPTURE_RECOVERY_CONNECTOR_TIMEOUT_SECONDS = 5.0
+_OwnedTaskResult = TypeVar("_OwnedTaskResult")
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,12 +147,16 @@ class ProtonCoreAdapter:
             f"proton_vpn_authentication_transition_{id(self)}", default=None
         )
         self._active_authentication_token: object | None = None
+        self._active_authentication_task: asyncio.Task[Any] | None = None
+        self._authentication_delegate_tasks: set[asyncio.Task[Any]] = set()
         self._reconnector: AsyncReconnector | None = None
         self._disconnect_lock = asyncio.Lock()
         self._connection_lifecycle_context: ContextVar[object | None] = ContextVar(
             f"proton_vpn_connection_lifecycle_{id(self)}", default=None
         )
         self._active_connection_lifecycle_token: object | None = None
+        self._active_connection_lifecycle_task: asyncio.Task[Any] | None = None
+        self._connection_lifecycle_delegate_tasks: set[asyncio.Task[Any]] = set()
         self._connection_intent_generation = 0
         self._reconnection_enabled = True
         self._status_message = ""
@@ -295,33 +300,39 @@ class ProtonCoreAdapter:
         return snapshot
 
     async def connect_fastest(self) -> None:
-        authentication_epoch, connection_intent = self._begin_manual_connection()
-        server_list = await self._get_server_list(authentication_epoch)
-        if not self._manual_connection_is_current(
-            authentication_epoch, connection_intent
+        async with self._manual_connection_target() as (
+            authentication_epoch,
+            connection_intent,
         ):
-            return
-        logical_server = server_list.get_fastest()
-        await self._connect_logical(
-            logical_server, authentication_epoch, connection_intent
-        )
+            server_list = await self._get_server_list(authentication_epoch)
+            if not self._manual_connection_is_current(
+                authentication_epoch, connection_intent
+            ):
+                return
+            logical_server = server_list.get_fastest()
+            await self._connect_logical(
+                logical_server, authentication_epoch, connection_intent
+            )
 
     async def connect_fastest_with_feature(self, feature: str) -> None:
         await self.connect_fastest_with_features((feature,))
 
     async def connect_fastest_with_features(self, features: tuple[str, ...]) -> None:
-        authentication_epoch, connection_intent = self._begin_manual_connection()
-        server_list = await self._get_server_list(authentication_epoch)
-        if not self._manual_connection_is_current(
-            authentication_epoch, connection_intent
+        async with self._manual_connection_target() as (
+            authentication_epoch,
+            connection_intent,
         ):
-            return
-        logical_server = self._fastest_matching(
-            server_list, server_list.logicals, features
-        )
-        await self._connect_logical(
-            logical_server, authentication_epoch, connection_intent
-        )
+            server_list = await self._get_server_list(authentication_epoch)
+            if not self._manual_connection_is_current(
+                authentication_epoch, connection_intent
+            ):
+                return
+            logical_server = self._fastest_matching(
+                server_list, server_list.logicals, features
+            )
+            await self._connect_logical(
+                logical_server, authentication_epoch, connection_intent
+            )
 
     @staticmethod
     def _fastest_matching(server_list, servers, features: tuple[str, ...]):
@@ -768,8 +779,9 @@ class ProtonCoreAdapter:
     ) -> None:
         """Compensate a user setting write whose commit status is ambiguous."""
 
-        save_task = asyncio.create_task(
-            self._save_settings(settings, authentication_epoch)
+        save_task = self._create_owned_child_task(
+            self._save_settings(settings, authentication_epoch),
+            authentication=True,
         )
         original_error: BaseException | None = None
         cancellation_requested = False
@@ -791,14 +803,15 @@ class ProtonCoreAdapter:
         except Exception as error:
             original_error = error
 
-        recovery_task = asyncio.create_task(
+        recovery_task = self._create_owned_child_task(
             self._recover_failed_settings_save(
                 settings,
                 rollback,
                 save_task,
                 protection_sensitive=protection_sensitive,
                 authentication_epoch=authentication_epoch,
-            )
+            ),
+            authentication=True,
         )
         while not recovery_task.done():
             try:
@@ -852,10 +865,8 @@ class ProtonCoreAdapter:
 
         rollback()
         try:
-            await asyncio.wait_for(
-                self._save_settings(settings, authentication_epoch),
-                timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
-            )
+            async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
+                await self._save_settings(settings, authentication_epoch)
         except SessionExpiredError:
             raise
         except (Exception, asyncio.CancelledError):
@@ -885,52 +896,67 @@ class ProtonCoreAdapter:
         self._publish_snapshot()
 
     async def connect_country(self, country_code: str) -> None:
-        authentication_epoch, connection_intent = self._begin_manual_connection()
-        server_list = await self._get_server_list(authentication_epoch)
-        if not self._manual_connection_is_current(
-            authentication_epoch, connection_intent
-        ):
-            return
-        await self._connect_logical(
-            server_list.get_fastest_in_country(country_code),
+        async with self._manual_connection_target() as (
             authentication_epoch,
             connection_intent,
-        )
+        ):
+            server_list = await self._get_server_list(authentication_epoch)
+            if not self._manual_connection_is_current(
+                authentication_epoch, connection_intent
+            ):
+                return
+            await self._connect_logical(
+                server_list.get_fastest_in_country(country_code),
+                authentication_epoch,
+                connection_intent,
+            )
 
     async def connect_country_with_features(
         self, country_code: str, features: tuple[str, ...]
     ) -> None:
-        authentication_epoch, connection_intent = self._begin_manual_connection()
-        server_list = await self._get_server_list(authentication_epoch)
-        if not self._manual_connection_is_current(
-            authentication_epoch, connection_intent
+        async with self._manual_connection_target() as (
+            authentication_epoch,
+            connection_intent,
         ):
-            return
-        country = self._country(server_list, country_code)
-        logical_server = self._fastest_matching(server_list, country.servers, features)
-        await self._connect_logical(
-            logical_server, authentication_epoch, connection_intent
-        )
+            server_list = await self._get_server_list(authentication_epoch)
+            if not self._manual_connection_is_current(
+                authentication_epoch, connection_intent
+            ):
+                return
+            country = self._country(server_list, country_code)
+            logical_server = self._fastest_matching(
+                server_list, country.servers, features
+            )
+            await self._connect_logical(
+                logical_server, authentication_epoch, connection_intent
+            )
 
     async def connect_group(
         self, country_code: str, group_kind: str, group_name: str
     ) -> None:
-        authentication_epoch, connection_intent = self._begin_manual_connection()
-        server_list = await self._get_server_list(authentication_epoch)
-        if not self._manual_connection_is_current(
-            authentication_epoch, connection_intent
+        async with self._manual_connection_target() as (
+            authentication_epoch,
+            connection_intent,
         ):
-            return
-        group = self._server_group(server_list, country_code, group_kind, group_name)
-        available = server_list.get_available_servers(
-            group.servers, server_list.user_tier
-        )
-        logical_server = server_list.get_fastest_server(available)
-        if logical_server is None:
-            raise UserVisibleRuntimeError("No server available in the current tier")
-        await self._connect_logical(
-            logical_server, authentication_epoch, connection_intent
-        )
+            server_list = await self._get_server_list(authentication_epoch)
+            if not self._manual_connection_is_current(
+                authentication_epoch, connection_intent
+            ):
+                return
+            group = self._server_group(
+                server_list, country_code, group_kind, group_name
+            )
+            available = server_list.get_available_servers(
+                group.servers, server_list.user_tier
+            )
+            logical_server = server_list.get_fastest_server(available)
+            if logical_server is None:
+                raise UserVisibleRuntimeError(
+                    "No server available in the current tier"
+                )
+            await self._connect_logical(
+                logical_server, authentication_epoch, connection_intent
+            )
 
     async def connect_group_with_features(
         self,
@@ -939,30 +965,40 @@ class ProtonCoreAdapter:
         group_name: str,
         features: tuple[str, ...],
     ) -> None:
-        authentication_epoch, connection_intent = self._begin_manual_connection()
-        server_list = await self._get_server_list(authentication_epoch)
-        if not self._manual_connection_is_current(
-            authentication_epoch, connection_intent
-        ):
-            return
-        group = self._server_group(server_list, country_code, group_kind, group_name)
-        logical_server = self._fastest_matching(server_list, group.servers, features)
-        await self._connect_logical(
-            logical_server, authentication_epoch, connection_intent
-        )
-
-    async def connect_server(self, server_name: str) -> None:
-        authentication_epoch, connection_intent = self._begin_manual_connection()
-        server_list = await self._get_server_list(authentication_epoch)
-        if not self._manual_connection_is_current(
-            authentication_epoch, connection_intent
-        ):
-            return
-        await self._connect_logical(
-            server_list.get_by_name(server_name),
+        async with self._manual_connection_target() as (
             authentication_epoch,
             connection_intent,
-        )
+        ):
+            server_list = await self._get_server_list(authentication_epoch)
+            if not self._manual_connection_is_current(
+                authentication_epoch, connection_intent
+            ):
+                return
+            group = self._server_group(
+                server_list, country_code, group_kind, group_name
+            )
+            logical_server = self._fastest_matching(
+                server_list, group.servers, features
+            )
+            await self._connect_logical(
+                logical_server, authentication_epoch, connection_intent
+            )
+
+    async def connect_server(self, server_name: str) -> None:
+        async with self._manual_connection_target() as (
+            authentication_epoch,
+            connection_intent,
+        ):
+            server_list = await self._get_server_list(authentication_epoch)
+            if not self._manual_connection_is_current(
+                authentication_epoch, connection_intent
+            ):
+                return
+            await self._connect_logical(
+                server_list.get_by_name(server_name),
+                authentication_epoch,
+                connection_intent,
+            )
 
     async def start_packet_capture(self, directory_path: str) -> None:
         # Capture start creates durable, account-owned Core state. Serialize
@@ -1164,6 +1200,13 @@ class ProtonCoreAdapter:
     def _begin_manual_connection(self) -> tuple[int, int]:
         """Admit a manual target before its first potentially blocking read."""
         return self._authenticated_epoch(), self._advance_connection_intent()
+
+    @asynccontextmanager
+    async def _manual_connection_target(self) -> AsyncIterator[tuple[int, int]]:
+        """Own retry suspension for a manual target from admission to completion."""
+        intent = self._begin_manual_connection()
+        async with self._suspended_reconnection():
+            yield intent
 
     def _manual_connection_is_current(
         self, authentication_epoch: int, connection_intent: int
@@ -1456,8 +1499,9 @@ class ProtonCoreAdapter:
                 # task so outer cancellation cannot abandon a worker that may
                 # later overwrite the compensating protection write.
                 settings.killswitch = 0
-                kill_switch_zero_task = asyncio.create_task(
-                    self._save_settings(settings)
+                kill_switch_zero_task = self._create_owned_child_task(
+                    self._save_settings(settings),
+                    authentication=True,
                 )
                 await asyncio.shield(kill_switch_zero_task)
             self._kill_switch = 0
@@ -1748,12 +1792,14 @@ class ProtonCoreAdapter:
     ) -> tuple[_LogoutRecoveryOutcome, bool]:
         """Finish bounded logout repair despite repeated outer cancellation."""
 
-        recovery_task = asyncio.create_task(
+        recovery_task = self._create_owned_child_task(
             self._recover_failed_logout(
                 settings,
                 previous_kill_switch,
                 kill_switch_zero_task,
-            )
+            ),
+            authentication=True,
+            connection=True,
         )
         cancellation_requested = False
         while not recovery_task.done():
@@ -1773,10 +1819,8 @@ class ProtonCoreAdapter:
 
         if kill_switch_zero_task is not None:
             try:
-                await asyncio.wait_for(
-                    asyncio.shield(kill_switch_zero_task),
-                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
-                )
+                async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
+                    await asyncio.shield(kill_switch_zero_task)
             except TimeoutError:
                 # Never race compensation against Core's still-live executor
                 # worker. Its eventual zero write agrees with the conservative
@@ -1791,10 +1835,8 @@ class ProtonCoreAdapter:
                 pass
 
         try:
-            core_logged_in = await asyncio.wait_for(
-                self._core_logged_in_after_failure(),
-                timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
-            )
+            async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
+                core_logged_in = await self._core_logged_in_after_failure()
         except TimeoutError:
             core_logged_in = None
         if core_logged_in is False:
@@ -1806,10 +1848,8 @@ class ProtonCoreAdapter:
         if kill_switch_zero_task is not None:
             settings.killswitch = previous_kill_switch
             try:
-                await asyncio.wait_for(
-                    self._save_settings(settings),
-                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
-                )
+                async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
+                    await self._save_settings(settings)
             except (Exception, asyncio.CancelledError):
                 protection_restored = False
 
@@ -1822,10 +1862,8 @@ class ProtonCoreAdapter:
             self._logged_in = True
             session_recovery_failed = False
             try:
-                await asyncio.wait_for(
-                    self._enable_session_services(),
-                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
-                )
+                async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
+                    await self._enable_session_services()
             except (Exception, asyncio.CancelledError):
                 session_recovery_failed = True
             self._auth_state = (
@@ -1897,18 +1935,14 @@ class ProtonCoreAdapter:
         cleanup_failed = False
         if self._reconnector:
             try:
-                await asyncio.wait_for(
-                    self._reconnector.disable(),
-                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
-                )
+                async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
+                    await self._reconnector.disable()
             except (Exception, asyncio.CancelledError):
                 cleanup_failed = True
         if self._api:
             try:
-                await asyncio.wait_for(
-                    self._disable_refresher(),
-                    timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
-                )
+                async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
+                    await self._disable_refresher()
             except (Exception, asyncio.CancelledError):
                 cleanup_failed = True
         return cleanup_failed
@@ -2003,15 +2037,21 @@ class ProtonCoreAdapter:
     @asynccontextmanager
     async def _serialized_authentication_transition(self) -> AsyncIterator[None]:
         inherited_token = self._authentication_context.get()
+        current_task = asyncio.current_task()
         if (
             inherited_token is not None
             and inherited_token is self._active_authentication_token
+            and (
+                current_task is self._active_authentication_task
+                or current_task in self._authentication_delegate_tasks
+            )
         ):
             yield
             return
         async with self._authentication_lock:
             owner_token = object()
             self._active_authentication_token = owner_token
+            self._active_authentication_task = current_task
             reset_token = self._authentication_context.set(owner_token)
             try:
                 yield
@@ -2019,6 +2059,54 @@ class ProtonCoreAdapter:
                 self._authentication_context.reset(reset_token)
                 if self._active_authentication_token is owner_token:
                     self._active_authentication_token = None
+                    self._active_authentication_task = None
+
+    def _create_owned_child_task(
+        self,
+        coroutine: Coroutine[Any, Any, _OwnedTaskResult],
+        *,
+        authentication: bool = False,
+        connection: bool = False,
+    ) -> asyncio.Task[_OwnedTaskResult]:
+        """Delegate only the lifecycle locks explicitly owned by this task."""
+        current_task = asyncio.current_task()
+        authentication_owned = (
+            self._authentication_context.get()
+            is self._active_authentication_token
+            and self._active_authentication_token is not None
+            and (
+                current_task is self._active_authentication_task
+                or current_task in self._authentication_delegate_tasks
+            )
+        )
+        connection_owned = (
+            self._connection_lifecycle_context.get()
+            is self._active_connection_lifecycle_token
+            and self._active_connection_lifecycle_token is not None
+            and (
+                current_task is self._active_connection_lifecycle_task
+                or current_task in self._connection_lifecycle_delegate_tasks
+            )
+        )
+        if (
+            (not authentication and not connection)
+            or (authentication and not authentication_owned)
+            or (connection and not connection_owned)
+        ):
+            coroutine.close()
+            raise RuntimeError(
+                "Owned child task requested a lifecycle transition it does not own"
+            )
+        task = asyncio.create_task(coroutine)
+        if authentication:
+            self._authentication_delegate_tasks.add(task)
+            task.add_done_callback(self._authentication_delegate_tasks.discard)
+        if connection:
+            self._connection_lifecycle_delegate_tasks.add(task)
+            task.add_done_callback(
+                self._connection_lifecycle_delegate_tasks.discard
+            )
+        return task
 
     @asynccontextmanager
     async def _suspended_reconnection(
@@ -2035,15 +2123,21 @@ class ProtonCoreAdapter:
     @asynccontextmanager
     async def _serialized_connection_lifecycle(self) -> AsyncIterator[None]:
         inherited_token = self._connection_lifecycle_context.get()
+        current_task = asyncio.current_task()
         if (
             inherited_token is not None
             and inherited_token is self._active_connection_lifecycle_token
+            and (
+                current_task is self._active_connection_lifecycle_task
+                or current_task in self._connection_lifecycle_delegate_tasks
+            )
         ):
             yield
             return
         async with self._disconnect_lock:
             owner_token = object()
             self._active_connection_lifecycle_token = owner_token
+            self._active_connection_lifecycle_task = current_task
             reset_token = self._connection_lifecycle_context.set(owner_token)
             try:
                 yield
@@ -2051,6 +2145,7 @@ class ProtonCoreAdapter:
                 self._connection_lifecycle_context.reset(reset_token)
                 if self._active_connection_lifecycle_token is owner_token:
                     self._active_connection_lifecycle_token = None
+                    self._active_connection_lifecycle_task = None
 
     async def _expire_session(self, authentication_epoch: int) -> None:
         if authentication_epoch != self._authentication_epoch:
