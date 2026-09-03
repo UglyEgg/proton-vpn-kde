@@ -6,6 +6,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable
@@ -126,7 +129,14 @@ class ProtonCoreAdapter:
         self._server_data_callback: ServerDataCallback | None = None
         self._initialized = False
         self._logged_in = False
+        self._authentication_epoch = 0
+        self._authentication_lock = asyncio.Lock()
+        self._authentication_context: ContextVar[object | None] = ContextVar(
+            f"proton_vpn_authentication_transition_{id(self)}", default=None
+        )
+        self._active_authentication_token: object | None = None
         self._reconnector: AsyncReconnector | None = None
+        self._disconnect_lock = asyncio.Lock()
         self._reconnection_enabled = True
         self._status_message = ""
         self._auth_state = "signed_out"
@@ -618,11 +628,12 @@ class ProtonCoreAdapter:
         return self._custom_dns_from_core(settings)
 
     async def _load_settings(self):
+        authentication_epoch = self._authentication_epoch
         try:
             settings = await self._api.load_settings()
         except Exception as error:
             if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
-                await self._raise_session_error(error)
+                await self._raise_session_error(error, authentication_epoch)
             raise UserVisibleRuntimeError(
                 "Proton could not load the VPN settings"
             ) from None
@@ -637,6 +648,7 @@ class ProtonCoreAdapter:
         return settings
 
     async def _save_settings(self, settings: Any) -> None:
+        authentication_epoch = self._authentication_epoch
         if not self._crash_report_submission_enabled:
             # Settings writes are explicit mutations, so they are the safe
             # place to persist this community build's disabled-reporting
@@ -646,7 +658,7 @@ class ProtonCoreAdapter:
             await self._api.save_settings(settings)
         except Exception as error:
             if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
-                await self._raise_session_error(error)
+                await self._raise_session_error(error, authentication_epoch)
             raise UserVisibleRuntimeError(
                 "Proton could not save the VPN settings"
             ) from None
@@ -849,10 +861,11 @@ class ProtonCoreAdapter:
         await submit_core_nps_survey(self._api, response)
 
     async def _get_server_list(self):
+        authentication_epoch = self._authentication_epoch
         try:
             return await self._api.refresher.get_up_to_date_server_list()
         except Exception as error:
-            await self._raise_session_error(error)
+            await self._raise_session_error(error, authentication_epoch)
 
     @staticmethod
     def _countries(server_list):
@@ -873,13 +886,14 @@ class ProtonCoreAdapter:
         return core_server_info(server_list, server)
 
     async def _connect_logical(self, logical_server) -> None:
+        authentication_epoch = self._authentication_epoch
         try:
             client_config = await self._api.refresher.get_up_to_date_client_config()
             vpn_server = self._connector.get_vpn_server(logical_server, client_config)
             settings = await self._load_settings()
             await self._connector.connect(vpn_server, protocol=settings.protocol)
         except Exception as error:
-            await self._raise_session_error(error)
+            await self._raise_session_error(error, authentication_epoch)
 
     def _settings_from_core(self, settings: Any) -> VpnSettings:
         disconnected = (
@@ -937,16 +951,28 @@ class ProtonCoreAdapter:
         return core_mode_value(mode)
 
     async def disconnect(self) -> None:
-        if not self._reconnector:
-            await self._connector.disconnect()
-            return
-        try:
-            await self._reconnector.suspend()
-            await self._connector.disconnect()
-        finally:
-            self._reconnector.resume()
+        # A connecting tunnel may be cancelled outside the controller's main
+        # operation lock. Serialize that preemption boundary here so multiple
+        # authorized clients cannot overlap suspend/resume scopes and release
+        # automatic reconnection while another disconnect is still active.
+        async with self._disconnect_lock:
+            if not self._reconnector:
+                await self._connector.disconnect()
+                return
+            try:
+                await self._reconnector.suspend()
+                await self._connector.disconnect()
+            finally:
+                self._reconnector.resume()
 
     async def login(self, username: str, password: str) -> None:
+        async with self._serialized_authentication_transition():
+            await self._login(username, password)
+
+    async def _login(self, username: str, password: str) -> None:
+        # Invalidate account-scoped work accepted for any earlier session,
+        # including a signed-out session whose credentials are being replaced.
+        self._authentication_epoch += 1
         settings = await self._load_settings()
         self._kill_switch = self._kill_switch_value(settings)
         if self._kill_switch == 2:
@@ -980,6 +1006,10 @@ class ProtonCoreAdapter:
         await self._complete_login()
 
     async def submit_two_factor(self, code: str) -> None:
+        async with self._serialized_authentication_transition():
+            await self._submit_two_factor(code)
+
+    async def _submit_two_factor(self, code: str) -> None:
         if self._auth_state not in {"two_factor", "fido_error"}:
             raise UserVisibleRuntimeError("No two-factor authentication is pending")
         self._status_message = "Verifying the two-factor code…"
@@ -999,6 +1029,11 @@ class ProtonCoreAdapter:
         await self._complete_login()
 
     async def cancel_login(self) -> None:
+        async with self._serialized_authentication_transition():
+            await self._cancel_login()
+
+    async def _cancel_login(self) -> None:
+        self._authentication_epoch += 1
         await self.cancel_fido2()
         try:
             await self._api.logout()
@@ -1036,6 +1071,10 @@ class ProtonCoreAdapter:
         await self._set_signed_out("Sign-in cancelled")
 
     async def begin_fido2(self) -> None:
+        async with self._serialized_authentication_transition():
+            await self._begin_fido2()
+
+    async def _begin_fido2(self) -> None:
         if self._auth_state not in {"two_factor", "fido_error"}:
             raise UserVisibleRuntimeError("No two-factor authentication is pending")
         if not _cancellable_fido2_available(self._api):
@@ -1113,6 +1152,13 @@ class ProtonCoreAdapter:
             self._fido_interaction.cancel()
 
     async def logout(self) -> None:
+        async with self._serialized_authentication_transition():
+            await self._logout()
+
+    async def _logout(self) -> None:
+        # Advance before the first await: reads already in flight belong to the
+        # outgoing account even while the public snapshot still says signed in.
+        self._authentication_epoch += 1
         await self.cancel_fido2()
         settings = await self._load_settings()
         previous_kill_switch = self._kill_switch_value(settings)
@@ -1190,29 +1236,39 @@ class ProtonCoreAdapter:
             await self._reconnector.disable()
 
     async def close(self) -> None:
-        await self.cancel_fido2()
-        if self._packet_capture_active:
-            try:
-                await self.stop_packet_capture()
-            except RuntimeError:
-                # Preserve active state when Core cannot confirm the stop. The
-                # service must not report a false clean shutdown condition.
-                pass
-        self._packet_capture.release_for_shutdown()
-        if self._reconnector:
-            await self._reconnector.disable()
-        if self._api:
-            self._api.refresher.set_server_list_updated_callback(None)
-            self._api.refresher.set_server_loads_updated_callback(None)
-            location_callback_setter = getattr(
-                self._api.refresher, "set_location_names_updated_callback", None
-            )
-            if callable(location_callback_setter):
-                location_callback_setter(None)
-        if self._connector:
-            self._connector.unregister(self)
-        if self._api and self._session_services_enabled:
-            await self._api.refresher.disable()
+        async with self._serialized_authentication_transition():
+            await self._close()
+
+    async def _close(self) -> None:
+        # Disconnect may deliberately bypass the controller operation lock to
+        # preempt a connecting tunnel. Drain that accepted scope before
+        # unregistering Core observers or disabling the reconnector.
+        async with self._disconnect_lock:
+            await self.cancel_fido2()
+            if self._packet_capture_active:
+                try:
+                    await self.stop_packet_capture()
+                except RuntimeError:
+                    # Preserve active state when Core cannot confirm the stop.
+                    # The service must not report a false clean shutdown state.
+                    pass
+            self._packet_capture.release_for_shutdown()
+            if self._reconnector:
+                await self._reconnector.disable()
+            if self._api:
+                self._api.refresher.set_server_list_updated_callback(None)
+                self._api.refresher.set_server_loads_updated_callback(None)
+                location_callback_setter = getattr(
+                    self._api.refresher,
+                    "set_location_names_updated_callback",
+                    None,
+                )
+                if callable(location_callback_setter):
+                    location_callback_setter(None)
+            if self._connector:
+                self._connector.unregister(self)
+            if self._api and self._session_services_enabled:
+                await self._api.refresher.disable()
 
     def status_update(self, state: Any) -> None:
         if self._initialized and self._callback:
@@ -1567,9 +1623,45 @@ class ProtonCoreAdapter:
         self._publish_snapshot()
         raise UserVisibleRuntimeError(self._status_message) from None
 
-    async def _raise_session_error(self, error: Exception):
+    async def _raise_session_error(
+        self, error: Exception, authentication_epoch: int
+    ) -> None:
         if type(error).__name__ != "ProtonAPIAuthenticationNeeded":
             raise error
+        async with self._serialized_authentication_transition():
+            await self._expire_session(authentication_epoch)
+
+    @asynccontextmanager
+    async def _serialized_authentication_transition(self) -> AsyncIterator[None]:
+        inherited_token = self._authentication_context.get()
+        if (
+            inherited_token is not None
+            and inherited_token is self._active_authentication_token
+        ):
+            yield
+            return
+        async with self._authentication_lock:
+            owner_token = object()
+            self._active_authentication_token = owner_token
+            reset_token = self._authentication_context.set(owner_token)
+            try:
+                yield
+            finally:
+                self._authentication_context.reset(reset_token)
+                if self._active_authentication_token is owner_token:
+                    self._active_authentication_token = None
+
+    async def _expire_session(self, authentication_epoch: int) -> None:
+        if authentication_epoch != self._authentication_epoch:
+            # The failure belongs to an obsolete account/session. It remains a
+            # failed request, but it has no authority to sign out or disable
+            # services for the replacement session.
+            raise SessionExpiredError(
+                "The Proton account session changed"
+            ) from None
+        # Invalidate sibling requests from the expired session before cleanup
+        # yields to the event loop.
+        self._authentication_epoch += 1
         session_services_were_enabled = self._session_services_enabled
         self._publish_signed_out_state(
             "Your Proton session expired; sign in again",

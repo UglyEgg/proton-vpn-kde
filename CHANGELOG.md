@@ -168,6 +168,21 @@ All notable user-visible changes are recorded here. The project follows
 - Fence countries, groups, servers, load, search, and NPS reads to the account
   session that requested them; make post-login refresher and reconnector startup
   transactional so a partial failure cannot publish a signed-in state.
+- Serialize every authentication transition at the Core boundary and give
+  account-scoped adapter work an authentication epoch. A late settings,
+  topology, or connection authentication failure from an obsolete session can
+  no longer sign out or tear down its replacement account.
+- Serialize overlapping Disconnect scopes through automatic-reconnect
+  suspension and drain an accepted Disconnect before backend teardown. One
+  caller can no longer resume retry work while another Disconnect is active.
+- Give the resident agent's queued actions and transient leases one monotonic
+  connection-intent identity. Disconnect now supersedes a queued Connect even
+  before the first connecting snapshot, and a delayed lease reply either serves
+  the current intent or releases itself without dispatching abandoned work.
+- Put settings, split-tunneling, and custom-DNS reads and writes in one
+  completion order, drain accepted settings access at shutdown, and publish
+  change signals only for successful mutations. An older read can no longer
+  repaint clients after a newer write.
 - Retry a transient same-owner snapshot timeout without falsely marking the
   authenticated backend offline.
 - Route tray and global-shortcut connection changes through the same validated,

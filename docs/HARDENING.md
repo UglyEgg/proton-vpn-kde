@@ -186,6 +186,22 @@ the unsupported crash-report sender in memory and translate its visible value
 to off; an already explicit settings mutation persists that policy through
 Core's public API. This keeps a stale read from committing an old account's
 whole settings object after logout.
+
+The adapter independently serializes every authentication transition and
+assigns account-scoped Core work an authentication epoch. Only the epoch that
+still owns the current account may turn an authentication-needed exception
+into signed-out state and session-service teardown. This closes the deeper
+source-of-authority race in which a frontend correctly rejected a stale reply
+only after the adapter had already invalidated a replacement session. The
+transition is reentrant only for work descending from its active owner and is
+also drained by adapter shutdown.
+
+General settings, split tunneling, and custom DNS share one backend completion
+order because all three project the same persisted Core object. Reads recheck
+their session after entering that order and after Core returns, writes publish
+change notifications only after success, and shutdown drains or joins the
+accepted settings task before teardown. A read is therefore side-effect-free
+and cannot arrive after a newer write with an older visible value.
 Destructive NPS survey reads and submissions use a separate side-effect fence
 shared with logout and backend shutdown, then recheck the account generation
 before and after entering the official adapter. The fence does not own the VPN

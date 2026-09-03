@@ -143,7 +143,7 @@ void AgentVpnClient::activatePrimaryAction()
 {
     if (m_backendAvailable && m_ready && m_loggedIn
         && ProtonVpnKde::primaryActionDisconnects(m_state)) {
-        callOperation(QString::fromLatin1(BackendDbus::Method::disconnect));
+        disconnect();
         return;
     }
     queueConnection(QStringLiteral("FASTEST"), true, false);
@@ -174,6 +174,7 @@ void AgentVpnClient::connectGroup(const QString &countryCode,
         || normalizedName.contains(QLatin1Char('\r'))) {
         return;
     }
+    ++m_connectionIntentGeneration;
     m_pendingTarget.clear();
     m_pendingGroup = {normalizedCountry, normalizedKind, normalizedName};
     m_pendingInteractive = true;
@@ -191,8 +192,18 @@ void AgentVpnClient::connectGroup(const QString &countryCode,
 
 void AgentVpnClient::disconnect()
 {
-    if (!m_backendAvailable || !m_ready || !m_loggedIn
-        || m_state == QStringLiteral("disconnected")) {
+    // Disconnect is a newer user intent even if the backend cannot accept it
+    // yet. Retire queued connects before inspecting the current projection so
+    // a delayed lease or snapshot cannot dispatch them afterward.
+    clearPendingConnection();
+    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
+        releaseTransientLease();
+        return;
+    }
+    // A just-dispatched connect owns busy before its first connecting snapshot
+    // arrives. It must still be preemptible from KRunner or another controller.
+    if (m_state == QStringLiteral("disconnected") && !m_busy) {
+        releaseTransientLease();
         return;
     }
     callOperation(QString::fromLatin1(BackendDbus::Method::disconnect));
@@ -488,6 +499,7 @@ void AgentVpnClient::acquireTransientLease()
     }
     m_transientLeasePending = true;
     const quint64 generation = m_serviceGeneration;
+    const quint64 connectionIntentGeneration = m_connectionIntentGeneration;
     const QString destination = m_backendDestination;
     QDBusMessage message = QDBusMessage::createMethodCall(
         destination,
@@ -498,7 +510,8 @@ void AgentVpnClient::acquireTransientLease()
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this, destination, generation](QDBusPendingCallWatcher *finished) {
+            [this, destination, generation,
+             connectionIntentGeneration](QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<> reply = *finished;
         finished->deleteLater();
         if (generation != m_serviceGeneration
@@ -506,7 +519,15 @@ void AgentVpnClient::acquireTransientLease()
             return;
         }
         m_transientLeasePending = false;
+        const bool currentIntent = connectionIntentGeneration
+            == m_connectionIntentGeneration;
         if (reply.isError()) {
+            if (!currentIntent) {
+                if (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty()) {
+                    acquireTransientLease();
+                }
+                return;
+            }
             const bool interactive = m_pendingInteractive;
             clearPendingConnection();
             m_message = fixedCallFailureMessage(reply.error());
@@ -517,6 +538,11 @@ void AgentVpnClient::acquireTransientLease()
             return;
         }
         m_transientLeaseActive = true;
+        if (!currentIntent && m_pendingTarget.isEmpty()
+            && m_pendingGroup.isEmpty()) {
+            releaseTransientLease();
+            return;
+        }
         dispatchPendingConnection();
     });
 }
@@ -551,6 +577,7 @@ void AgentVpnClient::queueConnection(const QString &target, bool interactive,
         || normalized.contains(QLatin1Char('\r'))) {
         return;
     }
+    ++m_connectionIntentGeneration;
     m_pendingGroup.clear();
     m_pendingTarget = normalized;
     m_pendingInteractive = interactive;
@@ -613,6 +640,10 @@ void AgentVpnClient::dispatchPendingConnection()
 
 void AgentVpnClient::clearPendingConnection()
 {
+    // Every terminal path that abandons or consumes a queued connection owns
+    // an intent transition. Delayed registration replies can then either serve
+    // a genuinely newer request or release their now-orphaned lease.
+    ++m_connectionIntentGeneration;
     m_pendingTarget.clear();
     m_pendingGroup.clear();
     m_pendingInteractive = false;

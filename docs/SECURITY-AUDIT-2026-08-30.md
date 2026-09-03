@@ -191,6 +191,23 @@ connection operations a monotonic intent generation. No result from the
 partial pass counts; all six reviews must restart on the next exact clean
 candidate.
 
+A ninth partial pass against `03aa938` was superseded after its three opening
+reviewers found four members of the same temporal-ownership error class.
+Hostile found that concurrent Disconnect calls shared one reconnector
+suspension boolean, allowing one caller to resume retry work while another
+Disconnect remained active. Entropy found that an obsolete session's
+authentication failure mutated adapter state before the frontend could discard
+its stale reply; that a queued resident-agent Connect could survive a newer
+Disconnect; and that an older settings read could publish after a newer
+successful write. The working-tree remediation replaces symptom-level reply
+checks with four cross-cutting invariants: serialized authentication
+transitions and adapter epochs, serialized Disconnect lifecycle scopes,
+monotonic connection intent across queued work and transient leases, and one
+completion order for all settings projections. Focused sibling regressions are
+present, but this work is not an accepted candidate until it is committed and
+the complete source, package, and six-review gates pass. No result from the
+partial pass counts.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
 | --- | --- | --- | --- |
 | PV-013-001 | Medium | A slow accepted capture Start could reject Stop while close inferred safety from a temporary snapshot | **Remediated in candidate; independent verification pending** |
@@ -219,6 +236,10 @@ candidate.
 | PV-013-024 | High | A hidden whole-settings normalization save from a stale read could land after logout and restore prior-account protection state | **Remediated by persistence-free reads; independent verification pending** |
 | PV-013-025 | Medium | FIDO cancellation immediately before PIN-waiter creation could be lost and leave the assertion worker blocked | **Remediated in candidate; independent verification pending** |
 | PV-013-026 | Medium | Resident-agent connection replies had no per-intent generation and could overwrite a newer Disconnect result | **Remediated in candidate; independent verification pending** |
+| PV-013-027 | High | A stale account-scoped authentication failure could invalidate a replacement session inside the adapter before frontend epoch checks | **Remediated in working tree; complete verification pending** |
+| PV-013-028 | High | Concurrent Disconnect scopes could resume automatic reconnect before every accepted disconnect completed | **Remediated in working tree; complete verification pending** |
+| PV-013-029 | High | A queued resident-agent Connect and its delayed transient lease could survive a newer Disconnect intent | **Remediated in working tree; complete verification pending** |
+| PV-013-030 | Medium | Settings projections lacked one completion order, allowing an older read to publish after a newer write | **Remediated in working tree; complete verification pending** |
 
 ## Historical 0.12.0 isolated review gate
 

@@ -185,10 +185,16 @@ class BackendController:
         self._custom_dns_listeners: list[CustomDnsCallback] = []
         self._operation_lock = asyncio.Lock()
         self._session_side_effect_lock = asyncio.Lock()
+        # Core exposes settings, split tunneling, and custom DNS as projections
+        # of one persisted settings object. Keep all six read/write entry points
+        # in one completion order so an older read cannot arrive after a newer
+        # successful mutation and repaint a client with stale state.
+        self._settings_lock = asyncio.Lock()
         self._session_epoch = 0
         self._closing = False
         self._active_operation_task: asyncio.Task[None] | None = None
         self._active_session_side_effect_task: asyncio.Task[object] | None = None
+        self._active_settings_task: asyncio.Task[object] | None = None
         self._packet_capture_start_task: asyncio.Task[None] | None = None
         self._shutdown_drain_seconds = max(0.0, shutdown_drain_seconds)
 
@@ -303,9 +309,10 @@ class BackendController:
 
     async def get_settings_json(self) -> str:
         session_epoch = self._current_session_epoch()
-        settings = await self._adapter.get_settings()
-        self._require_current_session(session_epoch)
-        self._publish_settings(settings)
+        async with self._serialized_settings_access():
+            self._require_current_session(session_epoch)
+            settings = await self._adapter.get_settings()
+            self._require_current_session(session_epoch)
         return settings.to_json()
 
     async def get_pending_nps_survey_json(self) -> str:
@@ -347,7 +354,8 @@ class BackendController:
         async with self._serialized_operation():
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
-                settings = await self._adapter.update_settings(patch)
+                async with self._serialized_settings_access():
+                    settings = await self._adapter.update_settings(patch)
             except asyncio.CancelledError:
                 self._publish(replace(self._snapshot, busy=False))
                 raise
@@ -377,9 +385,10 @@ class BackendController:
 
     async def get_split_tunneling_json(self) -> str:
         session_epoch = self._current_session_epoch()
-        settings = await self._adapter.get_split_tunneling()
-        self._require_current_session(session_epoch)
-        self._publish_split_tunneling(settings)
+        async with self._serialized_settings_access():
+            self._require_current_session(session_epoch)
+            settings = await self._adapter.get_split_tunneling()
+            self._require_current_session(session_epoch)
         return settings.to_json()
 
     async def update_split_tunneling_json(self, patch_json: str) -> str:
@@ -392,8 +401,11 @@ class BackendController:
         async with self._serialized_operation():
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
-                split_tunneling = await self._adapter.update_split_tunneling(patch)
-                settings = await self._adapter.get_settings()
+                async with self._serialized_settings_access():
+                    split_tunneling = await self._adapter.update_split_tunneling(
+                        patch
+                    )
+                    settings = await self._adapter.get_settings()
             except asyncio.CancelledError:
                 self._publish(replace(self._snapshot, busy=False))
                 raise
@@ -425,9 +437,10 @@ class BackendController:
 
     async def get_custom_dns_json(self) -> str:
         session_epoch = self._current_session_epoch()
-        settings = await self._adapter.get_custom_dns()
-        self._require_current_session(session_epoch)
-        self._publish_custom_dns(settings)
+        async with self._serialized_settings_access():
+            self._require_current_session(session_epoch)
+            settings = await self._adapter.get_custom_dns()
+            self._require_current_session(session_epoch)
         return settings.to_json()
 
     async def update_custom_dns_json(self, patch_json: str) -> str:
@@ -440,8 +453,9 @@ class BackendController:
         async with self._serialized_operation():
             self._publish(replace(self._snapshot, busy=True, message=""))
             try:
-                custom_dns = await self._adapter.update_custom_dns(patch)
-                settings = await self._adapter.get_settings()
+                async with self._serialized_settings_access():
+                    custom_dns = await self._adapter.update_custom_dns(patch)
+                    settings = await self._adapter.get_settings()
             except asyncio.CancelledError:
                 self._publish(replace(self._snapshot, busy=False))
                 raise
@@ -718,11 +732,11 @@ class BackendController:
 
     async def close(self) -> None:
         # The D-Bus object is unexported before this runs, so acquiring the
-        # mutation lock first drains the accepted VPN operation, then the
-        # session-side-effect lock drains survey work. Logout takes the locks in
-        # this same order. A stuck task is cancelled only after a bounded grace
-        # period; adapter transactions perform their own cancellation-safe state
-        # repair before unwinding.
+        # mutation lock first drains the accepted VPN operation, then settings
+        # and session-side-effect locks drain independent accepted reads/survey
+        # work. A stuck task is cancelled only after a bounded grace period;
+        # adapter transactions perform their own cancellation-safe state repair
+        # before unwinding.
         self._closing = True
         try:
             await asyncio.wait_for(
@@ -738,24 +752,43 @@ class BackendController:
         try:
             try:
                 await asyncio.wait_for(
-                    self._session_side_effect_lock.acquire(),
+                    self._settings_lock.acquire(),
                     timeout=self._shutdown_drain_seconds,
                 )
             except TimeoutError:
-                active_side_effect = self._active_session_side_effect_task
+                active_settings = self._active_settings_task
                 if (
-                    active_side_effect is not None
-                    and active_side_effect is not asyncio.current_task()
+                    active_settings is not None
+                    and active_settings is not asyncio.current_task()
                 ):
-                    active_side_effect.cancel()
+                    active_settings.cancel()
                     await asyncio.gather(
-                        active_side_effect, return_exceptions=True
+                        active_settings, return_exceptions=True
                     )
-                await self._session_side_effect_lock.acquire()
+                await self._settings_lock.acquire()
             try:
-                await self._adapter.close()
+                try:
+                    await asyncio.wait_for(
+                        self._session_side_effect_lock.acquire(),
+                        timeout=self._shutdown_drain_seconds,
+                    )
+                except TimeoutError:
+                    active_side_effect = self._active_session_side_effect_task
+                    if (
+                        active_side_effect is not None
+                        and active_side_effect is not asyncio.current_task()
+                    ):
+                        active_side_effect.cancel()
+                        await asyncio.gather(
+                            active_side_effect, return_exceptions=True
+                        )
+                    await self._session_side_effect_lock.acquire()
+                try:
+                    await self._adapter.close()
+                finally:
+                    self._session_side_effect_lock.release()
             finally:
-                self._session_side_effect_lock.release()
+                self._settings_lock.release()
         finally:
             self._operation_lock.release()
 
@@ -882,6 +915,21 @@ class BackendController:
             finally:
                 if self._active_session_side_effect_task is task:
                     self._active_session_side_effect_task = None
+
+    @asynccontextmanager
+    async def _serialized_settings_access(self) -> AsyncIterator[None]:
+        async with self._settings_lock:
+            if self._closing:
+                raise UserVisibleRuntimeError(
+                    "The Proton backend is shutting down"
+                )
+            task = asyncio.current_task()
+            self._active_settings_task = task
+            try:
+                yield
+            finally:
+                if self._active_settings_task is task:
+                    self._active_settings_task = None
 
     def _on_adapter_snapshot(self, snapshot: VpnSnapshot) -> None:
         if snapshot.logged_in != self._snapshot.logged_in:

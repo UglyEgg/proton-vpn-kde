@@ -119,7 +119,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "91212ff9f35764fc582c388e1906f13cfffcb864b7c3262a90417a7235039ecc" \
+    "ae5501054949b3dbe0659197c7d5b764d568b78e8eb36869ebc77f3e60e232a1" \
     "backend reviewed behavior exceptions" \
     backend/proton_vpn_kde_backend/adapters.py \
     backend/proton_vpn_kde_backend/async_utils.py \
@@ -146,7 +146,7 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "dd1791d4e95f8d370a10bb9430516b4a31ebcdd8996d8647d650b567dcaf1722" \
+    "27dc84a0e14591d95de61897cceb15866aa76f1c288db09dfc097b090d83e547" \
     "frontend presentation contract" \
     src/AgentVpnClient.cpp src/AgentVpnClient.h \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \

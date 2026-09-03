@@ -122,6 +122,7 @@ class BlockingSettingsAdapter(DemoCoreAdapter):
         self.method_name = method_name
         self.read_started = asyncio.Event()
         self.release_read = asyncio.Event()
+        self.close_calls = 0
 
     async def _wait_if_selected(self, method_name: str) -> None:
         if self.method_name != method_name:
@@ -140,6 +141,10 @@ class BlockingSettingsAdapter(DemoCoreAdapter):
     async def get_custom_dns(self):
         await self._wait_if_selected("dns")
         return await super().get_custom_dns()
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        await super().close()
 
 
 class BlockingSessionReadAdapter(DemoCoreAdapter):
@@ -676,6 +681,53 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
                     await read_task
                 self.assertEqual([], publications)
 
+    async def test_settings_reads_and_writes_have_one_completion_order(self):
+        cases = (
+            (
+                "settings",
+                "get_settings_json",
+                "update_settings_json",
+                '{"netShield":2}',
+                "subscribe_settings",
+            ),
+            (
+                "split",
+                "get_split_tunneling_json",
+                "update_split_tunneling_json",
+                '{"excludeAppPaths":["/usr/bin/firefox"]}',
+                "subscribe_split_tunneling",
+            ),
+            (
+                "dns",
+                "get_custom_dns_json",
+                "update_custom_dns_json",
+                '{"servers":[{"address":"1.1.1.1","enabled":true}]}',
+                "subscribe_custom_dns",
+            ),
+        )
+        for method_name, read_name, update_name, patch, subscribe_name in cases:
+            with self.subTest(method_name=method_name):
+                adapter = BlockingSettingsAdapter(method_name)
+                controller = BackendController(adapter)
+                publications = []
+                getattr(controller, subscribe_name)(publications.append)
+                self.assertTrue(await controller.start())
+
+                read = asyncio.create_task(getattr(controller, read_name)())
+                await adapter.read_started.wait()
+                update = asyncio.create_task(
+                    getattr(controller, update_name)(patch)
+                )
+                await asyncio.sleep(0)
+
+                self.assertFalse(update.done())
+                self.assertEqual([], publications)
+                adapter.release_read.set()
+                await read
+                await update
+
+                self.assertEqual(1, len(publications))
+
     async def test_late_account_scoped_reads_are_rejected_after_logout(self):
         cases = (
             ("countries", "get_countries_json", ()),
@@ -1042,6 +1094,23 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         adapter.release_submission.set()
         await submission
+        await close_task
+        self.assertEqual(1, adapter.close_calls)
+
+    async def test_close_drains_an_accepted_settings_read(self):
+        adapter = BlockingSettingsAdapter("settings")
+        controller = BackendController(adapter)
+        await controller.start()
+        settings_read = asyncio.create_task(controller.get_settings_json())
+        await adapter.read_started.wait()
+
+        close_task = asyncio.create_task(controller.close())
+        await asyncio.sleep(0)
+        self.assertFalse(close_task.done())
+        self.assertEqual(0, adapter.close_calls)
+
+        adapter.release_read.set()
+        await settings_read
         await close_task
         self.assertEqual(1, adapter.close_calls)
 

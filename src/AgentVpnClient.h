@@ -90,6 +90,7 @@ private:
     bool m_reconnectionPending = false;
     quint64 m_operationGeneration = 0;
     quint64 m_operationReconciliationGeneration = 0;
+    quint64 m_connectionIntentGeneration = 0;
     bool m_transientLeasePending = false;
     bool m_transientLeaseActive = false;
     quint64 m_serviceGeneration = 0;

@@ -1387,6 +1387,68 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(adapter._reconnector.enabled)
         await adapter._reconnector.disable()
 
+    async def test_overlapping_disconnects_do_not_share_reconnect_suspension(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        first_started = asyncio.Event()
+        release_first = asyncio.Event()
+        second_started = asyncio.Event()
+        disconnect_count = 0
+
+        async def disconnect():
+            nonlocal disconnect_count
+            disconnect_count += 1
+            if disconnect_count == 1:
+                first_started.set()
+                await release_first.wait()
+                raise RuntimeError("first disconnect failed")
+            second_started.set()
+            connector.current_state = state_named("Disconnected")
+
+        connector.disconnect.side_effect = disconnect
+        first = asyncio.create_task(adapter.disconnect())
+        await first_started.wait()
+        second = asyncio.create_task(adapter.disconnect())
+        await asyncio.sleep(0)
+
+        self.assertFalse(second_started.is_set())
+        release_first.set()
+        with self.assertRaisesRegex(RuntimeError, "first disconnect failed"):
+            await first
+        await asyncio.wait_for(second, timeout=1)
+
+        self.assertTrue(second_started.is_set())
+        self.assertEqual(2, connector.disconnect.await_count)
+        self.assertIsNone(adapter._reconnector._retry_task)
+        self.assertTrue(adapter._reconnector.enabled)
+        await adapter._reconnector.disable()
+
+    async def test_close_drains_an_accepted_disconnect_scope(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        disconnect_started = asyncio.Event()
+        release_disconnect = asyncio.Event()
+
+        async def disconnect():
+            disconnect_started.set()
+            await release_disconnect.wait()
+            connector.current_state = state_named("Disconnected")
+
+        connector.disconnect.side_effect = disconnect
+        disconnect_task = asyncio.create_task(adapter.disconnect())
+        await disconnect_started.wait()
+        close_task = asyncio.create_task(adapter.close())
+        await asyncio.sleep(0)
+
+        self.assertFalse(close_task.done())
+        connector.unregister.assert_not_called()
+        release_disconnect.set()
+        await asyncio.wait_for(disconnect_task, timeout=1)
+        await asyncio.wait_for(close_task, timeout=1)
+        connector.unregister.assert_any_call(adapter)
+
     async def test_logout_cannot_race_reconnector_reenable(self):
         api, _ = self.make_api()
         logout_started = asyncio.Event()
@@ -1465,6 +1527,124 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(snapshots[-1].logged_in)
         self.assertEqual("expired", snapshots[-1].auth_state)
         api.refresher.disable.assert_awaited_once_with()
+
+    async def test_stale_session_error_cannot_sign_out_replacement_account(self):
+        api, _ = self.make_api()
+        settings = api.load_settings.return_value
+        stale_read_started = asyncio.Event()
+        release_stale_read = asyncio.Event()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        load_count = 0
+
+        async def load_settings():
+            nonlocal load_count
+            load_count += 1
+            if load_count == 1:
+                stale_read_started.set()
+                await release_stale_read.wait()
+                raise expired_error()
+            return settings
+
+        adapter = ProtonCoreAdapter(api)
+        snapshots = []
+        await adapter.initialize(snapshots.append)
+        api.load_settings.side_effect = load_settings
+        api.login.return_value = SimpleNamespace(
+            success=True,
+            authenticated=True,
+            twofa_required=False,
+        )
+
+        stale_read = asyncio.create_task(adapter.get_settings())
+        await stale_read_started.wait()
+        await adapter.logout()
+        await adapter.login("replacement-user", "not-recorded")
+        cleanup_count = api.refresher.disable.await_count
+        self.assertTrue(adapter._logged_in)
+        self.assertTrue(adapter._session_services_enabled)
+
+        release_stale_read.set()
+        with self.assertRaisesRegex(RuntimeError, "session changed"):
+            await stale_read
+
+        self.assertTrue(adapter._logged_in)
+        self.assertTrue(adapter._session_services_enabled)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertEqual(cleanup_count, api.refresher.disable.await_count)
+
+    async def test_stale_server_error_cannot_sign_out_replacement_account(self):
+        api, _ = self.make_api()
+        server_read_started = asyncio.Event()
+        release_server_read = asyncio.Event()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+
+        async def stale_server_list():
+            server_read_started.set()
+            await release_server_read.wait()
+            raise expired_error()
+
+        api.refresher.get_up_to_date_server_list.side_effect = stale_server_list
+        adapter = ProtonCoreAdapter(api)
+        snapshots = []
+        await adapter.initialize(snapshots.append)
+        api.login.return_value = SimpleNamespace(
+            success=True,
+            authenticated=True,
+            twofa_required=False,
+        )
+
+        stale_read = asyncio.create_task(adapter.get_countries())
+        await server_read_started.wait()
+        await adapter.logout()
+        await adapter.login("replacement-user", "not-recorded")
+        cleanup_count = api.refresher.disable.await_count
+        release_server_read.set()
+
+        with self.assertRaisesRegex(RuntimeError, "session changed"):
+            await stale_read
+        self.assertTrue(adapter._logged_in)
+        self.assertTrue(adapter._session_services_enabled)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertEqual(cleanup_count, api.refresher.disable.await_count)
+
+    async def test_login_waits_for_current_session_expiry_cleanup(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.refresher.get_up_to_date_server_list.side_effect = expired_error()
+        api.login.return_value = SimpleNamespace(
+            success=True,
+            authenticated=True,
+            twofa_required=False,
+        )
+        adapter = ProtonCoreAdapter(api)
+        snapshots = []
+        await adapter.initialize(snapshots.append)
+        cleanup_started = asyncio.Event()
+        release_cleanup = asyncio.Event()
+        original_disable = adapter._reconnector.disable
+
+        async def delayed_disable():
+            cleanup_started.set()
+            await release_cleanup.wait()
+            await original_disable()
+
+        adapter._reconnector.disable = AsyncMock(side_effect=delayed_disable)
+        expiring_read = asyncio.create_task(adapter.get_countries())
+        await cleanup_started.wait()
+        replacement_login = asyncio.create_task(
+            adapter.login("replacement-user", "not-recorded")
+        )
+        await asyncio.sleep(0)
+
+        api.login.assert_not_awaited()
+        release_cleanup.set()
+        with self.assertRaisesRegex(RuntimeError, "session expired"):
+            await expiring_read
+        await asyncio.wait_for(replacement_login, timeout=1)
+
+        self.assertTrue(adapter._logged_in)
+        self.assertTrue(adapter._session_services_enabled)
+        self.assertEqual("signed_in", snapshots[-1].auth_state)
 
     async def test_expired_session_during_settings_save_stays_signed_out(self):
         api, _ = self.make_api()

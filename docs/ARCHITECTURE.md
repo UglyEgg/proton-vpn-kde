@@ -214,6 +214,16 @@ pins traffic to its unique owner instead of continuing to address the
 replaceable `org.freedesktop.secrets` well-known name. The desktop's initial
 provider selection remains an explicit session trust boundary.
 
+Login, two-factor completion, sign-in cancellation, FIDO2 startup, logout,
+session-expiry cleanup, and adapter shutdown share one reentrant authentication
+transition boundary. Account-scoped settings, topology, and connection work
+captures the adapter authentication epoch before entering Core. An
+authentication failure may publish signed-out state and disable session
+services only while that epoch still owns the active session; a stale failure
+remains a failed request but cannot mutate a replacement account. The boundary
+is reentrant for child tasks created by Core settings transactions and rejects
+an inherited token after its owning transition has ended.
+
 The frontend receives only minimum account display metadata. Authentication
 fields use a one-use encrypted and sealed descriptor transport, and provider
 exceptions are mapped to fixed public errors. Logout first quiesces automatic
@@ -270,6 +280,13 @@ Settings use Core's public settings objects and official save/apply paths.
 Protocol and kill-switch changes require a disconnected tunnel. Paid features
 respect account access, and custom-DNS or split-tunneling conflicts are shown
 to the user rather than resolved by silently changing another setting.
+
+General settings, split tunneling, and custom DNS are views and mutations of
+one persisted Core settings object. Their backend entry points therefore share
+one completion-order lock, recheck their account epoch after waiting and after
+Core returns, and are drained before adapter teardown. Pure reads return their
+requested snapshot without emitting mutation notifications; only a successful
+explicit update publishes the corresponding change signals.
 
 The Connection Inspector is a dynamically created Control Center page, not a
 resident service. It renders bounded, read-only connection, settings, and
@@ -358,9 +375,12 @@ retry unwinds rearms from the new generation whether the old cancellation is
 suppressed or propagated. The resident agent likewise treats the recovery
 preference as applied only after the current backend owner acknowledges it; a
 failed or stale policy reply cannot release a queued connection action. Its
-connection calls also carry a monotonic intent generation, so a delayed reply
-or reconciliation snapshot from an older Connect cannot mutate state or
-release the transient action lease after a newer Disconnect.
+connection calls, queued actions, and transient lifetime leases also carry one
+monotonic intent generation. Disconnect establishes a new intent before
+checking the projected connection state, including the interval after Connect
+dispatch but before the first connecting snapshot. A delayed reply or lease
+from an older Connect can neither mutate state nor dispatch abandoned work; it
+may serve a genuinely newer queued intent or is released.
 
 KRunner recognizes only explicit VPN prefixes and validated connection targets.
 It addresses the Control Center activation service, never the backend. KRunner,
