@@ -187,17 +187,18 @@ before and after entering the official adapter. The fence does not own the VPN
 operation lock, preventing invisible rejection of connect or disconnect while
 still keeping survey state out of a replacement account. Frontend submission
 and dismissal generations keep their results out of newer foreground guidance;
-dismissal never reopens the prompt. The small synchronous Core mark-seen cache
-transaction remains on the event-loop thread so controller ownership cannot be
-cancelled while an executor worker continues into adapter teardown; queued work
-is rejected once shutdown begins. Any exception after invoking the official
+dismissal never reopens the prompt. The synchronous Core mark-seen cache
+transaction runs off the event loop as an owned task; cancellation joins its
+worker before controller ownership is released, and queued work is rejected
+once shutdown begins. Any exception after invoking the official
 submission API is represented by a dedicated completion-unknown D-Bus error and
 disables retry, because the upstream side effect may already have been accepted.
 
-FIDO2 cancellation signals both the official Core cancellation event and any
-PIN waiter, then joins the underlying assertion task before releasing the
-adapter interaction. This prevents shutdown from orphaning a worker blocked on
-a hardware-key prompt.
+FIDO2 is available only when Core explicitly guarantees that the official
+cancellation event reaches multi-key selection. For a compatible Core,
+cancellation also releases any PIN waiter and joins the assertion task before
+the adapter interaction is released. Core versions without that complete
+contract fail closed by not advertising the security-key action.
 
 The same address-versus-identity rule is applied as far as the portable Secret
 Service API permits. The downstream keyring overlay activates the selected

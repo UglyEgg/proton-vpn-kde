@@ -77,6 +77,8 @@ public:
     int invalidGroupResponses = 0;
     int invalidServerResponses = 0;
     bool rejectRegistration = false;
+    bool delayDisconnect = false;
+    bool delayReconnection = false;
     bool delayLogout = false;
     bool ready = true;
     bool loggedIn = true;
@@ -100,6 +102,8 @@ public:
     QStringList lastCapabilities;
     QStringList browseCallOrder;
     QDBusMessage delayedLogoutMessage;
+    QDBusMessage delayedDisconnectMessage;
+    QDBusMessage delayedReconnectionMessage;
     QDBusMessage delayedPacketCaptureStartMessage;
     QDBusMessage delayedPacketCaptureStopMessage;
     QDBusMessage delayedCountriesMessage;
@@ -136,6 +140,18 @@ public slots:
 
     void SetReconnectionEnabled(bool)
     {
+        if (delayReconnection) {
+            setDelayedReply(true);
+            delayedReconnectionMessage = message();
+        }
+    }
+
+    void Disconnect()
+    {
+        if (delayDisconnect) {
+            setDelayedReply(true);
+            delayedDisconnectMessage = message();
+        }
     }
 
     void Logout()
@@ -455,6 +471,8 @@ private slots:
     void staleConnectionReplyCannotCompleteReplacementOperation();
     void staleConnectionReplyCannotCompleteAfterLogout();
     void staleForegroundAuthReplyCannotCorruptReplacementOperation();
+    void staleControlDisconnectReplyCannotCorruptSignedOutState();
+    void staleReconnectionReplyCannotCorruptForegroundOperation();
     void supportReportSubmissionFollowsBuildPolicy();
     void crashReportSubmissionFollowsBuildPolicy();
     void npsSubmissionWaitsForBackendAcceptance();
@@ -1631,6 +1649,108 @@ void GroupedNavigationTest::staleConnectionReplyCannotCompleteAfterLogout()
     m_backend.delayedCapabilityMessages.clear();
     m_backend.connectionState = QStringLiteral("disconnected");
     m_backend.publishSession(true, true);
+}
+
+void GroupedNavigationTest::staleControlDisconnectReplyCannotCorruptSignedOutState()
+{
+    for (const bool failReply : {false, true}) {
+        m_backend.connectionState = QStringLiteral("connected");
+        m_backend.delayDisconnect = true;
+        m_backend.delayLogout = true;
+        m_backend.delayedDisconnectMessage = {};
+        m_backend.delayedLogoutMessage = {};
+        m_backend.publishSession(true, true);
+        VpnController controller(nullptr, false);
+        QSignalSpy connectionFinished(
+            &controller, &VpnController::connectionOperationFinished);
+
+        QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+        QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+        controller.disconnect();
+        QTRY_COMPARE_WITH_TIMEOUT(
+            m_backend.delayedDisconnectMessage.type(),
+            QDBusMessage::MethodCallMessage, 2000);
+
+        m_backend.connectionState = QStringLiteral("disconnected");
+        m_backend.publishSession(true, true);
+        controller.logout();
+        QTRY_COMPARE_WITH_TIMEOUT(
+            m_backend.delayedLogoutMessage.type(),
+            QDBusMessage::MethodCallMessage, 2000);
+        m_backend.publishSession(true, false);
+        QTRY_VERIFY_WITH_TIMEOUT(!controller.loggedIn(), 2000);
+        const QString signedOutMessage = controller.message();
+        const int snapshotCalls = m_backend.snapshotCalls;
+
+        const QDBusMessage delayedReply = failReply
+            ? m_backend.delayedDisconnectMessage.createErrorReply(
+                  QDBusError::Failed,
+                  QStringLiteral("superseded disconnect failed"))
+            : m_backend.delayedDisconnectMessage.createReply();
+        QVERIFY(m_backendBus->send(delayedReply));
+        QTest::qWait(100);
+        QVERIFY(controller.backendAvailable());
+        QCOMPARE(controller.message(), signedOutMessage);
+        QCOMPARE(connectionFinished.count(), 0);
+        QCOMPARE(m_backend.snapshotCalls, snapshotCalls);
+
+        QVERIFY(m_backendBus->send(
+            m_backend.delayedLogoutMessage.createReply()));
+        QTest::qWait(20);
+    }
+
+    m_backend.delayDisconnect = false;
+    m_backend.delayLogout = false;
+    m_backend.delayedDisconnectMessage = {};
+    m_backend.delayedLogoutMessage = {};
+    m_backend.publishSession(true, true);
+}
+
+void GroupedNavigationTest::staleReconnectionReplyCannotCorruptForegroundOperation()
+{
+    for (const bool failReply : {false, true}) {
+        m_backend.delayReconnection = true;
+        m_backend.delayedReconnectionMessage = {};
+        m_backend.delayedCapabilityOperationCount = 1;
+        m_backend.delayedCapabilityMessages.clear();
+        m_backend.publishSession(true, true);
+        VpnController controller(nullptr, false);
+        QSignalSpy connectionFinished(
+            &controller, &VpnController::connectionOperationFinished);
+
+        QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+        controller.setReconnectionEnabled(false);
+        QTRY_COMPARE_WITH_TIMEOUT(
+            m_backend.delayedReconnectionMessage.type(),
+            QDBusMessage::MethodCallMessage, 2000);
+        controller.connectFastestWithFeatures({QStringLiteral("p2p")});
+        QTRY_COMPARE_WITH_TIMEOUT(
+            m_backend.delayedCapabilityMessages.size(), 1, 2000);
+        QVERIFY(controller.busy());
+        const int snapshotCalls = m_backend.snapshotCalls;
+
+        const QDBusMessage delayedReply = failReply
+            ? m_backend.delayedReconnectionMessage.createErrorReply(
+                  QDBusError::Failed,
+                  QStringLiteral("superseded preference failed"))
+            : m_backend.delayedReconnectionMessage.createReply();
+        QVERIFY(m_backendBus->send(delayedReply));
+        QTest::qWait(100);
+        QVERIFY(controller.backendAvailable());
+        QVERIFY(controller.busy());
+        QVERIFY(controller.message().isEmpty());
+        QCOMPARE(connectionFinished.count(), 0);
+        QCOMPARE(m_backend.snapshotCalls, snapshotCalls);
+
+        QVERIFY(m_backendBus->send(
+            m_backend.delayedCapabilityMessages.at(0).createReply()));
+        QTRY_COMPARE_WITH_TIMEOUT(connectionFinished.count(), 1, 2000);
+    }
+
+    m_backend.delayReconnection = false;
+    m_backend.delayedReconnectionMessage = {};
+    m_backend.delayedCapabilityOperationCount = 0;
+    m_backend.delayedCapabilityMessages.clear();
 }
 
 void GroupedNavigationTest::npsSubmissionWaitsForBackendAcceptance()

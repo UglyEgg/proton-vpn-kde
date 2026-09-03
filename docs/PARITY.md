@@ -11,7 +11,7 @@ Proton's official core.
 | Area | Official behavior | Plasma implementation | Status |
 | --- | --- | --- | --- |
 | Password sign-in | Proton username and password login | Native Kirigami form with sealed one-use credential transport | Complete |
-| Two-factor sign-in | Authenticator/recovery codes and FIDO2 security keys | TOTP, recovery code, FIDO2 touch, key selection, and PIN interaction | Complete |
+| Two-factor sign-in | Authenticator/recovery codes and FIDO2 security keys | TOTP and recovery codes are complete. FIDO2 touch, selection, and PIN are exposed only when Core guarantees cancellable multi-key selection; current Core 5.6.10 does not | Conditional on Core safety contract |
 | Session storage | Proton SSO through Secret Service | Same Core session through a separately packaged provider-neutral keyring rebuild that requires the selected provider to run as the session user and pins traffic to its unique owner; KeePassXC is verified with the downstream build in the compatibility matrix | Complete on supported stack |
 | Permanent kill switch before login | Requires disabling permanent mode before sign-in | Signed-out recovery action changes only the kill-switch setting | Complete |
 | Account/session | Plan, connection limit, account link, and sign-out | Native account page and kill-switch-safe disconnect/sign-out lifecycle | Complete |

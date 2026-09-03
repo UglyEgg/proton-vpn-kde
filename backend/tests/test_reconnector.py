@@ -271,6 +271,76 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(reconnector.enabled)
         connector.connect.assert_not_awaited()
 
+    async def test_disable_joins_cancellation_resistant_connect(self):
+        connect_started = asyncio.Event()
+        cancellation_seen = asyncio.Event()
+        release_connect = asyncio.Event()
+
+        async def blocked_connect(*_args):
+            connect_started.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                cancellation_seen.set()
+                await release_connect.wait()
+
+        reconnector, connector, _, _ = self.make_reconnector()
+        connector.connect.side_effect = blocked_connect
+        reconnector.enable()
+        await connect_started.wait()
+        owned_retry = reconnector._retry_task
+        self.assertIsNotNone(owned_retry)
+
+        disable_task = asyncio.create_task(reconnector.disable())
+        await cancellation_seen.wait()
+        await asyncio.sleep(0)
+
+        self.assertFalse(disable_task.done())
+        self.assertIs(reconnector._retry_task, owned_retry)
+
+        release_connect.set()
+        await asyncio.wait_for(disable_task, timeout=1)
+        self.assertTrue(owned_retry.done())
+        self.assertIsNone(reconnector._retry_task)
+        self.assertFalse(reconnector.enabled)
+
+    async def test_new_error_rearms_after_cancelled_retry_has_quiesced(self):
+        first_started = asyncio.Event()
+        first_cancelled = asyncio.Event()
+        release_first = asyncio.Event()
+        connect_calls = 0
+
+        async def connect(*_args):
+            nonlocal connect_calls
+            connect_calls += 1
+            if connect_calls != 1:
+                return
+            first_started.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                first_cancelled.set()
+                await release_first.wait()
+
+        reconnector, connector, _, _ = self.make_reconnector()
+        connector.connect.side_effect = connect
+        reconnector.enable()
+        await first_started.wait()
+
+        connector.current_state = state_named("Connected")
+        reconnector.status_update(connector.current_state)
+        await first_cancelled.wait()
+        connector.current_state = state_named("Error")
+        reconnector.status_update(connector.current_state)
+        self.assertTrue(reconnector._retry_pending)
+
+        release_first.set()
+        await self.wait_until(
+            lambda: connect_calls == 2,
+            "The replacement error did not rearm reconnection",
+        )
+        await reconnector.disable()
+
     async def test_reconnection_exception_text_is_not_published_or_logged(self):
         reconnector, connector, _, messages = self.make_reconnector()
         sentinel = "credential=must-not-reach-snapshot /workspace/private.py"

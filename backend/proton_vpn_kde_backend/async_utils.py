@@ -6,12 +6,50 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 import threading
 from typing import TypeVar
 
 
 Result = TypeVar("Result")
+
+
+async def await_owned(
+    operation: Awaitable[Result],
+    *,
+    cancel_operation: Callable[[], None] | None = None,
+) -> Result:
+    """Retain ownership of an operation until it has actually stopped.
+
+    Shielding prevents cancellation of the caller from silently detaching the
+    child.  If the caller is cancelled, request provider-specific cancellation
+    once and continue joining the child before propagating cancellation.
+    """
+
+    task = asyncio.ensure_future(operation)
+    caller_cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            caller = asyncio.current_task()
+            if task.cancelled() and (
+                caller is None or caller.cancelling() == 0
+            ):
+                break
+            if not caller_cancelled and cancel_operation is not None:
+                cancel_operation()
+            caller_cancelled = True
+
+    if caller_cancelled:
+        # Observe the child's terminal state, but preserve cancellation as the
+        # result owned by the caller.
+        try:
+            task.result()
+        except (Exception, asyncio.CancelledError):
+            pass
+        raise asyncio.CancelledError
+    return task.result()
 
 
 async def run_in_daemon_thread(operation: Callable[[], Result]) -> Result:

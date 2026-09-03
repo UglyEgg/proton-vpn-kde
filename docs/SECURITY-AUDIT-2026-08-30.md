@@ -152,10 +152,25 @@ adapter teardown. Hostile independently found the same cancellation-boundary
 class in FIDO2: cancelling an assertion at a PIN prompt cleared the adapter's
 only interaction reference without releasing the blocking worker. Subtractive
 reported no blocker, but no partial result counts. The remediation keeps the
-small local mark-seen transaction on the event-loop thread and makes FIDO2
+small local mark-seen transaction on the event-loop thread and made FIDO2
 cancellation signal and join the underlying assertion before clearing its
-interaction. It also labels older performance measurements explicitly as
-historical. All six reviews must restart on the next exact clean candidate.
+interaction. It also labeled older performance measurements explicitly as
+historical. That remediation was itself superseded by the next partial pass.
+
+A seventh partial pass against `950015d` was superseded after Subtractive and
+Entropy found four release blockers. Proton Core 5.6.10 uses a private event
+while selecting among multiple FIDO2 devices, so joining an assertion after
+setting only the public event could wait indefinitely. Moving NPS cache
+persistence onto the event loop avoided an ownership race but made local
+filesystem latency block all D-Bus control. Automatic-reconnect disablement
+discarded its cancelled task before cancellation cleanup completed, and
+control-method replies lacked complete account and foreground ownership. The
+remediation fails FIDO2 closed unless Core explicitly guarantees cancellable
+multi-key selection, runs NPS persistence off-loop while joining its owned
+worker, joins reconnect work before disconnect/logout/teardown, and fences all
+control replies to their accepted account and foreground generations. No result
+from the partial pass counts; all six reviews must restart on the next exact
+clean candidate.
 
 | ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
 | --- | --- | --- | --- |
@@ -175,6 +190,10 @@ historical. All six reviews must restart on the next exact clean candidate.
 | PV-013-014 | Medium | Authentication-recovery states rejected risk-reducing capture Stop while capture remained active | **Remediated in candidate; independent verification pending** |
 | PV-013-015 | Medium | Cancelling an NPS mark-seen coroutine could let its executor worker mutate Core during adapter teardown | **Remediated in candidate; independent verification pending** |
 | PV-013-016 | Medium | Shutdown at a FIDO2 PIN prompt could clear the interaction without releasing and joining its blocking worker | **Remediated in candidate; independent verification pending** |
+| PV-013-017 | High | Multi-key FIDO2 selection ignored Core's public cancellation event, so cancellation-safe joining could hang indefinitely | **Remediated by a fail-closed Core capability gate; independent verification pending** |
+| PV-013-018 | Medium | Synchronous NPS cache persistence on the event loop could stall every backend control operation | **Remediated with an off-loop owned worker; independent verification pending** |
+| PV-013-019 | Medium | Reconnection disablement discarded a cancelled retry before its Core operation had quiesced | **Remediated in candidate; independent verification pending** |
+| PV-013-020 | Medium | Delayed control replies could cross an account or foreground transition and mutate current guidance or completion | **Remediated in candidate; independent verification pending** |
 
 ## Historical 0.12.0 isolated review gate
 

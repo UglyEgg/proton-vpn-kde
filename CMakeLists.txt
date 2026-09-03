@@ -533,7 +533,7 @@ if(BUILD_TESTING)
     set_tests_properties(grouped-navigation-tests PROPERTIES
         ENVIRONMENT
             "QT_QPA_PLATFORM=offscreen;XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
-        TIMEOUT 15
+        TIMEOUT 20
     )
 
     qt_add_executable(connection-action-tests

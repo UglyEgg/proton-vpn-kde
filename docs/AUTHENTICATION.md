@@ -104,14 +104,16 @@ exception text is not returned to the UI because third-party exceptions can
 embed request details. A failed offline logout keeps the session signed in,
 restores the previous kill-switch value through Proton's official settings
 save path, and re-enables session services. A rollback failure is surfaced as
-a distinct fail-safe error. A confirmed successful logout disconnects first
-and asks Proton SSO to remove the persisted session.
+a distinct fail-safe error. A confirmed successful logout first quiesces any
+automatic reconnect worker, disconnects, and asks Proton SSO to remove the
+persisted session.
 
 Automated coverage includes backend-owner substitution rejection, sender-bound
 authorization, per-operation key isolation, encrypted descriptor creation,
 seal verification, bounded backend reads, descriptor closure, extra-field
 rejection, tamper and replay rejection, exception redaction, password login,
-TOTP/recovery codes, FIDO2, session expiry, and transactional logout. A
+TOTP/recovery codes, the fail-closed FIDO2 capability gate and compatible-Core
+FIDO2 flow, session expiry, and transactional logout. A
 cross-language compatibility test encrypts known test-only fields with the
 actual C++ frontend implementation and decrypts
 them with the actual Python backend implementation. The complete encrypted

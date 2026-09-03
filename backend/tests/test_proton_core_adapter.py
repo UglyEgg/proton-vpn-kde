@@ -20,6 +20,9 @@ from proton_vpn_kde_backend.adapters import (
     ProtonCoreAdapter,
     _core_memory_optimization_behavior,
 )
+from proton_vpn_kde_backend.core_compatibility import (
+    cancellable_fido2_available,
+)
 from proton_vpn_kde_backend.capture_recovery import (
     PACKET_CAPTURE_RECOVERY_FILENAME,
     PacketCaptureRecoveryJournal,
@@ -75,6 +78,21 @@ class CoreMemoryOptimizationProbeTests(unittest.TestCase):
                 SimpleNamespace(
                     _deduplicate_server_strings=lambda logicals: None,
                     _server_string_object_hook=lambda: lambda item: item,
+                )
+            )
+        )
+
+    def test_fido2_requires_an_explicit_cancellable_selection_contract(self):
+        self.assertFalse(
+            cancellable_fido2_available(
+                SimpleNamespace(supports_fido2=True)
+            )
+        )
+        self.assertTrue(
+            cancellable_fido2_available(
+                SimpleNamespace(
+                    supports_fido2=True,
+                    supports_cancellable_fido2_key_selection=True,
                 )
             )
         )
@@ -175,6 +193,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 max_connections=10,
             ),
             supports_fido2=False,
+            supports_cancellable_fido2_key_selection=False,
             refresher=refresher,
             login=AsyncMock(),
             submit_2fa_code=AsyncMock(),
@@ -189,6 +208,40 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             usage_reporting=SimpleNamespace(enabled=False),
         )
         return api, connector
+
+    async def start_cancellation_resistant_reconnect(self, adapter, connector):
+        connect_started = asyncio.Event()
+        cancellation_seen = asyncio.Event()
+        release_connect = asyncio.Event()
+
+        async def blocked_connect(*_args):
+            connect_started.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                cancellation_seen.set()
+                await release_connect.wait()
+
+        connector.connect.side_effect = blocked_connect
+        connector.current_connection = SimpleNamespace(
+            server_id="server-id",
+            server_name="",
+            protocol="wireguard",
+            backend="networkmanager",
+        )
+        adapter._api.refresher.server_list = SimpleNamespace(
+            get_by_id=Mock(return_value="logical-server")
+        )
+        adapter._api.refresher.client_config = "client-config"
+        connector.current_state = type("Error", (), {
+            "context": SimpleNamespace(
+                event=type("UnexpectedError", (), {})()
+            )
+        })()
+        adapter._reconnector._delay_factory = lambda _attempt: 0
+        adapter._reconnector.status_update(connector.current_state)
+        await connect_started.wait()
+        return cancellation_seen, release_connect
 
     async def test_startup_compatibility_uses_official_core_check(self):
         api, _ = self.make_api()
@@ -254,7 +307,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.notifications.get_nps_survey_notifications.return_value = [survey]
         event_loop_thread = threading.get_ident()
         api.set_notification_seen.side_effect = (
-            lambda _survey_id: self.assertEqual(
+            lambda _survey_id: self.assertNotEqual(
                 event_loop_thread, threading.get_ident()
             )
         )
@@ -271,6 +324,44 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(10, response.user_score)
         self.assertEqual("Excellent", response.user_comments)
         self.assertEqual("SUBMIT", response.response_type.name)
+
+    async def test_cancelled_nps_cache_write_remains_owned_off_event_loop(self):
+        api, _ = self.make_api()
+        survey = SimpleNamespace(survey_id="survey-1", seen=False, is_active=True)
+        api.refresher.notifications.get_nps_survey_notifications.return_value = [survey]
+        write_started = threading.Event()
+        release_write = threading.Event()
+
+        def blocked_write(_survey_id):
+            write_started.set()
+            release_write.wait(timeout=2)
+
+        api.set_notification_seen.side_effect = blocked_write
+        adapter = ProtonCoreAdapter(api)
+        survey_task = asyncio.create_task(adapter.take_pending_nps_survey())
+        for _ in range(100):
+            if write_started.is_set():
+                break
+            await asyncio.sleep(0.005)
+        self.assertTrue(write_started.is_set())
+
+        heartbeat_ran = False
+
+        async def heartbeat():
+            nonlocal heartbeat_ran
+            await asyncio.sleep(0)
+            heartbeat_ran = True
+
+        await asyncio.wait_for(heartbeat(), timeout=0.1)
+        self.assertTrue(heartbeat_ran)
+        survey_task.cancel()
+        await asyncio.sleep(0)
+        self.assertFalse(survey_task.done())
+
+        release_write.set()
+        with self.assertRaises(asyncio.CancelledError):
+            await asyncio.wait_for(survey_task, timeout=1)
+        api.set_notification_seen.assert_called_once_with("survey-1")
 
     async def test_nps_upstream_failure_is_completion_unknown(self):
         api, _ = self.make_api()
@@ -882,6 +973,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_security_key_flow_uses_official_api(self):
         api, _ = self.make_api(logged_in=False)
         api.supports_fido2 = True
+        api.supports_cancellable_fido2_key_selection = True
         api.login.return_value = SimpleNamespace(
             success=False,
             authenticated=True,
@@ -906,9 +998,26 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(item.auth_state == "fido_touch" for item in snapshots))
         self.assertTrue(snapshots[-1].logged_in)
 
+    async def test_security_key_flow_is_hidden_without_safe_core_contract(self):
+        api, connector = self.make_api(logged_in=False)
+        api.supports_fido2 = True
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+        adapter._auth_state = "two_factor"
+
+        snapshot = adapter._snapshot_from_state(connector.current_state)
+        self.assertFalse(snapshot.fido2_available)
+        with self.assertRaisesRegex(
+            UserVisibleRuntimeError, "cannot safely cancel key selection"
+        ):
+            await adapter.begin_fido2()
+        api.generate_2fa_fido2_assertion.assert_not_awaited()
+
     async def test_shutdown_releases_blocking_security_key_pin_worker(self):
         api, _ = self.make_api(logged_in=False)
         api.supports_fido2 = True
+        api.supports_cancellable_fido2_key_selection = True
         worker_returned = threading.Event()
         interactions = []
 
@@ -943,6 +1052,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_security_key_cancel_during_submit_reconciles_late_login(self):
         api, _ = self.make_api(logged_in=False)
         api.supports_fido2 = True
+        api.supports_cancellable_fido2_key_selection = True
         api.is_user_logged_in.side_effect = [False, True]
         api.generate_2fa_fido2_assertion.return_value = "assertion"
         submit_started = asyncio.Event()
@@ -1208,9 +1318,30 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(2, settings.killswitch)
         self.assertEqual(2, adapter._kill_switch)
-        self.assertEqual(2, api.save_settings.await_count)
+        api.save_settings.assert_not_awaited()
+        adapter._connector.disconnect.assert_not_awaited()
         api.logout.assert_not_awaited()
         self.assertTrue(adapter._logged_in)
+
+    async def test_logout_waits_for_reconnect_worker_before_disconnect(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        cancellation_seen, release_connect = (
+            await self.start_cancellation_resistant_reconnect(adapter, connector)
+        )
+
+        logout_task = asyncio.create_task(adapter.logout())
+        await cancellation_seen.wait()
+        await asyncio.sleep(0)
+        self.assertFalse(logout_task.done())
+        connector.disconnect.assert_not_awaited()
+        api.logout.assert_not_awaited()
+
+        release_connect.set()
+        await asyncio.wait_for(logout_task, timeout=1)
+        connector.disconnect.assert_awaited_once_with()
+        api.logout.assert_awaited_once_with()
 
     async def test_logout_cannot_race_reconnector_reenable(self):
         api, _ = self.make_api()
@@ -2661,6 +2792,28 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.set_server_list_updated_callback.assert_called_with(None)
         api.refresher.set_server_loads_updated_callback.assert_called_with(None)
         api.refresher.set_location_names_updated_callback.assert_called_with(None)
+
+    async def test_close_waits_for_reconnect_worker_before_core_teardown(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        cancellation_seen, release_connect = (
+            await self.start_cancellation_resistant_reconnect(adapter, connector)
+        )
+
+        close_task = asyncio.create_task(adapter.close())
+        await cancellation_seen.wait()
+        await asyncio.sleep(0)
+        self.assertFalse(close_task.done())
+        api.refresher.disable.assert_not_awaited()
+        self.assertFalse(
+            any(call.args == (adapter,) for call in connector.unregister.call_args_list)
+        )
+
+        release_connect.set()
+        await asyncio.wait_for(close_task, timeout=1)
+        api.refresher.disable.assert_awaited_once_with()
+        connector.unregister.assert_any_call(adapter)
 
 
 if __name__ == "__main__":

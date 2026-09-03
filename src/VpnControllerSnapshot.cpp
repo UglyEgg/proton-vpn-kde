@@ -409,21 +409,25 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
 
 void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher)
 {
-    const QString secretMethod = watcher->property("secretMethod").toString();
     const quint64 npsGeneration =
         watcher->property("npsSubmissionGeneration").toULongLong();
     const bool npsSubmission = npsGeneration != 0;
     const bool npsRetryAllowed =
         watcher->property("npsRetryAllowed").toBool();
-    const bool current = !secretMethod.isEmpty()
-        ? sessionReplyIsCurrent(watcher) : backendReplyIsCurrent(watcher);
+    const bool current = sessionReplyIsCurrent(watcher);
+    const bool foregroundOwnershipRequired =
+        watcher->property("foregroundOwnershipRequired").toBool();
+    const quint64 foregroundGeneration =
+        watcher->property("foregroundOperationGeneration").toULongLong();
+    const bool foregroundCurrent = !foregroundOwnershipRequired
+        || foregroundGeneration == m_foregroundOperationGeneration;
     const QString connectionTarget =
         watcher->property("connectionTargetState").toString();
     const quint64 connectionGeneration =
         watcher->property("connectionOperationGeneration").toULongLong();
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
-    if (!current) {
+    if (!current || !foregroundCurrent) {
         if (npsSubmission) {
             finishNpsSurveySubmission(
                 npsGeneration,

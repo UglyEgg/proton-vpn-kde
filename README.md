@@ -42,7 +42,8 @@ The project was started by a paying Proton subscriber since 2017 who wanted the 
 
 ## What it offers
 
-- Native password, TOTP/recovery-code, and Proton FIDO2 sign-in flows.
+- Native password and TOTP/recovery-code sign-in, plus Proton FIDO2 when the
+  installed Core explicitly provides cancellable multi-key selection.
 - Country, city/state, Secure Core, and exact-server browsing with combinable P2P, Streaming, Tor, and Secure Core filters.
 - Proton-ranked fastest connections, saved capability defaults, global search, and pinned tray targets.
 - Protocol, NetShield, NAT, port forwarding, IPv6, custom DNS, kill-switch, and split-tunneling controls through Core's public settings APIs.
@@ -77,7 +78,7 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 | Evidence | Current status |
 | --- | --- |
-| Automated verification | The unreleased 0.13.0 source passes 40/40 checkout CTest tests and 39/39 tests from a clean source archive, including 232 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and 82% measured backend branch coverage |
+| Automated verification | The unreleased 0.13.0 source passes 40/40 checkout CTest tests and 39/39 tests from a clean source archive, including 239 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and 83% measured backend branch coverage |
 | Integration verification | Deterministic light, dark, compact, 1.5x, RTL, contrast-stress, and reduced-motion QML captures; D-Bus activation; staged installation; KRunner; and System Settings |
 | Package verification | A pre-final 0.13.0 candidate produced byte-identical client RPM/SRPM rebuilds; both pinned overlay pairs passed artifact policy and the combined transaction test. The remediated final commit must repeat those gates before publication |
 | Security assessment | Public 0.11.3 has all seven historical findings closed. The presentation-led 0.13.0 review is in progress against the accepted 0.12.0 mechanics plus exact-reviewed state-ownership corrections and is not yet a release approval |

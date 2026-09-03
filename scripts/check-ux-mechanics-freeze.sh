@@ -63,14 +63,19 @@ while IFS= read -r path; do
         CMakeLists.txt|backend/pyproject.toml|\
         backend/proton_vpn_kde_backend/__init__.py|\
         backend/proton_vpn_kde_backend/adapters.py|\
+        backend/proton_vpn_kde_backend/async_utils.py|\
         backend/proton_vpn_kde_backend/controller.py|\
+        backend/proton_vpn_kde_backend/core_compatibility.py|\
+        backend/proton_vpn_kde_backend/core_snapshot.py|\
         backend/proton_vpn_kde_backend/core_support.py|\
         backend/proton_vpn_kde_backend/dbus_contract.py|\
         backend/proton_vpn_kde_backend/dbus_service.py|\
         backend/proton_vpn_kde_backend/errors.py|\
-        backend/tests/test_controller.py|\
+        backend/proton_vpn_kde_backend/reconnector.py|\
+        backend/tests/test_async_utils.py|backend/tests/test_controller.py|\
         backend/tests/test_dbus_service.py|\
         backend/tests/test_proton_core_adapter.py|\
+        backend/tests/test_reconnector.py|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
         packaging/fedora/proton-vpn-kde.spec|\
         src/DbusContract.h|\
@@ -104,22 +109,27 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "eb07ba5f573264d3a6a1add2d65cabedf45b1dcba4bed912dc9f9017d06442de" \
+    "89be18e1e42ead89a3c3a7c0c8f413e5610f7ae3e7d88d08dba0fac7d7532bdf" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "3636921c2165a88ef29d8e132137d2ccfe8bd131af872e486ef13629dd21d41c" \
+    "e34f706f86cbdd28a75fa2cf8d7035fefc11840dd2e2bcc254890ab1eb90ea75" \
     "backend reviewed behavior exceptions" \
     backend/proton_vpn_kde_backend/adapters.py \
+    backend/proton_vpn_kde_backend/async_utils.py \
     backend/proton_vpn_kde_backend/controller.py \
+    backend/proton_vpn_kde_backend/core_compatibility.py \
+    backend/proton_vpn_kde_backend/core_snapshot.py \
     backend/proton_vpn_kde_backend/core_support.py \
     backend/proton_vpn_kde_backend/dbus_service.py \
     backend/proton_vpn_kde_backend/errors.py \
-    backend/tests/test_controller.py backend/tests/test_dbus_service.py \
-    backend/tests/test_proton_core_adapter.py
+    backend/proton_vpn_kde_backend/reconnector.py \
+    backend/tests/test_async_utils.py backend/tests/test_controller.py \
+    backend/tests/test_dbus_service.py \
+    backend/tests/test_proton_core_adapter.py backend/tests/test_reconnector.py
 assert_diff_hash \
     "f3dca36c733c8e515912de42c91c4c7c2faea9f1412ebcc5184b6c1bd8b19bff" \
     "D-Bus completion-classification contract" \
@@ -132,16 +142,12 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "2c8bcc5b315fc58be3e715dba77138c57a97f5d11229ed35116b7bd6a4a9d904" \
+    "f2108459ee714bc1f5b9f36d7a967cd44ac0340744bab9474db35c468e8eb2f9" \
     "frontend presentation contract" \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
     src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
     src/VpnControllerSettings.cpp src/VpnControllerSnapshot.cpp src/main.cpp \
     tests/GroupedNavigationTest.cpp tests/SignInPresentationTest.cpp
-assert_diff_hash \
-    "d210901ec3cd4c79894a28d91e44c4d0b42a61ba0342d5041da9be03f6facf79" \
-    "QML presentation" qml
-
 qml_operation_hash="$(
     rg -o --no-filename \
         'vpnController\.[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(' qml \
@@ -158,5 +164,9 @@ if [[ "$qml_operation_hash" != "$expected_qml_operation_hash" ]]; then
         "$expected_qml_operation_hash" "$qml_operation_hash" >&2
     exit 1
 fi
+
+assert_diff_hash \
+    "aa66195a22e2ec25617882f051503b4e71f38f4d62d6b9e61f4ead72039427e2" \
+    "QML presentation" qml
 
 echo "0.13 change boundary matches accepted baseline $baseline_commit plus exact reviewed deltas"

@@ -195,6 +195,10 @@ connection identity and target when it accepts the request, so one global QML
 feedback surface tracks every origin without duplicating ownership in buttons.
 A newer foreground action must still own a connection completion, and sign-out
 clears any retained connection feedback from the previous account state.
+Control operations also retain the account and foreground generation they
+accepted. Disconnect establishes a new foreground owner; a delayed disconnect
+or reconnection-preference reply cannot change global guidance, availability,
+or completion after a newer action or account transition.
 Packet-capture requests retain a separate generation because risk-reducing
 cleanup must still settle its typed state and pending application shutdown when
 a newer foreground request exists; that cleanup does not overwrite the newer
@@ -212,16 +216,18 @@ provider selection remains an explicit session trust boundary.
 
 The frontend receives only minimum account display metadata. Authentication
 fields use a one-use encrypted and sealed descriptor transport, and provider
-exceptions are mapped to fixed public errors. Logout disconnects first and
-restores the previous Core kill-switch setting if any later step fails.
+exceptions are mapped to fixed public errors. Logout first quiesces automatic
+reconnection, then disconnects, and restores the previous Core kill-switch
+setting if any later step fails.
 Destructive NPS notification retrieval and NPS submission share a narrow
 session-side-effect fence with logout and backend shutdown. They do not acquire
 the VPN-operation lock, so survey work cannot invisibly reject connect or
 disconnect. Logout takes the VPN lock before the side-effect fence and shutdown
 drains both in the same order. Shutdown rejects queued survey work before it can
-enter the adapter. Core's small synchronous mark-seen cache transaction stays
-on the event-loop thread, so task cancellation cannot strand an executor
-mutation that outlives its controller fence and races adapter teardown. Each
+enter the adapter. Core's synchronous mark-seen cache transaction runs on an
+owned executor task so local filesystem work cannot block D-Bus control. Task
+cancellation joins that worker before releasing the controller fence, so its
+mutation cannot outlive ownership and race adapter teardown. Each
 survey operation revalidates its captured session before and after the adapter
 call, so work waiting behind logout cannot mark or submit data for the
 replacement account. Submission and dismissal also retain frontend
@@ -230,10 +236,12 @@ guidance. Once the official submission API is invoked, an exception is
 conservatively classified as completion unknown: the frontend consumes the
 survey without retry rather than risking a duplicate side effect.
 
-FIDO2 cancellation sets both Core's assertion-cancellation event and any active
-PIN waiter, then joins the underlying assertion task before releasing the
-adapter interaction or beginning teardown. A security-key prompt therefore
-cannot leave an executor worker orphaned during service shutdown.
+FIDO2 is advertised only when Core explicitly guarantees that its public
+cancellation event reaches multi-key selection as well as assertion and PIN
+work. Enabled assertions set that event and any active PIN waiter, then join the
+underlying task before releasing the adapter interaction or beginning teardown.
+Current Core releases without the complete contract keep authenticator and
+recovery-code sign-in available but do not expose the unsafe security-key flow.
 
 ## Server data and connection selection
 

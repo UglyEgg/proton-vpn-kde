@@ -71,7 +71,7 @@ The implementation constraints are:
 | Adjust behavior | Common settings grouped by outcome | Contextual exceptions, custom DNS, and split tunneling |
 | Understand a problem | Plain-language state and one safe recovery action | Technical error, component status, and diagnostics |
 | Inspect a connection | Short live summary | The existing read-only Connection Inspector |
-| Manage identity | Sign-in requirement or current account | Two-factor, security key, plan, and sign-out actions |
+| Manage identity | Sign-in requirement or current account | Two-factor, Core-compatible security key, plan, and sign-out actions |
 
 ## Post-release stabilization
 
@@ -108,3 +108,8 @@ Provider-neutral Secret Service compatibility, small Core API hygiene fixes,
 and terminology improvements should be proposed separately to the Proton
 repository that owns each behavior. Each patch must stand on its own, include
 focused tests, and avoid depending on this Plasma frontend.
+
+The first Core proposal should pass the public FIDO2 cancellation event through
+multi-key selection and expose an explicit capability only after selection,
+assertion, and PIN workers all quiesce on cancellation. The Plasma client can
+then re-enable its existing security-key flow without carrying a Core patch.

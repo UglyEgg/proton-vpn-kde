@@ -12,6 +12,8 @@ import os
 import random
 from typing import Any
 
+from .async_utils import await_owned
+
 
 StatusCallback = Callable[[str], None]
 ConditionProbe = Callable[[], Awaitable[bool]]
@@ -129,6 +131,7 @@ class AsyncReconnector:
         self._session_probe = session_probe or LogindSessionProbe()
         self._delay_factory = delay_factory or self._retry_delay
         self._retry_task: asyncio.Task | None = None
+        self._retry_pending = False
         self._retry_counter = 0
         self._retry_generation = 0
         self._enabled = False
@@ -157,15 +160,32 @@ class AsyncReconnector:
             raise
 
     async def disable(self) -> None:
+        unregister_error: Exception | None = None
         try:
             if self._enabled:
                 self._connector.unregister(self)
+        except Exception as error:
+            unregister_error = error
+
+        # A faulty observer cannot leave retry work armed after a caller has
+        # entered a protection-unknown or signed-out state. Retain and join the
+        # retry task before returning so connector teardown cannot overtake it.
+        self._enabled = False
+        retry_task = self._reset()
+        try:
+            if retry_task is not None:
+                try:
+                    await await_owned(retry_task)
+                except asyncio.CancelledError:
+                    current = asyncio.current_task()
+                    if current is not None and current.cancelling():
+                        raise
         finally:
-            # A faulty observer cannot leave retry work armed after a caller
-            # has entered a protection-unknown or signed-out state.
-            self._enabled = False
-            self._reset()
+            if self._retry_task is retry_task and retry_task is not None:
+                self._retry_task = None
             await self._session_probe.close()
+        if unregister_error is not None:
+            raise unregister_error
 
     def status_update(self, state: Any) -> None:
         if not self._enabled:
@@ -193,8 +213,12 @@ class AsyncReconnector:
         self._schedule_retry()
 
     def _schedule_retry(self) -> bool:
-        if not self._enabled or self._retry_task:
+        if not self._enabled:
             return False
+        if self._retry_task:
+            self._retry_pending = True
+            return False
+        self._retry_pending = False
         delay = self._delay_factory(self._retry_counter)
         self._status_callback(f"Reconnecting in {delay:.1f} seconds…")
         generation = self._retry_generation
@@ -214,6 +238,8 @@ class AsyncReconnector:
             if self._retry_task is asyncio.current_task():
                 self._retry_task = None
         if retry and self._retry_is_current(generation):
+            self._schedule_retry()
+        elif self._retry_pending and self._enabled:
             self._schedule_retry()
 
     async def _attempt_retry(self, generation: int) -> bool:
@@ -297,13 +323,15 @@ class AsyncReconnector:
             and type(self._connector.current_state).__name__ == "Error"
         )
 
-    def _reset(self) -> None:
+    def _reset(self) -> asyncio.Task | None:
         self._retry_generation += 1
         current_task = asyncio.current_task()
-        if self._retry_task and self._retry_task is not current_task:
-            self._retry_task.cancel()
-        self._retry_task = None
+        retry_task = self._retry_task
+        if retry_task and retry_task is not current_task:
+            retry_task.cancel()
         self._retry_counter = 0
+        self._retry_pending = False
+        return retry_task if retry_task is not current_task else None
 
     @staticmethod
     def _retry_delay(retry_counter: int) -> float:

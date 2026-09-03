@@ -24,7 +24,7 @@ The supported Fedora package installs both Plasma and project executables below
 prefix; non-`/usr` custom-prefix layouts are not currently an accepted runtime
 configuration.
 
-CI runs all 215 isolated backend tests under Python 3.11 with the exact minimum
+CI runs all 239 isolated backend tests under Python 3.11 with the exact minimum
 `cryptography` 45.0.1 and `dbus-fast` 2.20.0 wheels. A separate source-level
 contract check downloads and extracts Proton's SHA-256-pinned Fedora 44 API
 Core 5.5.6 RPM, then verifies every public class, method, property, and exported
@@ -49,6 +49,12 @@ continues to provide the older provider-agnostic capability for compatibility,
 but that weaker capability cannot satisfy the owner-pinned client dependency. This
 dependency can be retired after an equivalent upstream build is verified; it
 is not a claim that stock Proton 0.2.3 supports KeePassXC correctly.
+
+Proton API Core 5.6.10 exposes a cancellation event for FIDO2 assertions but
+does not apply it while choosing among multiple attached keys. The Plasma
+client therefore does not advertise FIDO2 on that version. Authenticator and
+recovery codes remain available. A future Core must explicitly guarantee
+cancellable multi-key selection before the security-key action is enabled.
 
 ## Last verified installed stack
 

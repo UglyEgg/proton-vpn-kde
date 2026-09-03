@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from . import __version__
+from .async_utils import await_owned
 from .controller import NpsSurveyResponse, SupportReport
 from .errors import NpsCompletionUnknownError, UserVisibleRuntimeError
 from .support import collect_support_logs
@@ -56,12 +57,15 @@ async def take_pending_nps_survey(api: Any) -> bool:
     while notifications:
         survey = notifications.pop()
         if not survey.seen and survey.is_active:
-            # Core's synchronous implementation only updates the in-memory
-            # notification and writes its local JSON cache. Keep that small
-            # transaction on the event-loop thread so task cancellation cannot
-            # release controller ownership while an executor worker continues
-            # mutating Core during adapter teardown.
-            api.set_notification_seen(survey.survey_id)
+            # Core writes its local JSON cache synchronously. Keep filesystem
+            # work off the D-Bus event loop, but retain task ownership through
+            # cancellation so teardown cannot overtake the cache mutation.
+            await await_owned(
+                asyncio.to_thread(
+                    api.set_notification_seen,
+                    survey.survey_id,
+                )
+            )
             return True
     return False
 

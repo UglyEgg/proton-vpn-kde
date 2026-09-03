@@ -729,13 +729,19 @@ void VpnController::callControlOperation(const QString &method,
     message.setArguments(arguments);
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
-    stampBackendRequest(watcher);
     const QString connectionTarget = connectionTargetState(method);
+    const quint64 foregroundGeneration = connectionTarget.isEmpty()
+        ? m_foregroundOperationGeneration : ++m_foregroundOperationGeneration;
     quint64 connectionGeneration = 0;
     if (!connectionTarget.isEmpty()) {
         connectionGeneration = ++m_connectionOperationGeneration;
         emit connectionOperationStarted(connectionGeneration, connectionTarget);
     }
+    stampSessionRequest(watcher);
+    watcher->setProperty("foregroundOwnershipRequired", true);
+    watcher->setProperty(
+        "foregroundOperationGeneration",
+        QVariant::fromValue<qulonglong>(foregroundGeneration));
     watcher->setProperty("connectionTargetState", connectionTarget);
     watcher->setProperty("connectionOperationGeneration",
                          QVariant::fromValue<qulonglong>(connectionGeneration));

@@ -95,6 +95,16 @@ Kirigami.ScrollablePage {
                     qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")
                 ]
             }
+
+            ReleaseNoteGroup {
+                heading: qsTr("Safer asynchronous recovery")
+                headingLevel: 4
+                notes: [
+                    qsTr("Automatic reconnect now finishes cancellation cleanup before disconnect, sign-out, or backend shutdown continues."),
+                    qsTr("Survey cache writes remain responsive without outliving their account session, and delayed disconnect or reconnection-preference replies cannot overwrite newer guidance."),
+                    qsTr("Security-key sign-in appears only when Proton Core guarantees safe cancellation through multi-key selection; authenticator and recovery codes remain available on current Core versions.")
+                ]
+            }
         }
 
         Controls.Button {

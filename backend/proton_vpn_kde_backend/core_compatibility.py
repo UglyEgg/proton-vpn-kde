@@ -9,6 +9,27 @@ from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 
+FIDO2_CANCELLABLE_SELECTION_CAPABILITY = (
+    "supports_cancellable_fido2_key_selection"
+)
+
+
+def cancellable_fido2_available(api: Any) -> bool:
+    """Require Core to guarantee cancellation through key selection.
+
+    Current Core releases expose an assertion cancellation event but do not
+    use it while selecting among multiple attached keys.  The GUI must not
+    advertise a flow it cannot cancel and join safely.  A future Core can opt
+    in with an explicit capability once the complete selection path observes
+    the public cancellation event.
+    """
+
+    return bool(
+        getattr(api, "supports_fido2", False)
+        and getattr(api, FIDO2_CANCELLABLE_SELECTION_CAPABILITY, False)
+    )
+
+
 def core_memory_optimization_behavior(logicals_module: Any) -> bool:
     """Check both supported string-sharing paths without touching live Core state."""
     deduplicate = getattr(logicals_module, "_deduplicate_server_strings", None)

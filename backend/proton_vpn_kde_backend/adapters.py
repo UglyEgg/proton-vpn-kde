@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from .async_utils import run_in_daemon_thread
+from .async_utils import await_owned, run_in_daemon_thread
 from .demo_adapter import DemoCoreAdapter
 from .errors import (
     SessionExpiredError,
@@ -37,6 +37,7 @@ from .controller import (
     VpnSnapshot,
 )
 from .core_compatibility import (
+    cancellable_fido2_available as _cancellable_fido2_available,
     core_memory_optimization_behavior as _core_memory_optimization_behavior,
     core_memory_optimizations_active as _core_memory_optimizations_active,
     core_package_version as _core_package_version,
@@ -1028,8 +1029,11 @@ class ProtonCoreAdapter:
     async def begin_fido2(self) -> None:
         if self._auth_state not in {"two_factor", "fido_error"}:
             raise UserVisibleRuntimeError("No two-factor authentication is pending")
-        if not bool(self._api.supports_fido2):
-            raise UserVisibleRuntimeError("Security-key authentication is unavailable")
+        if not _cancellable_fido2_available(self._api):
+            raise UserVisibleRuntimeError(
+                "Security-key authentication is unavailable because the "
+                "installed Proton Core cannot safely cancel key selection"
+            )
 
         loop = asyncio.get_running_loop()
         interaction = FidoInteraction(loop, self._set_auth_status)
@@ -1039,24 +1043,16 @@ class ProtonCoreAdapter:
             "Insert your security key and follow its prompts",
         )
         try:
-            assertion_task = asyncio.create_task(
-                self._api.generate_2fa_fido2_assertion(
-                    interaction,
-                    interaction.cancel_assertion,
-                )
+            assertion_operation = self._api.generate_2fa_fido2_assertion(
+                interaction,
+                interaction.cancel_assertion,
             )
             try:
-                assertion = await asyncio.shield(assertion_task)
+                assertion = await await_owned(
+                    assertion_operation,
+                    cancel_operation=interaction.cancel,
+                )
             except asyncio.CancelledError:
-                # Core may be waiting in a blocking FIDO callback on an
-                # executor worker. Release that callback, then retain ownership
-                # until the actual Core task exits so adapter teardown cannot
-                # overtake it.
-                interaction.cancel()
-                try:
-                    await asyncio.shield(assertion_task)
-                except Exception:
-                    pass
                 raise
             except Exception as error:
                 if interaction.cancelled:
@@ -1109,13 +1105,16 @@ class ProtonCoreAdapter:
 
     async def logout(self) -> None:
         await self.cancel_fido2()
-        if type(self._connector.current_state).__name__ != "Disconnected":
-            await self._connector.disconnect()
         settings = await self._load_settings()
         previous_kill_switch = self._kill_switch_value(settings)
         kill_switch_changed = previous_kill_switch != 0
         kill_switch_zero_task: asyncio.Task[None] | None = None
         try:
+            if self._reconnector:
+                await self._reconnector.disable()
+            self._session_services_enabled = False
+            if type(self._connector.current_state).__name__ != "Disconnected":
+                await self._connector.disconnect()
             if kill_switch_changed:
                 # Proton Core persists settings in an executor. Shield this
                 # task so outer cancellation cannot abandon a worker that may
@@ -1126,9 +1125,6 @@ class ProtonCoreAdapter:
                 )
                 await asyncio.shield(kill_switch_zero_task)
             self._kill_switch = 0
-            if self._reconnector:
-                await self._reconnector.disable()
-            self._session_services_enabled = False
             await self._api.logout()
         except (Exception, asyncio.CancelledError) as error:
             recovery, recovery_cancelled = await self._finish_logout_recovery(
@@ -1194,6 +1190,8 @@ class ProtonCoreAdapter:
                 # service must not report a false clean shutdown condition.
                 pass
         self._packet_capture.release_for_shutdown()
+        if self._reconnector:
+            await self._reconnector.disable()
         if self._api:
             self._api.refresher.set_server_list_updated_callback(None)
             self._api.refresher.set_server_loads_updated_callback(None)
@@ -1202,8 +1200,6 @@ class ProtonCoreAdapter:
             )
             if callable(location_callback_setter):
                 location_callback_setter(None)
-        if self._reconnector:
-            await self._reconnector.disable()
         if self._connector:
             self._connector.unregister(self)
         if self._api and self._session_services_enabled:
