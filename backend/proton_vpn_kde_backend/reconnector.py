@@ -13,11 +13,15 @@ import random
 from typing import Any
 
 from .async_utils import await_owned
+from .errors import is_proton_authentication_needed
 
 
 StatusCallback = Callable[[str], None]
 ConditionProbe = Callable[[], Awaitable[bool]]
 DelayFactory = Callable[[int], float]
+AuthenticationEpochSource = Callable[[], int]
+AuthenticationEpochValidator = Callable[[int], bool]
+AuthenticationErrorCallback = Callable[[Exception, int], Awaitable[None]]
 
 
 logger = logging.getLogger(__name__)
@@ -132,6 +136,9 @@ class AsyncReconnector:
         network_probe: ConditionProbe = network_route_available,
         session_probe: LogindSessionProbe | None = None,
         delay_factory: DelayFactory | None = None,
+        authentication_epoch_source: AuthenticationEpochSource | None = None,
+        authentication_epoch_validator: AuthenticationEpochValidator | None = None,
+        authentication_error_callback: AuthenticationErrorCallback | None = None,
     ):
         self._connector = connector
         self._refresher = refresher
@@ -139,6 +146,9 @@ class AsyncReconnector:
         self._network_probe = network_probe
         self._session_probe = session_probe or LogindSessionProbe()
         self._delay_factory = delay_factory or self._retry_delay
+        self._authentication_epoch_source = authentication_epoch_source
+        self._authentication_epoch_validator = authentication_epoch_validator
+        self._authentication_error_callback = authentication_error_callback
         self._retry_task: asyncio.Task | None = None
         self._retry_pending = False
         self._retry_counter = 0
@@ -315,6 +325,11 @@ class AsyncReconnector:
             self._status_callback("Waiting for the previous VPN connection…")
             return True
 
+        authentication_epoch = (
+            self._authentication_epoch_source()
+            if self._authentication_epoch_source is not None
+            else 0
+        )
         try:
             logical_server = self._refresher.server_list.get_by_id(
                 connection.server_id
@@ -323,6 +338,11 @@ class AsyncReconnector:
                 logical_server, self._refresher.client_config
             )
             if not self._retry_is_current(generation):
+                return False
+            if (
+                self._authentication_epoch_validator is not None
+                and not self._authentication_epoch_validator(authentication_epoch)
+            ):
                 return False
             self._retry_counter += 1
             self._status_callback("Reconnecting…")
@@ -333,6 +353,19 @@ class AsyncReconnector:
             raise
         except Exception as error:
             if not self._retry_is_current(generation):
+                return False
+            if (
+                is_proton_authentication_needed(error)
+                and self._authentication_error_callback is not None
+            ):
+                try:
+                    await self._authentication_error_callback(
+                        error, authentication_epoch
+                    )
+                except Exception:
+                    # The callback owns the authoritative session projection;
+                    # retry policy stops regardless.
+                    pass
                 return False
             logger.error("VPN reconnection failed (%s)", type(error).__name__)
             self._status_callback("Reconnection failed")

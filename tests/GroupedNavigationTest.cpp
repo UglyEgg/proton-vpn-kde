@@ -56,6 +56,7 @@ class GroupedNavigationBackend final : public QObject, protected QDBusContext
 
 public:
     int registrationCalls = 0;
+    int disconnectCalls = 0;
     int countryCalls = 0;
     int groupCalls = 0;
     int serverCalls = 0;
@@ -148,6 +149,7 @@ public slots:
 
     void Disconnect()
     {
+        ++disconnectCalls;
         if (delayDisconnect) {
             setDelayedReply(true);
             delayedDisconnectMessage = message();
@@ -445,6 +447,7 @@ private slots:
     void ignoresOperationReplyFromReplacedBackend();
     void retriesSnapshotAfterTransientSameOwnerFailure();
     void invalidSnapshotOwnsGlobalHealthError();
+    void loggedOutActiveTunnelCanBeDisconnected();
     void invalidSnapshotStillAllowsCaptureStopAndRestart();
     void packetCaptureFailuresHaveTypedState();
     void rejectedCaptureStartAllowsShutdownAfterIdleSnapshot();
@@ -681,6 +684,26 @@ void GroupedNavigationTest::invalidSnapshotOwnsGlobalHealthError()
         QVERIFY(controller.primaryActionEnabled());
         QVERIFY(controller.snapshotError().isEmpty());
     }
+}
+
+void GroupedNavigationTest::loggedOutActiveTunnelCanBeDisconnected()
+{
+    m_backend.connectionState = QStringLiteral("connected");
+    m_backend.loggedIn = false;
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.loggedIn(), 2000);
+    QCOMPARE(controller.state(), QStringLiteral("connected"));
+    QVERIFY(controller.primaryActionEnabled());
+
+    const int disconnectBaseline = m_backend.disconnectCalls;
+    controller.activatePrimaryAction();
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.disconnectCalls, disconnectBaseline + 1, 2000);
+
+    m_backend.connectionState = QStringLiteral("disconnected");
+    m_backend.loggedIn = true;
 }
 
 void GroupedNavigationTest::invalidSnapshotStillAllowsCaptureStopAndRestart()

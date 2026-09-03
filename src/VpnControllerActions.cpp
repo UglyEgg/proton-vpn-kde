@@ -108,7 +108,7 @@ void VpnController::activatePrimaryAction()
 
 void VpnController::disconnect()
 {
-    if (!m_backendAvailable || !m_ready || !m_loggedIn
+    if (!m_backendAvailable || !m_ready
         || m_state == QStringLiteral("disconnected")) {
         return;
     }

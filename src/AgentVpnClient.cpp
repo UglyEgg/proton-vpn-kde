@@ -110,7 +110,8 @@ bool AgentVpnClient::primaryActionEnabled() const
     if (!m_backendAvailable) {
         return true;
     }
-    return m_ready && m_loggedIn
+    const bool disconnectAction = ProtonVpnKde::primaryActionDisconnects(m_state);
+    return m_ready && (disconnectAction || m_loggedIn)
         && (!m_busy || m_state == QStringLiteral("connecting"));
 }
 
@@ -141,7 +142,7 @@ void AgentVpnClient::autoConnect(const QString &target)
 
 void AgentVpnClient::activatePrimaryAction()
 {
-    if (m_backendAvailable && m_ready && m_loggedIn
+    if (m_backendAvailable && m_ready
         && ProtonVpnKde::primaryActionDisconnects(m_state)) {
         disconnect();
         return;
@@ -196,7 +197,7 @@ void AgentVpnClient::disconnect()
     // yet. Retire queued connects before inspecting the current projection so
     // a delayed lease or snapshot cannot dispatch them afterward.
     clearPendingConnection();
-    if (!m_backendAvailable || !m_ready || !m_loggedIn) {
+    if (!m_backendAvailable || !m_ready) {
         releaseTransientLease();
         return;
     }
@@ -212,8 +213,10 @@ void AgentVpnClient::disconnect()
 void AgentVpnClient::onServiceRegistered(const QString &)
 {
     ++m_serviceGeneration;
+    ++m_transientLeaseRequestGeneration;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
+    m_transientLeaseMayExist = false;
     ++m_operationGeneration;
     m_operationReconciliationGeneration = 0;
     m_authorizationPending = false;
@@ -251,8 +254,10 @@ void AgentVpnClient::onServiceUnregistered(const QString &)
     ++m_operationGeneration;
     m_operationReconciliationGeneration = 0;
     m_authorizationPending = false;
+    ++m_transientLeaseRequestGeneration;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
+    m_transientLeaseMayExist = false;
     m_killSwitch = 0;
     m_forwardedPort = 0;
     m_state = QStringLiteral("disconnected");
@@ -362,7 +367,7 @@ void AgentVpnClient::authorizeClient()
         setBackendAvailable(true);
         applyReconnectionPreference();
         requestSnapshot();
-        if (!m_pendingTarget.isEmpty()) {
+        if (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty()) {
             acquireTransientLease();
         }
     });
@@ -498,6 +503,9 @@ void AgentVpnClient::acquireTransientLease()
         return;
     }
     m_transientLeasePending = true;
+    m_transientLeaseMayExist = true;
+    const quint64 leaseRequestGeneration =
+        ++m_transientLeaseRequestGeneration;
     const quint64 generation = m_serviceGeneration;
     const quint64 connectionIntentGeneration = m_connectionIntentGeneration;
     const QString destination = m_backendDestination;
@@ -510,12 +518,13 @@ void AgentVpnClient::acquireTransientLease()
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this, destination, generation,
+            [this, destination, generation, leaseRequestGeneration,
              connectionIntentGeneration](QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<> reply = *finished;
         finished->deleteLater();
         if (generation != m_serviceGeneration
-            || destination != m_backendDestination) {
+            || destination != m_backendDestination
+            || leaseRequestGeneration != m_transientLeaseRequestGeneration) {
             return;
         }
         m_transientLeasePending = false;
@@ -523,6 +532,7 @@ void AgentVpnClient::acquireTransientLease()
             == m_connectionIntentGeneration;
         if (reply.isError()) {
             if (!currentIntent) {
+                releaseTransientLease();
                 if (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty()) {
                     acquireTransientLease();
                 }
@@ -531,6 +541,7 @@ void AgentVpnClient::acquireTransientLease()
             const bool interactive = m_pendingInteractive;
             clearPendingConnection();
             m_message = fixedCallFailureMessage(reply.error());
+            releaseTransientLease();
             emit snapshotChanged();
             if (interactive) {
                 emit controlCenterRequested();
@@ -549,10 +560,14 @@ void AgentVpnClient::acquireTransientLease()
 
 void AgentVpnClient::releaseTransientLease()
 {
-    if (!m_transientLeaseActive) {
+    if (!m_transientLeaseMayExist && !m_transientLeasePending
+        && !m_transientLeaseActive) {
         return;
     }
+    ++m_transientLeaseRequestGeneration;
+    m_transientLeasePending = false;
     m_transientLeaseActive = false;
+    m_transientLeaseMayExist = false;
     const QString uniqueName = QDBusConnection::sessionBus().baseService();
     if (uniqueName.isEmpty() || !m_backendAvailable
         || m_backendDestination.isEmpty()) {
@@ -706,14 +721,17 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         && (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty())) {
         acquireTransientLease();
     }
-    const bool releaseReconciliationLease =
-        m_operationReconciliationGeneration != 0
-        && m_operationReconciliationGeneration == m_operationGeneration;
-    if (releaseReconciliationLease) {
+    const bool settlesOperation = operationGeneration != 0
+        && operationGeneration == m_operationGeneration;
+    if (m_operationReconciliationGeneration == operationGeneration) {
         m_operationReconciliationGeneration = 0;
     }
     applySnapshot(reply.value());
-    if (releaseReconciliationLease) {
+    // applySnapshot may synchronously dispatch a newer queued operation.  An
+    // older reconciliation owns lease retirement only while its operation
+    // generation is still current and no successor still needs the lease.
+    if (settlesOperation && operationGeneration == m_operationGeneration
+        && !m_busy && m_pendingTarget.isEmpty() && m_pendingGroup.isEmpty()) {
         releaseTransientLease();
     }
 }
@@ -742,10 +760,13 @@ void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
         m_operationReconciliationGeneration = 0;
         m_message = fixedCallFailureMessage(reply.error());
         emit snapshotChanged();
-        releaseTransientLease();
+        if (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty()) {
+            requestSnapshot(false, operationGeneration);
+        } else {
+            releaseTransientLease();
+        }
         return;
     }
     m_operationReconciliationGeneration = 0;
-    releaseTransientLease();
     requestSnapshot(false, operationGeneration);
 }

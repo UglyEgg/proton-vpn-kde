@@ -193,6 +193,8 @@ class BackendController:
         self._session_epoch = 0
         self._closing = False
         self._active_operation_task: asyncio.Task[None] | None = None
+        self._active_operation_kind: str | None = None
+        self._preemptive_disconnect_tasks: set[asyncio.Task[None]] = set()
         self._active_session_side_effect_task: asyncio.Task[object] | None = None
         self._active_settings_task: asyncio.Task[object] | None = None
         self._packet_capture_start_task: asyncio.Task[None] | None = None
@@ -242,7 +244,9 @@ class BackendController:
 
     async def connect_fastest(self) -> None:
         self._require_session()
-        await self._run_operation(self._adapter.connect_fastest)
+        await self._run_operation(
+            self._adapter.connect_fastest, operation_kind="connect"
+        )
 
     async def connect_fastest_with_feature(self, feature: str) -> None:
         await self.connect_fastest_with_features([feature])
@@ -251,10 +255,13 @@ class BackendController:
         self._require_session()
         normalized_features = normalize_server_features(features)
         if not normalized_features:
-            await self._run_operation(self._adapter.connect_fastest)
+            await self._run_operation(
+                self._adapter.connect_fastest, operation_kind="connect"
+            )
             return
         await self._run_operation(
-            lambda: self._adapter.connect_fastest_with_features(normalized_features)
+            lambda: self._adapter.connect_fastest_with_features(normalized_features),
+            operation_kind="connect",
         )
 
     async def get_countries_json(self) -> str:
@@ -488,7 +495,8 @@ class BackendController:
         self._require_session()
         normalized_code = self._validate_country_code(country_code)
         await self._run_operation(
-            lambda: self._adapter.connect_country(normalized_code)
+            lambda: self._adapter.connect_country(normalized_code),
+            operation_kind="connect",
         )
 
     async def connect_country_with_features(
@@ -499,13 +507,15 @@ class BackendController:
         normalized_features = normalize_server_features(features)
         if not normalized_features:
             await self._run_operation(
-                lambda: self._adapter.connect_country(normalized_code)
+                lambda: self._adapter.connect_country(normalized_code),
+                operation_kind="connect",
             )
             return
         await self._run_operation(
             lambda: self._adapter.connect_country_with_features(
                 normalized_code, normalized_features
-            )
+            ),
+            operation_kind="connect",
         )
 
     async def connect_group(
@@ -519,7 +529,8 @@ class BackendController:
         await self._run_operation(
             lambda: self._adapter.connect_group(
                 normalized_code, normalized_kind, normalized_name
-            )
+            ),
+            operation_kind="connect",
         )
 
     async def connect_group_with_features(
@@ -539,7 +550,8 @@ class BackendController:
             await self._run_operation(
                 lambda: self._adapter.connect_group(
                     normalized_code, normalized_kind, normalized_name
-                )
+                ),
+                operation_kind="connect",
             )
             return
         await self._run_operation(
@@ -548,7 +560,8 @@ class BackendController:
                 normalized_kind,
                 normalized_name,
                 normalized_features,
-            )
+            ),
+            operation_kind="connect",
         )
 
     async def connect_server(self, server_name: str) -> None:
@@ -556,7 +569,10 @@ class BackendController:
         normalized_name = server_name.strip()
         if not normalized_name or len(normalized_name) > 128:
             raise UserVisibleValueError("Invalid Proton server name")
-        await self._run_operation(lambda: self._adapter.connect_server(normalized_name))
+        await self._run_operation(
+            lambda: self._adapter.connect_server(normalized_name),
+            operation_kind="connect",
+        )
 
     async def start_packet_capture(self, directory_path: str) -> None:
         self._require_session()
@@ -659,9 +675,11 @@ class BackendController:
             raise UserVisibleRuntimeError(
                 "Disable the permanent kill switch before signing in"
             )
-        await self._run_operation(
-            lambda: self._adapter.login(normalized_username, password)
-        )
+        async def serialized_login() -> None:
+            async with self._serialized_session_side_effect():
+                await self._adapter.login(normalized_username, password)
+
+        await self._run_operation(serialized_login)
 
     async def submit_two_factor(self, code: str) -> None:
         self._require_ready()
@@ -670,17 +688,29 @@ class BackendController:
             raise UserVisibleValueError(
                 "Enter a 6-digit code or an 8-character recovery code"
             )
-        await self._run_operation(
-            lambda: self._adapter.submit_two_factor(normalized_code)
-        )
+        async def serialized_two_factor() -> None:
+            async with self._serialized_session_side_effect():
+                await self._adapter.submit_two_factor(normalized_code)
+
+        await self._run_operation(serialized_two_factor)
 
     async def cancel_login(self) -> None:
         self._require_ready()
-        await self._run_operation(self._adapter.cancel_login)
+
+        async def serialized_cancel() -> None:
+            async with self._serialized_session_side_effect():
+                await self._adapter.cancel_login()
+
+        await self._run_operation(serialized_cancel)
 
     async def begin_fido2(self) -> None:
         self._require_ready()
-        await self._run_operation(self._adapter.begin_fido2)
+
+        async def serialized_fido2() -> None:
+            async with self._serialized_session_side_effect():
+                await self._adapter.begin_fido2()
+
+        await self._run_operation(serialized_fido2)
 
     async def submit_fido2_pin(self, pin: str) -> None:
         self._require_ready()
@@ -708,16 +738,24 @@ class BackendController:
         await self._run_operation(self._adapter.disable_kill_switch_for_login)
 
     async def disconnect(self) -> None:
-        self._require_session()
+        # Disconnect is risk-reducing cleanup and remains available after an
+        # account expiry strands an otherwise-live tunnel.
+        self._require_cleanup_ready()
         if self._operation_lock.locked():
-            if self._snapshot.state != "connecting":
+            if self._active_operation_kind != "connect":
                 raise UserVisibleRuntimeError(
                     "Another VPN operation is already in progress"
                 )
-            # Proton's connector accepts a Down event while an Up event is in
-            # progress. Let that control operation bypass the serialization
-            # lock so a slow or stalled connection can always be cancelled.
-            await self._adapter.disconnect()
+            # Admission follows semantic operation ownership, not a snapshot
+            # that may lag before Connect publishes its first state.
+            task = asyncio.current_task()
+            if task is None:
+                raise RuntimeError("Disconnect requires an asyncio task")
+            self._preemptive_disconnect_tasks.add(task)
+            try:
+                await self._adapter.disconnect()
+            finally:
+                self._preemptive_disconnect_tasks.discard(task)
             return
         await self._run_operation(self._adapter.disconnect)
 
@@ -738,6 +776,19 @@ class BackendController:
         # adapter transactions perform their own cancellation-safe state repair
         # before unwinding.
         self._closing = True
+        preemptive_tasks = tuple(self._preemptive_disconnect_tasks)
+        if preemptive_tasks:
+            _, pending_preemptions = await asyncio.wait(
+                preemptive_tasks,
+                timeout=self._shutdown_drain_seconds,
+            )
+            for task in pending_preemptions:
+                task.cancel()
+            if pending_preemptions:
+                await asyncio.wait(
+                    pending_preemptions,
+                    timeout=self._shutdown_drain_seconds,
+                )
         try:
             await asyncio.wait_for(
                 self._operation_lock.acquire(),
@@ -848,13 +899,18 @@ class BackendController:
             raise UserVisibleValueError("Invalid Proton server group name")
         return normalized_kind, normalized_name
 
-    async def _run_operation(self, operation: Callable[[], Awaitable[None]]) -> None:
+    async def _run_operation(
+        self,
+        operation: Callable[[], Awaitable[None]],
+        *,
+        operation_kind: str = "mutation",
+    ) -> None:
         if self._operation_lock.locked():
             raise UserVisibleRuntimeError(
                 "Another VPN operation is already in progress"
             )
 
-        async with self._serialized_operation():
+        async with self._serialized_operation(operation_kind):
             await self._execute_operation(operation)
 
     async def _execute_operation(
@@ -891,15 +947,34 @@ class BackendController:
             self._publish(replace(self._snapshot, busy=False))
 
     @asynccontextmanager
-    async def _serialized_operation(self) -> AsyncIterator[None]:
+    async def _serialized_operation(
+        self, operation_kind: str = "mutation"
+    ) -> AsyncIterator[None]:
+        await self._wait_for_preemptive_disconnects()
         async with self._operation_lock:
             task = asyncio.current_task()
             self._active_operation_task = task
+            self._active_operation_kind = operation_kind
             try:
                 yield
             finally:
                 if self._active_operation_task is task:
                     self._active_operation_task = None
+                    self._active_operation_kind = None
+
+    async def _wait_for_preemptive_disconnects(self) -> None:
+        current_task = asyncio.current_task()
+        while True:
+            active = tuple(
+                task
+                for task in self._preemptive_disconnect_tasks
+                if task is not current_task and not task.done()
+            )
+            if not active:
+                return
+            await asyncio.shield(
+                asyncio.gather(*active, return_exceptions=True)
+            )
 
     @asynccontextmanager
     async def _serialized_session_side_effect(self) -> AsyncIterator[None]:

@@ -16,9 +16,11 @@ from typing import Any, Callable
 from .async_utils import await_owned, run_in_daemon_thread
 from .demo_adapter import DemoCoreAdapter
 from .errors import (
+    NpsCompletionUnknownError,
     SessionExpiredError,
     UserVisibleRuntimeError,
     UserVisibleValueError,
+    is_proton_authentication_needed,
 )
 from .controller import (
     CountryInfo,
@@ -137,6 +139,10 @@ class ProtonCoreAdapter:
         self._active_authentication_token: object | None = None
         self._reconnector: AsyncReconnector | None = None
         self._disconnect_lock = asyncio.Lock()
+        self._connection_lifecycle_context: ContextVar[object | None] = ContextVar(
+            f"proton_vpn_connection_lifecycle_{id(self)}", default=None
+        )
+        self._active_connection_lifecycle_token: object | None = None
         self._reconnection_enabled = True
         self._status_message = ""
         self._auth_state = "signed_out"
@@ -274,26 +280,29 @@ class ProtonCoreAdapter:
         return snapshot
 
     async def connect_fastest(self) -> None:
-        server_list = await self._get_server_list()
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
         logical_server = server_list.get_fastest()
-        await self._connect_logical(logical_server)
+        await self._connect_logical(logical_server, authentication_epoch)
 
     async def connect_fastest_with_feature(self, feature: str) -> None:
         await self.connect_fastest_with_features((feature,))
 
     async def connect_fastest_with_features(self, features: tuple[str, ...]) -> None:
-        server_list = await self._get_server_list()
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
         logical_server = self._fastest_matching(
             server_list, server_list.logicals, features
         )
-        await self._connect_logical(logical_server)
+        await self._connect_logical(logical_server, authentication_epoch)
 
     @staticmethod
     def _fastest_matching(server_list, servers, features: tuple[str, ...]):
         return core_fastest_matching(server_list, servers, features)
 
     async def get_countries(self) -> list[CountryInfo]:
-        server_list = await self._get_server_list()
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
         countries = []
         for country in self._countries(server_list):
             available = list(
@@ -312,12 +321,14 @@ class ProtonCoreAdapter:
                     free=bool(getattr(country, "free", False)),
                 )
             )
+        self._require_authenticated_epoch(authentication_epoch)
         return countries
 
     async def get_server_groups(self, country_code: str) -> list[ServerGroupInfo]:
         from proton.vpn.session.servers import ServerFeatureEnum
 
-        server_list = await self._get_server_list()
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
         country = self._country(server_list, country_code)
         groups = [("location", location) for location in country.locations]
         if country.secure_core_group is not None:
@@ -342,15 +353,17 @@ class ProtonCoreAdapter:
                     streaming=ServerFeatureEnum.STREAMING in group.features,
                 )
             )
+        self._require_authenticated_epoch(authentication_epoch)
         return result
 
     async def get_group_servers(
         self, country_code: str, group_kind: str, group_name: str
     ) -> list[ServerInfo]:
-        server_list = await self._get_server_list()
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
         group = self._server_group(server_list, country_code, group_kind, group_name)
         servers = [self._server_info(server_list, server) for server in group.servers]
-        return sorted(
+        result = sorted(
             servers,
             key=lambda item: (
                 not item.accessible,
@@ -359,14 +372,19 @@ class ProtonCoreAdapter:
                 item.name,
             ),
         )
+        self._require_authenticated_epoch(authentication_epoch)
+        return result
 
     async def get_server_loads(self, country_code: str) -> list[ServerLoadInfo]:
-        server_list = await self._get_server_list()
-        return [
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
+        result = [
             ServerLoadInfo(server.name, server.load or 0)
             for server in server_list.logicals
             if server.exit_country.upper() == country_code
         ]
+        self._require_authenticated_epoch(authentication_epoch)
+        return result
 
     async def search_locations(self, query: str) -> list[LocationSearchInfo]:
         from proton.vpn.session.servers import ServerFeatureEnum
@@ -374,32 +392,43 @@ class ProtonCoreAdapter:
             sort_servers_alphabetically_by_country_and_server_name,
         )
 
-        server_list = await self._get_server_list()
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
         if (
             self._search_projection is None
             or self._search_projection.generation != self._server_list_generation
         ):
-            self._search_projection = ServerSearchProjection.build(
+            projection = ServerSearchProjection.build(
                 server_list,
                 self._server_list_generation,
                 ServerFeatureEnum.SECURE_CORE,
                 sort_servers_alphabetically_by_country_and_server_name,
             )
+            # Building is synchronous, but assignment is an adapter-owned
+            # state commit.  Never let a successful request from a retired
+            # account poison the replacement account's search cache.
+            self._require_authenticated_epoch(authentication_epoch)
+            self._search_projection = projection
+        self._require_authenticated_epoch(authentication_epoch)
         return self._search_projection.search(server_list, query)
 
     async def get_settings(self) -> VpnSettings:
-        settings = await self._load_settings()
+        authentication_epoch = self._authenticated_epoch()
+        settings = await self._load_settings(authentication_epoch)
         return self._settings_from_core(settings)
 
     async def get_split_tunneling(self) -> SplitTunnelingSettings:
-        settings = await self._load_settings()
+        authentication_epoch = self._authenticated_epoch()
+        settings = await self._load_settings(authentication_epoch)
         return self._split_tunneling_from_core(settings)
 
     async def get_custom_dns(self) -> CustomDnsSettings:
-        settings = await self._load_settings()
+        authentication_epoch = self._authenticated_epoch()
+        settings = await self._load_settings(authentication_epoch)
         return self._custom_dns_from_core(settings)
 
     async def update_settings(self, patch: dict[str, SettingsValue]) -> VpnSettings:
+        authentication_epoch = self._authenticated_epoch()
         if (
             patch.get("anonymousCrashReports") is True
             and not self._crash_report_submission_enabled
@@ -407,7 +436,7 @@ class ProtonCoreAdapter:
             raise UserVisibleRuntimeError(
                 "Anonymous crash reporting is disabled in this unofficial community build"
             )
-        settings = await self._load_settings()
+        settings = await self._load_settings(authentication_epoch)
         state_name = type(self._connector.current_state).__name__.lower()
         if state_name != "disconnected" and ({"protocol", "killSwitch"} & set(patch)):
             raise UserVisibleRuntimeError(
@@ -497,10 +526,12 @@ class ProtonCoreAdapter:
             elif key == "anonymousCrashReports":
                 settings.anonymous_crash_reports = value
 
+        self._require_authenticated_epoch(authentication_epoch)
         await self._save_settings_transactionally(
             settings,
             rollback,
             protection_sensitive="killSwitch" in patch,
+            authentication_epoch=authentication_epoch,
         )
         self._kill_switch = self._kill_switch_value(settings)
         return self._settings_from_core(settings)
@@ -508,7 +539,8 @@ class ProtonCoreAdapter:
     async def update_split_tunneling(
         self, patch: dict[str, SplitTunnelingValue]
     ) -> SplitTunnelingSettings:
-        settings = await self._load_settings()
+        authentication_epoch = self._authenticated_epoch()
+        settings = await self._load_settings(authentication_epoch)
         split_tunneling = settings.features.split_tunneling
         if not bool(self._connector.is_split_tunneling_available):
             raise UserVisibleRuntimeError(
@@ -586,13 +618,17 @@ class ProtonCoreAdapter:
         if "enabled" in patch:
             split_tunneling.enabled = bool(patch["enabled"])
 
-        await self._save_settings_transactionally(settings, rollback)
+        self._require_authenticated_epoch(authentication_epoch)
+        await self._save_settings_transactionally(
+            settings, rollback, authentication_epoch=authentication_epoch
+        )
         return self._split_tunneling_from_core(settings)
 
     async def update_custom_dns(
         self, patch: dict[str, CustomDnsValue]
     ) -> CustomDnsSettings:
-        settings = await self._load_settings()
+        authentication_epoch = self._authenticated_epoch()
+        settings = await self._load_settings(authentication_epoch)
         if self._user_tier() < 1:
             raise UserVisibleRuntimeError("Custom DNS requires a paid Proton VPN plan")
 
@@ -624,19 +660,27 @@ class ProtonCoreAdapter:
         if "enabled" in patch:
             settings.custom_dns.enabled = bool(patch["enabled"])
 
-        await self._save_settings_transactionally(settings, rollback)
+        self._require_authenticated_epoch(authentication_epoch)
+        await self._save_settings_transactionally(
+            settings, rollback, authentication_epoch=authentication_epoch
+        )
         return self._custom_dns_from_core(settings)
 
-    async def _load_settings(self):
-        authentication_epoch = self._authentication_epoch
+    async def _load_settings(self, authentication_epoch: int | None = None):
+        request_epoch = (
+            self._authentication_epoch
+            if authentication_epoch is None
+            else authentication_epoch
+        )
         try:
             settings = await self._api.load_settings()
         except Exception as error:
-            if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
-                await self._raise_session_error(error, authentication_epoch)
+            if is_proton_authentication_needed(error):
+                await self._raise_session_error(error, request_epoch)
             raise UserVisibleRuntimeError(
                 "Proton could not load the VPN settings"
             ) from None
+        self._require_authentication_epoch(request_epoch)
         if not self._crash_report_submission_enabled:
             # Core's public load_settings method mirrors the persisted value
             # into UsageReporting before it returns. Reads remain free of
@@ -647,8 +691,15 @@ class ProtonCoreAdapter:
                 usage_reporting.enabled = False
         return settings
 
-    async def _save_settings(self, settings: Any) -> None:
-        authentication_epoch = self._authentication_epoch
+    async def _save_settings(
+        self, settings: Any, authentication_epoch: int | None = None
+    ) -> None:
+        request_epoch = (
+            self._authentication_epoch
+            if authentication_epoch is None
+            else authentication_epoch
+        )
+        self._require_authentication_epoch(request_epoch)
         if not self._crash_report_submission_enabled:
             # Settings writes are explicit mutations, so they are the safe
             # place to persist this community build's disabled-reporting
@@ -657,11 +708,12 @@ class ProtonCoreAdapter:
         try:
             await self._api.save_settings(settings)
         except Exception as error:
-            if type(error).__name__ == "ProtonAPIAuthenticationNeeded":
-                await self._raise_session_error(error, authentication_epoch)
+            if is_proton_authentication_needed(error):
+                await self._raise_session_error(error, request_epoch)
             raise UserVisibleRuntimeError(
                 "Proton could not save the VPN settings"
             ) from None
+        self._require_authentication_epoch(request_epoch)
 
     async def _save_settings_transactionally(
         self,
@@ -669,10 +721,29 @@ class ProtonCoreAdapter:
         rollback: Callable[[], None],
         *,
         protection_sensitive: bool = False,
+        authentication_epoch: int | None = None,
+    ) -> None:
+        async with self._serialized_authentication_transition():
+            await self._save_settings_transactionally_with_authentication_barrier(
+                settings,
+                rollback,
+                protection_sensitive=protection_sensitive,
+                authentication_epoch=authentication_epoch,
+            )
+
+    async def _save_settings_transactionally_with_authentication_barrier(
+        self,
+        settings: Any,
+        rollback: Callable[[], None],
+        *,
+        protection_sensitive: bool,
+        authentication_epoch: int | None,
     ) -> None:
         """Compensate a user setting write whose commit status is ambiguous."""
 
-        save_task = asyncio.create_task(self._save_settings(settings))
+        save_task = asyncio.create_task(
+            self._save_settings(settings, authentication_epoch)
+        )
         original_error: BaseException | None = None
         cancellation_requested = False
         try:
@@ -699,6 +770,7 @@ class ProtonCoreAdapter:
                 rollback,
                 save_task,
                 protection_sensitive=protection_sensitive,
+                authentication_epoch=authentication_epoch,
             )
         )
         while not recovery_task.done():
@@ -730,6 +802,7 @@ class ProtonCoreAdapter:
         save_task: asyncio.Task[None],
         *,
         protection_sensitive: bool,
+        authentication_epoch: int | None,
     ) -> bool:
         completed, _ = await asyncio.wait(
             (save_task,), timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS
@@ -753,7 +826,7 @@ class ProtonCoreAdapter:
         rollback()
         try:
             await asyncio.wait_for(
-                self._save_settings(settings),
+                self._save_settings(settings, authentication_epoch),
                 timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
             )
         except SessionExpiredError:
@@ -786,21 +859,27 @@ class ProtonCoreAdapter:
         self._publish_snapshot()
 
     async def connect_country(self, country_code: str) -> None:
-        server_list = await self._get_server_list()
-        await self._connect_logical(server_list.get_fastest_in_country(country_code))
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
+        await self._connect_logical(
+            server_list.get_fastest_in_country(country_code),
+            authentication_epoch,
+        )
 
     async def connect_country_with_features(
         self, country_code: str, features: tuple[str, ...]
     ) -> None:
-        server_list = await self._get_server_list()
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
         country = self._country(server_list, country_code)
         logical_server = self._fastest_matching(server_list, country.servers, features)
-        await self._connect_logical(logical_server)
+        await self._connect_logical(logical_server, authentication_epoch)
 
     async def connect_group(
         self, country_code: str, group_kind: str, group_name: str
     ) -> None:
-        server_list = await self._get_server_list()
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
         group = self._server_group(server_list, country_code, group_kind, group_name)
         available = server_list.get_available_servers(
             group.servers, server_list.user_tier
@@ -808,7 +887,7 @@ class ProtonCoreAdapter:
         logical_server = server_list.get_fastest_server(available)
         if logical_server is None:
             raise UserVisibleRuntimeError("No server available in the current tier")
-        await self._connect_logical(logical_server)
+        await self._connect_logical(logical_server, authentication_epoch)
 
     async def connect_group_with_features(
         self,
@@ -817,17 +896,27 @@ class ProtonCoreAdapter:
         group_name: str,
         features: tuple[str, ...],
     ) -> None:
-        server_list = await self._get_server_list()
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
         group = self._server_group(server_list, country_code, group_kind, group_name)
         logical_server = self._fastest_matching(server_list, group.servers, features)
-        await self._connect_logical(logical_server)
+        await self._connect_logical(logical_server, authentication_epoch)
 
     async def connect_server(self, server_name: str) -> None:
-        server_list = await self._get_server_list()
-        await self._connect_logical(server_list.get_by_name(server_name))
+        authentication_epoch = self._authenticated_epoch()
+        server_list = await self._get_server_list(authentication_epoch)
+        await self._connect_logical(
+            server_list.get_by_name(server_name), authentication_epoch
+        )
 
     async def start_packet_capture(self, directory_path: str) -> None:
-        await self._packet_capture.start(self._connector, directory_path)
+        # Capture start creates durable, account-owned Core state. Serialize
+        # it with every authentication transition so expiry or account
+        # replacement cannot overtake a successful start and misattribute it.
+        async with self._serialized_authentication_transition():
+            authentication_epoch = self._authenticated_epoch()
+            await self._packet_capture.start(self._connector, directory_path)
+            self._require_authenticated_epoch(authentication_epoch)
 
     async def stop_packet_capture(self) -> None:
         await self._packet_capture.stop()
@@ -852,20 +941,50 @@ class ProtonCoreAdapter:
         self._publish_snapshot()
 
     async def submit_support_report(self, report: SupportReport) -> None:
-        await submit_core_support_report(self._api, report)
+        async with self._serialized_authentication_transition():
+            authentication_epoch = self._authenticated_epoch()
+            try:
+                await submit_core_support_report(self._api, report)
+            except Exception as error:
+                await self._raise_session_error(error, authentication_epoch)
+            self._require_authenticated_epoch(authentication_epoch)
 
     async def take_pending_nps_survey(self) -> bool:
-        return await take_core_nps_survey(self._api)
+        async with self._serialized_authentication_transition():
+            authentication_epoch = self._authenticated_epoch()
+            try:
+                available = await take_core_nps_survey(self._api)
+            except Exception as error:
+                await self._raise_session_error(error, authentication_epoch)
+            self._require_authenticated_epoch(authentication_epoch)
+            return available
 
     async def submit_nps_survey(self, response: NpsSurveyResponse) -> None:
-        await submit_core_nps_survey(self._api, response)
+        async with self._serialized_authentication_transition():
+            authentication_epoch = self._authenticated_epoch()
+            try:
+                await submit_core_nps_survey(self._api, response)
+            except Exception as error:
+                if is_proton_authentication_needed(error):
+                    try:
+                        await self._raise_session_error(error, authentication_epoch)
+                    except SessionExpiredError:
+                        # Survey submission is completion-unknown even when its
+                        # authentication failure authoritatively expires the
+                        # owning session.
+                        raise NpsCompletionUnknownError(
+                            "Survey submission completion could not be confirmed"
+                        ) from None
+                raise
+            self._require_authenticated_epoch(authentication_epoch)
 
-    async def _get_server_list(self):
-        authentication_epoch = self._authentication_epoch
+    async def _get_server_list(self, authentication_epoch: int):
         try:
-            return await self._api.refresher.get_up_to_date_server_list()
+            server_list = await self._api.refresher.get_up_to_date_server_list()
         except Exception as error:
             await self._raise_session_error(error, authentication_epoch)
+        self._require_authenticated_epoch(authentication_epoch)
+        return server_list
 
     @staticmethod
     def _countries(server_list):
@@ -885,13 +1004,21 @@ class ProtonCoreAdapter:
     def _server_info(server_list, server) -> ServerInfo:
         return core_server_info(server_list, server)
 
-    async def _connect_logical(self, logical_server) -> None:
-        authentication_epoch = self._authentication_epoch
+    async def _connect_logical(
+        self, logical_server, authentication_epoch: int
+    ) -> None:
         try:
-            client_config = await self._api.refresher.get_up_to_date_client_config()
-            vpn_server = self._connector.get_vpn_server(logical_server, client_config)
-            settings = await self._load_settings()
+            client_config = (
+                await self._api.refresher.get_up_to_date_client_config()
+            )
+            self._require_authenticated_epoch(authentication_epoch)
+            vpn_server = self._connector.get_vpn_server(
+                logical_server, client_config
+            )
+            settings = await self._load_settings(authentication_epoch)
+            self._require_authenticated_epoch(authentication_epoch)
             await self._connector.connect(vpn_server, protocol=settings.protocol)
+            self._require_authenticated_epoch(authentication_epoch)
         except Exception as error:
             await self._raise_session_error(error, authentication_epoch)
 
@@ -955,7 +1082,7 @@ class ProtonCoreAdapter:
         # operation lock. Serialize that preemption boundary here so multiple
         # authorized clients cannot overlap suspend/resume scopes and release
         # automatic reconnection while another disconnect is still active.
-        async with self._disconnect_lock:
+        async with self._serialized_connection_lifecycle():
             if not self._reconnector:
                 await self._connector.disconnect()
                 return
@@ -1156,6 +1283,14 @@ class ProtonCoreAdapter:
             await self._logout()
 
     async def _logout(self) -> None:
+        # Logout, ordinary Disconnect, reconnection-policy changes, and
+        # teardown all mutate the same connector/reconnector pair.  One
+        # lifecycle barrier prevents any of those sibling operations from
+        # overtaking another.
+        async with self._serialized_connection_lifecycle():
+            await self._logout_with_disconnect_barrier()
+
+    async def _logout_with_disconnect_barrier(self) -> None:
         # Advance before the first await: reads already in flight belong to the
         # outgoing account even while the public snapshot still says signed in.
         self._authentication_epoch += 1
@@ -1216,24 +1351,30 @@ class ProtonCoreAdapter:
         await self._set_signed_out("Signed out")
 
     async def disable_kill_switch_for_login(self) -> None:
-        settings = await self._load_settings()
+        async with self._serialized_authentication_transition():
+            await self._disable_kill_switch_for_login()
+
+    async def _disable_kill_switch_for_login(self) -> None:
+        authentication_epoch = self._authentication_epoch
+        settings = await self._load_settings(authentication_epoch)
         # Always ask Core to apply the disabled state. Its save operation can
         # persist the value before connector application fails, so a retry may
         # load zero even while the live connector still has protection active.
         settings.killswitch = 0
-        await self._save_settings(settings)
+        await self._save_settings(settings, authentication_epoch)
         self._kill_switch = 0
         self._status_message = "Kill switch disabled; you can now sign in"
         self._publish_snapshot()
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
-        self._reconnection_enabled = enabled
-        if not self._reconnector:
-            return
-        if enabled and self._logged_in and self._session_services_enabled:
-            self._reconnector.enable()
-        else:
-            await self._reconnector.disable()
+        async with self._serialized_connection_lifecycle():
+            self._reconnection_enabled = enabled
+            if not self._reconnector:
+                return
+            if enabled and self._logged_in and self._session_services_enabled:
+                self._reconnector.enable()
+            else:
+                await self._reconnector.disable()
 
     async def close(self) -> None:
         async with self._serialized_authentication_transition():
@@ -1243,7 +1384,7 @@ class ProtonCoreAdapter:
         # Disconnect may deliberately bypass the controller operation lock to
         # preempt a connecting tunnel. Drain that accepted scope before
         # unregistering Core observers or disabling the reconnector.
-        async with self._disconnect_lock:
+        async with self._serialized_connection_lifecycle():
             await self.cancel_fido2()
             if self._packet_capture_active:
                 try:
@@ -1354,6 +1495,10 @@ class ProtonCoreAdapter:
         self._publish_snapshot()
 
     async def _enable_session_services(self) -> None:
+        async with self._serialized_connection_lifecycle():
+            await self._enable_session_services_with_connection_barrier()
+
+    async def _enable_session_services_with_connection_barrier(self) -> None:
         refresher_enabled_here = False
         try:
             if not self._session_services_enabled:
@@ -1365,6 +1510,12 @@ class ProtonCoreAdapter:
                     self._connector,
                     self._api.refresher,
                     self._on_reconnector_status,
+                    authentication_epoch_source=lambda: self._authentication_epoch,
+                    authentication_epoch_validator=(
+                        lambda epoch: epoch == self._authentication_epoch
+                        and self._logged_in
+                    ),
+                    authentication_error_callback=self._raise_session_error,
                 )
             if self._reconnection_enabled:
                 self._reconnector.enable()
@@ -1381,13 +1532,14 @@ class ProtonCoreAdapter:
     async def _set_signed_out(
         self, message: str, auth_state: str = "signed_out"
     ) -> None:
-        if self._reconnector:
-            try:
-                await self._reconnector.disable()
-            except Exception:
-                # Authentication state is authoritative. Observer cleanup is
-                # best effort and must never preserve a stale signed-in state.
-                pass
+        async with self._serialized_connection_lifecycle():
+            if self._reconnector:
+                try:
+                    await self._reconnector.disable()
+                except Exception:
+                    # Authentication state is authoritative. Observer cleanup
+                    # is best effort and cannot preserve stale signed-in state.
+                    pass
         self._publish_signed_out_state(message, auth_state)
 
     def _publish_signed_out_state(self, message: str, auth_state: str) -> None:
@@ -1541,6 +1693,11 @@ class ProtonCoreAdapter:
     async def _quiesce_session_services(self) -> bool:
         """Best-effort bounded stop used before publishing recovery-required state."""
 
+        async with self._serialized_connection_lifecycle():
+            return await self._quiesce_session_services_with_connection_barrier()
+
+    async def _quiesce_session_services_with_connection_barrier(self) -> bool:
+
         cleanup_failed = False
         if self._reconnector:
             try:
@@ -1626,10 +1783,27 @@ class ProtonCoreAdapter:
     async def _raise_session_error(
         self, error: Exception, authentication_epoch: int
     ) -> None:
-        if type(error).__name__ != "ProtonAPIAuthenticationNeeded":
+        if not is_proton_authentication_needed(error):
             raise error
         async with self._serialized_authentication_transition():
             await self._expire_session(authentication_epoch)
+        raise SessionExpiredError(
+            "Your Proton session expired; sign in again"
+        ) from None
+
+    def _authenticated_epoch(self) -> int:
+        authentication_epoch = self._authentication_epoch
+        self._require_authenticated_epoch(authentication_epoch)
+        return authentication_epoch
+
+    def _require_authentication_epoch(self, authentication_epoch: int) -> None:
+        if authentication_epoch != self._authentication_epoch:
+            raise SessionExpiredError("The Proton account session changed") from None
+
+    def _require_authenticated_epoch(self, authentication_epoch: int) -> None:
+        self._require_authentication_epoch(authentication_epoch)
+        if not self._logged_in:
+            raise SessionExpiredError("The Proton account session changed") from None
 
     @asynccontextmanager
     async def _serialized_authentication_transition(self) -> AsyncIterator[None]:
@@ -1651,6 +1825,26 @@ class ProtonCoreAdapter:
                 if self._active_authentication_token is owner_token:
                     self._active_authentication_token = None
 
+    @asynccontextmanager
+    async def _serialized_connection_lifecycle(self) -> AsyncIterator[None]:
+        inherited_token = self._connection_lifecycle_context.get()
+        if (
+            inherited_token is not None
+            and inherited_token is self._active_connection_lifecycle_token
+        ):
+            yield
+            return
+        async with self._disconnect_lock:
+            owner_token = object()
+            self._active_connection_lifecycle_token = owner_token
+            reset_token = self._connection_lifecycle_context.set(owner_token)
+            try:
+                yield
+            finally:
+                self._connection_lifecycle_context.reset(reset_token)
+                if self._active_connection_lifecycle_token is owner_token:
+                    self._active_connection_lifecycle_token = None
+
     async def _expire_session(self, authentication_epoch: int) -> None:
         if authentication_epoch != self._authentication_epoch:
             # The failure belongs to an obsolete account/session. It remains a
@@ -1668,16 +1862,17 @@ class ProtonCoreAdapter:
             "expired",
         )
         cleanup_failed = False
-        if self._reconnector:
-            try:
-                await self._reconnector.disable()
-            except Exception:
-                cleanup_failed = True
-        if session_services_were_enabled:
-            try:
-                await self._api.refresher.disable()
-            except Exception:
-                cleanup_failed = True
+        async with self._serialized_connection_lifecycle():
+            if self._reconnector:
+                try:
+                    await self._reconnector.disable()
+                except Exception:
+                    cleanup_failed = True
+            if session_services_were_enabled:
+                try:
+                    await self._api.refresher.disable()
+                except Exception:
+                    cleanup_failed = True
         message = "Your Proton session expired; sign in again"
         if cleanup_failed:
             message = (
@@ -1686,9 +1881,6 @@ class ProtonCoreAdapter:
             )
         if cleanup_failed:
             self._publish_signed_out_state(message, "expired")
-        raise SessionExpiredError(
-            "Your Proton session expired; sign in again"
-        ) from None
 
     def _set_auth_status(self, state: str, message: str) -> None:
         self._auth_state = state

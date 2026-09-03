@@ -4,6 +4,7 @@
 #include "VpnController.h"
 
 #include "CustomDnsModel.h"
+#include "ConnectionAction.h"
 #include "DbusContract.h"
 #include "InstalledApplicationModel.h"
 #include "LocationModels.h"
@@ -212,7 +213,9 @@ QString VpnController::primaryActionText() const
 
 bool VpnController::primaryActionEnabled() const
 {
-    return m_backendAvailable && m_ready && m_loggedIn && snapshotHealthy()
+    const bool disconnectAction = ProtonVpnKde::primaryActionDisconnects(m_state);
+    return m_backendAvailable && m_ready && snapshotHealthy()
+        && (disconnectAction || m_loggedIn)
         && (!m_busy || m_state == QStringLiteral("connecting"));
 }
 

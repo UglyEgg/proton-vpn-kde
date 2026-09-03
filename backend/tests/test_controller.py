@@ -46,6 +46,35 @@ class CancellableOperationAdapter(DemoCoreAdapter):
         await asyncio.Future()
 
 
+class BlockingPreemptiveDisconnectAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__()
+        self.connect_started = asyncio.Event()
+        self.release_connect = asyncio.Event()
+        self.disconnect_started = asyncio.Event()
+        self.release_disconnect = asyncio.Event()
+        self.logout_started = asyncio.Event()
+        self.close_calls = 0
+
+    async def connect_fastest(self) -> None:
+        self.connect_started.set()
+        await self.release_connect.wait()
+
+    async def disconnect(self) -> None:
+        self.disconnect_started.set()
+        self.release_connect.set()
+        await self.release_disconnect.wait()
+        await super().disconnect()
+
+    async def logout(self) -> None:
+        self.logout_started.set()
+        await super().logout()
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        await super().close()
+
+
 class BlockingLogoutAdapter(DemoCoreAdapter):
     def __init__(self):
         super().__init__(nps_survey_available=True)
@@ -348,6 +377,81 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         states = [snapshot.state for snapshot in self.snapshots]
         disconnecting_index = states.index("disconnecting")
         self.assertNotIn("connected", states[disconnecting_index + 1 :])
+
+    async def test_disconnect_preempts_connect_before_first_state_publication(self):
+        adapter = BlockingPreemptiveDisconnectAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+        connection = asyncio.create_task(controller.connect_fastest())
+        await adapter.connect_started.wait()
+
+        self.assertEqual("disconnected", controller.snapshot.state)
+        self.assertTrue(controller.snapshot.busy)
+        disconnect = asyncio.create_task(controller.disconnect())
+        await adapter.disconnect_started.wait()
+        adapter.release_disconnect.set()
+        await asyncio.gather(connection, disconnect)
+
+        self.assertEqual("disconnected", controller.snapshot.state)
+        self.assertFalse(controller.snapshot.busy)
+
+    async def test_successor_mutation_waits_for_preemptive_disconnect(self):
+        adapter = BlockingPreemptiveDisconnectAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+        connection = asyncio.create_task(controller.connect_fastest())
+        await adapter.connect_started.wait()
+        disconnect = asyncio.create_task(controller.disconnect())
+        await adapter.disconnect_started.wait()
+        await connection
+
+        logout = asyncio.create_task(controller.logout())
+        await asyncio.sleep(0)
+        self.assertFalse(adapter.logout_started.is_set())
+
+        adapter.release_disconnect.set()
+        await disconnect
+        await logout
+        self.assertTrue(adapter.logout_started.is_set())
+
+    async def test_close_waits_for_preemptive_disconnect(self):
+        adapter = BlockingPreemptiveDisconnectAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+        connection = asyncio.create_task(controller.connect_fastest())
+        await adapter.connect_started.wait()
+        disconnect = asyncio.create_task(controller.disconnect())
+        await adapter.disconnect_started.wait()
+        await connection
+
+        close = asyncio.create_task(controller.close())
+        await asyncio.sleep(0)
+        self.assertEqual(0, adapter.close_calls)
+
+        adapter.release_disconnect.set()
+        await disconnect
+        await close
+        self.assertEqual(1, adapter.close_calls)
+
+    async def test_disconnect_remains_available_after_session_expiry(self):
+        adapter = DemoCoreAdapter()
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+        adapter._logged_in = False
+        adapter._auth_state = "expired"
+        adapter._publish(
+            adapter._build_snapshot(
+                state="connected", server_name="US-IL#600",
+                message="Your Proton session expired; sign in again",
+            )
+        )
+
+        self.assertFalse(controller.snapshot.logged_in)
+        self.assertEqual("connected", controller.snapshot.state)
+        await controller.disconnect()
+
+        self.assertFalse(controller.snapshot.logged_in)
+        self.assertEqual("disconnected", controller.snapshot.state)
 
     async def test_snapshot_json_uses_stable_external_field_names(self):
         payload = self.controller.snapshot.to_json()

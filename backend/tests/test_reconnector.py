@@ -117,6 +117,9 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         network_probe=None,
         session_probe=None,
         delay_factory=None,
+        authentication_epoch_source=None,
+        authentication_epoch_validator=None,
+        authentication_error_callback=None,
     ):
         connection = SimpleNamespace(
             server_id="server-id",
@@ -145,6 +148,9 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             network_probe=network_probe or AsyncMock(return_value=True),
             session_probe=session_probe or FakeSessionProbe(),
             delay_factory=delay_factory or (lambda _attempt: 0),
+            authentication_epoch_source=authentication_epoch_source,
+            authentication_epoch_validator=authentication_epoch_validator,
+            authentication_error_callback=authentication_error_callback,
         )
         return reconnector, connector, refresher, messages
 
@@ -185,6 +191,31 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
 
         connector.connect.assert_not_awaited()
         self.assertIn("Automatic reconnection is unavailable for this error", messages)
+        await reconnector.disable()
+
+    async def test_core_authentication_expiry_stops_retry_and_expires_owner(self):
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        expire_session = AsyncMock(side_effect=RuntimeError("session retired"))
+        reconnector, connector, _, messages = self.make_reconnector(
+            authentication_epoch_source=lambda: 7,
+            authentication_epoch_validator=lambda epoch: epoch == 7,
+            authentication_error_callback=expire_session,
+        )
+        connector.connect.side_effect = expired_error()
+
+        reconnector.enable()
+        await self.wait_until(
+            lambda: expire_session.await_count == 1,
+            "The reconnect authentication failure was not classified",
+        )
+        await self.let_tasks_run()
+
+        expire_session.assert_awaited_once()
+        error, epoch = expire_session.await_args.args
+        self.assertIsInstance(error, expired_error)
+        self.assertEqual(7, epoch)
+        self.assertEqual(1, connector.connect.await_count)
+        self.assertNotIn("Reconnection failed", messages)
         await reconnector.disable()
 
     async def test_disable_quiesces_retries_when_observer_unregistration_fails(self):

@@ -14,7 +14,11 @@ from typing import Any
 from . import __version__
 from .async_utils import await_owned
 from .controller import NpsSurveyResponse, SupportReport
-from .errors import NpsCompletionUnknownError, UserVisibleRuntimeError
+from .errors import (
+    NpsCompletionUnknownError,
+    UserVisibleRuntimeError,
+    is_proton_authentication_needed,
+)
 from .support import collect_support_logs
 
 
@@ -41,7 +45,9 @@ async def submit_support_report(api: Any, report: SupportReport) -> None:
             )
             try:
                 await api.submit_bug_report(report_form)
-            except Exception:
+            except Exception as error:
+                if is_proton_authentication_needed(error):
+                    raise
                 raise UserVisibleRuntimeError(
                     "Proton could not submit the issue report"
                 ) from None
@@ -86,7 +92,9 @@ async def submit_nps_survey(api: Any, response: NpsSurveyResponse) -> None:
                 response_type=response_type,
             )
         )
-    except Exception:
+    except Exception as error:
+        if is_proton_authentication_needed(error):
+            raise
         raise NpsCompletionUnknownError(
             "Survey submission completion could not be confirmed"
         ) from None

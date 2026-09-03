@@ -211,7 +211,7 @@ void TrayIntegration::updateState()
                     : tr("Disconnect VPN and quit background controls"));
     m_disconnectAndQuitAction->setEnabled(
         !quitPending && m_controller->backendAvailable()
-        && m_controller->ready() && m_controller->loggedIn()
+        && m_controller->ready()
         && (!m_controller->busy()
             || state == QStringLiteral("connecting")
             || state == QStringLiteral("disconnecting")));

@@ -67,6 +67,11 @@ class BackendLifetime:
         self._owner_probe = owner_probe
         self._idle_timeout = max(0.0, idle_timeout)
         self._clients: set[str] = set()
+        # RegisterClient verifies ownership asynchronously.  Remember a
+        # per-name retirement generation so an UnregisterClient that overtakes
+        # that probe cannot be undone when the older registration resumes.
+        self._client_generations: dict[str, int] = {}
+        self._pending_client_registrations: dict[str, int] = {}
         self._changed = asyncio.Event()
         self._idle_since: float | None = None
         controller.subscribe(self._on_snapshot)
@@ -76,25 +81,65 @@ class BackendLifetime:
         return frozenset(self._clients)
 
     async def register_client(self, unique_name: str) -> None:
-        self._validate_unique_name(unique_name)
-        if not await self._owner_probe(unique_name):
-            raise UserVisibleValueError("The frontend D-Bus name has no owner")
-        self.register_authorized_client(unique_name)
+        generation = self.registration_generation(unique_name)
+        try:
+            if not await self._owner_probe(unique_name):
+                raise UserVisibleValueError(
+                    "The frontend D-Bus name has no owner"
+                )
+        except BaseException:
+            self.cancel_registration(unique_name, generation)
+            raise
+        self.register_authorized_client(unique_name, generation)
 
-    def register_authorized_client(self, unique_name: str) -> None:
+    def registration_generation(self, unique_name: str) -> int:
+        """Capture the retirement generation before an asynchronous probe."""
+        self._validate_unique_name(unique_name)
+        self._pending_client_registrations[unique_name] = (
+            self._pending_client_registrations.get(unique_name, 0) + 1
+        )
+        return self._client_generations.get(unique_name, 0)
+
+    def cancel_registration(self, unique_name: str, generation: int) -> None:
+        """Release tracking for a registration that never reached commit."""
+        self._validate_unique_name(unique_name)
+        self._finish_registration(unique_name)
+
+    def register_authorized_client(
+        self, unique_name: str, generation: int | None = None
+    ) -> None:
         """Add a lease whose owner was verified by the ingress authorizer."""
         self._validate_unique_name(unique_name)
+        if generation is not None:
+            current = generation == self._client_generations.get(unique_name, 0)
+            self._finish_registration(unique_name)
+            if not current:
+                return
         self._clients.add(unique_name)
         self._idle_since = None
         self._changed.set()
 
     def unregister_client(self, unique_name: str) -> None:
         self._validate_unique_name(unique_name)
+        if self._pending_client_registrations.get(unique_name, 0):
+            self._client_generations[unique_name] = (
+                self._client_generations.get(unique_name, 0) + 1
+            )
+        else:
+            self._client_generations.pop(unique_name, None)
         if unique_name not in self._clients:
             return
         self._clients.remove(unique_name)
         self._idle_since = None
         self._changed.set()
+
+    def _finish_registration(self, unique_name: str) -> None:
+        pending = self._pending_client_registrations.get(unique_name, 0)
+        if pending <= 1:
+            self._pending_client_registrations.pop(unique_name, None)
+            self._client_generations.pop(unique_name, None)
+            return
+        self._pending_client_registrations[unique_name] = pending - 1
 
     async def run(self) -> None:
         while not self._stopped.is_set():

@@ -307,6 +307,29 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("KDE Plasma GUI", form.client)
         self.assertEqual([], form.attachments)
 
+    async def test_support_authentication_expiry_retires_the_owning_session(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.submit_bug_report.side_effect = expired_error()
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaisesRegex(RuntimeError, "session expired"):
+            await adapter.submit_support_report(
+                SupportReport(
+                    username="test-user",
+                    email="user@example.com",
+                    description=(
+                        "A detailed support report that is long enough for submission."
+                    ),
+                    include_logs=False,
+                )
+            )
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
+
     async def test_nps_survey_uses_cached_notification_and_official_api(self):
         api, _ = self.make_api()
         survey = SimpleNamespace(survey_id="survey-1", seen=False, is_active=True)
@@ -318,6 +341,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             )
         )
         adapter = ProtonCoreAdapter(api)
+        adapter._logged_in = True
 
         self.assertTrue(await adapter.take_pending_nps_survey())
         api.set_notification_seen.assert_called_once_with("survey-1")
@@ -344,6 +368,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         api.set_notification_seen.side_effect = blocked_write
         adapter = ProtonCoreAdapter(api)
+        adapter._logged_in = True
         survey_task = asyncio.create_task(adapter.take_pending_nps_survey())
         for _ in range(100):
             if write_started.is_set():
@@ -375,6 +400,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             "accepted before the response was lost"
         )
         adapter = ProtonCoreAdapter(api)
+        adapter._logged_in = True
 
         with self.assertRaises(NpsCompletionUnknownError):
             await adapter.submit_nps_survey(
@@ -382,6 +408,56 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             )
 
         api.submit_nps_response.assert_awaited_once()
+
+    async def test_nps_authentication_expiry_is_still_completion_unknown(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.submit_nps_response.side_effect = expired_error()
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with self.assertRaises(NpsCompletionUnknownError):
+            await adapter.submit_nps_survey(
+                NpsSurveyResponse(score=8, comments="Authentication expired")
+            )
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
+
+    async def test_nps_side_effect_blocks_replacement_login(self):
+        api, _ = self.make_api()
+        submit_started = asyncio.Event()
+        release_submit = asyncio.Event()
+
+        async def blocked_submit(_response):
+            submit_started.set()
+            await release_submit.wait()
+
+        api.submit_nps_response.side_effect = blocked_submit
+        api.login.return_value = SimpleNamespace(
+            authenticated=True,
+            twofa_required=False,
+        )
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        submission = asyncio.create_task(
+            adapter.submit_nps_survey(
+                NpsSurveyResponse(score=10, comments="Serialized")
+            )
+        )
+        await submit_started.wait()
+        replacement_login = asyncio.create_task(
+            adapter.login("replacement-user", "not-recorded")
+        )
+        await asyncio.sleep(0)
+
+        api.login.assert_not_awaited()
+        release_submit.set()
+        await submission
+        await asyncio.wait_for(replacement_login, timeout=1)
+        api.login.assert_awaited_once_with("replacement-user", "not-recorded")
 
     async def test_initialize_reuses_core_and_subscribes_without_connecting(self):
         api, connector = self.make_api()
@@ -1387,6 +1463,34 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(adapter._reconnector.enabled)
         await adapter._reconnector.disable()
 
+    async def test_logout_waits_for_an_accepted_public_disconnect(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        disconnect_started = asyncio.Event()
+        release_disconnect = asyncio.Event()
+
+        async def blocked_disconnect():
+            disconnect_started.set()
+            await release_disconnect.wait()
+            connector.current_state = state_named("Disconnected")
+
+        connector.current_state = state_named("Connected")
+        connector.disconnect.side_effect = blocked_disconnect
+        disconnect = asyncio.create_task(adapter.disconnect())
+        await disconnect_started.wait()
+        logout = asyncio.create_task(adapter.logout())
+        await asyncio.sleep(0)
+
+        api.logout.assert_not_awaited()
+        self.assertEqual(1, connector.disconnect.await_count)
+        release_disconnect.set()
+        await asyncio.wait_for(disconnect, timeout=1)
+        await asyncio.wait_for(logout, timeout=1)
+
+        self.assertEqual(1, connector.disconnect.await_count)
+        api.logout.assert_awaited_once_with()
+
     async def test_overlapping_disconnects_do_not_share_reconnect_suspension(self):
         api, connector = self.make_api()
         adapter = ProtonCoreAdapter(api)
@@ -1464,10 +1568,15 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         logout_task = asyncio.create_task(adapter.logout())
         await logout_started.wait()
 
-        await adapter.set_reconnection_enabled(True)
+        preference_task = asyncio.create_task(
+            adapter.set_reconnection_enabled(True)
+        )
+        await asyncio.sleep(0)
+        self.assertFalse(preference_task.done())
         self.assertFalse(adapter._reconnector.enabled)
         release_logout.set()
         await logout_task
+        await preference_task
 
         self.assertFalse(adapter._logged_in)
         self.assertFalse(adapter._reconnector.enabled)
@@ -1606,6 +1715,36 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(adapter._session_services_enabled)
         self.assertEqual("signed_in", snapshots[-1].auth_state)
         self.assertEqual(cleanup_count, api.refresher.disable.await_count)
+
+    async def test_stale_successful_search_cannot_poison_replacement_cache(self):
+        api, _ = self.make_api()
+        stale_server_list = SimpleNamespace(logicals=[])
+        stale_read_started = asyncio.Event()
+        release_stale_read = asyncio.Event()
+
+        async def delayed_server_list():
+            stale_read_started.set()
+            await release_stale_read.wait()
+            return stale_server_list
+
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        api.refresher.get_up_to_date_server_list.side_effect = delayed_server_list
+        api.login.return_value = SimpleNamespace(
+            authenticated=True,
+            twofa_required=False,
+        )
+
+        stale_search = asyncio.create_task(adapter.search_locations("zurich"))
+        await stale_read_started.wait()
+        await adapter.logout()
+        await adapter.login("replacement-user", "not-recorded")
+        release_stale_read.set()
+
+        with self.assertRaisesRegex(RuntimeError, "session changed"):
+            await stale_search
+        self.assertIsNone(adapter._search_projection)
+        self.assertTrue(adapter._logged_in)
 
     async def test_login_waits_for_current_session_expiry_cleanup(self):
         api, _ = self.make_api()
@@ -1865,6 +2004,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
         adapter._connector = connector
+        adapter._logged_in = True
 
         await adapter.connect_fastest()
 
@@ -1873,6 +2013,39 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             logical_server, "client-config"
         )
         connector.connect.assert_awaited_once_with("vpn-server", protocol="wireguard")
+
+    async def test_expiry_during_connect_stops_before_connector_side_effect(self):
+        api, connector = self.make_api()
+        logical_server = object()
+        api.refresher.get_up_to_date_server_list.return_value = SimpleNamespace(
+            get_fastest=Mock(return_value=logical_server)
+        )
+        config_started = asyncio.Event()
+        release_config = asyncio.Event()
+
+        async def delayed_client_config():
+            config_started.set()
+            await release_config.wait()
+            return "client-config"
+
+        api.refresher.get_up_to_date_client_config.side_effect = (
+            delayed_client_config
+        )
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        connect = asyncio.create_task(adapter.connect_fastest())
+        await config_started.wait()
+
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        api.load_settings.side_effect = expired_error()
+        with self.assertRaisesRegex(RuntimeError, "session expired"):
+            await adapter.get_settings()
+        release_config.set()
+
+        with self.assertRaisesRegex(RuntimeError, "session changed"):
+            await connect
+        connector.get_vpn_server.assert_not_called()
+        connector.connect.assert_not_awaited()
 
     async def test_capability_intersection_uses_official_filter_and_score(self):
         from proton.vpn.session.servers import ServerFeatureEnum
@@ -1889,6 +2062,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
         adapter._connector = connector
+        adapter._logged_in = True
 
         await adapter.connect_fastest_with_features(("p2p", "streaming"))
 
@@ -1915,6 +2089,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, connector = self.make_api()
         adapter = ProtonCoreAdapter(api)
         adapter._connector = connector
+        adapter._logged_in = True
 
         with self.assertRaisesRegex(ValueError, "supported Proton server capabilities"):
             await adapter.connect_fastest_with_features(("random",))
@@ -1954,6 +2129,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
         adapter._connector = connector
+        adapter._logged_in = True
 
         await adapter.connect_country_with_features("CH", ("p2p",))
         self.assertIs(
@@ -2151,6 +2327,55 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connection.stop_packet_capture.assert_awaited_once_with()
         self.assertFalse(snapshots[-1].packet_capture_active)
         self.assertFalse(recovery_path.exists())
+
+    async def test_session_expiry_cannot_overtake_capture_start(self):
+        api, connector = self.make_api()
+        start_entered = asyncio.Event()
+        release_start = asyncio.Event()
+
+        async def start_capture():
+            start_entered.set()
+            await release_start.wait()
+
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(side_effect=start_capture),
+            stop_packet_capture=AsyncMock(),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        snapshots = []
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with tempfile.TemporaryDirectory() as capture_directory:
+            capture_start = asyncio.create_task(
+                adapter.start_packet_capture(capture_directory)
+            )
+            await start_entered.wait()
+            expired_error = type(
+                "ProtonAPIAuthenticationNeeded", (Exception,), {}
+            )
+            api.load_settings.side_effect = expired_error()
+            expiring_read = asyncio.create_task(adapter.get_settings())
+            await asyncio.sleep(0)
+
+            self.assertFalse(expiring_read.done())
+            self.assertTrue(adapter._logged_in)
+            release_start.set()
+            await capture_start
+            with self.assertRaisesRegex(RuntimeError, "session expired"):
+                await expiring_read
+
+        self.assertFalse(adapter._logged_in)
+        self.assertEqual("expired", snapshots[-1].auth_state)
+        await adapter.stop_packet_capture()
 
     async def test_rejected_capture_directory_remains_inactive_and_retryable(self):
         class RejectingCaptureSettings:
@@ -2934,6 +3159,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
+        adapter._logged_in = True
 
         countries = await adapter.get_countries()
         groups = await adapter.get_server_groups("CH")
@@ -3012,6 +3238,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
+        adapter._logged_in = True
 
         country_info = await adapter.get_countries()
         server_info = await adapter.get_group_servers("US", "location", "New York")
@@ -3039,6 +3266,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.get_up_to_date_server_list.return_value = server_list
         adapter = ProtonCoreAdapter(api)
         adapter._connector = connector
+        adapter._logged_in = True
 
         await adapter.connect_country("CH")
         server_list.get_fastest_in_country.assert_called_once_with("CH")

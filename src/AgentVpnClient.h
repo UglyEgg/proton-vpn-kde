@@ -91,8 +91,10 @@ private:
     quint64 m_operationGeneration = 0;
     quint64 m_operationReconciliationGeneration = 0;
     quint64 m_connectionIntentGeneration = 0;
+    quint64 m_transientLeaseRequestGeneration = 0;
     bool m_transientLeasePending = false;
     bool m_transientLeaseActive = false;
+    bool m_transientLeaseMayExist = false;
     quint64 m_serviceGeneration = 0;
     quint64 m_reconnectionRequestGeneration = 0;
     int m_killSwitch = 0;

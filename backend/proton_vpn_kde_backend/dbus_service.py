@@ -175,12 +175,27 @@ class VpnDbusService(ServiceInterface):
     @method(name=Method.REGISTER_CLIENT)
     @dbus_error_boundary()
     async def register_client(self, unique_name: "s"):  # noqa: F722,F821
+        registration_generation = (
+            self._lifetime.registration_generation(unique_name)
+            if self._lifetime is not None
+            else None
+        )
         if self._authorizer is not None:
-            await self._authorizer.authorize(unique_name)
+            try:
+                await self._authorizer.authorize(unique_name)
+            except BaseException:
+                if self._lifetime is not None:
+                    assert registration_generation is not None
+                    self._lifetime.cancel_registration(
+                        unique_name, registration_generation
+                    )
+                raise
             unique_name = current_request_sender()
         if self._lifetime is not None:
             if self._authorizer is not None:
-                self._lifetime.register_authorized_client(unique_name)
+                self._lifetime.register_authorized_client(
+                    unique_name, registration_generation
+                )
             else:
                 await self._lifetime.register_client(unique_name)
             if self._authorizer is not None:
@@ -197,7 +212,11 @@ class VpnDbusService(ServiceInterface):
     @dbus_error_boundary()
     def unregister_client(self, unique_name: "s"):  # noqa: F722,F821
         if self._authorizer is not None:
-            sender = self._authorizer.require_authorized_sender()
+            # Unregister is risk-reducing cleanup and the session bus supplies
+            # an unforgeable unique sender. Accept retirement before a
+            # concurrent RegisterClient identity probe completes so its
+            # lifetime tombstone can prevent a late lease commit.
+            sender = current_request_sender()
             if unique_name != sender:
                 raise PermissionError(UNAUTHORIZED_MESSAGE)
             unique_name = sender

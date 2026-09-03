@@ -26,6 +26,11 @@ class NpsCompletionUnknownError(UserVisibleRuntimeError):
     """The upstream survey side effect may have completed."""
 
 
+def is_proton_authentication_needed(error: BaseException) -> bool:
+    """Classify Core's optional authentication-expiry exception by contract."""
+    return type(error).__name__ == "ProtonAPIAuthenticationNeeded"
+
+
 def bounded_user_message(error: UserVisibleError, fallback: str) -> str:
     """Return only bounded, printable text explicitly marked safe for users."""
 

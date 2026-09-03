@@ -65,8 +65,49 @@ class VpnDbusServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(DBusError):
             await type(service).register_client.__wrapped__(service, ":direct.test")
 
-        lifetime.register_authorized_client.assert_called_once_with(":direct.test")
+        lifetime.register_authorized_client.assert_called_once_with(
+            ":direct.test", lifetime.registration_generation.return_value
+        )
         lifetime.unregister_client.assert_called_once_with(":direct.test")
+
+    async def test_failed_registration_releases_pending_lifetime_tracking(self):
+        controller = Mock()
+        lifetime = Mock()
+        authorizer = Mock()
+        authorizer.authorize = AsyncMock(side_effect=PermissionError)
+        service = VpnDbusService(controller, lifetime, authorizer)
+
+        with self.assertRaises(DBusError):
+            await type(service).register_client.__wrapped__(
+                service, ":direct.test"
+            )
+
+        lifetime.cancel_registration.assert_called_once_with(
+            ":direct.test", lifetime.registration_generation.return_value
+        )
+        lifetime.register_authorized_client.assert_not_called()
+
+    def test_unregister_can_tombstone_a_still_pending_registration(self):
+        controller = Mock()
+        lifetime = Mock()
+        authorizer = Mock()
+        service = VpnDbusService(controller, lifetime, authorizer)
+
+        type(service).unregister_client.__wrapped__(service, ":direct.test")
+
+        lifetime.unregister_client.assert_called_once_with(":direct.test")
+        authorizer.require_authorized_sender.assert_not_called()
+
+    def test_unregister_cannot_retire_another_senders_lease(self):
+        controller = Mock()
+        lifetime = Mock()
+        authorizer = Mock()
+        service = VpnDbusService(controller, lifetime, authorizer)
+
+        with self.assertRaises(DBusError):
+            type(service).unregister_client.__wrapped__(service, ":1.999")
+
+        lifetime.unregister_client.assert_not_called()
 
     def test_every_exported_method_has_the_shared_error_boundary(self):
         exported = [

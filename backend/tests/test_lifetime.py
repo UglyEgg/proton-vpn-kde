@@ -134,6 +134,47 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
         owner_probe.assert_not_awaited()
         self.assertEqual(frozenset({":1.42"}), lifetime.clients)
 
+    async def test_unregister_tombstones_an_inflight_registration(self):
+        probe_started = asyncio.Event()
+        release_probe = asyncio.Event()
+
+        async def delayed_owner_probe(_name: str) -> bool:
+            probe_started.set()
+            await release_probe.wait()
+            return True
+
+        controller = FakeController(VpnSnapshot(ready=True, state="disconnected"))
+        lifetime = BackendLifetime(
+            controller,  # type: ignore[arg-type]
+            asyncio.Event(),
+            delayed_owner_probe,
+        )
+        registration = asyncio.create_task(lifetime.register_client(":1.42"))
+        await probe_started.wait()
+
+        lifetime.unregister_client(":1.42")
+        release_probe.set()
+        await registration
+
+        self.assertEqual(frozenset(), lifetime.clients)
+        self.assertEqual({}, lifetime._client_generations)
+        self.assertEqual({}, lifetime._pending_client_registrations)
+
+    async def test_failed_registration_releases_generation_tracking(self):
+        owner_probe = AsyncMock(return_value=False)
+        controller = FakeController(VpnSnapshot(ready=True, state="disconnected"))
+        lifetime = BackendLifetime(
+            controller,  # type: ignore[arg-type]
+            asyncio.Event(),
+            owner_probe,
+        )
+
+        with self.assertRaisesRegex(ValueError, "has no owner"):
+            await lifetime.register_client(":1.42")
+
+        self.assertEqual({}, lifetime._client_generations)
+        self.assertEqual({}, lifetime._pending_client_registrations)
+
     async def test_owner_loss_releases_frontend_before_exit(self):
         lifetime, _, stopped, owners = self.make_lifetime()
         owners.add(":1.42")
