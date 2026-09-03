@@ -203,6 +203,7 @@ class BlockingSessionReadAdapter(DemoCoreAdapter):
         self.method_name = method_name
         self.read_started = asyncio.Event()
         self.release_read = asyncio.Event()
+        self.close_calls = 0
 
     async def _wait_if_selected(self, method_name: str) -> None:
         if self.method_name != method_name:
@@ -237,6 +238,26 @@ class BlockingSessionReadAdapter(DemoCoreAdapter):
     async def take_pending_nps_survey(self) -> bool:
         await self._wait_if_selected("nps")
         return await super().take_pending_nps_survey()
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        await super().close()
+
+
+class CancellationResistantCloseAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__()
+        self.close_started = asyncio.Event()
+        self.close_cancelled = asyncio.Event()
+        self.release_close = asyncio.Event()
+
+    async def close(self) -> None:
+        self.close_started.set()
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            self.close_cancelled.set()
+            await self.release_close.wait()
 
 
 class BlockingNpsSubmissionAdapter(DemoCoreAdapter):
@@ -1242,6 +1263,67 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         await close_task
         self.assertEqual(1, adapter.close_calls)
 
+    async def test_close_drains_every_concurrent_account_read_class(self):
+        cases = (
+            ("countries", "get_countries_json", ()),
+            ("groups", "get_server_groups_json", ("CH",)),
+            (
+                "servers",
+                "get_group_servers_json",
+                ("CH", "location", "Zurich"),
+            ),
+            ("loads", "get_server_loads_json", ("CH",)),
+            ("search", "search_locations_json", ("Zurich",)),
+        )
+        for read_kind, method_name, arguments in cases:
+            with self.subTest(read_kind=read_kind):
+                adapter = BlockingSessionReadAdapter(read_kind)
+                controller = BackendController(adapter)
+                await controller.start()
+                read = asyncio.create_task(
+                    getattr(controller, method_name)(*arguments)
+                )
+                await adapter.read_started.wait()
+
+                close = asyncio.create_task(controller.close())
+                await asyncio.sleep(0)
+                self.assertFalse(close.done())
+                self.assertEqual(0, adapter.close_calls)
+
+                adapter.release_read.set()
+                await read
+                await close
+                self.assertEqual(1, adapter.close_calls)
+
+    async def test_close_cancels_every_stuck_account_read_before_teardown(self):
+        cases = (
+            ("countries", "get_countries_json", ()),
+            ("groups", "get_server_groups_json", ("CH",)),
+            (
+                "servers",
+                "get_group_servers_json",
+                ("CH", "location", "Zurich"),
+            ),
+            ("loads", "get_server_loads_json", ("CH",)),
+            ("search", "search_locations_json", ("Zurich",)),
+        )
+        for read_kind, method_name, arguments in cases:
+            with self.subTest(read_kind=read_kind):
+                adapter = BlockingSessionReadAdapter(read_kind)
+                controller = BackendController(
+                    adapter, shutdown_drain_seconds=0.04
+                )
+                await controller.start()
+                read = asyncio.create_task(
+                    getattr(controller, method_name)(*arguments)
+                )
+                await adapter.read_started.wait()
+
+                await controller.close()
+
+                self.assertTrue(read.cancelled())
+                self.assertEqual(1, adapter.close_calls)
+
     async def test_close_rejects_a_queued_session_side_effect(self):
         adapter = BlockingNpsSubmissionAdapter()
         controller = BackendController(adapter)
@@ -1295,6 +1377,30 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         adapter.release.set()
         await operation
+
+    async def test_close_bounds_cancellation_resistant_adapter_teardown(self):
+        adapter = CancellationResistantCloseAdapter()
+        controller = BackendController(adapter, shutdown_drain_seconds=0.04)
+        await controller.start()
+
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        with self.assertRaisesRegex(TimeoutError, "Core teardown"):
+            await controller.close()
+        elapsed = loop.time() - started
+        await asyncio.sleep(0)
+
+        self.assertLess(elapsed, 0.08)
+        self.assertTrue(adapter.close_started.is_set())
+        self.assertTrue(adapter.close_cancelled.is_set())
+        self.assertEqual(1, len(controller._abandoned_shutdown_tasks))
+
+        adapter.release_close.set()
+        for _ in range(20):
+            if not controller._abandoned_shutdown_tasks:
+                break
+            await asyncio.sleep(0)
+        self.assertFalse(controller._abandoned_shutdown_tasks)
 
 
 if __name__ == "__main__":

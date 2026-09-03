@@ -1531,6 +1531,166 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(adapter._reconnector.enabled)
         await adapter._reconnector.disable()
 
+    async def test_every_lifecycle_suspension_releases_when_lock_wait_is_cancelled(self):
+        operation_factories = (
+            ("disconnect", lambda adapter: adapter.disconnect()),
+            ("logout", lambda adapter: adapter.logout()),
+            (
+                "reconnection preference",
+                lambda adapter: adapter.set_reconnection_enabled(True),
+            ),
+            (
+                "signed-out cleanup",
+                lambda adapter: adapter._set_signed_out("Signed out"),
+            ),
+            (
+                "session quiesce",
+                lambda adapter: adapter._quiesce_session_services(),
+            ),
+            (
+                "session expiry",
+                lambda adapter: adapter._expire_session(
+                    adapter._authentication_epoch
+                ),
+            ),
+            ("close", lambda adapter: adapter.close()),
+        )
+        for operation_name, operation_factory in operation_factories:
+            with self.subTest(operation=operation_name):
+                api, _ = self.make_api()
+                adapter = ProtonCoreAdapter(api)
+                await adapter.initialize(Mock())
+                await adapter._disconnect_lock.acquire()
+                operation = asyncio.create_task(operation_factory(adapter))
+                for _ in range(20):
+                    if adapter._reconnector._suspend_count:
+                        break
+                    await asyncio.sleep(0)
+                self.assertEqual(1, adapter._reconnector._suspend_count)
+
+                operation.cancel()
+                result = (await asyncio.gather(
+                    operation, return_exceptions=True
+                ))[0]
+                adapter._disconnect_lock.release()
+
+                if operation_name == "session quiesce":
+                    self.assertTrue(result)
+                else:
+                    self.assertIsInstance(result, asyncio.CancelledError)
+                self.assertEqual(0, adapter._reconnector._suspend_count)
+                if adapter._reconnector.enabled:
+                    await adapter._reconnector.disable()
+
+    async def test_logout_settings_failure_releases_reconnection_suspension(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        api.load_settings.side_effect = RuntimeError("settings unavailable")
+
+        with self.assertRaisesRegex(RuntimeError, "could not load"):
+            await adapter.logout()
+
+        self.assertEqual(0, adapter._reconnector._suspend_count)
+        self.assertTrue(adapter._reconnector.enabled)
+        await adapter._reconnector.disable()
+
+    async def test_reconnection_enable_retry_does_not_leak_suspension(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        await adapter.set_reconnection_enabled(False)
+        connector.register.side_effect = [RuntimeError("observer failure"), None]
+
+        with self.assertRaisesRegex(RuntimeError, "observer failure"):
+            await adapter.set_reconnection_enabled(True)
+        self.assertEqual(0, adapter._reconnector._suspend_count)
+
+        await adapter.set_reconnection_enabled(True)
+        self.assertEqual(0, adapter._reconnector._suspend_count)
+        self.assertTrue(adapter._reconnector.enabled)
+        await adapter._reconnector.disable()
+
+    async def test_repeated_retry_retirement_cannot_interrupt_compensating_down(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        connect_started = asyncio.Event()
+        compensation_started = asyncio.Event()
+        release_compensation = asyncio.Event()
+        compensation_cancelled = asyncio.Event()
+
+        async def blocked_connect(*_args):
+            connect_started.set()
+            await asyncio.Future()
+
+        async def compensating_disconnect():
+            compensation_started.set()
+            try:
+                await release_compensation.wait()
+            except asyncio.CancelledError:
+                compensation_cancelled.set()
+                raise
+            connector.current_state = state_named("Disconnected")
+
+        connector.connect.side_effect = blocked_connect
+        connector.disconnect.side_effect = compensating_disconnect
+        connector.current_connection = SimpleNamespace(
+            server_id="server-id",
+            server_name="",
+            protocol="wireguard",
+            backend="networkmanager",
+        )
+        api.refresher.server_list = SimpleNamespace(
+            get_by_id=Mock(return_value="logical-server")
+        )
+        api.refresher.client_config = "client-config"
+        adapter._reconnector._session_probe = SimpleNamespace(
+            is_unlocked=AsyncMock(return_value=True),
+            close=AsyncMock(),
+        )
+        connector.current_state = type(
+            "Error",
+            (),
+            {"context": SimpleNamespace(
+                event=type("UnexpectedError", (), {})()
+            )},
+        )()
+        adapter._reconnector._delay_factory = lambda _attempt: 0
+        adapter._reconnector.status_update(connector.current_state)
+        await connect_started.wait()
+
+        first_entered = asyncio.Event()
+        second_entered = asyncio.Event()
+        release_owners = asyncio.Event()
+
+        async def owner(entered: asyncio.Event):
+            async with adapter._reconnector.suspended():
+                entered.set()
+                await release_owners.wait()
+
+        first = asyncio.create_task(owner(first_entered))
+        await compensation_started.wait()
+        second = asyncio.create_task(owner(second_entered))
+        await asyncio.sleep(0)
+
+        self.assertFalse(first_entered.is_set())
+        self.assertFalse(second_entered.is_set())
+        self.assertFalse(compensation_cancelled.is_set())
+        self.assertEqual(1, connector.disconnect.await_count)
+
+        release_compensation.set()
+        await first_entered.wait()
+        await second_entered.wait()
+        release_owners.set()
+        await asyncio.gather(first, second)
+
+        self.assertFalse(compensation_cancelled.is_set())
+        self.assertEqual(1, connector.disconnect.await_count)
+        self.assertEqual(0, adapter._reconnector._suspend_count)
+        self.assertEqual("Disconnected", type(connector.current_state).__name__)
+        await adapter._reconnector.disable()
+
     async def test_close_drains_an_accepted_disconnect_scope(self):
         api, connector = self.make_api()
         adapter = ProtonCoreAdapter(api)
@@ -2099,6 +2259,10 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Error")
         adapter._reconnector._delay_factory = lambda _attempt: 0
+        adapter._reconnector._session_probe = SimpleNamespace(
+            is_unlocked=AsyncMock(return_value=True),
+            close=AsyncMock(),
+        )
         adapter._reconnector.status_update(connector.current_state)
         await auto_started.wait()
 
@@ -2627,7 +2791,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter = ProtonCoreAdapter(
             api, packet_capture_stop_attempt_seconds=0.01
         )
-        controller = BackendController(adapter, shutdown_drain_seconds=0.01)
+        controller = BackendController(adapter, shutdown_drain_seconds=0.04)
         self.assertTrue(await controller.start())
 
         with tempfile.TemporaryDirectory() as capture_directory:

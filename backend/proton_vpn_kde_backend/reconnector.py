@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager
 import logging
 import os
 import random
-from typing import Any
+from typing import Any, AsyncIterator
 
 from .async_utils import await_owned
 from .errors import is_proton_authentication_needed
@@ -157,8 +158,8 @@ class AsyncReconnector:
         self._retry_counter = 0
         self._retry_generation = 0
         self._enabled = False
-        self._suspended = False
-        self._suspend_count = 0
+        self._suspension_owners: set[object] = set()
+        self._retiring_retry_tasks: set[asyncio.Task] = set()
 
     @property
     def enabled(self) -> bool:
@@ -167,6 +168,16 @@ class AsyncReconnector:
     @property
     def retry_counter(self) -> int:
         return self._retry_counter
+
+    @property
+    def _suspended(self) -> bool:
+        """Derive policy suspension from live ownership tokens."""
+        return bool(self._suspension_owners)
+
+    @property
+    def _suspend_count(self) -> int:
+        """Expose the derived balance for diagnostics and invariant tests."""
+        return len(self._suspension_owners)
 
     def enable(self) -> None:
         if self._enabled:
@@ -201,35 +212,32 @@ class AsyncReconnector:
         finally:
             if self._retry_task is retry_task and retry_task is not None:
                 self._retry_task = None
-            self._suspend_count = 0
-            self._suspended = False
             await self._session_probe.close()
         if unregister_error is not None:
             raise unregister_error
 
-    async def suspend(self) -> None:
-        """Quiesce retry work while preserving the registered observer."""
-        self._suspend_count += 1
-        self._suspended = True
-        retry_task = self._reset()
-        try:
-            await self._join_retry(retry_task)
-        except BaseException:
-            self.resume()
-            raise
-        finally:
-            if self._retry_task is retry_task and retry_task is not None:
-                self._retry_task = None
+    @asynccontextmanager
+    async def suspended(self) -> AsyncIterator[None]:
+        """Own a cancellation-safe temporary reconnection suspension.
 
-    def resume(self) -> None:
-        """Resume retry observation after an intentional control operation."""
-        if self._suspend_count:
-            self._suspend_count -= 1
-        if self._suspend_count:
-            return
-        self._suspended = False
-        if self._enabled:
-            self.status_update(self._connector.current_state)
+        The token is installed before the first await and is always retired by
+        this scope.  Concurrent owners may join the same retry retirement, but
+        only the first owner is allowed to cancel it.
+        """
+        owner = object()
+        self._suspension_owners.add(owner)
+        try:
+            retry_task = self._reset()
+            try:
+                await self._join_retry(retry_task)
+            finally:
+                if self._retry_task is retry_task and retry_task is not None:
+                    self._retry_task = None
+            yield
+        finally:
+            self._suspension_owners.discard(owner)
+            if not self._suspended and self._enabled:
+                self.status_update(self._connector.current_state)
 
     def status_update(self, state: Any) -> None:
         if not self._enabled or self._suspended:
@@ -378,7 +386,7 @@ class AsyncReconnector:
                 ):
                     # The standalone reconnector retains the same fail-closed
                     # rule as the adapter-owned production coordinator.
-                    await self._connector.disconnect()
+                    await await_owned(self._connector.disconnect())
                     return False
         except asyncio.CancelledError:
             raise
@@ -415,7 +423,13 @@ class AsyncReconnector:
         self._retry_generation += 1
         current_task = asyncio.current_task()
         retry_task = self._retry_task
-        if retry_task and retry_task is not current_task:
+        if (
+            retry_task
+            and retry_task is not current_task
+            and retry_task not in self._retiring_retry_tasks
+        ):
+            self._retiring_retry_tasks.add(retry_task)
+            retry_task.add_done_callback(self._retiring_retry_tasks.discard)
             retry_task.cancel()
         self._retry_counter = 0
         self._retry_pending = False

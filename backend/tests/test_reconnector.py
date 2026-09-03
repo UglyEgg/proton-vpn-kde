@@ -226,14 +226,75 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         connector.current_state = state_named("Disconnected")
         reconnector.enable()
 
-        await reconnector.suspend()
-        await reconnector.suspend()
-        reconnector.resume()
-
-        self.assertTrue(reconnector._suspended)
-        self.assertEqual(1, reconnector._suspend_count)
-        reconnector.resume()
+        async with reconnector.suspended():
+            self.assertTrue(reconnector._suspended)
+            self.assertEqual(1, reconnector._suspend_count)
+            async with reconnector.suspended():
+                self.assertTrue(reconnector._suspended)
+                self.assertEqual(2, reconnector._suspend_count)
+            self.assertTrue(reconnector._suspended)
+            self.assertEqual(1, reconnector._suspend_count)
         self.assertFalse(reconnector._suspended)
+        self.assertEqual(0, reconnector._suspend_count)
+        await reconnector.disable()
+
+    async def test_suspension_scope_releases_after_body_error_and_cancellation(self):
+        reconnector, connector, _, _ = self.make_reconnector()
+        connector.current_state = state_named("Disconnected")
+        reconnector.enable()
+
+        with self.assertRaisesRegex(RuntimeError, "body failure"):
+            async with reconnector.suspended():
+                raise RuntimeError("body failure")
+        self.assertEqual(0, reconnector._suspend_count)
+
+        entered = asyncio.Event()
+
+        async def cancelled_owner():
+            async with reconnector.suspended():
+                entered.set()
+                await asyncio.Future()
+
+        owner = asyncio.create_task(cancelled_owner())
+        await entered.wait()
+        owner.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await owner
+        self.assertEqual(0, reconnector._suspend_count)
+        await reconnector.disable()
+
+    async def test_disable_and_reenable_preserve_an_outstanding_suspension(self):
+        reconnector, connector, _, _ = self.make_reconnector()
+        connector.current_state = state_named("Error")
+        scope = reconnector.suspended()
+        await scope.__aenter__()
+        try:
+            reconnector.enable()
+            self.assertIsNone(reconnector._retry_task)
+            await reconnector.disable()
+            self.assertEqual(1, reconnector._suspend_count)
+            reconnector.enable()
+            self.assertIsNone(reconnector._retry_task)
+        finally:
+            await scope.__aexit__(None, None, None)
+
+        self.assertEqual(0, reconnector._suspend_count)
+        self.assertIsNotNone(reconnector._retry_task)
+        await reconnector.disable()
+
+    async def test_failed_enable_does_not_leak_its_callers_suspension(self):
+        reconnector, connector, _, _ = self.make_reconnector()
+        connector.current_state = state_named("Disconnected")
+        connector.register.side_effect = [RuntimeError("observer failure"), None]
+
+        with self.assertRaisesRegex(RuntimeError, "observer failure"):
+            async with reconnector.suspended():
+                reconnector.enable()
+        self.assertEqual(0, reconnector._suspend_count)
+
+        async with reconnector.suspended():
+            reconnector.enable()
+        self.assertTrue(reconnector.enabled)
         self.assertEqual(0, reconnector._suspend_count)
         await reconnector.disable()
 

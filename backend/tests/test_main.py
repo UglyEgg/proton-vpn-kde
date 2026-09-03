@@ -8,6 +8,7 @@ from collections.abc import Callable
 import os
 from pathlib import Path
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -35,6 +36,33 @@ class BackendMainTests(unittest.TestCase):
             {"PROTON_VPN_KDE_IDLE_TIMEOUT_SECONDS": "2"},
         ):
             self.assertEqual(2.0, backend_main._idle_timeout_seconds(True))
+
+    def test_process_runner_bounds_cancellation_resistant_cleanup(self):
+        async def cancellation_resistant_cleanup():
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                await asyncio.Future()
+
+        async def service():
+            asyncio.create_task(cancellation_resistant_cleanup())
+            await asyncio.sleep(0)
+            return 7
+
+        started = time.monotonic()
+        with (
+            patch.object(
+                backend_main, "PROCESS_TASK_SHUTDOWN_SECONDS", 0.01
+            ),
+            self.assertLogs(
+                "proton_vpn_kde_backend.__main__", level="ERROR"
+            ) as captured,
+        ):
+            result = backend_main._run_service(service())
+
+        self.assertEqual(7, result)
+        self.assertLess(time.monotonic() - started, 0.1)
+        self.assertIn("cancellation-resistant", "\n".join(captured.output))
 
 
 class BackendPublicationTests(unittest.IsolatedAsyncioTestCase):

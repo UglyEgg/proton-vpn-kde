@@ -199,6 +199,8 @@ class BackendController:
         self._preemptive_disconnect_tasks: set[asyncio.Task[None]] = set()
         self._active_session_side_effect_task: asyncio.Task[object] | None = None
         self._active_settings_task: asyncio.Task[object] | None = None
+        self._active_account_read_tasks: set[asyncio.Task[object]] = set()
+        self._abandoned_shutdown_tasks: set[asyncio.Task[object]] = set()
         self._packet_capture_start_task: asyncio.Task[None] | None = None
         self._shutdown_drain_seconds = max(0.0, shutdown_drain_seconds)
         self._packet_capture_shutdown_seconds = max(
@@ -270,53 +272,58 @@ class BackendController:
         )
 
     async def get_countries_json(self) -> str:
-        session_epoch = self._current_session_epoch()
-        countries = await self._adapter.get_countries()
-        self._require_current_session(session_epoch)
+        async with self._accepted_account_read():
+            session_epoch = self._current_session_epoch()
+            countries = await self._adapter.get_countries()
+            self._require_current_session(session_epoch)
         return location_list_to_json("countries", countries)
 
     async def get_server_groups_json(self, country_code: str) -> str:
-        session_epoch = self._current_session_epoch()
-        normalized_code = self._validate_country_code(country_code)
-        groups = await self._adapter.get_server_groups(normalized_code)
-        self._require_current_session(session_epoch)
+        async with self._accepted_account_read():
+            session_epoch = self._current_session_epoch()
+            normalized_code = self._validate_country_code(country_code)
+            groups = await self._adapter.get_server_groups(normalized_code)
+            self._require_current_session(session_epoch)
         return location_list_to_json("groups", groups)
 
     async def get_group_servers_json(
         self, country_code: str, group_kind: str, group_name: str
     ) -> str:
-        session_epoch = self._current_session_epoch()
-        normalized_code = self._validate_country_code(country_code)
-        normalized_kind, normalized_name = self._validate_server_group(
-            group_kind, group_name
-        )
-        servers = await self._adapter.get_group_servers(
-            normalized_code, normalized_kind, normalized_name
-        )
-        self._require_current_session(session_epoch)
+        async with self._accepted_account_read():
+            session_epoch = self._current_session_epoch()
+            normalized_code = self._validate_country_code(country_code)
+            normalized_kind, normalized_name = self._validate_server_group(
+                group_kind, group_name
+            )
+            servers = await self._adapter.get_group_servers(
+                normalized_code, normalized_kind, normalized_name
+            )
+            self._require_current_session(session_epoch)
         return location_list_to_json(
             "servers",
             servers,
         )
 
     async def get_server_loads_json(self, country_code: str) -> str:
-        session_epoch = self._current_session_epoch()
-        normalized_code = self._validate_country_code(country_code)
-        loads = await self._adapter.get_server_loads(normalized_code)
-        self._require_current_session(session_epoch)
+        async with self._accepted_account_read():
+            session_epoch = self._current_session_epoch()
+            normalized_code = self._validate_country_code(country_code)
+            loads = await self._adapter.get_server_loads(normalized_code)
+            self._require_current_session(session_epoch)
         return location_list_to_json("loads", loads)
 
     async def search_locations_json(self, query: str) -> str:
-        session_epoch = self._current_session_epoch()
-        normalized_query = " ".join(query.split())
-        if (
-            not normalized_query
-            or len(normalized_query) > 128
-            or "\0" in normalized_query
-        ):
-            raise UserVisibleValueError("Enter a valid location search")
-        results = await self._adapter.search_locations(normalized_query)
-        self._require_current_session(session_epoch)
+        async with self._accepted_account_read():
+            session_epoch = self._current_session_epoch()
+            normalized_query = " ".join(query.split())
+            if (
+                not normalized_query
+                or len(normalized_query) > 128
+                or "\0" in normalized_query
+            ):
+                raise UserVisibleValueError("Enter a valid location search")
+            results = await self._adapter.search_locations(normalized_query)
+            self._require_current_session(session_epoch)
         return location_list_to_json("results", results)
 
     async def get_settings_json(self) -> str:
@@ -817,6 +824,7 @@ class BackendController:
                 self._active_operation_task,
                 self._active_settings_task,
                 self._active_session_side_effect_task,
+                *self._active_account_read_tasks,
             )
             if task is not None and task is not current_task and not task.done()
         }
@@ -834,7 +842,7 @@ class BackendController:
             ):
                 await self._acquire_before_deadline(lock, deadline)
                 acquired_locks.append(lock)
-            await self._adapter.close()
+            await self._close_adapter_before_deadline(deadline)
         finally:
             for lock in reversed(acquired_locks):
                 lock.release()
@@ -878,6 +886,32 @@ class BackendController:
             raise TimeoutError(
                 "Accepted VPN work did not stop before the shutdown deadline"
             )
+
+    async def _close_adapter_before_deadline(self, deadline: float) -> None:
+        """Bound final provider teardown without detaching it silently."""
+        close_task = asyncio.create_task(self._adapter.close())
+        remaining = max(
+            0.0, deadline - asyncio.get_running_loop().time()
+        )
+        if remaining:
+            done, _ = await asyncio.wait({close_task}, timeout=remaining)
+            if close_task in done:
+                close_task.result()
+                return
+
+        close_task.cancel()
+        self._abandoned_shutdown_tasks.add(close_task)
+        close_task.add_done_callback(self._finish_abandoned_shutdown_task)
+        raise TimeoutError(
+            "Proton Core teardown outlived the shutdown deadline"
+        )
+
+    def _finish_abandoned_shutdown_task(self, task: asyncio.Task[object]) -> None:
+        self._abandoned_shutdown_tasks.discard(task)
+        try:
+            task.result()
+        except (Exception, asyncio.CancelledError):
+            pass
 
     @staticmethod
     async def _acquire_before_deadline(
@@ -1050,6 +1084,20 @@ class BackendController:
             await asyncio.shield(
                 asyncio.gather(*active, return_exceptions=True)
             )
+
+    @asynccontextmanager
+    async def _accepted_account_read(self) -> AsyncIterator[None]:
+        """Own a concurrent account read until completion or shutdown drain."""
+        if self._closing:
+            raise UserVisibleRuntimeError("The Proton backend is shutting down")
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("An account read requires an asyncio task")
+        self._active_account_read_tasks.add(task)
+        try:
+            yield
+        finally:
+            self._active_account_read_tasks.discard(task)
 
     @asynccontextmanager
     async def _serialized_session_side_effect(self) -> AsyncIterator[None]:

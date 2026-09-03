@@ -62,6 +62,7 @@ while IFS= read -r path; do
             ;;
         CMakeLists.txt|backend/pyproject.toml|\
         backend/proton_vpn_kde_backend/__init__.py|\
+        backend/proton_vpn_kde_backend/__main__.py|\
         backend/proton_vpn_kde_backend/adapters.py|\
         backend/proton_vpn_kde_backend/async_utils.py|\
         backend/proton_vpn_kde_backend/client_authorization.py|\
@@ -80,6 +81,7 @@ while IFS= read -r path; do
         backend/tests/test_controller.py|\
         backend/tests/test_dbus_service.py|\
         backend/tests/test_lifetime.py|\
+        backend/tests/test_main.py|\
         backend/tests/test_proton_core_adapter.py|\
         backend/tests/test_reconnector.py|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
@@ -124,8 +126,9 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "357fda4063a7c26b94f4c9cb2856685f33163a225a2ce9702ef759479b34b607" \
+    "b594cc460e41f2ebc9cd2ff65cb830f8eb39b8837ca73f2462fc7e40a77c751b" \
     "backend reviewed behavior exceptions" \
+    backend/proton_vpn_kde_backend/__main__.py \
     backend/proton_vpn_kde_backend/adapters.py \
     backend/proton_vpn_kde_backend/async_utils.py \
     backend/proton_vpn_kde_backend/client_authorization.py \
@@ -142,6 +145,7 @@ assert_diff_hash \
     backend/tests/test_client_authorization.py backend/tests/test_controller.py \
     backend/tests/test_dbus_service.py \
     backend/tests/test_lifetime.py \
+    backend/tests/test_main.py \
     backend/tests/test_proton_core_adapter.py backend/tests/test_reconnector.py
 assert_diff_hash \
     "f3dca36c733c8e515912de42c91c4c7c2faea9f1412ebcc5184b6c1bd8b19bff" \

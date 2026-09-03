@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from collections.abc import Coroutine
+import logging
 import os
 import signal as unix_signal
+from typing import Any
 
 from dbus_fast.aio import MessageBus
 from dbus_fast.constants import BusType, NameFlag, RequestNameReply
@@ -23,6 +26,8 @@ from .lifetime import BackendLifetime, name_has_owner
 
 
 DEFAULT_IDLE_TIMEOUT_SECONDS = 10.0
+PROCESS_TASK_SHUTDOWN_SECONDS = 1.0
+logger = logging.getLogger(__name__)
 
 
 def _seconds_from_environment(name: str, default: float) -> float:
@@ -138,6 +143,65 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
                 bus.disconnect()
 
 
+async def _retire_process_tasks(timeout: float) -> set[asyncio.Task[Any]]:
+    """Bound loop retirement after public service ownership is released."""
+    current = asyncio.current_task()
+    pending = {
+        task
+        for task in asyncio.all_tasks()
+        if task is not current and not task.done()
+    }
+    for task in pending:
+        task.cancel()
+    if not pending:
+        return set()
+    done, still_pending = await asyncio.wait(pending, timeout=timeout)
+    for task in done:
+        try:
+            task.result()
+        except (Exception, asyncio.CancelledError):
+            pass
+    return still_pending
+
+
+def _run_service(coroutine: Coroutine[Any, Any, int]) -> int:
+    """Run the service with a finite final task-retirement budget."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    abandoned_task_ids: set[int] = set()
+
+    def report_loop_error(
+        reporting_loop: asyncio.AbstractEventLoop,
+        context: dict[str, Any],
+    ) -> None:
+        task = context.get("task")
+        if (
+            context.get("message") == "Task was destroyed but it is pending!"
+            and task is not None
+            and id(task) in abandoned_task_ids
+        ):
+            return
+        reporting_loop.default_exception_handler(context)
+
+    loop.set_exception_handler(report_loop_error)
+    try:
+        return loop.run_until_complete(coroutine)
+    finally:
+        try:
+            abandoned = loop.run_until_complete(
+                _retire_process_tasks(PROCESS_TASK_SHUTDOWN_SECONDS)
+            )
+            abandoned_task_ids.update(map(id, abandoned))
+            if abandoned:
+                logger.error(
+                    "Process exit abandoned %d cancellation-resistant cleanup task(s)",
+                    len(abandoned),
+                )
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Headless Proton VPN service for the native KDE frontend"
@@ -153,7 +217,7 @@ def main() -> None:
         help="show the safe demo authentication UI without using a Proton account",
     )
     args = parser.parse_args()
-    exit_code = asyncio.run(
+    exit_code = _run_service(
         run(
             demo=args.demo or args.demo_logged_out, demo_logged_out=args.demo_logged_out
         )
