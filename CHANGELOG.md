@@ -113,6 +113,25 @@ All notable user-visible changes are recorded here. The project follows
 - Join a cancelled automatic-reconnect worker before disconnect, logout, or
   Core teardown, and rearm a replacement retry when a newer error arrives while
   cancellation cleanup is still completing.
+- Wait for dbus-fast to finish disconnecting the logind readiness probe before
+  releasing its lifecycle ownership.
+- Suspend and join automatic reconnect before an ordinary user disconnect can
+  reach Core, then restore observation after the disconnect settles. A late
+  cancellation-resistant retry can no longer reconnect after Disconnect has
+  returned, and a replacement error now rearms even when cancellation
+  propagates normally.
+- Keep completion-unknown packet-capture Start ownership after the frontend
+  request times out, so a later Stop or application shutdown still reaches the
+  backend and preempts the original capture attempt.
+- Make settings reads persistence-free. Community builds still disable the
+  unsupported crash-report sender in memory, always present the preference as
+  off, and persist it as off whenever an explicit settings write occurs; a
+  delayed read can no longer restore an old account's whole settings object
+  after logout.
+- Release a security-key PIN request immediately when cancellation arrived
+  before its waiter was created, and give the resident agent's connection
+  operations their own generation so a delayed Connect reply cannot overwrite
+  a newer Disconnect result.
 - Scope every control-operation reply to its account session and foreground
   owner. Disconnect establishes new foreground ownership; superseded
   disconnect and reconnection-preference replies cannot overwrite current

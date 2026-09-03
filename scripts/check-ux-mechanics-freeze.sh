@@ -71,6 +71,7 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/dbus_contract.py|\
         backend/proton_vpn_kde_backend/dbus_service.py|\
         backend/proton_vpn_kde_backend/errors.py|\
+        backend/proton_vpn_kde_backend/fido_interaction.py|\
         backend/proton_vpn_kde_backend/reconnector.py|\
         backend/tests/test_async_utils.py|backend/tests/test_controller.py|\
         backend/tests/test_dbus_service.py|\
@@ -78,13 +79,15 @@ while IFS= read -r path; do
         backend/tests/test_reconnector.py|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
         packaging/fedora/proton-vpn-kde.spec|\
+        src/AgentVpnClient.cpp|src/AgentVpnClient.h|\
         src/DbusContract.h|\
         src/VpnController.cpp|src/VpnController.h|\
         src/VpnControllerActions.cpp|\
         src/VpnControllerLifecycle.cpp|src/VpnControllerLocations.cpp|\
         src/VpnControllerSettings.cpp|src/VpnControllerSnapshot.cpp|\
         src/main.cpp|\
-        tests/GroupedNavigationTest.cpp|tests/SignInPresentationTest.cpp)
+        tests/AgentVpnClientTest.cpp|tests/GroupedNavigationTest.cpp|\
+        tests/SignInPresentationTest.cpp)
             # Exact reviewed deltas are checked below.
             ;;
         scripts/auth-dbus-client.py|scripts/capture-qml-page.sh|\
@@ -116,7 +119,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "e34f706f86cbdd28a75fa2cf8d7035fefc11840dd2e2bcc254890ab1eb90ea75" \
+    "91212ff9f35764fc582c388e1906f13cfffcb864b7c3262a90417a7235039ecc" \
     "backend reviewed behavior exceptions" \
     backend/proton_vpn_kde_backend/adapters.py \
     backend/proton_vpn_kde_backend/async_utils.py \
@@ -126,6 +129,7 @@ assert_diff_hash \
     backend/proton_vpn_kde_backend/core_support.py \
     backend/proton_vpn_kde_backend/dbus_service.py \
     backend/proton_vpn_kde_backend/errors.py \
+    backend/proton_vpn_kde_backend/fido_interaction.py \
     backend/proton_vpn_kde_backend/reconnector.py \
     backend/tests/test_async_utils.py backend/tests/test_controller.py \
     backend/tests/test_dbus_service.py \
@@ -142,31 +146,16 @@ assert_diff_hash \
     "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "f2108459ee714bc1f5b9f36d7a967cd44ac0340744bab9474db35c468e8eb2f9" \
+    "dd1791d4e95f8d370a10bb9430516b4a31ebcdd8996d8647d650b567dcaf1722" \
     "frontend presentation contract" \
+    src/AgentVpnClient.cpp src/AgentVpnClient.h \
     src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
     src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
     src/VpnControllerSettings.cpp src/VpnControllerSnapshot.cpp src/main.cpp \
-    tests/GroupedNavigationTest.cpp tests/SignInPresentationTest.cpp
-qml_operation_hash="$(
-    rg -o --no-filename \
-        'vpnController\.[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(' qml \
-        | sed -E 's/[[:space:]]*\($//' \
-        | LC_ALL=C sort \
-        | sha256sum \
-        | cut -d' ' -f1
-)"
-expected_qml_operation_hash=\
-"0b2fa22a94663d4f93d98f9ab62e0e565ff7e16d8f13041485cbd7205bbc5d8f"
-if [[ "$qml_operation_hash" != "$expected_qml_operation_hash" ]]; then
-    echo "The reviewed 0.13 QML controller-operation inventory changed:" >&2
-    printf '  expected %s\n  actual   %s\n' \
-        "$expected_qml_operation_hash" "$qml_operation_hash" >&2
-    exit 1
-fi
-
+    tests/AgentVpnClientTest.cpp tests/GroupedNavigationTest.cpp \
+    tests/SignInPresentationTest.cpp
 assert_diff_hash \
-    "aa66195a22e2ec25617882f051503b4e71f38f4d62d6b9e61f4ead72039427e2" \
+    "6c44508e3caa0e457e600993d7dbe09d71167186de677fb8c410feee17f8aef9" \
     "QML presentation" qml
 
 echo "0.13 change boundary matches accepted baseline $baseline_commit plus exact reviewed deltas"

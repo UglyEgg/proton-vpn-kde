@@ -39,7 +39,7 @@ Proton's official core.
 | Tray preferences | Start minimized and pinned targets | Lean native status-notifier agent, tray-only startup, pinned countries, state/city groups, and exact servers, plus an on-demand Control Center | Superset |
 | Troubleshooting capture | Choose folder and start/stop capture for supported protocols | Native folder chooser, consent warning, and official protocol capture implementation | Complete |
 | Issue reporting | Submit support form with optional logs | Reviewed proof of concept retained behind a default-off build capability; community-client reports go to the project tracker | Deliberately disabled |
-| Anonymous crash reporting | Optional automatic reports to Proton's Sentry endpoint | Default-off build capability; community builds normalize the official Core preference off and direct client crashes to the project tracker | Deliberately disabled |
+| Anonymous crash reporting | Optional automatic reports to Proton's Sentry endpoint | Default-off build capability; community builds disable the runtime sender, always present the preference as off, persist it during explicit settings writes, and direct client crashes to the project tracker | Deliberately disabled |
 | Release information | About and release-notes views | Native Help & information hub with on-demand Release Notes | Complete |
 | Update channel | Stable/Beta repository choice | Exact-package Polkit action; Discover remains responsible for updates | Native equivalent |
 | Account/help links | Create, manage, support, upgrade, and setup guidance | Official URLs opened through the desktop URL handler | Complete |
@@ -66,8 +66,9 @@ Proton's official core.
   enable it with `PROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION`.
 - Anonymous crash-report submission to Proton is independently compile-time
   disabled in unofficial builds. The Settings switch, native controller, and
-  backend reject re-enabling it, and the backend persists the official Core
-  preference as disabled through Core's public settings API. An approved
+  backend reject re-enabling it. Pure settings reads never rewrite Core's
+  settings object; the backend keeps the runtime sender disabled and persists
+  the official Core preference as off during any explicit settings write. An approved
   distribution may enable it with
   `PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION`.
 - A resident Plasma agent, global shortcuts, KRunner actions, a System Settings

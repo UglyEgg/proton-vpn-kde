@@ -35,6 +35,7 @@ public:
     int disconnectCalls = 0;
     bool failReconnection = false;
     bool failNextOperationAsNoReply = false;
+    bool delayNextConnect = false;
     bool delayNextSnapshot = false;
     bool delayNextRegistration = false;
     QString state = QStringLiteral("disconnected");
@@ -44,6 +45,7 @@ public:
     QString lastGroupName;
     QDBusMessage delayedSnapshotMessage;
     QDBusMessage delayedRegistrationMessage;
+    QDBusMessage delayedConnectMessage;
 
     void resetCounters()
     {
@@ -99,6 +101,12 @@ public slots:
     void ConnectFastest()
     {
         ++fastestCalls;
+        if (delayNextConnect) {
+            delayNextConnect = false;
+            setDelayedReply(true);
+            delayedConnectMessage = message();
+            return;
+        }
         state = QStringLiteral("connected");
         if (failNextOperationAsNoReply) {
             failNextOperationAsNoReply = false;
@@ -129,7 +137,11 @@ public slots:
         lastGroupKind = groupKind;
         lastGroupName = groupName;
     }
-    void Disconnect() { ++disconnectCalls; }
+    void Disconnect()
+    {
+        ++disconnectCalls;
+        state = QStringLiteral("disconnected");
+    }
 
 signals:
     void SnapshotChanged(const QString &snapshot);
@@ -146,6 +158,8 @@ private slots:
     void failedReconnectionPolicyBlocksQueuedConnect();
     void staleSnapshotCannotClearReplacementAction();
     void reconcilesCompletionUnknownOperationBeforeReleasingLease();
+    void staleConnectReplyCannotOverrideNewerDisconnect();
+    void staleReconciliationSnapshotCannotOverrideNewerDisconnect();
     void observesLeaseFreeAndUsesTransientActionLeases();
 
 private:
@@ -360,6 +374,86 @@ void AgentVpnClientTest::reconcilesCompletionUnknownOperationBeforeReleasingLeas
     QTRY_COMPARE_WITH_TIMEOUT(client.state(), QStringLiteral("connected"), 2000);
     QTRY_COMPARE_WITH_TIMEOUT(
         m_backend.unregistrationCalls, unregistrationBaseline + 1, 2000);
+    QVERIFY(!client.busy());
+}
+
+void AgentVpnClientTest::staleConnectReplyCannotOverrideNewerDisconnect()
+{
+    m_backend.failReconnection = false;
+    m_backend.resetCounters();
+    m_backend.delayNextConnect = true;
+    m_backend.delayedConnectMessage = {};
+    AgentVpnClient client;
+    QTRY_VERIFY_WITH_TIMEOUT(client.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.loggedIn(), 2000);
+
+    const int registrationBaseline = m_backend.registrationCalls;
+    const int unregistrationBaseline = m_backend.unregistrationCalls;
+    client.connectTarget(QStringLiteral("FASTEST"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedConnectMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.registrationCalls, registrationBaseline + 1, 2000);
+
+    m_backend.state = QStringLiteral("connecting");
+    emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        client.state(), QStringLiteral("connecting"), 2000);
+    client.disconnect();
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.disconnectCalls, 1, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        client.state(), QStringLiteral("disconnected"), 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.unregistrationCalls, unregistrationBaseline + 1, 2000);
+    const QString messageAfterDisconnect = client.message();
+
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedConnectMessage.createErrorReply(
+            QDBusError::NoReply,
+            QStringLiteral("stale connect completion unknown"))));
+    QTest::qWait(50);
+
+    QCOMPARE(client.state(), QStringLiteral("disconnected"));
+    QCOMPARE(client.message(), messageAfterDisconnect);
+    QVERIFY(!client.busy());
+    QCOMPARE(m_backend.unregistrationCalls, unregistrationBaseline + 1);
+}
+
+void AgentVpnClientTest::staleReconciliationSnapshotCannotOverrideNewerDisconnect()
+{
+    m_backend.failReconnection = false;
+    m_backend.resetCounters();
+    m_backend.delayedSnapshotMessage = {};
+    AgentVpnClient client;
+    QTRY_VERIFY_WITH_TIMEOUT(client.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.loggedIn(), 2000);
+
+    m_backend.delayNextSnapshot = true;
+    m_backend.failNextOperationAsNoReply = true;
+    client.connectTarget(QStringLiteral("FASTEST"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedSnapshotMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+
+    m_backend.state = QStringLiteral("connecting");
+    emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        client.state(), QStringLiteral("connecting"), 2000);
+    client.disconnect();
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.disconnectCalls, 1, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        client.state(), QStringLiteral("disconnected"), 2000);
+
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedSnapshotMessage.createReply(
+            ProtonVpnKde::TestData::completeSnapshot(
+                QStringLiteral("connected")))));
+    QTest::qWait(50);
+
+    QCOMPARE(client.state(), QStringLiteral("disconnected"));
     QVERIFY(!client.busy());
 }
 

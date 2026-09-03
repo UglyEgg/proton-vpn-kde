@@ -172,6 +172,25 @@ control replies to their accepted account and foreground generations. No result
 from the partial pass counts; all six reviews must restart on the next exact
 clean candidate.
 
+An eighth partial pass against `039b96c` was superseded after its three opening
+reviewers found six lifecycle and temporal-ownership blockers. Hostile found
+that a frontend timeout cleared the pending marker for a capture Start while
+the backend could still be running it, preventing a later Stop or shutdown
+from dispatching preemption. Subtractive found that normal propagation of a
+cancelled reconnect skipped the pending replacement-error rearm. Entropy
+proved that ordinary Disconnect did not join a cancellation-resistant retry,
+allowing a late Connect to reverse an acknowledged disconnect; that a hidden
+whole-settings crash-report normalization save from a read could land after
+logout; that FIDO cancellation just before PIN-waiter creation was lost; and
+that the resident agent did not distinguish delayed same-owner connection
+replies from a newer intent. The remediation retains completion-unknown capture
+ownership, suspends and joins reconnect work around Disconnect, rearms pending
+errors after either cancellation shape, makes settings reads persistence-free,
+checks FIDO cancellation before allocating its PIN waiter, and gives resident
+connection operations a monotonic intent generation. No result from the
+partial pass counts; all six reviews must restart on the next exact clean
+candidate.
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
 | --- | --- | --- | --- |
 | PV-013-001 | Medium | A slow accepted capture Start could reject Stop while close inferred safety from a temporary snapshot | **Remediated in candidate; independent verification pending** |
@@ -194,6 +213,12 @@ clean candidate.
 | PV-013-018 | Medium | Synchronous NPS cache persistence on the event loop could stall every backend control operation | **Remediated with an off-loop owned worker; independent verification pending** |
 | PV-013-019 | Medium | Reconnection disablement discarded a cancelled retry before its Core operation had quiesced | **Remediated in candidate; independent verification pending** |
 | PV-013-020 | Medium | Delayed control replies could cross an account or foreground transition and mutate current guidance or completion | **Remediated in candidate; independent verification pending** |
+| PV-013-021 | High | A frontend timeout could discard pending capture-Start ownership and prevent later Stop or shutdown preemption | **Remediated in candidate; independent verification pending** |
+| PV-013-022 | Medium | A normally propagated reconnect cancellation skipped rearming a newer pending Error | **Remediated in candidate; independent verification pending** |
+| PV-013-023 | High | Ordinary Disconnect could return before a cancellation-resistant reconnect stopped and then be reversed by its late Connect | **Remediated in candidate; independent verification pending** |
+| PV-013-024 | High | A hidden whole-settings normalization save from a stale read could land after logout and restore prior-account protection state | **Remediated by persistence-free reads; independent verification pending** |
+| PV-013-025 | Medium | FIDO cancellation immediately before PIN-waiter creation could be lost and leave the assertion worker blocked | **Remediated in candidate; independent verification pending** |
+| PV-013-026 | Medium | Resident-agent connection replies had no per-intent generation and could overwrite a newer Disconnect result | **Remediated in candidate; independent verification pending** |
 
 ## Historical 0.12.0 isolated review gate
 

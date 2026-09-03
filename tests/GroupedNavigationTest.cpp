@@ -448,6 +448,7 @@ private slots:
     void invalidSnapshotStillAllowsCaptureStopAndRestart();
     void packetCaptureFailuresHaveTypedState();
     void rejectedCaptureStartAllowsShutdownAfterIdleSnapshot();
+    void captureStartTimeoutStillAllowsShutdownStop();
     void captureStopPreemptsPendingStart();
     void captureSignalBeforeStartReplyPreservesStopOwnership();
     void shutdownWaitsForDeferredCaptureStop();
@@ -798,6 +799,50 @@ void GroupedNavigationTest::rejectedCaptureStartAllowsShutdownAfterIdleSnapshot(
         !controller.m_packetCaptureExpectedActive.has_value(), 2000);
     QVERIFY(controller.requestShutdown());
 
+    m_backend.connectionState = QStringLiteral("disconnected");
+    m_backend.packetCaptureActive = false;
+}
+
+void GroupedNavigationTest::captureStartTimeoutStillAllowsShutdownStop()
+{
+    m_backend.connectionState = QStringLiteral("connected");
+    m_backend.packetCaptureActive = false;
+    m_backend.operationBusy = false;
+    m_backend.delayPacketCaptureStart = true;
+    m_backend.delayedPacketCaptureStartMessage = {};
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+    QSignalSpy shutdownSpy(&controller, &VpnController::shutdownReady);
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    const int stopsBefore = m_backend.packetCaptureStopCalls;
+    controller.startPacketCapture(QStringLiteral("/tmp"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedPacketCaptureStartMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+
+    const QDBusMessage delayedStart =
+        m_backend.delayedPacketCaptureStartMessage;
+    m_backend.delayedPacketCaptureStartMessage = {};
+    m_backend.operationBusy = true;
+    QVERIFY(m_backendBus->send(delayedStart.createErrorReply(
+        QDBusError::NoReply,
+        QStringLiteral("packet capture completion unknown"))));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        !controller.m_packetCaptureOperationPending, 2000);
+    QVERIFY(controller.m_packetCaptureExpectedActive.value_or(false));
+
+    QVERIFY(!controller.requestShutdown());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.packetCaptureStopCalls, stopsBefore + 1, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(shutdownSpy.count(), 1, 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        !controller.m_packetCaptureExpectedActive.has_value(), 2000);
+    QVERIFY(!controller.m_packetCaptureStopRequested);
+    QVERIFY(controller.requestShutdown());
+
+    m_backend.operationBusy = false;
+    m_backend.delayPacketCaptureStart = false;
     m_backend.connectionState = QStringLiteral("disconnected");
     m_backend.packetCaptureActive = false;
 }

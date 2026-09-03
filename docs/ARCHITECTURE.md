@@ -305,7 +305,10 @@ deadline. A frontend Stop can preempt an accepted in-flight Start, and
 application shutdown retains cleanup ownership until the backend accepts Stop
 or an authoritative idle snapshot confirms inactivity after a
 completion-unknown reply. A temporary `busy=true`, inactive snapshot is not
-sufficient. Stop remains available after account-session expiry and queues
+sufficient. If the frontend's own Start call times out first, its positive
+capture expectation remains cleanup ownership: a later Stop or shutdown still
+dispatches the backend's preemptive Stop even though the original watcher has
+settled. Stop remains available after account-session expiry and queues
 behind an already accepted same-session mutation; the session epoch is checked
 again before Core is called so cleanup cannot cross into a replacement account.
 Authentication, settings, and protection recovery states likewise preserve
@@ -325,6 +328,9 @@ inspect, rename, upload, or rewrite PCAP data.
 
 Direct support submission and anonymous crash reporting to Proton are disabled
 in community builds through synchronized build, frontend, and backend gates.
+Loading settings disables the unsupported runtime reporting sender and always
+presents that preference as off without persisting a whole settings object from
+a read path. An explicit settings mutation also persists the preference as off.
 The retained support implementation is bounded and inactive unless an approved
 distribution deliberately enables it.
 
@@ -345,9 +351,16 @@ before the agent exits and keeps supervision alive if confirmation times out.
 Drop-recovery retries retain a cancellation generation through every network,
 session, and previous-connection readiness await. Disabling recovery or
 resetting the session invalidates that generation before another connection
-can be dispatched. The resident agent likewise treats the recovery preference
-as applied only after the current backend owner acknowledges it; a failed or
-stale policy reply cannot release a queued connection action.
+can be dispatched. An ordinary Disconnect temporarily suspends scheduling,
+cancels and joins the owned retry, invokes Core only after that retry has
+quiesced, then restores observation. A newer Error received while an older
+retry unwinds rearms from the new generation whether the old cancellation is
+suppressed or propagated. The resident agent likewise treats the recovery
+preference as applied only after the current backend owner acknowledges it; a
+failed or stale policy reply cannot release a queued connection action. Its
+connection calls also carry a monotonic intent generation, so a delayed reply
+or reconciliation snapshot from an older Connect cannot mutate state or
+release the transient action lease after a newer Disconnect.
 
 KRunner recognizes only explicit VPN prefixes and validated connection targets.
 It addresses the Control Center activation service, never the backend. KRunner,

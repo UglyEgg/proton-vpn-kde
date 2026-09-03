@@ -100,9 +100,12 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Safer asynchronous recovery")
                 headingLevel: 4
                 notes: [
-                    qsTr("Automatic reconnect now finishes cancellation cleanup before disconnect, sign-out, or backend shutdown continues."),
+                    qsTr("Automatic reconnect now finishes cancellation cleanup before disconnect, sign-out, or backend shutdown continues, and a late retry cannot reverse a completed manual disconnect."),
+                    qsTr("Packet-capture Stop and application shutdown retain cleanup ownership even when the original Start request times out."),
+                    qsTr("Settings reads no longer rewrite Core's whole settings object; community builds keep unsupported crash reporting off and persist that policy only during an explicit settings change."),
                     qsTr("Survey cache writes remain responsive without outliving their account session, and delayed disconnect or reconnection-preference replies cannot overwrite newer guidance."),
-                    qsTr("Security-key sign-in appears only when Proton Core guarantees safe cancellation through multi-key selection; authenticator and recovery codes remain available on current Core versions.")
+                    qsTr("Security-key sign-in appears only when Proton Core guarantees safe cancellation through multi-key selection, and cancellation also covers a PIN prompt that has not started waiting yet."),
+                    qsTr("Resident tray and shortcut operations ignore delayed connection replies after a newer action has taken ownership.")
                 ]
             }
         }

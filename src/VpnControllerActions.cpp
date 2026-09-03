@@ -180,8 +180,8 @@ void VpnController::dispatchPendingPacketCaptureStop(bool allowUnconfirmedActive
     if (!m_packetCaptureError.isEmpty() && !allowUnconfirmedActive) {
         return;
     }
-    const bool startMayStillActivate = m_packetCaptureOperationPending
-        && m_packetCaptureExpectedActive.has_value()
+    const bool startMayStillActivate =
+        m_packetCaptureExpectedActive.has_value()
         && *m_packetCaptureExpectedActive;
     if (!m_packetCaptureActive && !startMayStillActivate
         && !allowUnconfirmedActive) {
@@ -700,7 +700,6 @@ void VpnController::callSecretOperation(const QString &method,
         auto *operationWatcher = new QDBusPendingCallWatcher(
             QDBusConnection::sessionBus().asyncCall(request, 120000), this);
         stampSessionRequest(operationWatcher);
-        operationWatcher->setProperty("secretMethod", method);
         operationWatcher->setProperty(
             "foregroundOperationGeneration",
             QVariant::fromValue<qulonglong>(foregroundGeneration));

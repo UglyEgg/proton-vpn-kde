@@ -31,6 +31,41 @@ class FakeSessionProbe:
 
 
 class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_logind_probe_reports_current_lock_state(self):
+        probe = LogindSessionProbe()
+        probe._ensure_proxy = AsyncMock()
+        properties = SimpleNamespace(call_get=AsyncMock())
+        probe._properties = properties
+
+        for locked, expected_unlocked in ((True, False), (False, True)):
+            with self.subTest(locked=locked):
+                properties.call_get.return_value = SimpleNamespace(value=locked)
+                self.assertEqual(expected_unlocked, await probe.is_unlocked())
+
+        probe._ensure_proxy.assert_awaited()
+
+    async def test_logind_probe_preserves_retry_when_logind_is_unavailable(self):
+        probe = LogindSessionProbe()
+        probe._ensure_proxy = AsyncMock(side_effect=RuntimeError("unavailable"))
+
+        self.assertTrue(await probe.is_unlocked())
+
+    async def test_logind_close_clears_state_even_when_disconnect_wait_fails(self):
+        bus = SimpleNamespace(
+            disconnect=Mock(),
+            wait_for_disconnect=AsyncMock(side_effect=RuntimeError("closed")),
+        )
+        probe = LogindSessionProbe()
+        probe._bus = bus
+        probe._properties = Mock()
+
+        await probe.close()
+
+        bus.disconnect.assert_called_once_with()
+        bus.wait_for_disconnect.assert_awaited_once_with()
+        self.assertIsNone(probe._bus)
+        self.assertIsNone(probe._properties)
+
     async def test_network_probe_uses_packaged_ip_under_hostile_path(self):
         process = SimpleNamespace(wait=AsyncMock(return_value=0))
         with (
@@ -321,6 +356,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             except asyncio.CancelledError:
                 first_cancelled.set()
                 await release_first.wait()
+                raise
 
         reconnector, connector, _, _ = self.make_reconnector()
         connector.connect.side_effect = connect
@@ -378,6 +414,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         bus = SimpleNamespace(
             introspect=AsyncMock(side_effect=asyncio.CancelledError()),
             disconnect=Mock(),
+            wait_for_disconnect=AsyncMock(),
         )
         message_bus = Mock(
             return_value=SimpleNamespace(
@@ -397,6 +434,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
                 await probe._ensure_proxy()
 
         bus.disconnect.assert_called_once_with()
+        bus.wait_for_disconnect.assert_awaited_once_with()
         self.assertIsNone(probe._bus)
         self.assertIsNone(probe._properties)
 

@@ -61,9 +61,10 @@ class LogindSessionProbe:
 
     async def close(self) -> None:
         if self._bus:
-            self._bus.disconnect()
+            bus = self._bus
             self._bus = None
             self._properties = None
+            await self._disconnect_bus(bus)
 
     async def _ensure_proxy(self) -> None:
         if self._properties:
@@ -95,14 +96,22 @@ class LogindSessionProbe:
             properties = session_object.get_interface(
                 "org.freedesktop.DBus.Properties"
             )
-        except asyncio.CancelledError:
-            bus.disconnect()
-            raise
-        except Exception:
-            bus.disconnect()
+        except (Exception, asyncio.CancelledError):
+            await self._disconnect_bus(bus)
             raise
         self._bus = bus
         self._properties = properties
+
+    @staticmethod
+    async def _disconnect_bus(bus: Any) -> None:
+        bus.disconnect()
+        try:
+            await bus.wait_for_disconnect()
+        except Exception:
+            # Disconnect is best-effort cleanup. Preserve the operation error
+            # that caused teardown instead of replacing it with transport
+            # shutdown details.
+            pass
 
 
 class AsyncReconnector:
@@ -135,6 +144,7 @@ class AsyncReconnector:
         self._retry_counter = 0
         self._retry_generation = 0
         self._enabled = False
+        self._suspended = False
 
     @property
     def enabled(self) -> bool:
@@ -173,13 +183,7 @@ class AsyncReconnector:
         self._enabled = False
         retry_task = self._reset()
         try:
-            if retry_task is not None:
-                try:
-                    await await_owned(retry_task)
-                except asyncio.CancelledError:
-                    current = asyncio.current_task()
-                    if current is not None and current.cancelling():
-                        raise
+            await self._join_retry(retry_task)
         finally:
             if self._retry_task is retry_task and retry_task is not None:
                 self._retry_task = None
@@ -187,8 +191,24 @@ class AsyncReconnector:
         if unregister_error is not None:
             raise unregister_error
 
+    async def suspend(self) -> None:
+        """Quiesce retry work while preserving the registered observer."""
+        self._suspended = True
+        retry_task = self._reset()
+        try:
+            await self._join_retry(retry_task)
+        finally:
+            if self._retry_task is retry_task and retry_task is not None:
+                self._retry_task = None
+
+    def resume(self) -> None:
+        """Resume retry observation after an intentional control operation."""
+        self._suspended = False
+        if self._enabled:
+            self.status_update(self._connector.current_state)
+
     def status_update(self, state: Any) -> None:
-        if not self._enabled:
+        if not self._enabled or self._suspended:
             return
         state_name = type(state).__name__
         if state_name in {"Connected", "Disconnected"}:
@@ -213,7 +233,7 @@ class AsyncReconnector:
         self._schedule_retry()
 
     def _schedule_retry(self) -> bool:
-        if not self._enabled:
+        if not self._enabled or self._suspended:
             return False
         if self._retry_task:
             self._retry_pending = True
@@ -233,13 +253,16 @@ class AsyncReconnector:
             await asyncio.sleep(delay)
             retry = await self._attempt_retry(generation)
         except asyncio.CancelledError:
-            return
+            # Fall through after releasing ownership. A newer Error event may
+            # have arrived while this cancellation-resistant retry unwound and
+            # recorded a pending replacement generation.
+            pass
         finally:
             if self._retry_task is asyncio.current_task():
                 self._retry_task = None
         if retry and self._retry_is_current(generation):
             self._schedule_retry()
-        elif self._retry_pending and self._enabled:
+        elif self._retry_pending and self._enabled and not self._suspended:
             self._schedule_retry()
 
     async def _attempt_retry(self, generation: int) -> bool:
@@ -319,6 +342,7 @@ class AsyncReconnector:
     def _retry_is_current(self, generation: int) -> bool:
         return (
             self._enabled
+            and not self._suspended
             and generation == self._retry_generation
             and type(self._connector.current_state).__name__ == "Error"
         )
@@ -332,6 +356,17 @@ class AsyncReconnector:
         self._retry_counter = 0
         self._retry_pending = False
         return retry_task if retry_task is not current_task else None
+
+    @staticmethod
+    async def _join_retry(retry_task: asyncio.Task | None) -> None:
+        if retry_task is None:
+            return
+        try:
+            await await_owned(retry_task)
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if current is not None and current.cancelling():
+                raise
 
     @staticmethod
     def _retry_delay(retry_counter: int) -> float:

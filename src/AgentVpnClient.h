@@ -63,7 +63,8 @@ private:
     void connectBackendSignals();
     void disconnectBackendSignals();
     void authorizeClient();
-    void requestSnapshot(bool allowActivation = false);
+    void requestSnapshot(bool allowActivation = false,
+                         quint64 operationGeneration = 0);
     void applySnapshot(const QString &snapshotJson);
     void applyReconnectionPreference();
     void acquireTransientLease();
@@ -87,7 +88,8 @@ private:
     bool m_reconnectionEnabled = true;
     bool m_reconnectionApplied = false;
     bool m_reconnectionPending = false;
-    bool m_operationReconciliationPending = false;
+    quint64 m_operationGeneration = 0;
+    quint64 m_operationReconciliationGeneration = 0;
     bool m_transientLeasePending = false;
     bool m_transientLeaseActive = false;
     quint64 m_serviceGeneration = 0;

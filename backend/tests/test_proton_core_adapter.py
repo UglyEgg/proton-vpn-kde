@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 from ipaddress import ip_address
 import os
 from pathlib import Path
@@ -36,6 +37,7 @@ from proton_vpn_kde_backend.errors import (
     NpsCompletionUnknownError,
     UserVisibleRuntimeError,
 )
+from proton_vpn_kde_backend.fido_interaction import FidoInteraction
 
 
 def state_named(name: str):
@@ -233,6 +235,10 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_by_id=Mock(return_value="logical-server")
         )
         adapter._api.refresher.client_config = "client-config"
+        adapter._reconnector._session_probe = SimpleNamespace(
+            is_unlocked=AsyncMock(return_value=True),
+            close=AsyncMock(),
+        )
         connector.current_state = type("Error", (), {
             "context": SimpleNamespace(
                 event=type("UnexpectedError", (), {})()
@@ -1049,6 +1055,18 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(worker_returned.is_set())
         self.assertIsNone(adapter._fido_interaction)
 
+    async def test_security_key_cancel_before_pin_wait_does_not_block(self):
+        loop = asyncio.get_running_loop()
+        interaction = FidoInteraction(loop, Mock())
+
+        interaction.cancel()
+        pin = await asyncio.wait_for(
+            asyncio.to_thread(interaction.request_pin), timeout=1.0
+        )
+
+        self.assertIsNone(pin)
+        self.assertTrue(interaction.cancelled)
+
     async def test_security_key_cancel_during_submit_reconciles_late_login(self):
         api, _ = self.make_api(logged_in=False)
         api.supports_fido2 = True
@@ -1342,6 +1360,32 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(logout_task, timeout=1)
         connector.disconnect.assert_awaited_once_with()
         api.logout.assert_awaited_once_with()
+
+    async def test_disconnect_waits_for_reconnect_worker_before_returning(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        cancellation_seen, release_connect = (
+            await self.start_cancellation_resistant_reconnect(adapter, connector)
+        )
+
+        async def disconnect():
+            connector.current_state = state_named("Disconnected")
+
+        connector.disconnect.side_effect = disconnect
+        disconnect_task = asyncio.create_task(adapter.disconnect())
+        await cancellation_seen.wait()
+        await asyncio.sleep(0)
+
+        self.assertFalse(disconnect_task.done())
+        connector.disconnect.assert_not_awaited()
+
+        release_connect.set()
+        await asyncio.wait_for(disconnect_task, timeout=1)
+        connector.disconnect.assert_awaited_once_with()
+        self.assertIsNone(adapter._reconnector._retry_task)
+        self.assertTrue(adapter._reconnector.enabled)
+        await adapter._reconnector.disable()
 
     async def test_logout_cannot_race_reconnector_reenable(self):
         api, _ = self.make_api()
@@ -1769,22 +1813,74 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, updated.net_shield)
         connector.connect.assert_not_awaited()
 
-    async def test_unofficial_build_persists_crash_reporting_off(self):
+    async def test_settings_read_does_not_mutate_snapshot_kill_switch_state(self):
+        api, _ = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        adapter._kill_switch = 0
+        api.load_settings.return_value.killswitch = 2
+
+        current = await adapter.get_settings()
+
+        self.assertEqual(2, current.kill_switch)
+        self.assertEqual(0, adapter._kill_switch)
+        api.save_settings.assert_not_awaited()
+
+    async def test_delayed_settings_read_cannot_restore_state_after_logout(self):
+        api, _ = self.make_api()
+        current_settings = api.load_settings.return_value
+        current_settings.killswitch = 2
+        stale_settings = copy.deepcopy(current_settings)
+        stale_read_started = asyncio.Event()
+        release_stale_read = asyncio.Event()
+        load_count = 0
+        persisted_kill_switch = 2
+
+        async def load_settings():
+            nonlocal load_count
+            load_count += 1
+            if load_count == 1:
+                stale_read_started.set()
+                await release_stale_read.wait()
+                return stale_settings
+            return current_settings
+
+        async def save_settings(settings):
+            nonlocal persisted_kill_switch
+            persisted_kill_switch = int(settings.killswitch)
+
+        api.load_settings.side_effect = load_settings
+        api.save_settings.side_effect = save_settings
+        controller = BackendController(ProtonCoreAdapter(api))
+        self.assertTrue(await controller.start())
+
+        stale_read = asyncio.create_task(controller.get_settings_json())
+        await stale_read_started.wait()
+        await controller.logout()
+        self.assertEqual(0, persisted_kill_switch)
+
+        release_stale_read.set()
+        with self.assertRaisesRegex(RuntimeError, "session changed"):
+            await stale_read
+
+        self.assertEqual(0, persisted_kill_switch)
+        self.assertEqual(1, api.save_settings.await_count)
+
+    async def test_unofficial_build_reads_crash_reporting_without_writing(self):
         api, _ = self.make_api()
         persisted = api.load_settings.return_value
         persisted.anonymous_crash_reports = True
         api.usage_reporting.enabled = True
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(Mock())
-
         current = await adapter.get_settings()
         again = await adapter.get_settings()
 
         self.assertFalse(current.anonymous_crash_reports)
         self.assertFalse(again.anonymous_crash_reports)
-        self.assertFalse(persisted.anonymous_crash_reports)
+        self.assertTrue(persisted.anonymous_crash_reports)
         self.assertFalse(api.usage_reporting.enabled)
-        api.save_settings.assert_awaited_once_with(persisted)
+        api.save_settings.assert_not_awaited()
 
     async def test_unofficial_build_rejects_crash_reporting_enable(self):
         api, _ = self.make_api()
@@ -1797,18 +1893,17 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.load_settings.assert_not_awaited()
         api.save_settings.assert_not_awaited()
 
-    async def test_unofficial_build_disables_sender_when_persistence_fails(self):
+    async def test_unofficial_build_persists_disabled_policy_on_explicit_write(self):
         api, _ = self.make_api()
         api.load_settings.return_value.anonymous_crash_reports = True
         api.usage_reporting.enabled = True
-        api.save_settings.side_effect = RuntimeError("disk failure")
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(Mock())
 
-        with self.assertRaisesRegex(RuntimeError, "save the VPN settings"):
-            await adapter.get_settings()
+        await adapter.update_settings({"ipv6": False})
 
         self.assertFalse(api.usage_reporting.enabled)
+        self.assertFalse(api.save_settings.await_args.args[0].anonymous_crash_reports)
 
     async def test_approved_build_preserves_crash_reporting_preference(self):
         api, _ = self.make_api()

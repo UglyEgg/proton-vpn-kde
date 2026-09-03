@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -492,6 +492,7 @@ class ProtonCoreAdapter:
             rollback,
             protection_sensitive="killSwitch" in patch,
         )
+        self._kill_switch = self._kill_switch_value(settings)
         return self._settings_from_core(settings)
 
     async def update_split_tunneling(
@@ -625,23 +626,22 @@ class ProtonCoreAdapter:
             raise UserVisibleRuntimeError(
                 "Proton could not load the VPN settings"
             ) from None
-        if self._crash_report_submission_enabled:
-            return settings
-
-        try:
-            if bool(settings.anonymous_crash_reports):
-                settings.anonymous_crash_reports = False
-                await self._save_settings(settings)
-        finally:
+        if not self._crash_report_submission_enabled:
             # Core's public load_settings method mirrors the persisted value
-            # into UsageReporting before it returns. Keep the in-memory sender
-            # disabled even if persistence or connector application fails.
+            # into UsageReporting before it returns. Reads remain free of
+            # persistence writes, while the unsupported sender stays disabled
+            # for the lifetime of this process.
             usage_reporting = getattr(self._api, "usage_reporting", None)
             if usage_reporting is not None:
                 usage_reporting.enabled = False
         return settings
 
     async def _save_settings(self, settings: Any) -> None:
+        if not self._crash_report_submission_enabled:
+            # Settings writes are explicit mutations, so they are the safe
+            # place to persist this community build's disabled-reporting
+            # policy. Pure reads never write the whole Core settings object.
+            settings.anonymous_crash_reports = False
         try:
             await self._api.save_settings(settings)
         except Exception as error:
@@ -882,11 +882,10 @@ class ProtonCoreAdapter:
             await self._raise_session_error(error)
 
     def _settings_from_core(self, settings: Any) -> VpnSettings:
-        self._kill_switch = self._kill_switch_value(settings)
         disconnected = (
             type(self._connector.current_state).__name__.lower() == "disconnected"
         )
-        return translate_vpn_settings(
+        translated = translate_vpn_settings(
             settings,
             protocols=self._available_protocols(settings.protocol),
             user_tier=self._user_tier(),
@@ -895,6 +894,9 @@ class ProtonCoreAdapter:
                 settings.protocol
             ),
         )
+        if not self._crash_report_submission_enabled:
+            return replace(translated, anonymous_crash_reports=False)
+        return translated
 
     def _split_tunneling_from_core(self, settings: Any) -> SplitTunnelingSettings:
         return translate_split_tunneling(
@@ -935,7 +937,14 @@ class ProtonCoreAdapter:
         return core_mode_value(mode)
 
     async def disconnect(self) -> None:
-        await self._connector.disconnect()
+        if not self._reconnector:
+            await self._connector.disconnect()
+            return
+        try:
+            await self._reconnector.suspend()
+            await self._connector.disconnect()
+        finally:
+            self._reconnector.resume()
 
     async def login(self, username: str, password: str) -> None:
         settings = await self._load_settings()

@@ -203,7 +203,8 @@ void AgentVpnClient::onServiceRegistered(const QString &)
     ++m_serviceGeneration;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
-    m_operationReconciliationPending = false;
+    ++m_operationGeneration;
+    m_operationReconciliationGeneration = 0;
     m_authorizationPending = false;
     const auto identity = ProtonVpnKde::verifyBackendIdentity(
         QDBusConnection::sessionBus(),
@@ -236,7 +237,8 @@ void AgentVpnClient::onServiceUnregistered(const QString &)
     m_busy = false;
     m_reconnectionApplied = false;
     m_reconnectionPending = false;
-    m_operationReconciliationPending = false;
+    ++m_operationGeneration;
+    m_operationReconciliationGeneration = 0;
     m_authorizationPending = false;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
@@ -355,7 +357,8 @@ void AgentVpnClient::authorizeClient()
     });
 }
 
-void AgentVpnClient::requestSnapshot(bool allowActivation)
+void AgentVpnClient::requestSnapshot(bool allowActivation,
+                                     quint64 operationGeneration)
 {
     if (!m_backendAvailable || m_backendDestination.isEmpty()) {
         if (allowActivation) {
@@ -374,6 +377,12 @@ void AgentVpnClient::requestSnapshot(bool allowActivation)
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
     stampBackendRequest(watcher);
+    const quint64 requestGeneration = operationGeneration == 0
+        ? m_operationGeneration
+        : operationGeneration;
+    watcher->setProperty(
+        "operationGeneration",
+        QVariant::fromValue<qulonglong>(requestGeneration));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &AgentVpnClient::handleSnapshotReply);
 }
@@ -616,6 +625,8 @@ void AgentVpnClient::callOperation(const QString &method,
     if (!m_backendAvailable || m_backendDestination.isEmpty()) {
         return;
     }
+    const quint64 operationGeneration = ++m_operationGeneration;
+    m_operationReconciliationGeneration = 0;
     m_busy = true;
     m_message.clear();
     emit snapshotChanged();
@@ -627,6 +638,9 @@ void AgentVpnClient::callOperation(const QString &method,
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 120000), this);
     stampBackendRequest(watcher);
+    watcher->setProperty(
+        "operationGeneration",
+        QVariant::fromValue<qulonglong>(operationGeneration));
     connect(watcher, &QDBusPendingCallWatcher::finished,
             this, &AgentVpnClient::handleOperationReply);
 }
@@ -634,14 +648,18 @@ void AgentVpnClient::callOperation(const QString &method,
 void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
 {
     const bool current = backendReplyIsCurrent(watcher);
+    const quint64 operationGeneration =
+        watcher->property("operationGeneration").toULongLong();
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
-    if (!current) {
+    if (!current || operationGeneration != m_operationGeneration) {
         return;
     }
     if (reply.isError()) {
         m_busy = false;
-        m_operationReconciliationPending = false;
+        if (m_operationReconciliationGeneration == operationGeneration) {
+            m_operationReconciliationGeneration = 0;
+        }
         m_message = fixedCallFailureMessage(reply.error());
         const bool interactive = m_pendingInteractive;
         clearPendingConnection();
@@ -657,8 +675,12 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         && (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty())) {
         acquireTransientLease();
     }
-    const bool releaseReconciliationLease = m_operationReconciliationPending;
-    m_operationReconciliationPending = false;
+    const bool releaseReconciliationLease =
+        m_operationReconciliationGeneration != 0
+        && m_operationReconciliationGeneration == m_operationGeneration;
+    if (releaseReconciliationLease) {
+        m_operationReconciliationGeneration = 0;
+    }
     applySnapshot(reply.value());
     if (releaseReconciliationLease) {
         releaseTransientLease();
@@ -668,29 +690,31 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
 void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
 {
     const bool current = backendReplyIsCurrent(watcher);
+    const quint64 operationGeneration =
+        watcher->property("operationGeneration").toULongLong();
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
-    if (!current) {
+    if (!current || operationGeneration != m_operationGeneration) {
         return;
     }
     if (reply.isError()) {
         if (ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type())) {
-            m_operationReconciliationPending = true;
+            m_operationReconciliationGeneration = operationGeneration;
             m_busy = true;
             m_message = tr(
                 "The VPN operation may still be completing; refreshing its state");
             emit snapshotChanged();
-            requestSnapshot();
+            requestSnapshot(false, operationGeneration);
             return;
         }
         m_busy = false;
-        m_operationReconciliationPending = false;
+        m_operationReconciliationGeneration = 0;
         m_message = fixedCallFailureMessage(reply.error());
         emit snapshotChanged();
         releaseTransientLease();
         return;
     }
-    m_operationReconciliationPending = false;
+    m_operationReconciliationGeneration = 0;
     releaseTransientLease();
-    requestSnapshot();
+    requestSnapshot(false, operationGeneration);
 }

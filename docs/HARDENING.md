@@ -180,7 +180,12 @@ tombstones for the backend lifetime.
 Read-only settings and protection replies are also scoped to the active account
 session. A logout or account transition advances the session generation and
 rejects late replies, preventing an old session from repopulating cleared
-frontend state even though the underlying methods do not mutate Core.
+frontend state. Core settings reads do not persist normalization or mutate the
+adapter's snapshot-owned kill-switch value. In community builds they disable
+the unsupported crash-report sender in memory and translate its visible value
+to off; an already explicit settings mutation persists that policy through
+Core's public API. This keeps a stale read from committing an old account's
+whole settings object after logout.
 Destructive NPS survey reads and submissions use a separate side-effect fence
 shared with logout and backend shutdown, then recheck the account generation
 before and after entering the official adapter. The fence does not own the VPN
@@ -196,9 +201,10 @@ disables retry, because the upstream side effect may already have been accepted.
 
 FIDO2 is available only when Core explicitly guarantees that the official
 cancellation event reaches multi-key selection. For a compatible Core,
-cancellation also releases any PIN waiter and joins the assertion task before
-the adapter interaction is released. Core versions without that complete
-contract fail closed by not advertising the security-key action.
+cancellation also releases any PIN waiter, is observed before a PIN waiter is
+created, and joins the assertion task before the adapter interaction is
+released. Core versions without that complete contract fail closed by not
+advertising the security-key action.
 
 The same address-versus-identity rule is applied as far as the portable Secret
 Service API permits. The downstream keyring overlay activates the selected

@@ -45,6 +45,8 @@ class FidoInteraction:
 
     def request_pin(self, *_args, **_kwargs) -> Optional[str]:
         with self._lock:
+            if self.cancel_assertion.is_set():
+                return None
             self._pin = None
             self._pin_ready = Event()
             pin_ready = self._pin_ready
