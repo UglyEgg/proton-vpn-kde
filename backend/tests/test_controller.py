@@ -260,6 +260,30 @@ class CancellationResistantCloseAdapter(DemoCoreAdapter):
             await self.release_close.wait()
 
 
+class BlockingCloseAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__()
+        self.close_started = asyncio.Event()
+        self.release_close = asyncio.Event()
+        self.close_calls = 0
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        self.close_started.set()
+        await self.release_close.wait()
+        await super().close()
+
+
+class FailingCloseAdapter(DemoCoreAdapter):
+    def __init__(self):
+        super().__init__()
+        self.close_calls = 0
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        raise RuntimeError("provider close failed")
+
+
 class BlockingNpsSubmissionAdapter(DemoCoreAdapter):
     def __init__(self):
         super().__init__(nps_survey_available=True)
@@ -1395,12 +1419,59 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(adapter.close_cancelled.is_set())
         self.assertEqual(1, len(controller._abandoned_shutdown_tasks))
 
+        with self.assertRaisesRegex(TimeoutError, "Core teardown"):
+            await controller.close()
+        self.assertEqual(1, len(controller._abandoned_shutdown_tasks))
+
         adapter.release_close.set()
         for _ in range(20):
             if not controller._abandoned_shutdown_tasks:
                 break
             await asyncio.sleep(0)
         self.assertFalse(controller._abandoned_shutdown_tasks)
+
+    async def test_concurrent_and_repeated_close_share_one_provider_teardown(self):
+        adapter = BlockingCloseAdapter()
+        controller = BackendController(adapter)
+        await controller.start()
+
+        first = asyncio.create_task(controller.close())
+        second = asyncio.create_task(controller.close())
+        await adapter.close_started.wait()
+        self.assertEqual(1, adapter.close_calls)
+
+        adapter.release_close.set()
+        await asyncio.gather(first, second)
+        await controller.close()
+        self.assertEqual(1, adapter.close_calls)
+
+    async def test_close_caller_cancellation_does_not_detach_provider_teardown(self):
+        adapter = BlockingCloseAdapter()
+        controller = BackendController(adapter)
+        await controller.start()
+
+        first = asyncio.create_task(controller.close())
+        await adapter.close_started.wait()
+        first.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await first
+
+        second = asyncio.create_task(controller.close())
+        await asyncio.sleep(0)
+        self.assertFalse(second.done())
+        self.assertEqual(1, adapter.close_calls)
+        adapter.release_close.set()
+        await second
+
+    async def test_close_failure_is_sticky_and_never_starts_a_sibling(self):
+        adapter = FailingCloseAdapter()
+        controller = BackendController(adapter)
+        await controller.start()
+
+        for _ in range(2):
+            with self.assertRaisesRegex(RuntimeError, "provider close failed"):
+                await controller.close()
+        self.assertEqual(1, adapter.close_calls)
 
 
 if __name__ == "__main__":

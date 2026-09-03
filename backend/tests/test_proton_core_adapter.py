@@ -1112,7 +1112,10 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         api.generate_2fa_fido2_assertion.side_effect = generate_assertion
         adapter = ProtonCoreAdapter(api)
-        controller = BackendController(adapter, shutdown_drain_seconds=0.01)
+        # Thread wake-up latency under the supported Python 3.11 floor can
+        # exceed 10 ms on a loaded CI worker. Keep the test deadline bounded
+        # without making scheduler jitter the behavior under test.
+        controller = BackendController(adapter, shutdown_drain_seconds=0.1)
         self.assertTrue(await controller.start())
         adapter._auth_state = "two_factor"
 
@@ -2209,6 +2212,147 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             await connect
         connector.get_vpn_server.assert_not_called()
         connector.connect.assert_not_awaited()
+
+    async def test_disconnect_retires_every_manual_route_during_target_lookup(self):
+        """Every public manual route mints intent before its first await."""
+        routes = (
+            ("fastest", lambda adapter: adapter.connect_fastest()),
+            (
+                "fastest-features",
+                lambda adapter: adapter.connect_fastest_with_features(("p2p",)),
+            ),
+            ("country", lambda adapter: adapter.connect_country("CH")),
+            (
+                "country-features",
+                lambda adapter: adapter.connect_country_with_features(
+                    "CH", ("p2p",)
+                ),
+            ),
+            (
+                "group",
+                lambda adapter: adapter.connect_group(
+                    "CH", "location", "Zurich"
+                ),
+            ),
+            (
+                "group-features",
+                lambda adapter: adapter.connect_group_with_features(
+                    "CH", "location", "Zurich", ("p2p",)
+                ),
+            ),
+            ("server", lambda adapter: adapter.connect_server("CH#10")),
+        )
+
+        for route_name, connect_route in routes:
+            with self.subTest(route=route_name):
+                api, connector = self.make_api()
+                logical_server = object()
+                server_list = SimpleNamespace(
+                    logicals=[logical_server],
+                    user_tier=2,
+                    get_fastest=Mock(return_value=logical_server),
+                    get_fastest_in_country=Mock(return_value=logical_server),
+                    get_by_name=Mock(return_value=logical_server),
+                    get_available_servers=Mock(return_value=[logical_server]),
+                    get_fastest_server=Mock(return_value=logical_server),
+                )
+                lookup_started = asyncio.Event()
+                release_lookup = asyncio.Event()
+
+                async def delayed_server_list(
+                    started=lookup_started,
+                    release=release_lookup,
+                    result=server_list,
+                ):
+                    started.set()
+                    await release.wait()
+                    return result
+
+                adapter = ProtonCoreAdapter(api)
+                await adapter.initialize(Mock())
+                adapter._country = Mock(
+                    return_value=SimpleNamespace(servers=[logical_server])
+                )
+                adapter._server_group = Mock(
+                    return_value=SimpleNamespace(servers=[logical_server])
+                )
+                adapter._fastest_matching = Mock(return_value=logical_server)
+                api.refresher.get_up_to_date_server_list.side_effect = (
+                    delayed_server_list
+                )
+
+                connection = asyncio.create_task(connect_route(adapter))
+                await lookup_started.wait()
+                await adapter.disconnect()
+                release_lookup.set()
+                await connection
+
+                connector.get_vpn_server.assert_not_called()
+                connector.connect.assert_not_awaited()
+
+    async def test_unknown_refresher_cleanup_is_normalized_before_reenable(self):
+        api, connector = self.make_api(logged_in=False)
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+        adapter._logged_in = True
+        events: list[str] = []
+
+        async def ambiguous_enable():
+            events.append("enable-ambiguous")
+            raise RuntimeError("enable acknowledgement lost")
+
+        async def ambiguous_disable():
+            events.append("disable-ambiguous")
+            raise RuntimeError("disable acknowledgement lost")
+
+        api.refresher.enable.side_effect = ambiguous_enable
+        api.refresher.disable.side_effect = ambiguous_disable
+        with self.assertRaisesRegex(RuntimeError, "enable acknowledgement"):
+            await adapter._enable_session_services()
+
+        self.assertFalse(adapter._session_services_enabled)
+        self.assertEqual("CLEANUP_REQUIRED", adapter._session_services_state.name)
+
+        async def confirmed_disable():
+            events.append("disable-confirmed")
+
+        async def confirmed_enable():
+            events.append("enable-confirmed")
+
+        api.refresher.disable.side_effect = confirmed_disable
+        api.refresher.enable.side_effect = confirmed_enable
+        await adapter._enable_session_services()
+
+        self.assertEqual(
+            [
+                "enable-ambiguous",
+                "disable-ambiguous",
+                "disable-confirmed",
+                "enable-confirmed",
+            ],
+            events,
+        )
+        self.assertTrue(adapter._session_services_enabled)
+        connector.connect.assert_not_awaited()
+
+    async def test_close_retries_completion_unknown_refresher_disable(self):
+        api, connector = self.make_api()
+        adapter = ProtonCoreAdapter(api)
+        await adapter.initialize(Mock())
+
+        api.refresher.disable.side_effect = RuntimeError(
+            "disable acknowledgement lost"
+        )
+        with self.assertRaisesRegex(RuntimeError, "acknowledgement lost"):
+            await adapter._disable_refresher()
+        self.assertEqual("CLEANUP_REQUIRED", adapter._session_services_state.name)
+
+        api.refresher.disable.side_effect = None
+        await adapter.close()
+
+        self.assertEqual(2, api.refresher.disable.await_count)
+        self.assertEqual("DISABLED", adapter._session_services_state.name)
+        connector.unregister.assert_any_call(adapter)
 
     async def test_manual_connect_retires_and_joins_automatic_attempt(self):
         api, connector = self.make_api()

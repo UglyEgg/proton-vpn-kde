@@ -201,6 +201,8 @@ class BackendController:
         self._active_settings_task: asyncio.Task[object] | None = None
         self._active_account_read_tasks: set[asyncio.Task[object]] = set()
         self._abandoned_shutdown_tasks: set[asyncio.Task[object]] = set()
+        self._close_task: asyncio.Task[None] | None = None
+        self._adapter_close_task: asyncio.Task[None] | None = None
         self._packet_capture_start_task: asyncio.Task[None] | None = None
         self._shutdown_drain_seconds = max(0.0, shutdown_drain_seconds)
         self._packet_capture_shutdown_seconds = max(
@@ -791,13 +793,19 @@ class BackendController:
             await self._adapter.set_reconnection_enabled(enabled)
 
     async def close(self) -> None:
+        """Join one authoritative shutdown, preserving its terminal outcome."""
+        self._closing = True
+        if self._close_task is None:
+            self._close_task = asyncio.create_task(self._close_once())
+        await asyncio.shield(self._close_task)
+
+    async def _close_once(self) -> None:
         # The D-Bus object is unexported before this runs, so acquiring the
         # mutation lock first drains the accepted VPN operation, then settings
         # and session-side-effect locks drain independent accepted reads/survey
         # work. A stuck task is cancelled only after a bounded grace period;
         # adapter transactions perform their own cancellation-safe state repair
         # before unwinding.
-        self._closing = True
         current_task = asyncio.current_task()
         capture_task = self._packet_capture_start_task
         if (
@@ -889,7 +897,9 @@ class BackendController:
 
     async def _close_adapter_before_deadline(self, deadline: float) -> None:
         """Bound final provider teardown without detaching it silently."""
-        close_task = asyncio.create_task(self._adapter.close())
+        if self._adapter_close_task is None:
+            self._adapter_close_task = asyncio.create_task(self._adapter.close())
+        close_task = self._adapter_close_task
         remaining = max(
             0.0, deadline - asyncio.get_running_loop().time()
         )

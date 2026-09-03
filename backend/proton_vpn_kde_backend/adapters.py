@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Callable
 
@@ -107,6 +108,14 @@ class _LogoutRecoveryOutcome:
     session_recovery_failed: bool
 
 
+class _SessionServicesState(Enum):
+    """What the adapter can prove about Core's background refresher."""
+
+    DISABLED = auto()
+    ENABLED = auto()
+    CLEANUP_REQUIRED = auto()
+
+
 class ProtonCoreAdapter:
     """Thin adapter over the official python-proton-vpn-api-core package.
 
@@ -147,7 +156,7 @@ class ProtonCoreAdapter:
         self._reconnection_enabled = True
         self._status_message = ""
         self._auth_state = "signed_out"
-        self._session_services_enabled = False
+        self._session_services_state = _SessionServicesState.DISABLED
         self._fido_interaction: FidoInteraction | None = None
         self._crash_report_submission_enabled = crash_report_submission_enabled
         self._packet_capture = PacketCaptureCoordinator(
@@ -166,6 +175,11 @@ class ProtonCoreAdapter:
     def has_pending_startup_recovery(self) -> bool:
         """Keep initialization alive while durable capture recovery is pending."""
         return self._packet_capture.has_pending_recovery()
+
+    @property
+    def _session_services_enabled(self) -> bool:
+        """Compatibility view; lifecycle authority lives in the tri-state."""
+        return self._session_services_state is _SessionServicesState.ENABLED
 
     async def initialize(
         self,
@@ -281,21 +295,33 @@ class ProtonCoreAdapter:
         return snapshot
 
     async def connect_fastest(self) -> None:
-        authentication_epoch = self._authenticated_epoch()
+        authentication_epoch, connection_intent = self._begin_manual_connection()
         server_list = await self._get_server_list(authentication_epoch)
+        if not self._manual_connection_is_current(
+            authentication_epoch, connection_intent
+        ):
+            return
         logical_server = server_list.get_fastest()
-        await self._connect_logical(logical_server, authentication_epoch)
+        await self._connect_logical(
+            logical_server, authentication_epoch, connection_intent
+        )
 
     async def connect_fastest_with_feature(self, feature: str) -> None:
         await self.connect_fastest_with_features((feature,))
 
     async def connect_fastest_with_features(self, features: tuple[str, ...]) -> None:
-        authentication_epoch = self._authenticated_epoch()
+        authentication_epoch, connection_intent = self._begin_manual_connection()
         server_list = await self._get_server_list(authentication_epoch)
+        if not self._manual_connection_is_current(
+            authentication_epoch, connection_intent
+        ):
+            return
         logical_server = self._fastest_matching(
             server_list, server_list.logicals, features
         )
-        await self._connect_logical(logical_server, authentication_epoch)
+        await self._connect_logical(
+            logical_server, authentication_epoch, connection_intent
+        )
 
     @staticmethod
     def _fastest_matching(server_list, servers, features: tuple[str, ...]):
@@ -840,7 +866,6 @@ class ProtonCoreAdapter:
     async def _publish_unknown_settings(self, protection_sensitive: bool) -> None:
         await self._quiesce_session_services()
         self._logged_in = False
-        self._session_services_enabled = False
         self._search_projection = None
         if protection_sensitive:
             # Persistence is ambiguous, so never claim permanent protection.
@@ -860,27 +885,42 @@ class ProtonCoreAdapter:
         self._publish_snapshot()
 
     async def connect_country(self, country_code: str) -> None:
-        authentication_epoch = self._authenticated_epoch()
+        authentication_epoch, connection_intent = self._begin_manual_connection()
         server_list = await self._get_server_list(authentication_epoch)
+        if not self._manual_connection_is_current(
+            authentication_epoch, connection_intent
+        ):
+            return
         await self._connect_logical(
             server_list.get_fastest_in_country(country_code),
             authentication_epoch,
+            connection_intent,
         )
 
     async def connect_country_with_features(
         self, country_code: str, features: tuple[str, ...]
     ) -> None:
-        authentication_epoch = self._authenticated_epoch()
+        authentication_epoch, connection_intent = self._begin_manual_connection()
         server_list = await self._get_server_list(authentication_epoch)
+        if not self._manual_connection_is_current(
+            authentication_epoch, connection_intent
+        ):
+            return
         country = self._country(server_list, country_code)
         logical_server = self._fastest_matching(server_list, country.servers, features)
-        await self._connect_logical(logical_server, authentication_epoch)
+        await self._connect_logical(
+            logical_server, authentication_epoch, connection_intent
+        )
 
     async def connect_group(
         self, country_code: str, group_kind: str, group_name: str
     ) -> None:
-        authentication_epoch = self._authenticated_epoch()
+        authentication_epoch, connection_intent = self._begin_manual_connection()
         server_list = await self._get_server_list(authentication_epoch)
+        if not self._manual_connection_is_current(
+            authentication_epoch, connection_intent
+        ):
+            return
         group = self._server_group(server_list, country_code, group_kind, group_name)
         available = server_list.get_available_servers(
             group.servers, server_list.user_tier
@@ -888,7 +928,9 @@ class ProtonCoreAdapter:
         logical_server = server_list.get_fastest_server(available)
         if logical_server is None:
             raise UserVisibleRuntimeError("No server available in the current tier")
-        await self._connect_logical(logical_server, authentication_epoch)
+        await self._connect_logical(
+            logical_server, authentication_epoch, connection_intent
+        )
 
     async def connect_group_with_features(
         self,
@@ -897,17 +939,29 @@ class ProtonCoreAdapter:
         group_name: str,
         features: tuple[str, ...],
     ) -> None:
-        authentication_epoch = self._authenticated_epoch()
+        authentication_epoch, connection_intent = self._begin_manual_connection()
         server_list = await self._get_server_list(authentication_epoch)
+        if not self._manual_connection_is_current(
+            authentication_epoch, connection_intent
+        ):
+            return
         group = self._server_group(server_list, country_code, group_kind, group_name)
         logical_server = self._fastest_matching(server_list, group.servers, features)
-        await self._connect_logical(logical_server, authentication_epoch)
+        await self._connect_logical(
+            logical_server, authentication_epoch, connection_intent
+        )
 
     async def connect_server(self, server_name: str) -> None:
-        authentication_epoch = self._authenticated_epoch()
+        authentication_epoch, connection_intent = self._begin_manual_connection()
         server_list = await self._get_server_list(authentication_epoch)
+        if not self._manual_connection_is_current(
+            authentication_epoch, connection_intent
+        ):
+            return
         await self._connect_logical(
-            server_list.get_by_name(server_name), authentication_epoch
+            server_list.get_by_name(server_name),
+            authentication_epoch,
+            connection_intent,
         )
 
     async def start_packet_capture(self, directory_path: str) -> None:
@@ -1006,10 +1060,15 @@ class ProtonCoreAdapter:
         return core_server_info(server_list, server)
 
     async def _connect_logical(
-        self, logical_server, authentication_epoch: int
+        self,
+        logical_server,
+        authentication_epoch: int,
+        connection_intent: int,
     ) -> None:
-        self._require_authenticated_epoch(authentication_epoch)
-        connection_intent = self._advance_connection_intent()
+        if not self._manual_connection_is_current(
+            authentication_epoch, connection_intent
+        ):
+            return
         # Manual intent is newer than any scheduled wake/retry attempt.  The
         # owned scope retires that attempt and cannot leak across cancellation.
         async with self._suspended_reconnection():
@@ -1017,12 +1076,18 @@ class ProtonCoreAdapter:
                 client_config = (
                     await self._api.refresher.get_up_to_date_client_config()
                 )
-                self._require_authenticated_epoch(authentication_epoch)
+                if not self._manual_connection_is_current(
+                    authentication_epoch, connection_intent
+                ):
+                    return
                 vpn_server = self._connector.get_vpn_server(
                     logical_server, client_config
                 )
                 settings = await self._load_settings(authentication_epoch)
-                self._require_authenticated_epoch(authentication_epoch)
+                if not self._manual_connection_is_current(
+                    authentication_epoch, connection_intent
+                ):
+                    return
                 await self._attempt_connection(
                     lambda: self._connector.connect(
                         vpn_server, protocol=settings.protocol
@@ -1095,6 +1160,16 @@ class ProtonCoreAdapter:
     def _advance_connection_intent(self) -> int:
         self._connection_intent_generation += 1
         return self._connection_intent_generation
+
+    def _begin_manual_connection(self) -> tuple[int, int]:
+        """Admit a manual target before its first potentially blocking read."""
+        return self._authenticated_epoch(), self._advance_connection_intent()
+
+    def _manual_connection_is_current(
+        self, authentication_epoch: int, connection_intent: int
+    ) -> bool:
+        self._require_authenticated_epoch(authentication_epoch)
+        return connection_intent == self._connection_intent_generation
 
     def _settings_from_core(self, settings: Any) -> VpnSettings:
         disconnected = (
@@ -1373,7 +1448,7 @@ class ProtonCoreAdapter:
         try:
             if self._reconnector:
                 await self._reconnector.disable()
-            self._session_services_enabled = False
+            await self._disable_refresher()
             if type(self._connector.current_state).__name__ != "Disconnected":
                 await self._connector.disconnect()
             if kill_switch_changed:
@@ -1484,8 +1559,12 @@ class ProtonCoreAdapter:
                         location_callback_setter(None)
                 if self._connector:
                     self._connector.unregister(self)
-                if self._api and self._session_services_enabled:
-                    await self._api.refresher.disable()
+                if (
+                    self._api
+                    and self._session_services_state
+                    is not _SessionServicesState.DISABLED
+                ):
+                    await self._disable_refresher()
 
     def status_update(self, state: Any) -> None:
         if self._initialized and self._callback:
@@ -1575,12 +1654,21 @@ class ProtonCoreAdapter:
             await self._enable_session_services_with_connection_barrier()
 
     async def _enable_session_services_with_connection_barrier(self) -> None:
-        refresher_enabled_here = False
         try:
-            if not self._session_services_enabled:
+            if (
+                self._session_services_state
+                is _SessionServicesState.CLEANUP_REQUIRED
+            ):
+                # An earlier enable/disable may have committed before its
+                # acknowledgement failed. Normalize Core to a proven stopped
+                # state before starting it again.
+                await self._disable_refresher()
+            if self._session_services_state is _SessionServicesState.DISABLED:
+                self._session_services_state = (
+                    _SessionServicesState.CLEANUP_REQUIRED
+                )
                 await self._api.refresher.enable()
-                self._session_services_enabled = True
-                refresher_enabled_here = True
+                self._session_services_state = _SessionServicesState.ENABLED
             if not self._reconnector:
                 self._reconnector = AsyncReconnector(
                     self._connector,
@@ -1599,12 +1687,28 @@ class ProtonCoreAdapter:
         except (Exception, asyncio.CancelledError):
             if self._reconnector and self._reconnector.enabled:
                 await self._reconnector.disable()
-            if refresher_enabled_here:
+            if (
+                self._session_services_state
+                is not _SessionServicesState.DISABLED
+            ):
                 try:
-                    await self._api.refresher.disable()
-                finally:
-                    self._session_services_enabled = False
+                    await self._disable_refresher()
+                except (Exception, asyncio.CancelledError):
+                    # Preserve the original enable/reconnector failure. The
+                    # tri-state retains cleanup authority for recovery/close.
+                    pass
             raise
+
+    async def _disable_refresher(self) -> None:
+        """Disable Core refresh and commit DISABLED only after acknowledgement."""
+        if (
+            not self._api
+            or self._session_services_state is _SessionServicesState.DISABLED
+        ):
+            return
+        self._session_services_state = _SessionServicesState.CLEANUP_REQUIRED
+        await self._api.refresher.disable()
+        self._session_services_state = _SessionServicesState.DISABLED
 
     async def _set_signed_out(
         self, message: str, auth_state: str = "signed_out"
@@ -1619,6 +1723,11 @@ class ProtonCoreAdapter:
                             # Authentication state is authoritative. Observer
                             # cleanup cannot preserve stale signed-in state.
                             pass
+                    try:
+                        await self._disable_refresher()
+                    except Exception:
+                        # Keep CLEANUP_REQUIRED for a later recovery or close.
+                        pass
         except Exception:
             # Retry retirement itself is best effort on this terminal path.
             pass
@@ -1628,7 +1737,6 @@ class ProtonCoreAdapter:
         self._logged_in = False
         self._auth_state = auth_state
         self._status_message = message
-        self._session_services_enabled = False
         self._search_projection = None
         self._publish_snapshot()
 
@@ -1742,7 +1850,6 @@ class ProtonCoreAdapter:
             "Sign-out was interrupted and Proton could not confirm the account "
             "state; restart the backend before continuing"
         )
-        self._session_services_enabled = False
         self._search_projection = None
         self._publish_snapshot()
         return _LogoutRecoveryOutcome(None, True, False)
@@ -1799,12 +1906,11 @@ class ProtonCoreAdapter:
         if self._api:
             try:
                 await asyncio.wait_for(
-                    self._api.refresher.disable(),
+                    self._disable_refresher(),
                     timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS,
                 )
             except (Exception, asyncio.CancelledError):
                 cleanup_failed = True
-        self._session_services_enabled = False
         return cleanup_failed
 
     async def _core_logged_in_after_failure(self) -> bool | None:
@@ -1957,7 +2063,9 @@ class ProtonCoreAdapter:
         # Invalidate sibling requests from the expired session before cleanup
         # yields to the event loop.
         self._authentication_epoch += 1
-        session_services_were_enabled = self._session_services_enabled
+        session_services_need_cleanup = (
+            self._session_services_state is not _SessionServicesState.DISABLED
+        )
         self._publish_signed_out_state(
             "Your Proton session expired; sign in again",
             "expired",
@@ -1971,9 +2079,9 @@ class ProtonCoreAdapter:
                             await reconnector.disable()
                         except Exception:
                             cleanup_failed = True
-                    if session_services_were_enabled:
+                    if session_services_need_cleanup:
                         try:
-                            await self._api.refresher.disable()
+                            await self._disable_refresher()
                         except Exception:
                             cleanup_failed = True
         except Exception:

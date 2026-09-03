@@ -126,7 +126,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "b594cc460e41f2ebc9cd2ff65cb830f8eb39b8837ca73f2462fc7e40a77c751b" \
+    "11c609daa311358368202e022ae9106e9a1bad858484d00197597389017a86b1" \
     "backend reviewed behavior exceptions" \
     backend/proton_vpn_kde_backend/__main__.py \
     backend/proton_vpn_kde_backend/adapters.py \

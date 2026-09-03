@@ -16,6 +16,7 @@ class DaemonThreadTests(unittest.IsolatedAsyncioTestCase):
         released = threading.Event()
 
         def blocking_prompt():
+            self.assertTrue(threading.current_thread().daemon)
             started.set()
             released.wait(timeout=2)
             return True

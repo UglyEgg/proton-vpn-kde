@@ -5,14 +5,14 @@
 
 from __future__ import annotations
 
-import asyncio
 from contextlib import ExitStack
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
 from . import __version__
-from .async_utils import await_owned
+from .async_utils import await_owned, run_in_daemon_thread
 from .controller import NpsSurveyResponse, SupportReport
 from .errors import (
     NpsCompletionUnknownError,
@@ -27,7 +27,9 @@ async def submit_support_report(api: Any, report: SupportReport) -> None:
 
     with TemporaryDirectory(prefix="proton-vpn-kde-support-") as directory:
         log_paths = (
-            await asyncio.to_thread(collect_support_logs, Path(directory))
+            await run_in_daemon_thread(
+                lambda: collect_support_logs(Path(directory))
+            )
             if report.include_logs
             else []
         )
@@ -66,10 +68,10 @@ async def take_pending_nps_survey(api: Any) -> bool:
             # Core writes its local JSON cache synchronously. Keep filesystem
             # work off the D-Bus event loop, but retain task ownership through
             # cancellation so teardown cannot overtake the cache mutation.
+            survey_id = survey.survey_id
             await await_owned(
-                asyncio.to_thread(
-                    api.set_notification_seen,
-                    survey.survey_id,
+                run_in_daemon_thread(
+                    partial(api.set_notification_seen, survey_id)
                 )
             )
             return True
