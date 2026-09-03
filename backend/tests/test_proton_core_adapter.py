@@ -130,6 +130,11 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             iter_available_protocols=Mock(return_value=[protocol]),
             is_split_tunneling_available=True,
         )
+
+        async def disconnect():
+            connector.current_state = state_named("Disconnected")
+
+        connector.disconnect.side_effect = disconnect
         refresher = SimpleNamespace(
             enable=AsyncMock(),
             disable=AsyncMock(),
@@ -221,7 +226,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 None, release_connect.wait
             )
 
+        async def disconnect():
+            connector.current_state = state_named("Disconnected")
+            adapter.status_update(connector.current_state)
+
         connector.connect.side_effect = blocked_connect
+        connector.disconnect.side_effect = disconnect
         connector.current_connection = SimpleNamespace(
             server_id="server-id",
             server_name="",
@@ -1438,9 +1448,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
             release_connect.set()
             await asyncio.wait_for(logout_task, timeout=1)
-            # The completion-unknown retry is compensated first. Logout then
-            # performs its normal idempotent teardown because this mock does
-            # not publish the resulting Disconnected state.
+            # Compensation reaches Disconnected first; logout then issues one
+            # idempotent Down to synchronize behind any late Core event.
             self.assertEqual(2, connector.disconnect.await_count)
             api.logout.assert_awaited_once_with()
         finally:
@@ -1507,7 +1516,9 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(disconnect, timeout=1)
         await asyncio.wait_for(logout, timeout=1)
 
-        self.assertEqual(1, connector.disconnect.await_count)
+        # The accepted public disconnect and logout's stable-state barrier each
+        # issue Down; the second call proves no queued Core event can overtake.
+        self.assertEqual(2, connector.disconnect.await_count)
         api.logout.assert_awaited_once_with()
 
     async def test_overlapping_disconnects_do_not_share_reconnect_suspension(self):
@@ -1525,8 +1536,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             if disconnect_count == 1:
                 first_started.set()
                 await release_first.wait()
-                raise RuntimeError("first disconnect failed")
-            second_started.set()
+            else:
+                second_started.set()
             connector.current_state = state_named("Disconnected")
 
         connector.disconnect.side_effect = disconnect
@@ -1537,8 +1548,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(second_started.is_set())
         release_first.set()
-        with self.assertRaisesRegex(RuntimeError, "first disconnect failed"):
-            await first
+        await first
         await asyncio.wait_for(second, timeout=1)
 
         self.assertTrue(second_started.is_set())
@@ -2468,6 +2478,139 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(adapter._manual_connection_tasks)
         self.assertEqual(0, adapter._reconnector._suspend_count)
 
+    async def test_all_invalidators_drain_a_queued_core_replacement(self):
+        """Core 5.6.10 Down-in-Disconnecting cannot survive invalidation."""
+        transitions = (
+            ("disconnect", lambda adapter: adapter.disconnect()),
+            ("logout", lambda adapter: adapter.logout()),
+            ("close", lambda adapter: adapter.close()),
+            (
+                "disable-reconnection",
+                lambda adapter: adapter.set_reconnection_enabled(False),
+            ),
+            (
+                "signed-out-cleanup",
+                lambda adapter: adapter._set_signed_out("Signed out"),
+            ),
+            (
+                "session-expiry",
+                lambda adapter: adapter._expire_session(
+                    adapter._authentication_epoch
+                ),
+            ),
+        )
+
+        for transition_name, transition in transitions:
+            with self.subTest(transition=transition_name):
+                api, connector = self.make_api()
+                terminal_exit = Mock(
+                    side_effect=RuntimeError("unexpected terminal exit")
+                )
+                adapter = ProtonCoreAdapter(api, terminal_exit=terminal_exit)
+                await adapter.initialize(Mock())
+                connector.current_state = state_named("Disconnecting")
+                first_down = asyncio.Event()
+                replacement_down = asyncio.Event()
+                ignored_replacement_down = asyncio.Event()
+                disconnect_count = 0
+
+                async def disconnect(
+                    first_down=first_down,
+                    replacement_down=replacement_down,
+                    ignored_replacement_down=ignored_replacement_down,
+                    connector=connector,
+                    adapter=adapter,
+                ):
+                    nonlocal disconnect_count
+                    disconnect_count += 1
+                    if disconnect_count == 1:
+                        # Core 5.6.10 ignores Down while its old connection is
+                        # Disconnecting and retains the queued replacement.
+                        first_down.set()
+                    elif disconnect_count == 2:
+                        replacement_down.set()
+                        connector.current_state = state_named("Disconnecting")
+                        adapter.status_update(connector.current_state)
+                    elif disconnect_count == 3:
+                        ignored_replacement_down.set()
+                    else:
+                        self.fail("Stable disconnect issued an unexpected Down")
+
+                connector.disconnect.side_effect = disconnect
+                invalidator = asyncio.create_task(transition(adapter))
+                await asyncio.wait_for(first_down.wait(), timeout=1)
+                self.assertFalse(invalidator.done())
+
+                # The old connection's late Disconnected event immediately
+                # promotes the queued target to Connecting inside Core's lock.
+                connector.current_state = state_named("Connecting")
+                adapter.status_update(connector.current_state)
+                await asyncio.wait_for(replacement_down.wait(), timeout=1)
+                await asyncio.wait_for(
+                    ignored_replacement_down.wait(), timeout=1
+                )
+                self.assertFalse(invalidator.done())
+
+                connector.current_state = state_named("Disconnected")
+                adapter.status_update(connector.current_state)
+                await asyncio.wait_for(invalidator, timeout=1)
+
+                self.assertEqual(3, connector.disconnect.await_count)
+                self.assertEqual(
+                    "Disconnected", type(connector.current_state).__name__
+                )
+                self.assertEqual(0, adapter._reconnector._suspend_count)
+                terminal_exit.assert_not_called()
+
+    async def test_failed_stable_disconnect_forces_fresh_backend(self):
+        api, connector = self.make_api()
+        terminal_exit = Mock(side_effect=RuntimeError("forced backend exit"))
+        adapter = ProtonCoreAdapter(api, terminal_exit=terminal_exit)
+        await adapter.initialize(Mock())
+        connector.current_state = state_named("Connecting")
+        connector.disconnect.side_effect = RuntimeError("Down failed")
+
+        with self.assertLogs(
+            "proton_vpn_kde_backend.adapters", level="CRITICAL"
+        ):
+            with self.assertRaisesRegex(RuntimeError, "forced backend exit"):
+                await adapter.disconnect()
+
+        terminal_exit.assert_called_once_with(1)
+
+    async def test_failed_cancel_compensation_forces_fresh_backend(self):
+        api, connector = self.make_api()
+        operation_started = asyncio.Event()
+        release_operation = asyncio.Event()
+        terminal_exit = Mock(side_effect=RuntimeError("forced backend exit"))
+        adapter = ProtonCoreAdapter(api, terminal_exit=terminal_exit)
+        await adapter.initialize(Mock())
+
+        async def operation():
+            operation_started.set()
+            await release_operation.wait()
+
+        connector.current_state = state_named("Connecting")
+        connector.disconnect.side_effect = RuntimeError("compensation failed")
+        attempt = asyncio.create_task(
+            adapter._attempt_connection(
+                operation,
+                adapter._authentication_epoch,
+                adapter._connection_intent_generation,
+            )
+        )
+        await operation_started.wait()
+        attempt.cancel()
+        release_operation.set()
+
+        with self.assertLogs(
+            "proton_vpn_kde_backend.adapters", level="CRITICAL"
+        ):
+            with self.assertRaisesRegex(RuntimeError, "forced backend exit"):
+                await attempt
+
+        terminal_exit.assert_called_once_with(1)
+
     async def test_cancellation_resistant_lookup_forces_fresh_backend(self):
         api, _ = self.make_api()
         lookup_started = asyncio.Event()
@@ -2526,6 +2669,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             terminal_exit=terminal_exit,
         )
         await adapter.initialize(Mock())
+
+        async def disconnect():
+            connector.current_state = state_named("Disconnected")
+            adapter.status_update(connector.current_state)
+
+        connector.disconnect.side_effect = disconnect
         connector.current_connection = SimpleNamespace(
             server_id="server-id",
             server_name="",

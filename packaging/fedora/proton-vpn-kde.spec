@@ -48,7 +48,7 @@ Requires:       /usr/bin/ip
 Requires:       python3-cryptography >= 45.0.1
 Requires:       python3-dbus-fast
 Requires:       python3-fido2
-Requires:       python3-proton-vpn-api-core >= 5.5.6
+Requires:       python3-proton-vpn-api-core >= 5.6.10
 Requires:       proton-vpn-api-core-plasma-protun-secret >= 1
 Requires:       proton-keyring-secret-service-owner-pinned >= 1
 Requires:       qt6-qtdeclarative
@@ -133,7 +133,7 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
-* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.1
+* Thu Sep 03 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.1
 - Begin the presentation-only progressive Plasma interface cycle.
 - Add a CI gate that freezes the accepted 0.12.0 runtime mechanics.
 - Make in-app release history concise and progressively disclosed.
@@ -141,6 +141,9 @@ desktop-file-validate \
   operation, settings, capture, survey, and connection generations.
 - Retire manual and automatic connection owners before superseding operations,
   including Core 5.6.10 executor-backed NetworkManager work.
+- Drain Core 5.6.10 queued replacement targets to confirmed Disconnected state
+  and fail closed when the stable Down sequence cannot complete.
+- Declare Core 5.6.10 as the package runtime floor; keep 5.5.6 static-only.
 - Bound orderly and completion-unknown backend teardown with fail-closed
   systemd restart behavior.
 

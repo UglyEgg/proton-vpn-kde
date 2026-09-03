@@ -16,26 +16,29 @@ The source build requires:
 - `cryptography` 45.0.1 or newer;
 - `dbus-fast` 2.20 or newer.
 
-The adapter retains a minimum public-API compatibility floor of Proton VPN API
-Core 5.5.6. The supported Fedora artifact does not run that historical package:
-it requires the Protun-secret capability supplied by this repository's
-independently verified Core 5.6.10 overlay. Version 5.6.10 is therefore the
-current packaged and behavioral runtime target; 5.5.6 is a secondary static
-compatibility floor only.
+The Fedora package declares Proton VPN API Core 5.6.10 as its runtime floor and
+requires the Protun-secret capability supplied by this repository's exact
+5.6.10 overlay. The adapter separately retains a static public-API floor check
+against historical Core 5.5.6. That older package is extracted and parsed but
+never imported or executed, and no behavioral fix is accepted from it.
 
 The supported Fedora package installs both Plasma and project executables below
 `/usr`. The hardened System Settings launcher is compiled from that package
 prefix; non-`/usr` custom-prefix layouts are not currently an accepted runtime
 configuration.
 
-CI runs all 315 isolated backend tests under Python 3.11 with the exact minimum
+CI runs all 318 isolated backend tests under Python 3.11 with the exact minimum
 `cryptography` 45.0.1 and `dbus-fast` 2.20.0 wheels. A separate source-level
 contract check downloads and extracts Proton's SHA-256-pinned Fedora 44 API
 Core 5.5.6 RPM, then verifies every public class, method, property, and exported
 type consumed by the adapter. It does not instantiate Core, read credentials,
 or touch networking and must not be interpreted as the behavioral runtime
-under test. The overlay build, current-Core regressions, packaged transaction,
-and live acceptance exercise 5.6.10 separately.
+under test. The overlay verifier imports the pinned 5.6.10 payload and exercises
+its queued-target state machine: the newest Up replaces an older queued target,
+Down while Disconnecting retains it, and the old tunnel's late Disconnected
+event promotes it. This current-Core contract is what drives the adapter's
+stable-disconnect regression tests. A future Core change fails that verifier so
+the workaround must be reviewed instead of carried forward by assumption.
 
 KeePassXC acceptance also depends on the downstream
 `python3-proton-keyring-linux` capability identified below. It contains the

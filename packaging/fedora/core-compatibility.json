@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "minimum": {
+  "staticApiFloor": {
     "version": "5.5.6",
     "nevra": "python3-proton-vpn-api-core-5.5.6-1.fc44.x86_64",
     "url": "https://repo.protonvpn.com/fedora-44-stable/python3-proton-vpn-api-core/python3-proton-vpn-api-core-5.5.6-1.fc44.x86_64.rpm",

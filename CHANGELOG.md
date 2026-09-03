@@ -122,6 +122,14 @@ All notable user-visible changes are recorded here. The project follows
   before a replacement target can proceed. One 30-second retirement deadline
   fails closed by terminating the backend for a clean systemd restart instead
   of acknowledging incomplete connection ownership.
+- Drain Core 5.6.10's queued replacement target to a confirmed Disconnected
+  state before an invalidating action returns. A failed or timed-out Down now
+  also terminates the backend for a supervised restart instead of reporting
+  false completion. The overlay verifier exercises this exact current-Core
+  state-machine contract and fails when a future Core changes it.
+- Declare Core 5.6.10 as the Fedora package's runtime floor. Retain 5.5.6 only
+  as an explicitly named static public-API floor that never supplies runtime
+  behavior to the supported package.
 - Give every manual connection target ownership of automatic-reconnect
   suspension before its first topology read. A retry already waiting on delay,
   network, or session readiness is retired before lookup proceeds, and no new

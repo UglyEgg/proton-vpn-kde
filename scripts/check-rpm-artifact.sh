@@ -90,7 +90,7 @@ for required_path in "${required_paths[@]}"; do
 done
 
 requires="$(rpm -qp --requires "$package_path")"
-if ! grep -Fxq 'python3-proton-vpn-api-core >= 5.5.6' <<<"$requires"; then
+if ! grep -Fxq 'python3-proton-vpn-api-core >= 5.6.10' <<<"$requires"; then
     echo "RPM does not retain the official Proton VPN API Core dependency" >&2
     exit 1
 fi

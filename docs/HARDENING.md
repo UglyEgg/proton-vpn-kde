@@ -27,10 +27,16 @@ shutdown begins. All manual target owners and automatic retry owners are
 cancelled and joined under one 30-second deadline. The provider connection
 coroutine remains shielded while Proton Core 5.6.10 waits on executor-backed
 NetworkManager work, then a compensating disconnect completes before ownership
-is released. If either owner class survives the deadline, the backend logs a
-critical condition and exits nonzero immediately; returning a successful
-Disconnect while an obsolete NetworkManager mutation can still complete would
-be less safe than a fresh systemd-owned process.
+is released. Because Core 5.6.10 retains a queued replacement when Down arrives
+in Disconnecting, invalidating transitions keep ownership across subsequent
+Core state notifications and repeat Down until Disconnected is confirmed. The
+pinned overlay verifier executes this exact state sequence; it fails when a
+future Core no longer has that behavior so the barrier is reassessed. If either
+owner class survives the deadline, a Down fails, or the state never becomes
+stable, the backend logs a critical condition and exits nonzero immediately;
+returning a successful Disconnect while an obsolete NetworkManager mutation or
+queued target can still complete would be less safe than a fresh systemd-owned
+process.
 
 Orderly backend shutdown closes public ingress, drains accepted work under one
 absolute deadline, disconnects D-Bus, and closes the asyncio loop. It then

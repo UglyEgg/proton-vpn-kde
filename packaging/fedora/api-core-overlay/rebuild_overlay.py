@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import os
@@ -503,6 +504,7 @@ def _verify_behavior(root: Path) -> None:
 
     from proton.vpn.core.cache_handler import CacheHandler  # noqa: PLC0415
     from proton.vpn.core.api import ProtonVPNAPI  # noqa: PLC0415
+    from proton.vpn.connection import events, states  # noqa: PLC0415
     from proton.vpn.backend.networkmanager.protocol.protun.protun import (  # noqa: PLC0415
         SYSTEM_OWNED_PRIVATE_KEY,
         PRIVATE_KEY,
@@ -628,6 +630,90 @@ def _verify_behavior(root: Path) -> None:
         raise OverlayError("Protun did not add the generated VPN connection")
     if add_call.get("save_to_disk") is not False:
         raise OverlayError("Protun connection is not explicitly unsaved")
+
+    # This is the 5.6.10 behavior that requires the KDE adapter's bounded
+    # stable-disconnect barrier.  A Down received while Disconnecting is
+    # ignored, and the queued replacement is promoted after the old tunnel's
+    # late Disconnected event.  Fail loudly when a future pinned Core changes
+    # that contract so the downstream workaround is reviewed instead of being
+    # carried forward on an obsolete assumption.
+    class ConnectionFixture:
+        def __init__(self):
+            self.persistence_removed = False
+
+        async def remove_persistence(self):
+            self.persistence_removed = True
+
+    class KillSwitchFixture:
+        def __init__(self):
+            self.enabled = False
+
+        async def enable(self, **_kwargs):
+            self.enabled = True
+
+    old_connection = ConnectionFixture()
+    queued_connection = object()
+    newer_connection = object()
+    kill_switch = KillSwitchFixture()
+    previous_kill_switch = states.StateContext.kill_switch
+    states.StateContext.kill_switch = kill_switch
+    try:
+        disconnecting = states.Disconnecting(
+            states.StateContext(
+                connection=old_connection,
+                reconnection=queued_connection,
+            )
+        )
+        after_new_target = disconnecting.on_event(
+            events.Up(events.EventContext(connection=newer_connection))
+        )
+        if (
+            after_new_target is not disconnecting
+            or disconnecting.context.reconnection is not newer_connection
+        ):
+            raise OverlayError(
+                "Pinned Core no longer replaces an older queued target with "
+                "the newest target; review manual target arbitration"
+            )
+        after_down = disconnecting.on_event(
+            events.Down(events.EventContext(connection=old_connection))
+        )
+        if (
+            after_down is not disconnecting
+            or disconnecting.context.reconnection is not newer_connection
+        ):
+            raise OverlayError(
+                "Pinned Core no longer retains a queued replacement after "
+                "Down while Disconnecting; review the adapter barrier"
+            )
+        after_disconnected = disconnecting.on_event(
+            events.Disconnected(
+                events.EventContext(connection=old_connection)
+            )
+        )
+        if (
+            not isinstance(after_disconnected, states.Disconnected)
+            or after_disconnected.context.reconnection is not newer_connection
+        ):
+            raise OverlayError(
+                "Pinned Core no longer carries the queued replacement into "
+                "Disconnected; review the adapter barrier"
+            )
+        promoted_event = asyncio.run(after_disconnected.run_tasks())
+        if (
+            not isinstance(promoted_event, events.Up)
+            or promoted_event.context.connection is not newer_connection
+        ):
+            raise OverlayError(
+                "Pinned Core no longer promotes the queued replacement; "
+                "review the adapter barrier"
+            )
+    finally:
+        states.StateContext.kill_switch = previous_kill_switch
+    if not old_connection.persistence_removed or not kill_switch.enabled:
+        raise OverlayError(
+            "Pinned Core did not execute queued-replacement teardown tasks"
+        )
     print("Verified API Core overlay behavior")
 
 
@@ -725,6 +811,7 @@ def verify_installed(manifest_path: Path) -> None:
                 f"Installed overlay hash mismatch for /{path}: "
                 f"expected {record['overlaySha256']}, got {actual_hash}"
             )
+    verify_behavior(Path("/"))
     print(f"Verified installed API Core overlay {actual_nevra}")
 
 

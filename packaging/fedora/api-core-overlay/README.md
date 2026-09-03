@@ -36,7 +36,11 @@ all patches with zero fuzz, deterministically regenerates only the affected
 bytecode, and compares the complete vendor and overlay trees. It imports the
 pinned signing key into a temporary unprivileged RPM database solely to verify
 the vendor RPM, so a clean builder does not depend on a preconfigured system
-keyring. A path addition,
+keyring. Its behavioral verifier also executes the pinned 5.6.10 connection
+state contract that motivates the client's stable-disconnect barrier: newest
+queued target wins, Down while Disconnecting retains that target, and the old
+tunnel's late Disconnected event promotes it. A future Core that changes this
+sequence fails the build and requires an explicit adapter review. A path addition,
 removal, mode or hardlink change, unrecorded content change, stale patch, wrong
 Python version, or unexpected output hash fails the build. The completed RPM
 must also retain Proton's exact dependency, conflict, obsolete, and package

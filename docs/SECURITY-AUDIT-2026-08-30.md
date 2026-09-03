@@ -27,8 +27,12 @@ targets own retry suspension before topology lookup and are explicitly tracked
 across all seven routes. A newer target, Disconnect, logout, session expiry,
 disabled recovery, or close cancels and joins every older owner. Cancellation
 also retains Proton Core 5.6.10's executor-backed NetworkManager coroutine until
-it terminates and a compensating disconnect completes. One absolute deadline
-forces a nonzero backend restart rather than acknowledging stale ownership.
+it terminates and a compensating disconnect completes. It then follows Core
+state notifications and repeats Down until Disconnected proves that no queued
+replacement can start later. A failed Down, missing stable transition, or
+unfinished owner shares one absolute deadline and forces a nonzero backend
+restart rather than acknowledging stale ownership. The overlay verifier
+executes the pinned 5.6.10 queue semantics and fails when they change.
 Inherited Python context separately grants no reentrant lifecycle authority
 without explicit owned-task delegation, and a Core executor worker cannot
 retain an old backend process past its finite terminal shutdown boundary. These
@@ -242,13 +246,29 @@ could materialize after the task appeared joined. Subtractive found no blocker,
 but no result from this partial pass counts. The current candidate replaces the
 symptom-specific checks with the class invariant summarized below.
 
+The twelfth partial pass against `0fa6d05` was superseded after Hostile found
+two remaining high-severity forms of the same class. First, Core 5.6.10 can
+return from Connect while the requested target remains queued in
+Disconnecting; Down in that state preserves the queue, so the old tunnel's
+late Disconnected event could start the obsolete target after an invalidator
+returned. Second, a failed compensating Down could be discarded while joining
+a cancelled manual or automatic owner, converting failed retirement into
+normal completion. Subtractive and Entropy reported no release blocker, but
+their results do not count after the candidate changed. The current remediation
+uses one stable-disconnect primitive across every invalidator and compensation
+path: it owns successive Down operations and state transitions until
+Disconnected, and any failure or deadline exhaustion terminates the backend
+for supervised replacement. All six reviews must restart on the exact next
+commit.
+
 | Connection-supersession dimension | Candidate invariant and regression scope |
 | --- | --- |
 | Manual admission | All seven public routes register one task owner before their first topology await and suspend automatic retry through Core completion. |
 | Invalidating transitions | Newer manual target, Disconnect, logout, session expiry, disabled recovery, and close advance intent, cancel every older manual owner, and join it before completion. |
-| Provider-side mutation | Cancellation shields and joins the Core 5.6.10 connection coroutine and its executor work, then completes a compensating disconnect while lifecycle serialization is still held. |
-| Bounded failure | Manual and automatic retirement share one absolute 30-second deadline; incomplete retirement exits nonzero for a fresh systemd process. |
-| Observable release | Focused tests require terminal tasks, empty manual-owner state, zero retry-suspension owners, no stale connector side effect, and cleared controller busy state. |
+| Provider-side mutation | Cancellation shields and joins the Core 5.6.10 connection coroutine and its executor work, then owns repeated Down and state transitions until Disconnected proves that no queued target remains. |
+| Bounded failure | Manual and automatic retirement share one absolute 30-second deadline; incomplete ownership, failed Down, or missing stable state exits nonzero for a fresh systemd process. |
+| Current-Core oracle | The overlay verifier executes pinned 5.6.10 queue replacement, Down-in-Disconnecting, and late promotion behavior; a future semantic change fails the build for explicit review. |
+| Observable release | 318 backend tests require terminal tasks, empty manual-owner state, zero retry-suspension owners, no stale connector side effect, confirmed Disconnected state, and cleared controller busy state. |
 
 | ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
 | --- | --- | --- | --- |
@@ -287,6 +307,8 @@ symptom-specific checks with the class invariant summarized below.
 | PV-013-033 | High | A Core executor thread could retain a name-less backend process and mutate shared state beside its replacement | **Remediated with finite process-wide thread retirement; independent verification pending** |
 | PV-013-034 | High | Disconnect could return while a blocked manual lookup retained busy and retry-suspension ownership | **Remediated across every manual route and invalidating transition; independent verification pending** |
 | PV-013-035 | High | Cancelling a retry task could detach Core 5.6.10's executor-backed NetworkManager mutation and permit a late stale connection | **Remediated with provider-operation joining and compensating disconnect; independent verification pending** |
+| PV-013-036 | High | Core 5.6.10 could retain and later promote a queued connection after Disconnect, logout, session expiry, disabled recovery, sign-out cleanup, or close returned | **Remediated with current-Core-gated stable-state draining; independent verification pending** |
+| PV-013-037 | High | A failed compensating Down could be discarded while joining a superseded connection owner | **Remediated with fail-closed shared compensation; independent verification pending** |
 
 ## Historical 0.12.0 isolated review gate
 

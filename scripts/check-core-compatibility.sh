@@ -13,7 +13,7 @@ project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 manifest="$project_dir/packaging/fedora/core-compatibility.json"
 mapfile -t fixture < <(
     python3 -c \
-        'import json,sys; item=json.load(open(sys.argv[1]))["minimum"]; print(item["version"], item["nevra"], item["url"], item["sha256"], sep="\n")' \
+        'import json,sys; item=json.load(open(sys.argv[1]))["staticApiFloor"]; print(item["version"], item["nevra"], item["url"], item["sha256"], sep="\n")' \
         "$manifest"
 )
 expected_version="${fixture[0]}"

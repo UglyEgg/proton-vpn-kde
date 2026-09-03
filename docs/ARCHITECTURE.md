@@ -396,9 +396,15 @@ than only a particular Connect entry point. Proton Core 5.6.10 can wait for
 NetworkManager in an executor, so cancelling the outer retry task is not proof
 that the provider-side mutation stopped. The adapter shields and joins Core's
 connection coroutine, performs a compensating disconnect after cancellation,
-and only then releases lifecycle serialization. Both automatic and manual
-retirement share one absolute 30-second deadline. If an obsolete provider owner
-still cannot terminate, the backend exits nonzero for systemd replacement
+and only then releases lifecycle serialization. Core 5.6.10 can also return
+from Connect while a replacement target remains queued in Disconnecting; a
+Down in that state does not clear the queue. Every invalidating transition
+therefore continues issuing serialized Down requests across observed state
+changes until Core reports Disconnected. The pinned overlay verifier executes
+that exact 5.6.10 state-machine contract and deliberately fails if a future
+Core changes it. Both automatic and manual retirement share one absolute
+30-second deadline. If an obsolete owner, stable state transition, or Down
+operation fails to complete, the backend exits nonzero for systemd replacement
 instead of returning Disconnect with stale busy or suspension ownership.
 
 The resident agent likewise treats the recovery

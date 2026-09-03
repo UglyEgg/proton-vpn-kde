@@ -75,18 +75,29 @@ def check() -> None:
         ):
             fail(f"minimum test must pin {name}=={version}")
 
-    manifest = json.loads(
+    floor_manifest = json.loads(
         (PROJECT_DIR / "packaging/fedora/core-compatibility.json").read_text(
             encoding="utf-8"
         )
     )
-    core_version = manifest["minimum"]["version"]
+    static_floor = floor_manifest["staticApiFloor"]["version"]
+    overlay_manifest = json.loads(
+        (
+            PROJECT_DIR
+            / "packaging/fedora/api-core-overlay/overlay-manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    runtime_version = overlay_manifest["overlay"]["upstreamBaseTag"].removeprefix(
+        "v"
+    )
+    if normalized_version(static_floor) > normalized_version(runtime_version):
+        fail("static Core API floor is newer than the packaged runtime")
 
     spec = PROJECT_DIR / "packaging/fedora/proton-vpn-kde.spec"
     require_text(
         spec,
-        rf"^Requires:\s+python3-proton-vpn-api-core >= {re.escape(core_version)}$",
-        "Core runtime floor",
+        rf"^Requires:\s+python3-proton-vpn-api-core >= {re.escape(runtime_version)}$",
+        "current Core runtime floor",
     )
     for name, version in EXPECTED_DEPENDENCIES.items():
         rpm_name = "python3-dbus-fast" if name == "dbus-fast" else f"python3-{name}"

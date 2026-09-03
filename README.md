@@ -78,7 +78,7 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 | Evidence | Current status |
 | --- | --- |
-| Automated verification | The unreleased 0.13.0 source passes 40/40 checkout CTest tests and 39/39 tests from a clean source archive, including 315 backend tests, plus Python 3.11/minimum-dependency, Core 5.5.6 API-floor, and current Core 5.6.10 overlay gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and 84% measured backend branch coverage |
+| Automated verification | The unreleased 0.13.0 source passes 40/40 checkout CTest tests and 39/39 tests from a clean source archive, including 318 backend tests, plus Python 3.11/minimum-dependency, a static legacy Core 5.5.6 API-floor check, and current Core 5.6.10 API, overlay, and queued-connection state-machine gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and 84% measured backend branch coverage |
 | Integration verification | Deterministic light, dark, compact, 1.5x, RTL, contrast-stress, and reduced-motion QML captures; D-Bus activation; staged installation; KRunner; and System Settings |
 | Package verification | A pre-final 0.13.0 candidate produced byte-identical client RPM/SRPM rebuilds; both pinned overlay pairs passed artifact policy and the combined transaction test. The remediated final commit must repeat those gates before publication |
 | Security assessment | Public 0.11.3 has all seven historical findings closed. The presentation-led 0.13.0 review is in progress against the accepted 0.12.0 mechanics plus exact-reviewed state-ownership corrections and is not yet a release approval |
@@ -89,7 +89,7 @@ These are scoped engineering measurements, not certification. The project has co
 
 ## Current status
 
-The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and the independently verified Proton VPN API Core 5.6.10 Plasma overlay. The adapter retains a separately tested 5.5.6 public-API floor; that compatibility check is not the packaged Fedora runtime. Other distributions may work but have not completed the packaged acceptance battery.
+The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and the independently verified Proton VPN API Core 5.6.10 Plasma overlay. The Fedora RPM declares 5.6.10 as its runtime floor. A separate 5.5.6 check is static legacy API lint only: it is never executed as the supported runtime or used to justify behavioral fixes. Other distributions may work but have not completed the packaged acceptance battery.
 
 > [!NOTE]
 > Verified KeePassXC support uses the separately packaged, provider-neutral Proton keyring rebuild recorded in [Compatibility](docs/COMPATIBILITY.md). The source, patches, tests, manifest, and Fedora spec are included under [`packaging/fedora/keyring-overlay`](packaging/fedora/keyring-overlay/); release CI builds its binary and source RPMs beside the client. The client RPM requires that explicit capability instead of silently replacing an installed Python file.
