@@ -386,7 +386,22 @@ suppressed or propagated. Every manual connection route acquires the same
 owned suspension before its first server-list read and retains it through Core
 connection completion. A delayed automatic attempt therefore cannot adopt a
 newer manual intent, and an Error arriving during target lookup cannot schedule
-a competing retry. The resident agent likewise treats the recovery
+a competing retry.
+
+Manual targets are also registered as explicit asyncio owners. A newer manual
+target, Disconnect, logout, session expiry, disabled recovery, or adapter close
+invalidates the generation, cancels every older owner, and joins it before the
+transition can complete. That rule covers all seven selection routes rather
+than only a particular Connect entry point. Proton Core 5.6.10 can wait for
+NetworkManager in an executor, so cancelling the outer retry task is not proof
+that the provider-side mutation stopped. The adapter shields and joins Core's
+connection coroutine, performs a compensating disconnect after cancellation,
+and only then releases lifecycle serialization. Both automatic and manual
+retirement share one absolute 30-second deadline. If an obsolete provider owner
+still cannot terminate, the backend exits nonzero for systemd replacement
+instead of returning Disconnect with stale busy or suspension ownership.
+
+The resident agent likewise treats the recovery
 preference as applied only after the current backend owner acknowledges it; a
 failed or stale policy reply cannot release a queued connection action. Its
 connection calls, queued actions, and transient lifetime leases also carry one

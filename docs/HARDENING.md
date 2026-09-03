@@ -22,6 +22,16 @@ The backend's project-owned `ip` readiness probe and dormant `journalctl`
 collector also use their absolute Fedora package paths rather than the inherited
 desktop `PATH`. The production idle deadline is fixed; only explicit demo mode
 honors the short test override.
+Connection supersession has its own process-safety boundary before orderly
+shutdown begins. All manual target owners and automatic retry owners are
+cancelled and joined under one 30-second deadline. The provider connection
+coroutine remains shielded while Proton Core 5.6.10 waits on executor-backed
+NetworkManager work, then a compensating disconnect completes before ownership
+is released. If either owner class survives the deadline, the backend logs a
+critical condition and exits nonzero immediately; returning a successful
+Disconnect while an obsolete NetworkManager mutation can still complete would
+be less safe than a fresh systemd-owned process.
+
 Orderly backend shutdown closes public ingress, drains accepted work under one
 absolute deadline, disconnects D-Bus, and closes the asyncio loop. It then
 joins service-created non-daemon threads for a final bounded grace period.

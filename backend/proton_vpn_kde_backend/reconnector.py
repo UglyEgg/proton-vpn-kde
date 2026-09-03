@@ -27,6 +27,12 @@ ConnectionAttempt = Callable[[Any, Any, Any, int], Awaitable[bool]]
 
 
 logger = logging.getLogger(__name__)
+
+
+class ReconnectionRetirementTimeout(TimeoutError):
+    """An obsolete automatic retry remained live past its owner deadline."""
+
+
 IP_COMMAND = "/usr/bin/ip"
 
 
@@ -217,7 +223,9 @@ class AsyncReconnector:
             raise unregister_error
 
     @asynccontextmanager
-    async def suspended(self) -> AsyncIterator[None]:
+    async def suspended(
+        self, *, deadline: float | None = None
+    ) -> AsyncIterator[None]:
         """Own a cancellation-safe temporary reconnection suspension.
 
         The token is installed before the first await and is always retired by
@@ -229,7 +237,7 @@ class AsyncReconnector:
         try:
             retry_task = self._reset()
             try:
-                await self._join_retry(retry_task)
+                await self._join_retry(retry_task, deadline=deadline)
             finally:
                 if self._retry_task is retry_task and retry_task is not None:
                     self._retry_task = None
@@ -436,15 +444,42 @@ class AsyncReconnector:
         return retry_task if retry_task is not current_task else None
 
     @staticmethod
-    async def _join_retry(retry_task: asyncio.Task | None) -> None:
+    async def _join_retry(
+        retry_task: asyncio.Task | None,
+        *,
+        deadline: float | None = None,
+    ) -> None:
         if retry_task is None:
             return
+        caller_cancelled = False
         try:
-            await await_owned(retry_task)
+            if deadline is None:
+                await await_owned(retry_task)
+                return
+
+            remaining = max(0.0, deadline - asyncio.get_running_loop().time())
+            waiter = asyncio.create_task(
+                asyncio.wait({retry_task}, timeout=remaining)
+            )
+            try:
+                await await_owned(waiter)
+            except asyncio.CancelledError:
+                caller_cancelled = True
+            _, pending = waiter.result()
+            if pending:
+                raise ReconnectionRetirementTimeout(
+                    "Automatic reconnect work did not stop before its deadline"
+                )
+            try:
+                retry_task.result()
+            except asyncio.CancelledError:
+                pass
         except asyncio.CancelledError:
             current = asyncio.current_task()
             if current is not None and current.cancelling():
                 raise
+        if caller_cancelled:
+            raise asyncio.CancelledError
 
     @staticmethod
     def _retry_delay(retry_counter: int) -> float:

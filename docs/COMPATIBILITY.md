@@ -16,20 +16,26 @@ The source build requires:
 - `cryptography` 45.0.1 or newer;
 - `dbus-fast` 2.20 or newer.
 
-The real backend requires Proton's Fedora packages. The minimum declared VPN
-API Core version is 5.5.6.
+The adapter retains a minimum public-API compatibility floor of Proton VPN API
+Core 5.5.6. The supported Fedora artifact does not run that historical package:
+it requires the Protun-secret capability supplied by this repository's
+independently verified Core 5.6.10 overlay. Version 5.6.10 is therefore the
+current packaged and behavioral runtime target; 5.5.6 is a secondary static
+compatibility floor only.
 
 The supported Fedora package installs both Plasma and project executables below
 `/usr`. The hardened System Settings launcher is compiled from that package
 prefix; non-`/usr` custom-prefix layouts are not currently an accepted runtime
 configuration.
 
-CI runs all 311 isolated backend tests under Python 3.11 with the exact minimum
+CI runs all 315 isolated backend tests under Python 3.11 with the exact minimum
 `cryptography` 45.0.1 and `dbus-fast` 2.20.0 wheels. A separate source-level
 contract check downloads and extracts Proton's SHA-256-pinned Fedora 44 API
 Core 5.5.6 RPM, then verifies every public class, method, property, and exported
 type consumed by the adapter. It does not instantiate Core, read credentials,
-or touch networking; live acceptance remains a separate release step.
+or touch networking and must not be interpreted as the behavioral runtime
+under test. The overlay build, current-Core regressions, packaged transaction,
+and live acceptance exercise 5.6.10 separately.
 
 KeePassXC acceptance also depends on the downstream
 `python3-proton-keyring-linux` capability identified below. It contains the

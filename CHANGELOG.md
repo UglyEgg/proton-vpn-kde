@@ -113,6 +113,15 @@ All notable user-visible changes are recorded here. The project follows
 - Join a cancelled automatic-reconnect worker before disconnect, logout, or
   Core teardown, and rearm a replacement retry when a newer error arrives while
   cancellation cleanup is still completing.
+- Treat every manual connection route as an explicitly owned task. A newer
+  target, Disconnect, logout, session expiry, disabled recovery, or backend
+  close now cancels and joins every superseded target before returning, so a
+  blocked topology read cannot retain busy state or retry suspension.
+- Retain Proton Core 5.6.10's executor-backed NetworkManager connection work
+  through asyncio cancellation, then complete the compensating disconnect
+  before a replacement target can proceed. One 30-second retirement deadline
+  fails closed by terminating the backend for a clean systemd restart instead
+  of acknowledging incomplete connection ownership.
 - Give every manual connection target ownership of automatic-reconnect
   suspension before its first topology read. A retry already waiting on delay,
   network, or session readiness is retired before lookup proceeds, and no new

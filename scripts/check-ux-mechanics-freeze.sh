@@ -58,7 +58,8 @@ while IFS= read -r path; do
     [[ -n "$path" ]] || continue
 
     case "$path" in
-        .github/workflows/ci.yml|CHANGELOG.md|README.md|docs/*|qml/*)
+        .github/workflows/ci.yml|CHANGELOG.md|README.md|docs/*|\
+        packaging/fedora/README.md|qml/*)
             ;;
         CMakeLists.txt|backend/pyproject.toml|\
         backend/proton_vpn_kde_backend/__init__.py|\
@@ -128,7 +129,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "85b10361f403fc1bc76019fb1ed23d5f1eed70972d7655990957032f49a69d04" \
+    "db22bdf254da77f750e492327e8741d10455f5937c10fa10f0b88adea39fc166" \
     "backend reviewed behavior exceptions" \
     backend/proton_vpn_kde_backend/__main__.py \
     backend/proton_vpn_kde_backend/adapters.py \
@@ -160,10 +161,10 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "ffa9da88a9be1301863d18e68e0c433f3233f9daa274bd124681f4297d938584" \
+    "faf74ad36ef774c6262237ddaf17acd45dcb5d2fa26eead0e941263bd715c0fe" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
-    "43a01bcdc69688eef93952e1a50e124d86e28b344952d5495b9b2e22ea94d54d" \
+    "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
     "d86348e478192506a61271ad12fb38c0b4037cc91315787cc185c3cbee10888c" \
@@ -175,7 +176,7 @@ assert_diff_hash \
     tests/AgentVpnClientTest.cpp tests/GroupedNavigationTest.cpp \
     tests/SignInPresentationTest.cpp
 assert_diff_hash \
-    "6c44508e3caa0e457e600993d7dbe09d71167186de677fb8c410feee17f8aef9" \
+    "ff62aa1704be2ff7f047138413d6dde8ce666c0628336858e617c9d8fd464b7e" \
     "QML presentation" qml
 
 echo "0.13 change boundary matches accepted baseline $baseline_commit plus exact reviewed deltas"

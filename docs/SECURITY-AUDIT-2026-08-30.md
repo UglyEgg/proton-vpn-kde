@@ -1,4 +1,4 @@
-# Security and engineering assessment — 2026-08-30, refreshed 2026-09-02
+# Security and engineering assessment — 2026-08-30, refreshed 2026-09-03
 
 ## Current assessment posture
 
@@ -21,13 +21,19 @@ asynchronous state-ownership corrections where the new presentation exposed a
 real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
-The current remediation candidate additionally closes three related ownership
-classes before the six-reviewer gate restarts: manual connection targets own
-retry suspension before topology lookup; inherited Python context grants no
-reentrant lifecycle authority without explicit owned-task delegation; and a
-Core executor worker cannot retain an old backend process past its finite
-terminal shutdown boundary. These are current candidate controls, not accepted
-release evidence, until all isolated reviews and final package/live gates pass.
+The current remediation candidate treats connection supersession as one error
+class rather than a sequence of route-specific patches. Manual connection
+targets own retry suspension before topology lookup and are explicitly tracked
+across all seven routes. A newer target, Disconnect, logout, session expiry,
+disabled recovery, or close cancels and joins every older owner. Cancellation
+also retains Proton Core 5.6.10's executor-backed NetworkManager coroutine until
+it terminates and a compensating disconnect completes. One absolute deadline
+forces a nonzero backend restart rather than acknowledging stale ownership.
+Inherited Python context separately grants no reentrant lifecycle authority
+without explicit owned-task delegation, and a Core executor worker cannot
+retain an old backend process past its finite terminal shutdown boundary. These
+are current candidate controls, not accepted release evidence, until all
+isolated reviews and final package/live gates pass.
 
 **Version `0.13.0` remains explicitly not release-ready until all six isolated
 reviewers pass one exact remediated
@@ -216,6 +222,34 @@ present, but this work is not an accepted candidate until it is committed and
 the complete source, package, and six-review gates pass. No result from the
 partial pass counts.
 
+The tenth partial pass against `3e1553b` found three deeper ownership defects.
+An automatic retry could adopt the newest manual generation before the manual
+route completed topology lookup; arbitrary child tasks inherited reentrant
+lifecycle authority through Python context; and a Core executor thread could
+retain an old name-less backend process after asyncio shutdown. The remediation
+made retry suspension cover the complete manual route, bound reentrancy to the
+actual owner task or an explicit least-authority delegate, and added finite
+process-wide non-daemon thread retirement. The complete source gates passed,
+but all reviewer results were invalidated by that behavioral change.
+
+The eleventh partial pass against `050034c` then found two remaining members of
+one connection-supersession class. Hostile proved that Disconnect could return
+while a blocked manual server lookup retained controller busy state and a retry
+suspension owner. Entropy traced a separate late-mutation path through the
+installed and packaged Proton Core 5.6.10: cancelling the asyncio retry did not
+cancel its executor-backed NetworkManager worker, so an obsolete connection
+could materialize after the task appeared joined. Subtractive found no blocker,
+but no result from this partial pass counts. The current candidate replaces the
+symptom-specific checks with the class invariant summarized below.
+
+| Connection-supersession dimension | Candidate invariant and regression scope |
+| --- | --- |
+| Manual admission | All seven public routes register one task owner before their first topology await and suspend automatic retry through Core completion. |
+| Invalidating transitions | Newer manual target, Disconnect, logout, session expiry, disabled recovery, and close advance intent, cancel every older manual owner, and join it before completion. |
+| Provider-side mutation | Cancellation shields and joins the Core 5.6.10 connection coroutine and its executor work, then completes a compensating disconnect while lifecycle serialization is still held. |
+| Bounded failure | Manual and automatic retirement share one absolute 30-second deadline; incomplete retirement exits nonzero for a fresh systemd process. |
+| Observable release | Focused tests require terminal tasks, empty manual-owner state, zero retry-suspension owners, no stale connector side effect, and cleared controller busy state. |
+
 | ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
 | --- | --- | --- | --- |
 | PV-013-001 | Medium | A slow accepted capture Start could reject Stop while close inferred safety from a temporary snapshot | **Remediated in candidate; independent verification pending** |
@@ -248,6 +282,11 @@ partial pass counts.
 | PV-013-028 | High | Concurrent Disconnect scopes could resume automatic reconnect before every accepted disconnect completed | **Remediated in working tree; complete verification pending** |
 | PV-013-029 | High | A queued resident-agent Connect and its delayed transient lease could survive a newer Disconnect intent | **Remediated in working tree; complete verification pending** |
 | PV-013-030 | Medium | Settings projections lacked one completion order, allowing an older read to publish after a newer write | **Remediated in working tree; complete verification pending** |
+| PV-013-031 | High | A retry could adopt a newer manual intent before topology lookup and compete with that target | **Remediated in candidate; independent verification pending** |
+| PV-013-032 | Medium | Inherited Python context could grant arbitrary child tasks reentrant lifecycle authority | **Remediated with explicit task ownership and least-authority delegates; independent verification pending** |
+| PV-013-033 | High | A Core executor thread could retain a name-less backend process and mutate shared state beside its replacement | **Remediated with finite process-wide thread retirement; independent verification pending** |
+| PV-013-034 | High | Disconnect could return while a blocked manual lookup retained busy and retry-suspension ownership | **Remediated across every manual route and invalidating transition; independent verification pending** |
+| PV-013-035 | High | Cancelling a retry task could detach Core 5.6.10's executor-backed NetworkManager mutation and permit a late stale connection | **Remediated with provider-operation joining and compensating disconnect; independent verification pending** |
 
 ## Historical 0.12.0 isolated review gate
 

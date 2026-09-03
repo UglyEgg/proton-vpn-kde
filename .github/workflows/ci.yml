@@ -57,7 +57,7 @@ jobs:
       - name: Run Python type and coverage analysis
         run: runuser --user ci-builder -- scripts/check-python-analysis.sh
 
-      - name: Verify minimum Proton Core contract
+      - name: Verify legacy Core 5.5.6 public-API floor (static only)
         run: runuser --user ci-builder -- scripts/check-core-compatibility.sh
 
       - name: Configure

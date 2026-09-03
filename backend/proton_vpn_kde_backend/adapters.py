@@ -11,8 +11,10 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from enum import Enum, auto
+import logging
+import os
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, NoReturn, TypeVar
 
 from .async_utils import await_owned, run_in_daemon_thread
 from .demo_adapter import DemoCoreAdapter
@@ -85,7 +87,7 @@ from .packet_capture import (
     PACKET_CAPTURE_STOP_ATTEMPT_SECONDS,
     PacketCaptureCoordinator,
 )
-from .reconnector import AsyncReconnector
+from .reconnector import AsyncReconnector, ReconnectionRetirementTimeout
 from .search_projection import ServerSearchProjection
 
 
@@ -99,7 +101,12 @@ __all__ = [
 LOGOUT_RECOVERY_TIMEOUT_SECONDS = 5.0
 CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS = 5.0
 CAPTURE_RECOVERY_CONNECTOR_TIMEOUT_SECONDS = 5.0
+CONNECTION_RETIREMENT_SECONDS = 30.0
+INCOMPLETE_CONNECTION_RETIREMENT_EXIT_CODE = 1
 _OwnedTaskResult = TypeVar("_OwnedTaskResult")
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +141,8 @@ class ProtonCoreAdapter:
         ),
         packet_capture_recovery_path: Path | None = None,
         crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
+        connection_retirement_seconds: float = CONNECTION_RETIREMENT_SECONDS,
+        terminal_exit: Callable[[int], NoReturn] = os._exit,
     ):
         self._api: Any = api
         self._connector: Any = None
@@ -158,6 +167,11 @@ class ProtonCoreAdapter:
         self._active_connection_lifecycle_task: asyncio.Task[Any] | None = None
         self._connection_lifecycle_delegate_tasks: set[asyncio.Task[Any]] = set()
         self._connection_intent_generation = 0
+        self._manual_connection_tasks: dict[asyncio.Task[Any], int] = {}
+        self._connection_retirement_seconds = max(
+            0.0, connection_retirement_seconds
+        )
+        self._terminal_exit = terminal_exit
         self._reconnection_enabled = True
         self._status_message = ""
         self._auth_state = "signed_out"
@@ -1105,34 +1119,33 @@ class ProtonCoreAdapter:
             authentication_epoch, connection_intent
         ):
             return
-        # Manual intent is newer than any scheduled wake/retry attempt.  The
-        # owned scope retires that attempt and cannot leak across cancellation.
-        async with self._suspended_reconnection():
-            try:
-                client_config = (
-                    await self._api.refresher.get_up_to_date_client_config()
-                )
-                if not self._manual_connection_is_current(
-                    authentication_epoch, connection_intent
-                ):
-                    return
-                vpn_server = self._connector.get_vpn_server(
-                    logical_server, client_config
-                )
-                settings = await self._load_settings(authentication_epoch)
-                if not self._manual_connection_is_current(
-                    authentication_epoch, connection_intent
-                ):
-                    return
-                await self._attempt_connection(
-                    lambda: self._connector.connect(
-                        vpn_server, protocol=settings.protocol
-                    ),
-                    authentication_epoch,
-                    connection_intent,
-                )
-            except Exception as error:
-                await self._raise_session_error(error, authentication_epoch)
+        # The public route owns retry suspension from admission through this
+        # complete Core operation; this helper must not create a second owner.
+        try:
+            client_config = (
+                await self._api.refresher.get_up_to_date_client_config()
+            )
+            if not self._manual_connection_is_current(
+                authentication_epoch, connection_intent
+            ):
+                return
+            vpn_server = self._connector.get_vpn_server(
+                logical_server, client_config
+            )
+            settings = await self._load_settings(authentication_epoch)
+            if not self._manual_connection_is_current(
+                authentication_epoch, connection_intent
+            ):
+                return
+            await self._attempt_connection(
+                lambda: self._connector.connect(
+                    vpn_server, protocol=settings.protocol
+                ),
+                authentication_epoch,
+                connection_intent,
+            )
+        except Exception as error:
+            await self._raise_session_error(error, authentication_epoch)
 
     async def _attempt_reconnection(
         self,
@@ -1159,7 +1172,12 @@ class ProtonCoreAdapter:
                 return False
             self._require_authenticated_epoch(authentication_epoch)
             try:
-                await operation()
+                # Proton Core 5.6.10 can be awaiting a NetworkManager future in
+                # an executor here. Cancelling only the asyncio caller would
+                # detach that worker and allow an obsolete generation to add a
+                # profile later. Retain the provider coroutine until its worker
+                # and Core's own late-cancellation cleanup are both terminal.
+                await await_owned(operation())
             except asyncio.CancelledError:
                 # Connect completion is unknown after cancellation.  Remain
                 # the lifecycle owner until a compensating Down completes.
@@ -1197,16 +1215,92 @@ class ProtonCoreAdapter:
         self._connection_intent_generation += 1
         return self._connection_intent_generation
 
-    def _begin_manual_connection(self) -> tuple[int, int]:
-        """Admit a manual target before its first potentially blocking read."""
-        return self._authenticated_epoch(), self._advance_connection_intent()
-
     @asynccontextmanager
     async def _manual_connection_target(self) -> AsyncIterator[tuple[int, int]]:
-        """Own retry suspension for a manual target from admission to completion."""
-        intent = self._begin_manual_connection()
-        async with self._suspended_reconnection():
-            yield intent
+        """Own and retire every older target before manual work can proceed."""
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("A manual connection target requires an asyncio task")
+        intent = (self._authenticated_epoch(), self._advance_connection_intent())
+        self._manual_connection_tasks[task] = intent[1]
+        deadline = self._connection_retirement_deadline()
+        try:
+            async with self._suspended_reconnection(deadline=deadline):
+                await self._retire_manual_connection_tasks(
+                    before_generation=intent[1],
+                    deadline=deadline,
+                )
+                yield intent
+        finally:
+            self._manual_connection_tasks.pop(task, None)
+
+    @asynccontextmanager
+    async def _superseding_connection_targets(
+        self,
+    ) -> AsyncIterator[AsyncReconnector | None]:
+        """Invalidate and join all older manual and automatic connection work."""
+        generation = self._advance_connection_intent()
+        deadline = self._connection_retirement_deadline()
+        async with self._suspended_reconnection(deadline=deadline) as reconnector:
+            await self._retire_manual_connection_tasks(
+                before_generation=generation,
+                deadline=deadline,
+            )
+            yield reconnector
+
+    def _connection_retirement_deadline(self) -> float:
+        return asyncio.get_running_loop().time() + self._connection_retirement_seconds
+
+    async def _retire_manual_connection_tasks(
+        self,
+        *,
+        before_generation: int,
+        deadline: float,
+    ) -> None:
+        current_task = asyncio.current_task()
+        pending = {
+            task
+            for task, generation in self._manual_connection_tasks.items()
+            if task is not current_task
+            and not task.done()
+            and generation < before_generation
+        }
+        if not pending:
+            return
+        for task in pending:
+            task.cancel()
+
+        remaining = max(0.0, deadline - asyncio.get_running_loop().time())
+        waiter = asyncio.create_task(asyncio.wait(pending, timeout=remaining))
+        caller_cancelled = False
+        try:
+            await await_owned(waiter)
+        except asyncio.CancelledError:
+            caller_cancelled = True
+        done, still_pending = waiter.result()
+        for task in done:
+            try:
+                task.result()
+            except (Exception, asyncio.CancelledError):
+                pass
+        if still_pending:
+            self._terminate_incomplete_connection_retirement(
+                "manual connection target",
+                len(still_pending),
+            )
+        if caller_cancelled:
+            raise asyncio.CancelledError
+
+    def _terminate_incomplete_connection_retirement(
+        self, owner_kind: str, owner_count: int
+    ) -> NoReturn:
+        logger.critical(
+            "Forced backend exit: %d retired %s owner(s) remain active",
+            owner_count,
+            owner_kind,
+        )
+        self._terminal_exit(INCOMPLETE_CONNECTION_RETIREMENT_EXIT_CODE)
+        raise SystemExit(INCOMPLETE_CONNECTION_RETIREMENT_EXIT_CODE)
 
     def _manual_connection_is_current(
         self, authentication_epoch: int, connection_intent: int
@@ -1274,8 +1368,7 @@ class ProtonCoreAdapter:
         # operation lock. Serialize that preemption boundary here so multiple
         # authorized clients cannot overlap suspend/resume scopes and release
         # automatic reconnection while another disconnect is still active.
-        self._advance_connection_intent()
-        async with self._suspended_reconnection():
+        async with self._superseding_connection_targets():
             async with self._serialized_connection_lifecycle():
                 await self._connector.disconnect()
 
@@ -1474,8 +1567,7 @@ class ProtonCoreAdapter:
         # teardown all mutate the same connector/reconnector pair.  One
         # lifecycle barrier prevents any of those sibling operations from
         # overtaking another.
-        self._advance_connection_intent()
-        async with self._suspended_reconnection():
+        async with self._superseding_connection_targets():
             async with self._serialized_connection_lifecycle():
                 await self._logout_with_disconnect_barrier()
 
@@ -1538,7 +1630,7 @@ class ProtonCoreAdapter:
             raise UserVisibleRuntimeError(
                 "Proton could not complete sign-out"
             ) from None
-        await self._set_signed_out("Signed out")
+        self._publish_signed_out_state("Signed out", "signed_out")
 
     async def disable_kill_switch_for_login(self) -> None:
         async with self._serialized_authentication_transition():
@@ -1557,9 +1649,12 @@ class ProtonCoreAdapter:
         self._publish_snapshot()
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
-        if not enabled:
-            self._advance_connection_intent()
-        async with self._suspended_reconnection() as reconnector:
+        connection_scope = (
+            self._superseding_connection_targets()
+            if not enabled
+            else self._suspended_reconnection()
+        )
+        async with connection_scope as reconnector:
             async with self._serialized_connection_lifecycle():
                 self._reconnection_enabled = enabled
                 if not reconnector:
@@ -1577,8 +1672,7 @@ class ProtonCoreAdapter:
         # Disconnect may deliberately bypass the controller operation lock to
         # preempt a connecting tunnel. Drain that accepted scope before
         # unregistering Core observers or disabling the reconnector.
-        self._advance_connection_intent()
-        async with self._suspended_reconnection() as reconnector:
+        async with self._superseding_connection_targets() as reconnector:
             async with self._serialized_connection_lifecycle():
                 await self.cancel_fido2()
                 if self._packet_capture_active:
@@ -1730,7 +1824,9 @@ class ProtonCoreAdapter:
                 self._reconnector.enable()
         except (Exception, asyncio.CancelledError):
             if self._reconnector and self._reconnector.enabled:
-                await self._reconnector.disable()
+                async with self._suspended_reconnection() as reconnector:
+                    if reconnector and reconnector.enabled:
+                        await reconnector.disable()
             if (
                 self._session_services_state
                 is not _SessionServicesState.DISABLED
@@ -1758,7 +1854,7 @@ class ProtonCoreAdapter:
         self, message: str, auth_state: str = "signed_out"
     ) -> None:
         try:
-            async with self._suspended_reconnection() as reconnector:
+            async with self._superseding_connection_targets() as reconnector:
                 async with self._serialized_connection_lifecycle():
                     if reconnector:
                         try:
@@ -2110,15 +2206,26 @@ class ProtonCoreAdapter:
 
     @asynccontextmanager
     async def _suspended_reconnection(
-        self,
+        self, *, deadline: float | None = None
     ) -> AsyncIterator[AsyncReconnector | None]:
         """Temporarily quiesce retry work with exact ownership pairing."""
         reconnector = self._reconnector
         if reconnector is None:
             yield None
             return
-        async with reconnector.suspended():
-            yield reconnector
+        retirement_deadline = (
+            deadline
+            if deadline is not None
+            else self._connection_retirement_deadline()
+        )
+        try:
+            async with reconnector.suspended(deadline=retirement_deadline):
+                yield reconnector
+        except ReconnectionRetirementTimeout:
+            self._terminate_incomplete_connection_retirement(
+                "automatic reconnect",
+                len(reconnector._retiring_retry_tasks),
+            )
 
     @asynccontextmanager
     async def _serialized_connection_lifecycle(self) -> AsyncIterator[None]:
@@ -2158,6 +2265,7 @@ class ProtonCoreAdapter:
         # Invalidate sibling requests from the expired session before cleanup
         # yields to the event loop.
         self._authentication_epoch += 1
+        self._advance_connection_intent()
         session_services_need_cleanup = (
             self._session_services_state is not _SessionServicesState.DISABLED
         )
@@ -2167,7 +2275,12 @@ class ProtonCoreAdapter:
         )
         cleanup_failed = False
         try:
-            async with self._suspended_reconnection() as reconnector:
+            deadline = self._connection_retirement_deadline()
+            async with self._suspended_reconnection(deadline=deadline) as reconnector:
+                await self._retire_manual_connection_tasks(
+                    before_generation=self._connection_intent_generation,
+                    deadline=deadline,
+                )
                 async with self._serialized_connection_lifecycle():
                     if reconnector:
                         try:

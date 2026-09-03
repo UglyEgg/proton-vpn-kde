@@ -15,13 +15,15 @@ package contract; removing it requires separate upstream runtime evidence.
 The spec is the authoritative build and runtime dependency list. The principal
 native dependencies are Qt 6, KDE Frameworks 6, Kirigami, OpenSSL 3, and the
 system Python interpreter. Runtime integration additionally uses
-`python3-dbus-fast`, `python3-cryptography`, `python3-fido2`, and Proton VPN API
-Core 5.5.6 or newer. Session storage reaches Freedesktop Secret Service through
-Proton's separately packaged keyring adapter. Until the provider-neutral alias,
-stable-connection, and unique-owner-pinning fixes are upstream, this repository
-builds a reviewable downstream adapter from Proton's pinned source and requires
-its explicit owner-pinned RPM capability. The verified KeePassXC
-stack and retirement policy are recorded in
+`python3-dbus-fast`, `python3-cryptography`, `python3-fido2`, and the reviewed
+Proton VPN API Core 5.6.10 overlay. The adapter also retains a static public-API
+floor check against 5.5.6, but the Fedora package requires the separate Protun
+capability supplied by the 5.6.10 overlay. Session storage reaches Freedesktop
+Secret Service through Proton's separately packaged keyring adapter. Until the
+provider-neutral alias, stable-connection, and unique-owner-pinning fixes are
+upstream, this repository builds a reviewable downstream adapter from Proton's
+pinned source and requires its explicit owner-pinned RPM capability. The
+verified KeePassXC stack and retirement policy are recorded in
 [Compatibility](../../docs/COMPATIBILITY.md); the client RPM never overwrites
 an installed Python file outside package ownership.
 
@@ -74,7 +76,9 @@ support-report and crash-report submission. A package is not releasable when
 
 Source CI additionally runs the complete backend suite under Python 3.11 with
 hash-pinned minimum direct dependencies and checks the adapter's consumed
-public API against Proton's exact SHA-256-pinned Fedora 44 Core 5.5.6 RPM.
+public API against Proton's exact SHA-256-pinned Fedora 44 Core 5.5.6 RPM. That
+is a secondary compatibility-floor check; current runtime and packaging
+validation use the pinned 5.6.10 overlay.
 
 The dedicated `RPM Package` CI workflow performs the same source and binary RPM
 build for every pushed commit and pull request. It first builds and tests the

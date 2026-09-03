@@ -137,6 +137,12 @@ desktop-file-validate \
 - Begin the presentation-only progressive Plasma interface cycle.
 - Add a CI gate that freezes the accepted 0.12.0 runtime mechanics.
 - Make in-app release history concise and progressively disclosed.
+- Fence asynchronous replies and side effects to their owning account,
+  operation, settings, capture, survey, and connection generations.
+- Retire manual and automatic connection owners before superseding operations,
+  including Core 5.6.10 executor-backed NetworkManager work.
+- Bound orderly and completion-unknown backend teardown with fail-closed
+  systemd restart behavior.
 
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.29
 - Suppress pre-readiness adapter snapshots during Core initialization.

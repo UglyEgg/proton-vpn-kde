@@ -213,16 +213,13 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def start_cancellation_resistant_reconnect(self, adapter, connector):
         connect_started = asyncio.Event()
-        cancellation_seen = asyncio.Event()
-        release_connect = asyncio.Event()
+        release_connect = threading.Event()
 
         async def blocked_connect(*_args):
             connect_started.set()
-            try:
-                await asyncio.Future()
-            except asyncio.CancelledError:
-                cancellation_seen.set()
-                await release_connect.wait()
+            await asyncio.get_running_loop().run_in_executor(
+                None, release_connect.wait
+            )
 
         connector.connect.side_effect = blocked_connect
         connector.current_connection = SimpleNamespace(
@@ -247,7 +244,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter._reconnector._delay_factory = lambda _attempt: 0
         adapter._reconnector.status_update(connector.current_state)
         await connect_started.wait()
-        return cancellation_seen, release_connect
+        return release_connect
 
     async def test_startup_compatibility_uses_official_core_check(self):
         api, _ = self.make_api()
@@ -1424,31 +1421,39 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, connector = self.make_api()
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(Mock())
-        cancellation_seen, release_connect = (
-            await self.start_cancellation_resistant_reconnect(adapter, connector)
+        release_connect = await self.start_cancellation_resistant_reconnect(
+            adapter, connector
         )
 
         logout_task = asyncio.create_task(adapter.logout())
-        await cancellation_seen.wait()
-        await asyncio.sleep(0)
-        self.assertFalse(logout_task.done())
-        connector.disconnect.assert_not_awaited()
-        api.logout.assert_not_awaited()
+        try:
+            for _ in range(20):
+                if adapter._reconnector._retiring_retry_tasks:
+                    break
+                await asyncio.sleep(0)
+            self.assertTrue(adapter._reconnector._retiring_retry_tasks)
+            self.assertFalse(logout_task.done())
+            connector.disconnect.assert_not_awaited()
+            api.logout.assert_not_awaited()
 
-        release_connect.set()
-        await asyncio.wait_for(logout_task, timeout=1)
-        # The completion-unknown retry is compensated first. Logout then
-        # performs its normal idempotent teardown because this mock does not
-        # publish the resulting Disconnected state.
-        self.assertEqual(2, connector.disconnect.await_count)
-        api.logout.assert_awaited_once_with()
+            release_connect.set()
+            await asyncio.wait_for(logout_task, timeout=1)
+            # The completion-unknown retry is compensated first. Logout then
+            # performs its normal idempotent teardown because this mock does
+            # not publish the resulting Disconnected state.
+            self.assertEqual(2, connector.disconnect.await_count)
+            api.logout.assert_awaited_once_with()
+        finally:
+            release_connect.set()
+            if not logout_task.done():
+                await asyncio.wait_for(logout_task, timeout=1)
 
     async def test_disconnect_waits_for_reconnect_worker_before_returning(self):
         api, connector = self.make_api()
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(Mock())
-        cancellation_seen, release_connect = (
-            await self.start_cancellation_resistant_reconnect(adapter, connector)
+        release_connect = await self.start_cancellation_resistant_reconnect(
+            adapter, connector
         )
 
         async def disconnect():
@@ -1456,18 +1461,26 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         connector.disconnect.side_effect = disconnect
         disconnect_task = asyncio.create_task(adapter.disconnect())
-        await cancellation_seen.wait()
-        await asyncio.sleep(0)
+        try:
+            for _ in range(20):
+                if adapter._reconnector._retiring_retry_tasks:
+                    break
+                await asyncio.sleep(0)
+            self.assertTrue(adapter._reconnector._retiring_retry_tasks)
 
-        self.assertFalse(disconnect_task.done())
-        connector.disconnect.assert_not_awaited()
+            self.assertFalse(disconnect_task.done())
+            connector.disconnect.assert_not_awaited()
 
-        release_connect.set()
-        await asyncio.wait_for(disconnect_task, timeout=1)
-        self.assertEqual(2, connector.disconnect.await_count)
-        self.assertIsNone(adapter._reconnector._retry_task)
-        self.assertTrue(adapter._reconnector.enabled)
-        await adapter._reconnector.disable()
+            release_connect.set()
+            await asyncio.wait_for(disconnect_task, timeout=1)
+            self.assertEqual(2, connector.disconnect.await_count)
+            self.assertIsNone(adapter._reconnector._retry_task)
+            self.assertTrue(adapter._reconnector.enabled)
+        finally:
+            release_connect.set()
+            if not disconnect_task.done():
+                await asyncio.wait_for(disconnect_task, timeout=1)
+            await adapter._reconnector.disable()
 
     async def test_logout_waits_for_an_accepted_public_disconnect(self):
         api, connector = self.make_api()
@@ -1697,13 +1710,14 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(Mock())
         connect_started = asyncio.Event()
+        release_connect = asyncio.Event()
         compensation_started = asyncio.Event()
         release_compensation = asyncio.Event()
         compensation_cancelled = asyncio.Event()
 
         async def blocked_connect(*_args):
             connect_started.set()
-            await asyncio.Future()
+            await release_connect.wait()
 
         async def compensating_disconnect():
             compensation_started.set()
@@ -1751,6 +1765,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 await release_owners.wait()
 
         first = asyncio.create_task(owner(first_entered))
+        for _ in range(20):
+            if adapter._reconnector._retiring_retry_tasks:
+                break
+            await asyncio.sleep(0)
+        self.assertFalse(first_entered.is_set())
+        release_connect.set()
         await compensation_started.wait()
         second = asyncio.create_task(owner(second_entered))
         await asyncio.sleep(0)
@@ -2286,13 +2306,13 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             await adapter.get_settings()
         release_config.set()
 
-        with self.assertRaisesRegex(RuntimeError, "session changed"):
+        with self.assertRaises(asyncio.CancelledError):
             await connect
         connector.get_vpn_server.assert_not_called()
         connector.connect.assert_not_awaited()
 
     async def test_disconnect_retires_every_manual_route_during_target_lookup(self):
-        """Every public manual route mints intent before its first await."""
+        """Disconnect joins every public manual route without external release."""
         routes = (
             ("fastest", lambda adapter: adapter.connect_fastest()),
             (
@@ -2361,12 +2381,195 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
                 connection = asyncio.create_task(connect_route(adapter))
                 await lookup_started.wait()
-                await adapter.disconnect()
-                release_lookup.set()
-                await connection
+                try:
+                    await adapter.disconnect()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await connection
+                finally:
+                    release_lookup.set()
+                    if not connection.done():
+                        connection.cancel()
+                    try:
+                        await connection
+                    except asyncio.CancelledError:
+                        pass
 
                 connector.get_vpn_server.assert_not_called()
                 connector.connect.assert_not_awaited()
+                self.assertFalse(adapter._manual_connection_tasks)
+                self.assertEqual(0, adapter._reconnector._suspend_count)
+
+    async def test_all_terminal_transitions_retire_a_manual_target(self):
+        """All invalidators use the same cancellation-and-join boundary."""
+        transitions = (
+            ("disconnect", lambda adapter: adapter.disconnect()),
+            ("logout", lambda adapter: adapter.logout()),
+            ("close", lambda adapter: adapter.close()),
+            (
+                "disable-reconnection",
+                lambda adapter: adapter.set_reconnection_enabled(False),
+            ),
+            (
+                "session-expiry",
+                lambda adapter: adapter._expire_session(
+                    adapter._authentication_epoch
+                ),
+            ),
+        )
+
+        for transition_name, transition in transitions:
+            with self.subTest(transition=transition_name):
+                api, connector = self.make_api()
+                lookup_started = asyncio.Event()
+
+                async def blocked_server_list(started=lookup_started):
+                    started.set()
+                    await asyncio.Future()
+
+                api.refresher.get_up_to_date_server_list.side_effect = (
+                    blocked_server_list
+                )
+                adapter = ProtonCoreAdapter(api)
+                await adapter.initialize(Mock())
+                connection = asyncio.create_task(adapter.connect_fastest())
+                await lookup_started.wait()
+
+                await transition(adapter)
+
+                with self.assertRaises(asyncio.CancelledError):
+                    await connection
+                connector.get_vpn_server.assert_not_called()
+                connector.connect.assert_not_awaited()
+                self.assertFalse(adapter._manual_connection_tasks)
+                self.assertEqual(0, adapter._reconnector._suspend_count)
+
+    async def test_controller_disconnect_retires_lookup_and_clears_busy(self):
+        api, _ = self.make_api()
+        lookup_started = asyncio.Event()
+
+        async def blocked_server_list():
+            lookup_started.set()
+            await asyncio.Future()
+
+        api.refresher.get_up_to_date_server_list.side_effect = blocked_server_list
+        adapter = ProtonCoreAdapter(api)
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+
+        connection = asyncio.create_task(controller.connect_fastest())
+        await lookup_started.wait()
+        self.assertTrue(controller.snapshot.busy)
+
+        await controller.disconnect()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await connection
+        self.assertFalse(controller.snapshot.busy)
+        self.assertFalse(adapter._manual_connection_tasks)
+        self.assertEqual(0, adapter._reconnector._suspend_count)
+
+    async def test_cancellation_resistant_lookup_forces_fresh_backend(self):
+        api, _ = self.make_api()
+        lookup_started = asyncio.Event()
+        release_lookup = asyncio.Event()
+        terminal_exit = Mock()
+
+        async def cancellation_resistant_lookup():
+            lookup_started.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                await release_lookup.wait()
+            return SimpleNamespace(get_fastest=Mock(return_value=object()))
+
+        api.refresher.get_up_to_date_server_list.side_effect = (
+            cancellation_resistant_lookup
+        )
+        adapter = ProtonCoreAdapter(
+            api,
+            connection_retirement_seconds=0.01,
+            terminal_exit=terminal_exit,
+        )
+        await adapter.initialize(Mock())
+        connection = asyncio.create_task(adapter.connect_fastest())
+        await lookup_started.wait()
+
+        try:
+            with self.assertLogs(
+                "proton_vpn_kde_backend.adapters", level="CRITICAL"
+            ):
+                with self.assertRaises(SystemExit) as exit_context:
+                    await adapter.disconnect()
+            self.assertEqual(1, exit_context.exception.code)
+            terminal_exit.assert_called_once_with(1)
+        finally:
+            release_lookup.set()
+            await connection
+
+        self.assertFalse(adapter._manual_connection_tasks)
+        self.assertEqual(0, adapter._reconnector._suspend_count)
+
+    async def test_cancellation_resistant_retry_forces_fresh_backend(self):
+        api, connector = self.make_api()
+        retry_started = asyncio.Event()
+        release_retry = asyncio.Event()
+        terminal_exit = Mock()
+
+        async def cancellation_resistant_connect(*_args):
+            retry_started.set()
+            await release_retry.wait()
+
+        connector.connect.side_effect = cancellation_resistant_connect
+        adapter = ProtonCoreAdapter(
+            api,
+            connection_retirement_seconds=0.01,
+            terminal_exit=terminal_exit,
+        )
+        await adapter.initialize(Mock())
+        connector.current_connection = SimpleNamespace(
+            server_id="server-id",
+            server_name="",
+            protocol="wireguard",
+            backend="networkmanager",
+        )
+        api.refresher.server_list = SimpleNamespace(
+            get_by_id=Mock(return_value="logical-server")
+        )
+        api.refresher.client_config = "client-config"
+        adapter._reconnector._session_probe = SimpleNamespace(
+            is_unlocked=AsyncMock(return_value=True),
+            close=AsyncMock(),
+        )
+        connector.current_state = type(
+            "Error",
+            (),
+            {"context": SimpleNamespace(
+                event=type("UnexpectedError", (), {})()
+            )},
+        )()
+        adapter._reconnector._delay_factory = lambda _attempt: 0
+        adapter._reconnector.status_update(connector.current_state)
+        await retry_started.wait()
+        retry_task = adapter._reconnector._retry_task
+        self.assertIsNotNone(retry_task)
+
+        try:
+            with self.assertLogs(
+                "proton_vpn_kde_backend.adapters", level="CRITICAL"
+            ):
+                with self.assertRaises(SystemExit) as exit_context:
+                    await adapter.disconnect()
+            self.assertEqual(1, exit_context.exception.code)
+            terminal_exit.assert_called_once_with(1)
+        finally:
+            release_retry.set()
+            assert retry_task is not None
+            try:
+                await retry_task
+            except asyncio.CancelledError:
+                pass
+
+        self.assertEqual(0, adapter._reconnector._suspend_count)
 
     async def test_every_manual_route_owns_each_automatic_retry_preflight(self):
         """Manual intent retires retries before lookup and blocks replacements."""
@@ -2551,8 +2754,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         newer = asyncio.create_task(adapter.connect_server("CH#10"))
         await asyncio.wait_for(newer, timeout=1.0)
 
-        release_older_lookup.set()
-        await asyncio.wait_for(older, timeout=1.0)
+        with self.assertRaises(asyncio.CancelledError):
+            await older
 
         connector.get_vpn_server.assert_called_once_with(
             newer_server, "client-config"
@@ -2560,6 +2763,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connector.connect.assert_awaited_once_with(
             "vpn-server", protocol="wireguard"
         )
+        self.assertFalse(adapter._manual_connection_tasks)
+        self.assertEqual(0, adapter._reconnector._suspend_count)
         await adapter.close()
 
     async def test_unknown_refresher_cleanup_is_normalized_before_reenable(self):
@@ -2637,8 +2842,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.server_list = server_list
         api.refresher.client_config = "client-config"
         auto_started = asyncio.Event()
-        auto_cancelled = asyncio.Event()
-        release_auto = asyncio.Event()
+        release_auto = threading.Event()
+        manual_lookup_started = asyncio.Event()
         active_calls = 0
         maximum_active_calls = 0
         connect_calls = 0
@@ -2651,11 +2856,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             try:
                 if connect_calls == 1:
                     auto_started.set()
-                    try:
-                        await asyncio.Future()
-                    except asyncio.CancelledError:
-                        auto_cancelled.set()
-                        await release_auto.wait()
+                    # Core 5.6.10's LinuxNetworkManager.start() has this
+                    # ownership shape: an asyncio coroutine waits for a
+                    # NetworkManager future in the default executor.
+                    await asyncio.get_running_loop().run_in_executor(
+                        None, release_auto.wait
+                    )
                 connector.current_state = state_named("Connected")
             finally:
                 active_calls -= 1
@@ -2665,6 +2871,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         connector.connect.side_effect = connect
         connector.disconnect.side_effect = disconnect
+
+        async def current_server_list():
+            manual_lookup_started.set()
+            return server_list
+
+        api.refresher.get_up_to_date_server_list.side_effect = current_server_list
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(Mock())
         connector.current_connection = SimpleNamespace(
@@ -2683,18 +2895,31 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await auto_started.wait()
 
         manual = asyncio.create_task(adapter.connect_fastest())
-        await auto_cancelled.wait()
-        await asyncio.sleep(0)
-        self.assertFalse(manual.done())
-        self.assertEqual(1, maximum_active_calls)
+        try:
+            for _ in range(20):
+                if adapter._reconnector._retiring_retry_tasks:
+                    break
+                await asyncio.sleep(0)
+            self.assertTrue(adapter._reconnector._retiring_retry_tasks)
+            self.assertFalse(manual.done())
+            self.assertFalse(manual_lookup_started.is_set())
+            self.assertEqual(1, maximum_active_calls)
 
-        release_auto.set()
-        await asyncio.wait_for(manual, timeout=1)
+            release_auto.set()
+            await asyncio.wait_for(manual, timeout=1)
 
-        self.assertEqual(2, connect_calls)
-        self.assertEqual(1, maximum_active_calls)
-        connector.disconnect.assert_awaited_once_with()
-        self.assertEqual("Connected", type(connector.current_state).__name__)
+            self.assertEqual(2, connect_calls)
+            self.assertEqual(1, maximum_active_calls)
+            connector.disconnect.assert_awaited_once_with()
+            self.assertEqual("Connected", type(connector.current_state).__name__)
+        finally:
+            release_auto.set()
+            if not manual.done():
+                manual.cancel()
+                try:
+                    await manual
+                except asyncio.CancelledError:
+                    pass
 
     async def test_expiry_after_connect_success_compensates_stale_tunnel(self):
         api, connector = self.make_api()
@@ -2733,7 +2958,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(adapter._logged_in)
 
         release_connect.set()
-        with self.assertRaisesRegex(RuntimeError, "session changed"):
+        with self.assertRaises(asyncio.CancelledError):
             await connect
         with self.assertRaisesRegex(RuntimeError, "session expired"):
             await expiry
@@ -3995,23 +4220,34 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, connector = self.make_api()
         adapter = ProtonCoreAdapter(api)
         await adapter.initialize(Mock())
-        cancellation_seen, release_connect = (
-            await self.start_cancellation_resistant_reconnect(adapter, connector)
+        release_connect = await self.start_cancellation_resistant_reconnect(
+            adapter, connector
         )
 
         close_task = asyncio.create_task(adapter.close())
-        await cancellation_seen.wait()
-        await asyncio.sleep(0)
-        self.assertFalse(close_task.done())
-        api.refresher.disable.assert_not_awaited()
-        self.assertFalse(
-            any(call.args == (adapter,) for call in connector.unregister.call_args_list)
-        )
+        try:
+            for _ in range(20):
+                if adapter._reconnector._retiring_retry_tasks:
+                    break
+                await asyncio.sleep(0)
+            self.assertTrue(adapter._reconnector._retiring_retry_tasks)
+            self.assertFalse(close_task.done())
+            api.refresher.disable.assert_not_awaited()
+            self.assertFalse(
+                any(
+                    call.args == (adapter,)
+                    for call in connector.unregister.call_args_list
+                )
+            )
 
-        release_connect.set()
-        await asyncio.wait_for(close_task, timeout=1)
-        api.refresher.disable.assert_awaited_once_with()
-        connector.unregister.assert_any_call(adapter)
+            release_connect.set()
+            await asyncio.wait_for(close_task, timeout=1)
+            api.refresher.disable.assert_awaited_once_with()
+            connector.unregister.assert_any_call(adapter)
+        finally:
+            release_connect.set()
+            if not close_task.done():
+                await asyncio.wait_for(close_task, timeout=1)
 
 
 if __name__ == "__main__":
