@@ -100,6 +100,15 @@ or authentication. The installed `0.3` package remains the current installed
 candidate until a replacement is packaged and approved. Startup registration
 and real login/session-restoration acceptance remain opt-in live-UAT gates;
 automated fixtures use disposable configuration and never enable host startup.
+Runtime revision `443b7c1` passes all 42 normal test targets, the three affected
+settings/presentation/KCM targets with address, leak and undefined-behavior
+sanitizers, Clang-Tidy for the three affected production files, and static,
+source-archive and documentation checks. The graphics fixture also passes all
+ten data cases through OpenGL at 150% display scaling, explicitly checking
+that Qt selects the curve renderer; it includes narrow, large-text and RTL
+startup layouts. These are development checks, not a new independent review
+battery or release approval. No replacement RPM or installation is included
+in this checkpoint.
 
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.
