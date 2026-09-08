@@ -425,9 +425,8 @@ class BackendController:
         async def update() -> str:
             async with self._serialized_settings_access():
                 split_tunneling = await self._adapter.update_split_tunneling(patch)
-                settings = await self._adapter.get_settings()
                 self._publish_split_tunneling(split_tunneling)
-                self._publish_settings(settings)
+                await self._refresh_settings_after_commit()
                 return split_tunneling.to_json()
 
         return await self._run_operation(
@@ -448,14 +447,28 @@ class BackendController:
         async def update() -> str:
             async with self._serialized_settings_access():
                 custom_dns = await self._adapter.update_custom_dns(patch)
-                settings = await self._adapter.get_settings()
                 self._publish_custom_dns(custom_dns)
-                self._publish_settings(settings)
+                await self._refresh_settings_after_commit()
                 return custom_dns.to_json()
 
         return await self._run_operation(
             update, failure_message="The custom-DNS settings could not be updated"
         )
+
+    async def _refresh_settings_after_commit(self) -> None:
+        """A secondary projection must not turn a confirmed save into rejection."""
+        epoch = self._session_epoch
+        try:
+            settings = await self._adapter.get_settings()
+        except Exception:
+            if epoch == self._session_epoch:
+                self._publish(replace(
+                    self._snapshot,
+                    message="Settings saved; related preferences could not be refreshed",
+                ))
+            return
+        if epoch == self._session_epoch:
+            self._publish_settings(settings)
 
     async def connect_country(self, country_code: str) -> None:
         self._require_session()

@@ -1699,6 +1699,69 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("2606:4700:4700::1111", events[-1].servers[0].address)
         self.assertTrue(settings_events[-1].custom_dns_enabled)
 
+    async def test_secondary_refresh_failure_preserves_each_committed_settings_result(self):
+        for family in ("custom_dns", "split_tunneling"):
+            for error in (RuntimeError("private detail"),
+                          UserVisibleRuntimeError("Preferences unavailable")):
+                with self.subTest(family=family, error=type(error).__name__):
+                    events = []
+                    scalar_events = []
+                    adapter = DemoCoreAdapter()
+                    controller = BackendController(adapter)
+                    await controller.start()
+                    getattr(controller, f"subscribe_{family}")(events.append)
+                    controller.subscribe_settings(scalar_events.append)
+                    with mock_patch.object(adapter, "get_settings", side_effect=error):
+                        result = await getattr(controller, f"update_{family}_json")(
+                            '{"enabled":true}')
+                    self.assertIn('"enabled":true', result)
+                    self.assertTrue(events[-1].enabled)
+                    self.assertEqual([], scalar_events)
+                    self.assertIn("Settings saved", controller.snapshot.message)
+                    self.assertNotIn("private detail", controller.snapshot.message)
+                    current = await getattr(controller, f"get_{family}_json")()
+                    self.assertEqual(result, current)
+                    await controller.close()
+
+    async def test_post_commit_refresh_cannot_republish_an_expired_session(self):
+        for family in ("custom_dns", "split_tunneling"):
+            with self.subTest(family=family):
+                adapter = DemoCoreAdapter()
+                controller = BackendController(adapter)
+                await controller.start()
+                scalar_events = []
+                controller.subscribe_settings(scalar_events.append)
+
+                async def expire_session(adapter=adapter):
+                    await adapter.logout()
+                    raise UserVisibleRuntimeError("Sign in again")
+
+                with mock_patch.object(adapter, "get_settings", side_effect=expire_session):
+                    result = await getattr(controller, f"update_{family}_json")('{"enabled":true}')
+                self.assertIn('"enabled":true', result)
+                self.assertFalse(controller.snapshot.logged_in)
+                self.assertEqual([], scalar_events)
+                self.assertNotIn("Settings saved", controller.snapshot.message)
+                await controller.close()
+
+    async def test_rejected_settings_write_does_not_publish_or_refresh(self):
+        for family in ("custom_dns", "split_tunneling"):
+            with self.subTest(family=family):
+                events = []
+                adapter = DemoCoreAdapter()
+                controller = BackendController(adapter)
+                await controller.start()
+                getattr(controller, f"subscribe_{family}")(events.append)
+                with (
+                    mock_patch.object(adapter, f"update_{family}", side_effect=RuntimeError("rejected")),
+                    mock_patch.object(adapter, "get_settings", new_callable=AsyncMock) as refresh,
+                ):
+                    with self.assertRaises(RuntimeError):
+                        await getattr(controller, f"update_{family}_json")('{"enabled":true}')
+                refresh.assert_not_awaited()
+                self.assertEqual([], events)
+                await controller.close()
+
     async def test_custom_dns_patch_validates_addresses_and_entries(self):
         normalized = custom_dns_patch_from_json(
             '{"servers":[{"address":"2001:db8:0:0::1","enabled":false}]}'
