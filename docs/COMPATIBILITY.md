@@ -107,10 +107,12 @@ connections and suspend recovery still require maintainer UAT. The exact
 package versions, build evidence and remaining gates are in the
 [package checkpoint](SECURITY-AUDIT-2026-08-30.md#package-and-local-install-checkpoint--2026-09-08).
 
-The subsequent `0.13.0-0.2` presentation candidate fixes route/form layout and
-theme icon-name fallback without changing that runtime stack. Its [visual
-checkpoint](SECURITY-AUDIT-2026-08-30.md#visual-uat-corrections--2026-09-08)
-keeps source validation separate from installation and live acceptance.
+The subsequent `0.13.0-0.2` presentation candidate from `620a87c` is now
+installed with maintainer approval and passes root-side payload verification.
+It fixes route/form layout and theme icon-name fallback without changing that
+Core/keyring stack. All three client services remained stopped after the
+upgrade. Its [visual checkpoint](SECURITY-AUDIT-2026-08-30.md#visual-uat-corrections--2026-09-08)
+keeps package verification separate from pending live visual acceptance.
 
 ## Last accepted live-UAT stack
 

@@ -236,10 +236,17 @@ Artifact policy, exact source/spec content, disabled-reporting flags and the
 packaged icon's byte identity all pass. These are unsigned local-host UAT
 packages, not clean-buildroot or repeated-binary-reproducibility evidence.
 
-Installed visual acceptance remains a separate gate. The `0.1` package
-checkpoint above remains the installed baseline until an approved `0.2`
-upgrade is recorded. Neither overlay needs a change for these presentation
-corrections.
+With maintainer approval, client `0.13.0-0.2.fc44` was installed on 2026-09-08
+after all three Plasma VPN services were confirmed stopped. Root-side
+`rpm -V` passed without differences; the installed source marker matches
+`620a87c467a6465a56f58457b8242869199a4466`. Plasma's application cache was
+refreshed, and the host icon resolver selects the installed
+`quest.entropy.PlasmaVPN.svg`, whose bytes match the source artwork. The
+agent, backend and Control Center remained stopped after the upgrade; no VPN
+connection was requested. Core/keyring packages were unchanged, and the prior
+`0.1` client RPM remains available for rollback. Installed visual acceptance
+is still pending and remains separate from package verification and release
+approval.
 
 ### Historical a2b3d5e review checkpoint
 

@@ -80,9 +80,10 @@ client candidate: integrated split-route graphics, a contained report form,
 and an unambiguous task-manager icon name. All 42 native targets and the new
 sanitized layout fixture pass. See the [visual UAT checkpoint](SECURITY-AUDIT-2026-08-30.md#visual-uat-corrections--2026-09-08).
 Its client RPM/SRPM pass their mandatory tests and artifact/source checks.
-Next: obtain approval for installation and perform focused visual acceptance;
-the existing Core/keyring packages are unchanged. This does not replace the
-remaining release gates.
+The approved `0.2` client upgrade is installed and root-side verification
+passes; the host icon resolver selects the correct installed artwork.
+Next: perform focused visual acceptance. The existing Core/keyring packages
+are unchanged. This does not replace the remaining release gates.
 
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.
