@@ -19,6 +19,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QScreen>
 #include <QTimer>
 #include <QVariant>
 
@@ -199,6 +200,8 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(
+        QStringLiteral("availableScreen"), app.primaryScreen());
+    engine.rootContext()->setContextProperty(
         QStringLiteral("vpnController"), &controller);
     engine.rootContext()->setContextProperty(
         QStringLiteral("appSettings"), &settings);
@@ -238,6 +241,12 @@ int main(int argc, char *argv[])
     }
 
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("availableScreen"), window->screen());
+    QObject::connect(window, &QWindow::screenChanged, engine.rootContext(),
+                     [context = engine.rootContext()](QScreen *screen) {
+        context->setContextProperty(QStringLiteral("availableScreen"), screen);
+    });
     window->setIcon(ProtonVpnKde::applicationIcon(settings.iconStyle()));
     QObject::connect(&settings, &AppSettings::iconStyleChanged,
                      window, [&settings, window] {

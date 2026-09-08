@@ -10,6 +10,9 @@ Kirigami.ScrollablePage {
 
     objectName: "overviewPage"
     title: qsTr("Connection")
+    readonly property real preferredWindowContentHeight:
+        overviewContent.implicitHeight + topPadding + bottomPadding
+        + (globalToolBarItem?.height ?? 0)
     property bool portCopied: false
     property var vpnSettings: vpnController.settings
     property var splitSettings: vpnController.splitTunneling
@@ -88,6 +91,7 @@ Kirigami.ScrollablePage {
     }
 
     ColumnLayout {
+        id: overviewContent
         spacing: Kirigami.Units.largeSpacing
 
         Kirigami.InlineMessage {

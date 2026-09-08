@@ -94,6 +94,14 @@ right-to-left desktops.
 - `PageHeader.qml` supplies a theme-scaled icon, heading, and description.
 - `ConnectionScene.qml` presents protection state and the device-to-destination
   route with semantic Plasma colors and icons.
+- `ContentSizedWindow.qml` gives the app exclusive ownership of window size;
+  it exposes neither manual resizing nor maximizing. Connection measures its
+  content, including warnings and toolbar space. Split routing adds a curved
+  outside-VPN branch below the VPN endpoint without shifting the primary
+  horizontal nodes; server facts and capabilities belong to that endpoint.
+  Other pages use a bounded reading height and scroll. Per-monitor work-area
+  limits leave space for native decorations, including after screen changes.
+  Explicit diagnostic capture dimensions do not change the interactive policy.
 - `IdentityStage.qml` supplies the shared graphical sign-in and account
   identity hierarchy.
 - `SectionCard.qml` groups related controls in a native Kirigami card.

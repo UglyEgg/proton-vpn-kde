@@ -60,10 +60,11 @@ Kirigami.AbstractCard {
         property color accentColor: Kirigami.Theme.textColor
         readonly property real routeCenterY:
             contentItem.y + nodeSymbol.y + nodeSymbol.height / 2
+        readonly property real routeRadius: nodeSymbol.width / 2
 
         flat: true
-        Layout.preferredWidth: Kirigami.Units.gridUnit * 8
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 11
+        Layout.fillWidth: true
+        Layout.alignment: Qt.AlignTop
         Layout.minimumWidth: 0
         Accessible.name: node.heading
         Accessible.description: node.detail
@@ -128,6 +129,7 @@ Kirigami.AbstractCard {
     }
 
     component CapabilityChip: Kirigami.Chip {
+        width: Math.min(implicitWidth, parent.width)
         closable: false
         interactive: true
         Accessible.description: qsTr("Open connection inspector")
@@ -135,6 +137,7 @@ Kirigami.AbstractCard {
     }
 
     component ConnectionFact: Kirigami.Chip {
+        width: Math.min(implicitWidth, parent.width)
         closable: false
         interactive: true
     }
@@ -263,7 +266,7 @@ Kirigami.AbstractCard {
             objectName: "connectionRouteDiagram"
             columns: 3
             Layout.fillWidth: true
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 32
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 38
             Layout.alignment: Qt.AlignHCenter
             columnSpacing: Kirigami.Units.smallSpacing
             rowSpacing: Kirigami.Units.largeSpacing
@@ -276,9 +279,10 @@ Kirigami.AbstractCard {
             RouteNode {
                 id: deviceNode
 
+                objectName: "deviceRouteNode"
                 Layout.row: 0
                 Layout.column: 0
-                Layout.rowSpan: root.splitRouteVisible ? 2 : 1
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 12
                 symbol: qsTr("You")
                 heading: qsTr("This device")
                 detail: qsTr("Protection settings")
@@ -291,27 +295,40 @@ Kirigami.AbstractCard {
             Item {
                 id: routeLines
 
+                objectName: "routeLines"
                 Layout.row: 0
                 Layout.column: 1
                 Layout.rowSpan: root.splitRouteVisible ? 2 : 1
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumWidth: Kirigami.Units.gridUnit * 5
+                Layout.minimumWidth: Kirigami.Units.gridUnit * 3
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 14
                 Layout.preferredHeight: Kirigami.Units.gridUnit * 5
                 readonly property real deviceY:
                     deviceNode.y + deviceNode.routeCenterY - y
                 readonly property real vpnY:
-                    destinationNode.y + destinationNode.routeCenterY - y
+                    destinationGroup.y + destinationNode.y
+                    + destinationNode.routeCenterY - y
                 readonly property real internetY:
                     internetNode.y + internetNode.routeCenterY - y
-                readonly property real forkX: width * 0.25
-                readonly property real bendX: width * 0.55
+                // Reach the actual symbols, not the edges of their wider
+                // label columns. Keep the bypass fork left of the lock label.
+                readonly property real startX: deviceNode.x
+                    + deviceNode.width / 2 + deviceNode.routeRadius
+                    + Kirigami.Units.smallSpacing - x
+                readonly property real endX: destinationGroup.x
+                    + destinationNode.x + destinationNode.width / 2
+                    - destinationNode.routeRadius
+                    - Kirigami.Units.smallSpacing - x
+                readonly property real pathWidth: endX - startX
                 readonly property color vpnColor: root.connected
                     ? Kirigami.Theme.positiveTextColor
                     : Kirigami.Theme.disabledTextColor
 
                 Shape {
-                    anchors.fill: parent
+                    x: routeLines.startX
+                    width: routeLines.pathWidth
+                    height: parent.height
                     Accessible.ignored: true
 
                     ShapePath {
@@ -320,9 +337,15 @@ Kirigami.AbstractCard {
                         fillColor: "transparent"
                         startX: 0
                         startY: routeLines.deviceY
-                        PathLine { x: routeLines.forkX; y: routeLines.deviceY }
-                        PathLine { x: routeLines.bendX; y: routeLines.vpnY }
-                        PathLine { x: routeLines.width; y: routeLines.vpnY }
+                        capStyle: ShapePath.RoundCap
+                        PathCubic {
+                            control1X: routeLines.pathWidth * 0.33
+                            control1Y: routeLines.deviceY
+                            control2X: routeLines.pathWidth * 0.67
+                            control2Y: routeLines.vpnY
+                            x: routeLines.pathWidth
+                            y: routeLines.vpnY
+                        }
                     }
 
                     ShapePath {
@@ -331,17 +354,25 @@ Kirigami.AbstractCard {
                         strokeColor: root.splitRouteVisible
                             ? Kirigami.Theme.neutralTextColor : "transparent"
                         fillColor: "transparent"
-                        startX: routeLines.forkX
+                        startX: routeLines.pathWidth * 0.16
                         startY: routeLines.deviceY
-                        PathLine { x: routeLines.bendX; y: routeLines.internetY }
-                        PathLine { x: routeLines.width; y: routeLines.internetY }
+                        capStyle: ShapePath.RoundCap
+                        PathCubic {
+                            control1X: routeLines.pathWidth * 0.3
+                            control1Y: routeLines.deviceY
+                            control2X: routeLines.pathWidth * 0.18
+                            control2Y: routeLines.internetY
+                            x: routeLines.pathWidth
+                            y: routeLines.internetY
+                        }
                     }
                 }
 
                 Controls.ToolButton {
                     id: tunnelStateBadge
 
-                    x: parent.width * 0.75 - width / 2
+                    objectName: "tunnelStateBadge"
+                    x: parent.width / 2 - width / 2
                     y: routeLines.vpnY - height / 2
                     width: Kirigami.Units.iconSizes.medium
                            + Kirigami.Units.largeSpacing
@@ -363,17 +394,10 @@ Kirigami.AbstractCard {
                             : Kirigami.Theme.disabledTextColor
                     }
 
-                    contentItem: Item {
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: Kirigami.Units.smallSpacing
-                            height: width
-                            radius: width / 2
-                            color: root.connected
-                                ? Kirigami.Theme.positiveTextColor
-                                : Kirigami.Theme.disabledTextColor
-                            Accessible.ignored: true
-                        }
+                    contentItem: Kirigami.Icon {
+                        source: "network-vpn"
+                        color: routeLines.vpnColor
+                        Accessible.ignored: true
                     }
 
                     Controls.ToolTip.visible: hovered || activeFocus
@@ -384,7 +408,7 @@ Kirigami.AbstractCard {
                     anchors.horizontalCenter: tunnelStateBadge.horizontalCenter
                     anchors.top: tunnelStateBadge.bottom
                     anchors.topMargin: Kirigami.Units.smallSpacing
-                    width: parent.width * 0.5
+                    width: parent.width
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.WordWrap
                     text: root.connected ? qsTr("Encrypted tunnel")
@@ -394,20 +418,176 @@ Kirigami.AbstractCard {
                 }
             }
 
-            RouteNode {
-                id: destinationNode
+            ColumnLayout {
+                id: destinationGroup
 
+                objectName: "vpnEndpointGroup"
                 Layout.row: 0
                 Layout.column: 2
-                symbol: root.connected ? root.destinationFlag : qsTr("VPN")
-                heading: root.connected ? root.destinationName
-                                        : qsTr("VPN server")
-                detail: qsTr("Browse servers")
-                enabled: root.loggedIn
-                accentColor: root.connected
-                    ? Kirigami.Theme.positiveTextColor
-                    : Kirigami.Theme.disabledTextColor
-                onClicked: root.navigateRequested("locations")
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 12
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                Layout.alignment: Qt.AlignTop
+                spacing: Kirigami.Units.smallSpacing
+
+                RouteNode {
+                    id: destinationNode
+
+                    objectName: "vpnRouteNode"
+                    symbol: root.connected ? root.destinationFlag : qsTr("VPN")
+                    heading: root.connected ? root.destinationName
+                                            : qsTr("VPN server")
+                    detail: qsTr("Browse servers")
+                    enabled: root.loggedIn
+                    accentColor: root.connected
+                        ? Kirigami.Theme.positiveTextColor
+                        : Kirigami.Theme.disabledTextColor
+                    onClicked: root.navigateRequested("locations")
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: connectionFacts.visible
+                                            ? connectionFacts.childrenRect.height : 0
+                    visible: root.connected && (root.serverName.length > 0
+                             || root.protocolName.length > 0
+                             || (root.secureCore && root.entryCountry.length > 0)
+                             || root.forwardedPort > 0)
+
+                    Flow {
+                        id: connectionFacts
+
+                        objectName: "connectionFacts"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        readonly property int visibleFactCount:
+                            (serverFact.visible ? 1 : 0)
+                            + (protocolFact.visible ? 1 : 0)
+                            + (entryFact.visible ? 1 : 0)
+                            + (portFact.visible ? 1 : 0)
+                        readonly property real idealWidth:
+                            (serverFact.visible ? serverFact.implicitWidth : 0)
+                            + (protocolFact.visible ? protocolFact.implicitWidth : 0)
+                            + (entryFact.visible ? entryFact.implicitWidth : 0)
+                            + (portFact.visible ? portFact.implicitWidth : 0)
+                            + Math.max(0, visibleFactCount - 1) * spacing
+                        width: Math.min(parent.width, idealWidth)
+                        spacing: Kirigami.Units.smallSpacing
+
+                        ConnectionFact {
+                            id: serverFact
+
+                            visible: root.serverName.length > 0
+                            text: root.serverName
+                            icon.name: "network-server-database"
+                            Accessible.name: qsTr("Server %1").arg(root.serverName)
+                            Accessible.description: qsTr("Open connection inspector")
+                            onClicked: root.navigateRequested("inspector")
+
+                            Controls.ToolTip.visible: hovered || activeFocus
+                            Controls.ToolTip.text: qsTr("Server · %1").arg(root.serverName)
+                        }
+
+                        ConnectionFact {
+                            id: protocolFact
+
+                            visible: root.protocolName.length > 0
+                            text: root.protocolName
+                            icon.name: "network-vpn"
+                            Accessible.name: qsTr("Protocol %1").arg(root.protocolName)
+                            Accessible.description: qsTr("Open VPN settings")
+                            onClicked: root.navigateRequested("settings")
+
+                            Controls.ToolTip.visible: hovered || activeFocus
+                            Controls.ToolTip.text: qsTr("Protocol · %1").arg(root.protocolName)
+                        }
+
+                        ConnectionFact {
+                            id: entryFact
+
+                            visible: root.secureCore && root.entryCountry.length > 0
+                            text: qsTr("via %1").arg(root.entryCountry)
+                            icon.name: "security-high"
+                            Accessible.name: qsTr("Secure Core entry %1").arg(root.entryCountry)
+                            Accessible.description: qsTr("Open connection inspector")
+                            onClicked: root.navigateRequested("inspector")
+
+                            Controls.ToolTip.visible: hovered || activeFocus
+                            Controls.ToolTip.text: qsTr("Secure Core entry · %1").arg(root.entryCountry)
+                        }
+
+                        ConnectionFact {
+                            id: portFact
+
+                            visible: root.forwardedPort > 0
+                            text: root.portCopied ? qsTr("Copied")
+                                                  : root.forwardedPort.toString()
+                            icon.name: root.portCopied ? "dialog-ok" : "edit-copy"
+                            Accessible.name: root.portCopied
+                                ? qsTr("Forwarded port copied")
+                                : qsTr("Copy forwarded port %1").arg(root.forwardedPort)
+                            onClicked: root.copyPortRequested()
+
+                            Controls.ToolTip.visible: hovered || activeFocus
+                            Controls.ToolTip.text: root.portCopied
+                                ? qsTr("Copied")
+                                : qsTr("Forwarded port · %1 · Click to copy")
+                                      .arg(root.forwardedPort)
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: capabilityFlow.visible
+                                            ? capabilityFlow.childrenRect.height : 0
+                    visible: root.connected && (root.secureCore || root.tor || root.p2p
+                             || root.streaming || root.smartRouting)
+
+                    Flow {
+                        id: capabilityFlow
+
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        readonly property real idealWidth: {
+                            let total = 0
+                            let count = 0
+                            for (const chip of children) {
+                                if (chip.visible) {
+                                    total += chip.implicitWidth
+                                    count++
+                                }
+                            }
+                            return total + Math.max(0, count - 1) * spacing
+                        }
+                        width: Math.min(parent.width, idealWidth)
+                        spacing: Kirigami.Units.smallSpacing
+
+                        CapabilityChip {
+                            visible: root.secureCore
+                            text: qsTr("Secure Core")
+                            icon.name: "security-high"
+                        }
+                        CapabilityChip {
+                            visible: root.tor
+                            text: qsTr("Tor")
+                            icon.name: "security-medium"
+                        }
+                        CapabilityChip {
+                            visible: root.p2p
+                            text: qsTr("P2P")
+                            icon.name: "folder-network"
+                        }
+                        CapabilityChip {
+                            visible: root.streaming
+                            text: qsTr("Streaming")
+                            icon.name: "applications-multimedia"
+                        }
+                        CapabilityChip {
+                            visible: root.smartRouting
+                            text: qsTr("Smart Routing")
+                            icon.name: "network-wired-activated"
+                        }
+                    }
+                }
             }
 
             RouteNode {
@@ -416,6 +596,7 @@ Kirigami.AbstractCard {
                 objectName: "splitInternetRoute"
                 Layout.row: 1
                 Layout.column: 2
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 12
                 visible: root.splitRouteVisible
                 cloudSymbol: true
                 heading: qsTr("Internet")
@@ -425,139 +606,6 @@ Kirigami.AbstractCard {
                 onClicked: root.navigateRequested("split-tunneling")
                 Controls.ToolTip.visible: hovered || activeFocus
                 Controls.ToolTip.text: qsTr("Split tunneling follows your app and IP rules. Restart affected apps after changing rules.")
-            }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: connectionFacts.visible
-                                    ? connectionFacts.childrenRect.height : 0
-            visible: root.connected && (root.serverName.length > 0
-                     || root.protocolName.length > 0
-                     || (root.secureCore && root.entryCountry.length > 0)
-                     || root.forwardedPort > 0)
-
-            Flow {
-                id: connectionFacts
-
-                objectName: "connectionFacts"
-                anchors.horizontalCenter: parent.horizontalCenter
-                readonly property int visibleFactCount:
-                    (serverFact.visible ? 1 : 0)
-                    + (protocolFact.visible ? 1 : 0)
-                    + (entryFact.visible ? 1 : 0)
-                    + (portFact.visible ? 1 : 0)
-                readonly property real idealWidth:
-                    (serverFact.visible ? serverFact.implicitWidth : 0)
-                    + (protocolFact.visible ? protocolFact.implicitWidth : 0)
-                    + (entryFact.visible ? entryFact.implicitWidth : 0)
-                    + (portFact.visible ? portFact.implicitWidth : 0)
-                    + Math.max(0, visibleFactCount - 1) * spacing
-                width: Math.min(parent.width, idealWidth)
-                spacing: Kirigami.Units.smallSpacing
-
-                ConnectionFact {
-                    id: serverFact
-
-                    visible: root.serverName.length > 0
-                    text: root.serverName
-                    icon.name: "network-server-database"
-                    Accessible.name: qsTr("Server %1").arg(root.serverName)
-                    Accessible.description: qsTr("Open connection inspector")
-                    onClicked: root.navigateRequested("inspector")
-
-                    Controls.ToolTip.visible: hovered || activeFocus
-                    Controls.ToolTip.text: qsTr("Server · %1").arg(root.serverName)
-                }
-
-                ConnectionFact {
-                    id: protocolFact
-
-                    visible: root.protocolName.length > 0
-                    text: root.protocolName
-                    icon.name: "network-vpn"
-                    Accessible.name: qsTr("Protocol %1").arg(root.protocolName)
-                    Accessible.description: qsTr("Open VPN settings")
-                    onClicked: root.navigateRequested("settings")
-
-                    Controls.ToolTip.visible: hovered || activeFocus
-                    Controls.ToolTip.text: qsTr("Protocol · %1").arg(root.protocolName)
-                }
-
-                ConnectionFact {
-                    id: entryFact
-
-                    visible: root.secureCore && root.entryCountry.length > 0
-                    text: qsTr("via %1").arg(root.entryCountry)
-                    icon.name: "security-high"
-                    Accessible.name: qsTr("Secure Core entry %1").arg(root.entryCountry)
-                    Accessible.description: qsTr("Open connection inspector")
-                    onClicked: root.navigateRequested("inspector")
-
-                    Controls.ToolTip.visible: hovered || activeFocus
-                    Controls.ToolTip.text: qsTr("Secure Core entry · %1").arg(root.entryCountry)
-                }
-
-                ConnectionFact {
-                    id: portFact
-
-                    visible: root.forwardedPort > 0
-                    text: root.portCopied ? qsTr("Copied")
-                                          : root.forwardedPort.toString()
-                    icon.name: root.portCopied ? "dialog-ok" : "edit-copy"
-                    Accessible.name: root.portCopied
-                        ? qsTr("Forwarded port copied")
-                        : qsTr("Copy forwarded port %1").arg(root.forwardedPort)
-                    onClicked: root.copyPortRequested()
-
-                    Controls.ToolTip.visible: hovered || activeFocus
-                    Controls.ToolTip.text: root.portCopied
-                        ? qsTr("Copied")
-                        : qsTr("Forwarded port · %1 · Click to copy")
-                              .arg(root.forwardedPort)
-                }
-            }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: capabilityFlow.visible
-                                    ? capabilityFlow.childrenRect.height : 0
-            visible: root.connected && (root.secureCore || root.tor || root.p2p
-                     || root.streaming || root.smartRouting)
-
-            Flow {
-                id: capabilityFlow
-
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: Math.min(parent.width, childrenRect.width)
-                spacing: Kirigami.Units.smallSpacing
-
-                CapabilityChip {
-                    visible: root.secureCore
-                    text: qsTr("Secure Core")
-                    icon.name: "security-high"
-                }
-                CapabilityChip {
-                    visible: root.tor
-                    text: qsTr("Tor")
-                    icon.name: "security-medium"
-                }
-                CapabilityChip {
-                    visible: root.p2p
-                    text: qsTr("P2P")
-                    icon.name: "folder-network"
-                }
-                CapabilityChip {
-                    visible: root.streaming
-                    text: qsTr("Streaming")
-                    icon.name: "applications-multimedia"
-                }
-                CapabilityChip {
-                    visible: root.smartRouting
-                    text: qsTr("Smart Routing")
-                    icon.name: "network-wired-activated"
-                }
             }
         }
 

@@ -39,6 +39,7 @@ private Q_SLOTS:
     void reportStaysInsideCard();
     void splitRouteIsConditionalAndNavigable_data();
     void splitRouteIsConditionalAndNavigable();
+    void windowSizeIsOwnedByContent();
 
 private:
     void capture(QQuickWindow *window);
@@ -148,17 +149,27 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable_data()
     QTest::addColumn<int>("viewportWidth");
     QTest::addColumn<bool>("connected");
     QTest::addColumn<bool>("splitEnabled");
-    QTest::newRow("split-wide") << 900 << true << true;
-    QTest::newRow("split-compact") << 460 << true << true;
-    QTest::newRow("full-compact") << 460 << true << false;
-    QTest::newRow("inactive") << 460 << false << true;
+    QTest::addColumn<qreal>("fontScale");
+    QTest::newRow("split-wide") << 900 << true << true << 1.0;
+    QTest::newRow("split-compact") << 460 << true << true << 1.0;
+    QTest::newRow("full-wide") << 900 << true << false << 1.0;
+    QTest::newRow("full-compact") << 460 << true << false << 1.0;
+    QTest::newRow("large-text") << 640 << true << true << 1.5;
+    QTest::newRow("inactive") << 460 << false << true << 1.0;
 }
 
 void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
 {
+    QTest::failOnWarning(QRegularExpression(QStringLiteral(".*recursive rearrange.*")));
     QFETCH(int, viewportWidth);
     QFETCH(bool, connected);
     QFETCH(bool, splitEnabled);
+    QFETCH(qreal, fontScale);
+    const QFont originalFont = QGuiApplication::font();
+    const auto restore = qScopeGuard([&] { QGuiApplication::setFont(originalFont); });
+    QFont font = originalFont;
+    font.setPointSizeF(font.pointSizeF() * fontScale);
+    QGuiApplication::setFont(font);
     QQmlEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("viewportWidth"), viewportWidth);
     engine.rootContext()->setContextProperty(QStringLiteral("testConnected"), connected);
@@ -177,6 +188,7 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
                 loggedIn: true; ready: true; accountName: "demo-user"
                 destinationName: "Illinois"; destinationFlag: "US"
                 serverName: "US-IL#1018"; protocolName: "Smart"
+                p2p: true; streaming: true
                 primaryText: testConnected ? "Disconnect" : "Connect"
             }
         }
@@ -201,6 +213,105 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
         QCOMPARE(navigation.at(0).at(0).toString(), QStringLiteral("split-tunneling"));
     }
     capture(window);
+    auto *device = root->findChild<QQuickItem *>(QStringLiteral("deviceRouteNode"));
+    auto *vpn = root->findChild<QQuickItem *>(QStringLiteral("vpnRouteNode"));
+    auto *group = root->findChild<QQuickItem *>(QStringLiteral("vpnEndpointGroup"));
+    auto *diagram = root->findChild<QQuickItem *>(QStringLiteral("connectionRouteDiagram"));
+    auto *facts = root->findChild<QQuickItem *>(QStringLiteral("connectionFacts"));
+    QVERIFY(device && vpn && group && diagram && facts);
+    const auto nodeCenter = [diagram](QQuickItem *node) {
+        return node->mapToItem(diagram, QPointF(node->width() / 2,
+            node->property("routeCenterY").toReal()));
+    };
+    QVERIFY(qAbs(nodeCenter(device).y() - nodeCenter(vpn).y()) <= 1);
+    QVERIFY(qAbs(nodeCenter(device).x() + nodeCenter(vpn).x() - diagram->width()) <= 1);
+    if (connected) {
+        const QPointF originalDevice = nodeCenter(device);
+        const QPointF originalVpn = nodeCenter(vpn);
+        scene->setProperty("splitTunneling", false);
+        QTRY_VERIFY(!cloud->isVisible());
+        QTest::qWait(50);
+        const qreal fullHeight = scene->implicitHeight();
+        scene->setProperty("splitTunneling", true);
+        QTRY_VERIFY(cloud->isVisible());
+        QTRY_VERIFY(scene->implicitHeight() > fullHeight + cloud->height());
+        QCOMPARE(nodeCenter(device), originalDevice);
+        QCOMPARE(nodeCenter(vpn), originalVpn);
+        scene->setProperty("splitTunneling", false);
+        QTRY_COMPARE(scene->implicitHeight(), fullHeight);
+
+        // All facts remain with the VPN endpoint, including long values and
+        // optional facts. Wrapping must not move the device/endpoint baseline.
+        scene->setProperty("serverName", QString(100, QLatin1Char('W')));
+        scene->setProperty("secureCore", true);
+        scene->setProperty("entryCountry", QStringLiteral("A very long entry country"));
+        scene->setProperty("forwardedPort", 45000);
+        scene->setProperty("tor", true);
+        scene->setProperty("smartRouting", true);
+        QTest::qWait(50);
+        const QRectF bounds(0, 0, group->width(), group->height());
+        for (auto *chip : facts->childItems()) {
+            QVERIFY(bounds.adjusted(-1, -1, 1, 1).contains(chip->mapRectToItem(
+                group, QRectF(0, 0, chip->width(), chip->height()))));
+        }
+        QCOMPARE(nodeCenter(device), originalDevice);
+        QCOMPARE(nodeCenter(vpn), originalVpn);
+        QSignalSpy navigation(scene, SIGNAL(navigateRequested(QString)));
+        QSignalSpy copied(scene, SIGNAL(copyPortRequested()));
+        const auto chips = facts->childItems();
+        QCOMPARE(chips.size(), 4);
+        for (auto *chip : chips) {
+            QVERIFY(QMetaObject::invokeMethod(chip, "clicked"));
+        }
+        QCOMPARE(navigation.size(), 3);
+        QCOMPARE(navigation.at(0).at(0).toString(), QStringLiteral("inspector"));
+        QCOMPARE(navigation.at(1).at(0).toString(), QStringLiteral("settings"));
+        QCOMPARE(navigation.at(2).at(0).toString(), QStringLiteral("inspector"));
+        QCOMPARE(copied.size(), 1);
+    }
+}
+
+void PresentationLayoutTest::windowSizeIsOwnedByContent()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQuick
+        ContentSizedWindow {
+            visible: true
+            availableWidth: 1200; availableHeight: 1000
+            preferredWidth: 860; preferredHeight: 500
+        }
+    )", QUrl::fromLocalFile(QStringLiteral(PROTON_VPN_KDE_SOURCE_DIR "/qml/LayoutFixture.qml")));
+    QScopedPointer<QObject> root(component.create());
+    QVERIFY2(root, qPrintable(component.errorString()));
+    auto *window = qobject_cast<QQuickWindow *>(root.data());
+    QVERIFY(window);
+    QTRY_COMPARE(window->size(), QSize(860, 500));
+    QCOMPARE(window->minimumSize(), window->size());
+    QCOMPARE(window->maximumSize(), window->size());
+    QVERIFY(!window->flags().testFlag(Qt::WindowMaximizeButtonHint));
+    QVERIFY(window->flags().testFlag(Qt::WindowMinimizeButtonHint));
+    root->setProperty("preferredHeight", 700);
+    QTRY_COMPARE(window->height(), 700);
+    QCOMPARE(window->minimumHeight(), 700);
+    QCOMPARE(window->maximumHeight(), 700);
+    root->setProperty("preferredHeight", 500);
+    QTRY_COMPARE(window->height(), 500);
+    root->setProperty("availableWidth", 600);
+    root->setProperty("availableHeight", 400);
+    QTRY_VERIFY(window->width() < 600 && window->height() < 400);
+    QCOMPARE(window->minimumSize(), window->size());
+    QCOMPARE(window->maximumSize(), window->size());
+    root->setProperty("availableWidth", 1200);
+    root->setProperty("availableHeight", 1000);
+    QTRY_COMPARE(window->size(), QSize(860, 500));
+    // Explicit diagnostic captures are fixed too, but independent of the
+    // offscreen plugin's artificial monitor size.
+    root->setProperty("captureWidth", 900);
+    root->setProperty("captureHeight", 720);
+    QTRY_COMPARE(window->size(), QSize(900, 720));
+    QCOMPARE(window->minimumSize(), window->maximumSize());
 }
 
 QTEST_MAIN(PresentationLayoutTest)

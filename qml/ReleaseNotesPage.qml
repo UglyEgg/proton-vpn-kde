@@ -78,6 +78,8 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Visual polish")
                 headingLevel: 4
                 notes: [
+                    qsTr("The window fits its layout automatically, expanding for split tunneling and shrinking without it. Manual resizing and maximizing are disabled."),
+                    qsTr("Device and VPN stay aligned, with server details beside the VPN and a smooth, arrow-free route to the outside internet."),
                     qsTr("Split tunneling appears as an outside-VPN branch in the connection graphic, with rules and restart guidance a click away."),
                     qsTr("The reporting preview keeps its fields and buttons inside their card, including at narrow widths and larger text sizes."),
                     qsTr("A unique desktop icon name prevents generic Plasma icons in themes such as Papirus.")

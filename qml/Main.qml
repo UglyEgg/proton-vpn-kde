@@ -4,13 +4,15 @@
 import QtQuick
 import org.kde.kirigami as Kirigami
 
-Kirigami.ApplicationWindow {
+ContentSizedWindow {
     id: root
 
-    width: diagnosticWindowWidth > 0 ? diagnosticWindowWidth : 900
-    height: diagnosticWindowHeight > 0 ? diagnosticWindowHeight : 560
-    minimumWidth: 480
-    minimumHeight: 560
+    captureWidth: diagnosticWindowWidth
+    captureHeight: diagnosticWindowHeight
+    availableWidth: availableScreen ? availableScreen.availableGeometry.width : Screen.width
+    availableHeight: availableScreen ? availableScreen.availableGeometry.height : Screen.height
+    preferredHeight: (pageStack.currentItem?.preferredWindowContentHeight
+                      ?? Kirigami.Units.gridUnit * 36) + footer.height
     visible: !startMinimized
     title: qsTr("Plasma VPN")
     pageStack.globalToolBar.style: Kirigami.ApplicationHeaderStyle.ToolBar

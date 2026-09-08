@@ -5,6 +5,12 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Keep the device and VPN aligned horizontally, with connection facts beside
+  the VPN endpoint and a smooth, arrow-free split route below it. The app owns
+  its window dimensions: Connection fits its content, expanding for split
+  tunneling and shrinking without it. Manual resizing and maximizing are
+  disabled; long pages scroll within the current screen's work area.
+
 - Show split tunneling as a forked connection route with an outside-VPN
   internet branch and contextual restart guidance. Keep the reporting preview's
   fields, warnings and wrapping actions inside their card at compact and

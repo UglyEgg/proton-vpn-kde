@@ -107,6 +107,13 @@ while IFS= read -r line; do
     if [[ -z "$line" || -n "${expected_lines[$line]:-}" ]]; then
         continue
     fi
+    # This harness forces Qt's offscreen platform. It has no window manager
+    # to receive min/max size hints, so QPlatformWindow emits this exact notice
+    # when the content-sized window updates its constraints. Do not suppress
+    # application QML/layout diagnostics or broaden the framework allowlist.
+    if [[ "$line" == "This plugin does not support propagateSizeHints()" ]]; then
+        continue
+    fi
     if $allow_isolated_framework_diagnostics; then
         case "$line" in
             "A connection to the bus can't be made"|\

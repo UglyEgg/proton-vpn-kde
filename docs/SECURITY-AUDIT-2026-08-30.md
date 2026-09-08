@@ -248,6 +248,26 @@ connection was requested. Core/keyring packages were unchanged, and the prior
 is still pending and remains separate from package verification and release
 approval.
 
+The follow-up `0.13.0-0.3` source candidate implements the approved horizontal
+layouts, endpoint-local metadata and smooth arrow-free split route. A small
+shared window component fixes minimum/maximum dimensions to the app-selected
+size, with per-monitor work-area bounds and no maximize control. Connection
+fits measured content; longer secondary pages scroll. No backend/Core,
+networking, authentication or reporting-policy code changes in this follow-up.
+All **42 native targets pass**, including the 439-case backend suite with its
+five opt-in Core cases skipped. The expanded **14-case presentation fixture**
+also passes under address/leak/undefined-behavior sanitizers: fixed sizing,
+grow/shrink and screen-bound transitions, stable centered nodes, large text,
+long optional metadata and unchanged fact actions. The native transition
+checks reject layout warnings; the offscreen harness admits only Qt's exact
+unsupported-size-hints notice, not application diagnostics. The eight-image
+visual matrix passes, and additional light/dark content-sized captures were
+inspected (764×524 full route, 764×643 split route on the offscreen monitor).
+Presentation drift seals pass with backend/Core seals unchanged. Package
+validation and installed KWin/monitor/visual acceptance remain pending; the
+installed version remains `0.13.0-0.2`. These are bounded regression checks,
+not a new independent release-review battery.
+
 ### Historical a2b3d5e review checkpoint
 
 The following RC/VAL register records the preceding cycle. It is not the

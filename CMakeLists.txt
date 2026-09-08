@@ -252,6 +252,7 @@ qt_add_qml_module(proton-vpn-kde
     NO_IMPORT_SCAN
     QML_FILES
         qml/Main.qml
+        qml/ContentSizedWindow.qml
         qml/AccountPage.qml
         qml/AboutPage.qml
         qml/ApplicationRecoveryBanner.qml

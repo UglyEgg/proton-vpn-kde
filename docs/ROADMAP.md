@@ -82,8 +82,13 @@ sanitized layout fixture pass. See the [visual UAT checkpoint](SECURITY-AUDIT-20
 Its client RPM/SRPM pass their mandatory tests and artifact/source checks.
 The approved `0.2` client upgrade is installed and root-side verification
 passes; the host icon resolver selects the correct installed artwork.
-Next: perform focused visual acceptance. The existing Core/keyring packages
-are unchanged. This does not replace the remaining release gates.
+The next local client candidate, `0.13.0-0.3`, implements the approved
+horizontal layouts: endpoint-local facts, a smooth arrow-free split route,
+and app-owned, content-fitted window sizing with no manual resize/maximize.
+All 42 native targets, the sanitized layout fixture and presentation checks
+pass. Next: package validation, installation approval and focused visual
+acceptance, including KWin resize controls and monitor changes. The existing Core/keyring
+packages are unchanged. This does not replace the remaining release gates.
 
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.

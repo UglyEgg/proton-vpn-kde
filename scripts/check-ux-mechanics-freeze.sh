@@ -163,7 +163,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "535e15a747506cef3cfb58dd99885ef83ebd70e0b28ccfb590728a80187b9b3b" \
+    "ae8396cf7a96602a05363a6e3aa5c567dc22a646f18825ed528d5c652565e7d7" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
@@ -191,17 +191,17 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "fb531c87dceb36697850d2b7a5ab858bfe54ca47f6f9894ac50a17c8cea8ed2a" \
+    "a19fdebf358cfdfaf043eb583c14c7a8acc191fc6518fa255a23e9d33f696bdf" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "8c468b6b5973b173f6cf26ad26c936028d2bf6749a9551fbb70f54dbf572c327" \
+    "8bb71fd9dd2b603ded23a3a55666b7dc55b2cde7c158339c72152b430242aa73" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "282b70d5f5c15bd76fcd716dae50f1f9774827d8a93b88c40ce00f7dc68a63d9" \
+    "0d088e9d7c8cd1cbfe10e87ec148f73d8db14a9a64e7aff9af57ece76c1f0064" \
     "QML presentation" qml
 
 assert_diff_hash \
