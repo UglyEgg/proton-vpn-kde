@@ -359,6 +359,7 @@ void VpnController::resetServerContext()
     if (wasBusy != locationsBusy()) {
         emit locationsChanged();
     }
+    dispatchPendingLocationRefreshes();
 }
 
 void VpnController::resetGroupServerContext()
@@ -379,6 +380,7 @@ void VpnController::resetGroupServerContext()
     if (wasBusy != locationsBusy()) {
         emit locationsChanged();
     }
+    dispatchPendingLocationRefreshes();
 }
 
 void VpnController::setCountryFilter(const QString &filterText)

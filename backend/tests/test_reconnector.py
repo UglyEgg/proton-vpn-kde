@@ -127,15 +127,22 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             protocol="wireguard",
             backend="networkmanager",
         )
+        attempt = (
+            connection_attempt
+            if connection_attempt is not None
+            else AsyncMock(return_value=True)
+        )
         connector = SimpleNamespace(
             current_state=state_named("Error", event_name),
             current_connection=connection,
             register=Mock(),
             unregister=Mock(),
             get_vpn_server=Mock(return_value="vpn-server"),
-            connect=AsyncMock(),
-            disconnect=AsyncMock(),
+            connect=AsyncMock(side_effect=AssertionError("Retry policy cannot call Core Up")),
+            disconnect=AsyncMock(side_effect=AssertionError("Retry policy cannot call Core Down")),
         )
+        self.addCleanup(connector.connect.assert_not_awaited)
+        self.addCleanup(connector.disconnect.assert_not_awaited)
         server_list = SimpleNamespace(get_by_id=Mock(return_value="logical-server"))
         refresher = SimpleNamespace(
             server_list=server_list,
@@ -150,12 +157,14 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             network_probe=network_probe or AsyncMock(return_value=True),
             session_probe=session_probe or FakeSessionProbe(),
             delay_factory=delay_factory or (lambda _attempt: 0),
-            authentication_epoch_source=authentication_epoch_source,
-            authentication_epoch_validator=authentication_epoch_validator,
-            authentication_error_callback=authentication_error_callback,
-            connection_attempt=connection_attempt,
+            authentication_epoch_source=authentication_epoch_source or (lambda: 7),
+            authentication_epoch_validator=(
+                authentication_epoch_validator or (lambda epoch: epoch == 7)
+            ),
+            authentication_error_callback=authentication_error_callback or AsyncMock(),
+            connection_attempt=attempt,
         )
-        return reconnector, connector, refresher, messages
+        return reconnector, connector, refresher, messages, attempt
 
     async def let_tasks_run(self):
         for _ in range(5):
@@ -169,7 +178,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         self.fail(message)
 
     async def test_reconnects_same_server_after_nonfatal_drop(self):
-        reconnector, connector, refresher, messages = self.make_reconnector()
+        reconnector, connector, refresher, messages, attempt = self.make_reconnector()
 
         reconnector.enable()
         await self.let_tasks_run()
@@ -178,15 +187,15 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         connector.get_vpn_server.assert_called_once_with(
             "logical-server", "client-config"
         )
-        connector.connect.assert_awaited_once_with(
-            "vpn-server", "wireguard", "networkmanager"
+        attempt.assert_awaited_once_with(
+            "vpn-server", "wireguard", "networkmanager", 7
         )
         self.assertIn("Reconnecting…", messages)
         await reconnector.disable()
 
     async def test_adapter_owned_attempt_replaces_direct_connector_call(self):
         attempt = AsyncMock(return_value=True)
-        reconnector, connector, _, _ = self.make_reconnector(
+        reconnector, connector, _, _, attempt = self.make_reconnector(
             authentication_epoch_source=lambda: 7,
             authentication_epoch_validator=lambda epoch: epoch == 7,
             connection_attempt=attempt,
@@ -201,28 +210,69 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         connector.connect.assert_not_awaited()
         await reconnector.disable()
 
-    async def test_stale_standalone_success_is_compensated(self):
-        current = True
+    async def test_shutdown_fence_survives_failed_suspension_and_reenable(self):
+        reconnector, connector, _, _, attempt = self.make_reconnector()
+        reconnector.enable()
+        reconnector.begin_shutdown()
+        with self.assertRaisesRegex(RuntimeError, "teardown failed"):
+            async with reconnector.suspended(deadline=asyncio.get_running_loop().time() + 1):
+                raise RuntimeError("teardown failed")
+        reconnector.status_update(connector.current_state)
+        reconnector.enable()
+        await self.let_tasks_run()
+        attempt.assert_not_awaited()
+        connector.register.assert_called_once_with(reconnector)
+        await reconnector.disable(deadline=asyncio.get_running_loop().time() + 1)
+        self.assertFalse(reconnector.enabled)
+        self.assertFalse(reconnector._retiring_retry_tasks)
 
-        async def connect(*_args):
-            nonlocal current
-            current = False
+    async def test_owner_callbacks_are_required_before_service_construction(self):
+        callbacks = {
+            "connection_attempt": AsyncMock(return_value=True),
+            "authentication_epoch_source": lambda: 7,
+            "authentication_epoch_validator": lambda epoch: epoch == 7,
+            "authentication_error_callback": AsyncMock(),
+        }
+        connector = SimpleNamespace(register=Mock())
+        for name in callbacks:
+            for missing in (True, False):
+                with self.subTest(callback=name, missing=missing):
+                    provided = dict(callbacks)
+                    if missing:
+                        provided.pop(name)
+                    else:
+                        provided[name] = None
+                    with self.assertRaisesRegex(TypeError, name):
+                        AsyncReconnector(connector, object(), **provided)
+                    connector.register.assert_not_called()
 
-        reconnector, connector, _, _ = self.make_reconnector(
-            authentication_epoch_source=lambda: 7,
-            authentication_epoch_validator=lambda _epoch: current,
-        )
-        connector.connect.side_effect = connect
-
+    async def test_owner_rejection_is_terminal_for_that_retry(self):
+        attempt = AsyncMock(return_value=False)
+        reconnector, _, _, _, _ = self.make_reconnector(connection_attempt=attempt)
         reconnector.enable()
         await self.let_tasks_run()
 
-        connector.connect.assert_awaited_once()
-        connector.disconnect.assert_awaited_once_with()
+        attempt.assert_awaited_once_with(
+            "vpn-server", "wireguard", "networkmanager", 7
+        )
+        self.assertIsNone(reconnector._retry_task)
+        self.assertFalse(reconnector._retry_pending)
+        await reconnector.disable()
+
+    async def test_stale_account_cannot_request_a_connection_attempt(self):
+        reconnector, _, _, messages, attempt = self.make_reconnector(
+            authentication_epoch_validator=lambda _epoch: False,
+        )
+        reconnector.enable()
+        await self.let_tasks_run()
+
+        attempt.assert_not_awaited()
+        self.assertNotIn("Reconnecting…", messages)
+        self.assertIsNone(reconnector._retry_task)
         await reconnector.disable()
 
     async def test_nested_suspend_owners_cannot_resume_each_other(self):
-        reconnector, connector, _, _ = self.make_reconnector()
+        reconnector, connector, _, _, attempt = self.make_reconnector()
         connector.current_state = state_named("Disconnected")
         reconnector.enable()
 
@@ -239,7 +289,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await reconnector.disable()
 
     async def test_suspension_scope_releases_after_body_error_and_cancellation(self):
-        reconnector, connector, _, _ = self.make_reconnector()
+        reconnector, connector, _, _, attempt = self.make_reconnector()
         connector.current_state = state_named("Disconnected")
         reconnector.enable()
 
@@ -264,7 +314,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await reconnector.disable()
 
     async def test_disable_and_reenable_preserve_an_outstanding_suspension(self):
-        reconnector, connector, _, _ = self.make_reconnector()
+        reconnector, connector, _, _, attempt = self.make_reconnector()
         connector.current_state = state_named("Error")
         scope = reconnector.suspended()
         await scope.__aenter__()
@@ -283,7 +333,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await reconnector.disable()
 
     async def test_failed_enable_does_not_leak_its_callers_suspension(self):
-        reconnector, connector, _, _ = self.make_reconnector()
+        reconnector, connector, _, _, attempt = self.make_reconnector()
         connector.current_state = state_named("Disconnected")
         connector.register.side_effect = [RuntimeError("observer failure"), None]
 
@@ -299,26 +349,26 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await reconnector.disable()
 
     async def test_authentication_error_is_not_retried(self):
-        reconnector, connector, _, messages = self.make_reconnector(
+        reconnector, connector, _, messages, attempt = self.make_reconnector(
             event_name="AuthDenied"
         )
 
         reconnector.enable()
         await self.let_tasks_run()
 
-        connector.connect.assert_not_awaited()
+        attempt.assert_not_awaited()
         self.assertIn("Automatic reconnection is unavailable for this error", messages)
         await reconnector.disable()
 
     async def test_core_authentication_expiry_stops_retry_and_expires_owner(self):
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
         expire_session = AsyncMock(side_effect=RuntimeError("session retired"))
-        reconnector, connector, _, messages = self.make_reconnector(
+        reconnector, connector, _, messages, attempt = self.make_reconnector(
             authentication_epoch_source=lambda: 7,
             authentication_epoch_validator=lambda epoch: epoch == 7,
             authentication_error_callback=expire_session,
         )
-        connector.connect.side_effect = expired_error()
+        attempt.side_effect = expired_error()
 
         reconnector.enable()
         await self.wait_until(
@@ -331,13 +381,13 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         error, epoch = expire_session.await_args.args
         self.assertIsInstance(error, expired_error)
         self.assertEqual(7, epoch)
-        self.assertEqual(1, connector.connect.await_count)
+        self.assertEqual(1, attempt.await_count)
         self.assertNotIn("Reconnection failed", messages)
         await reconnector.disable()
 
     async def test_disable_quiesces_retries_when_observer_unregistration_fails(self):
         session_probe = FakeSessionProbe()
-        reconnector, connector, _, _ = self.make_reconnector(
+        reconnector, connector, _, _, attempt = self.make_reconnector(
             session_probe=session_probe
         )
         reconnector.enable()
@@ -350,7 +400,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         session_probe.close.assert_awaited_once_with()
 
     async def test_enable_registration_failure_remains_retryable(self):
-        reconnector, connector, _, _ = self.make_reconnector()
+        reconnector, connector, _, _, attempt = self.make_reconnector()
         connector.register.side_effect = [RuntimeError("observer failure"), None]
 
         with self.assertRaisesRegex(RuntimeError, "observer failure"):
@@ -363,7 +413,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await reconnector.disable()
 
     async def test_expired_certificate_requests_refresh(self):
-        reconnector, connector, refresher, _ = self.make_reconnector(
+        reconnector, connector, refresher, _, attempt = self.make_reconnector(
             event_name="ExpiredCertificate"
         )
 
@@ -371,12 +421,12 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await self.let_tasks_run()
 
         refresher.force_refresh_certificate.assert_called_once_with()
-        connector.connect.assert_not_awaited()
+        attempt.assert_not_awaited()
         await reconnector.disable()
 
     async def test_waits_for_network_before_retrying(self):
         network_probe = AsyncMock(side_effect=[False, True])
-        reconnector, connector, _, messages = self.make_reconnector(
+        reconnector, connector, _, messages, attempt = self.make_reconnector(
             network_probe=network_probe
         )
 
@@ -384,13 +434,13 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await self.let_tasks_run()
 
         self.assertGreaterEqual(network_probe.await_count, 2)
-        connector.connect.assert_awaited_once()
+        attempt.assert_awaited_once()
         self.assertIn("Waiting for network connectivity…", messages)
         await reconnector.disable()
 
     async def test_network_probe_failure_remains_retryable(self):
         network_probe = AsyncMock(side_effect=[OSError("route failed"), True])
-        reconnector, connector, _, messages = self.make_reconnector(
+        reconnector, connector, _, messages, attempt = self.make_reconnector(
             network_probe=network_probe
         )
 
@@ -402,14 +452,14 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(reconnector.enabled)
         self.assertGreaterEqual(network_probe.await_count, 2)
-        connector.connect.assert_awaited_once()
+        attempt.assert_awaited_once()
         self.assertIn("Waiting for network connectivity…", messages)
         self.assertIn("OSError", "\n".join(captured.output))
         self.assertNotIn("route failed", "\n".join(captured.output))
         await reconnector.disable()
 
     async def test_waits_for_previous_connection_then_retries(self):
-        reconnector, connector, _, messages = self.make_reconnector(
+        reconnector, connector, _, messages, attempt = self.make_reconnector(
             delay_factory=lambda _attempt: 0
         )
         previous_connection = connector.current_connection
@@ -421,15 +471,15 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             "The missing previous connection was not observed",
         )
 
-        connector.connect.assert_not_awaited()
+        attempt.assert_not_awaited()
 
         connector.current_connection = previous_connection
         await self.wait_until(
-            lambda: connector.connect.await_count == 1,
+            lambda: attempt.await_count == 1,
             "The previous VPN connection was not retried",
         )
 
-        connector.connect.assert_awaited_once()
+        attempt.assert_awaited_once()
         await reconnector.disable()
 
     async def test_disable_during_network_probe_cancels_pending_reconnect(self):
@@ -441,7 +491,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             await release_probe.wait()
             return True
 
-        reconnector, connector, _, _ = self.make_reconnector(
+        reconnector, connector, _, _, attempt = self.make_reconnector(
             network_probe=blocking_network_probe
         )
 
@@ -452,7 +502,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await self.let_tasks_run()
 
         self.assertFalse(reconnector.enabled)
-        connector.connect.assert_not_awaited()
+        attempt.assert_not_awaited()
 
     async def test_disable_joins_cancellation_resistant_connect(self):
         connect_started = asyncio.Event()
@@ -467,8 +517,8 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
                 cancellation_seen.set()
                 await release_connect.wait()
 
-        reconnector, connector, _, _ = self.make_reconnector()
-        connector.connect.side_effect = blocked_connect
+        reconnector, connector, _, _, attempt = self.make_reconnector()
+        attempt.side_effect = blocked_connect
         reconnector.enable()
         await connect_started.wait()
         owned_retry = reconnector._retry_task
@@ -506,8 +556,8 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
                 await release_first.wait()
                 raise
 
-        reconnector, connector, _, _ = self.make_reconnector()
-        connector.connect.side_effect = connect
+        reconnector, connector, _, _, attempt = self.make_reconnector()
+        attempt.side_effect = connect
         reconnector.enable()
         await first_started.wait()
 
@@ -526,9 +576,9 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await reconnector.disable()
 
     async def test_reconnection_exception_text_is_not_published_or_logged(self):
-        reconnector, connector, _, messages = self.make_reconnector()
+        reconnector, connector, _, messages, attempt = self.make_reconnector()
         sentinel = "credential=must-not-reach-snapshot /workspace/private.py"
-        connector.connect.side_effect = [RuntimeError(sentinel), None]
+        attempt.side_effect = [RuntimeError(sentinel), None]
 
         with self.assertLogs(
             "proton_vpn_kde_backend.reconnector", level="ERROR"
@@ -544,7 +594,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         await reconnector.disable()
 
     async def test_pathological_retry_count_remains_capped_and_scheduled(self):
-        reconnector, _, _, messages = self.make_reconnector(
+        reconnector, _, _, messages, attempt = self.make_reconnector(
             delay_factory=AsyncReconnector._retry_delay
         )
         reconnector._retry_counter = 1024

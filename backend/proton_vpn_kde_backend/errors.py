@@ -18,6 +18,16 @@ class UserVisibleRuntimeError(UserVisibleError, RuntimeError):
     """A backend state error with a safe, actionable message."""
 
 
+class CleanupAdmissionExpired(UserVisibleRuntimeError):
+    """Cleanup did not cross its dispatch boundary before the deadline."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Cleanup could not be dispatched before its deadline. "
+            "Review the current VPN status before retrying."
+        )
+
+
 class SessionExpiredError(UserVisibleRuntimeError):
     """A Proton session expiry already published as signed-out state."""
 

@@ -6,12 +6,66 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from collections.abc import Awaitable, Callable
 import threading
-from typing import TypeVar
+from typing import Generic, TypeVar, cast
 
 
 Result = TypeVar("Result")
+
+
+@dataclass(frozen=True, slots=True)
+class OwnedOutcome(Generic[Result]):
+    """A joined provider result, separate from the caller's cancellation."""
+
+    value: Result | None
+    error: Exception | asyncio.CancelledError | None
+    caller_cancelled: bool
+    cancellation_error: Exception | asyncio.CancelledError | None = None
+
+    def result(self) -> Result:
+        if self.caller_cancelled:
+            raise asyncio.CancelledError
+        if self.error is not None:
+            raise self.error
+        return cast(Result, self.value)
+
+
+async def join_owned(
+    operation: Awaitable[Result],
+    *,
+    cancel_operation: Callable[[], None] | None = None,
+) -> OwnedOutcome[Result]:
+    """Observe terminal provider work without losing cancellation precedence.
+
+    A cancellation request (including a failing cancellation callback) is not
+    proof the provider stopped. Join first, retaining both outcomes for the
+    lifecycle owner to reconcile. This helper supplies no provider deadline.
+    """
+    task = asyncio.ensure_future(operation)
+    caller_cancelled = False
+    cancellation_error: Exception | asyncio.CancelledError | None = None
+    while not task.done():
+        try:
+            # wait() does not propagate cancellation to its input tasks. Unlike
+            # a repeatedly cancelled shield, it also does not install detached
+            # exception-reporting callbacks on the provider (Python 3.14).
+            await asyncio.wait({task})
+        except asyncio.CancelledError:
+            first_cancellation = not caller_cancelled
+            caller_cancelled = True
+            if first_cancellation and cancel_operation is not None:
+                try:
+                    cancel_operation()
+                except (Exception, asyncio.CancelledError) as error:
+                    cancellation_error = error
+
+    try:
+        value = task.result()
+    except (Exception, asyncio.CancelledError) as error:
+        return OwnedOutcome(None, error, caller_cancelled, cancellation_error)
+    return OwnedOutcome(value, None, caller_cancelled, cancellation_error)
 
 
 async def await_owned(
@@ -19,37 +73,8 @@ async def await_owned(
     *,
     cancel_operation: Callable[[], None] | None = None,
 ) -> Result:
-    """Retain ownership of an operation until it has actually stopped.
-
-    Shielding prevents cancellation of the caller from silently detaching the
-    child.  If the caller is cancelled, request provider-specific cancellation
-    once and continue joining the child before propagating cancellation.
-    """
-
-    task = asyncio.ensure_future(operation)
-    caller_cancelled = False
-    while not task.done():
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            caller = asyncio.current_task()
-            if task.cancelled() and (
-                caller is None or caller.cancelling() == 0
-            ):
-                break
-            if not caller_cancelled and cancel_operation is not None:
-                cancel_operation()
-            caller_cancelled = True
-
-    if caller_cancelled:
-        # Observe the child's terminal state, but preserve cancellation as the
-        # result owned by the caller.
-        try:
-            task.result()
-        except (Exception, asyncio.CancelledError):
-            pass
-        raise asyncio.CancelledError
-    return task.result()
+    """Join accepted work, then propagate the caller's terminal outcome."""
+    return (await join_owned(operation, cancel_operation=cancel_operation)).result()
 
 
 async def run_in_daemon_thread(operation: Callable[[], Result]) -> Result:

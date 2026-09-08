@@ -141,7 +141,8 @@ public:
     [[nodiscard]] QString coreVersion() const;
     [[nodiscard]] QString message() const override;
     [[nodiscard]] QString primaryActionText() const override;
-    [[nodiscard]] bool primaryActionEnabled() const override;
+    [[nodiscard]] ProtonVpnKde::ConnectionActionCapabilities
+    connectionCapabilities() const override;
     [[nodiscard]] QAbstractItemModel *countryModel() const;
     [[nodiscard]] QAbstractItemModel *locationSearchModel() const;
     [[nodiscard]] QAbstractItemModel *serverGroupModel() const;
@@ -253,6 +254,7 @@ private:
     void registerClient();
     void unregisterClient();
     void connectBackendSignals();
+    void restartBackendService();
     void disconnectBackendSignals();
     void setBackendAvailable(bool available);
     void stampBackendRequest(QDBusPendingCallWatcher *watcher) const;
@@ -349,6 +351,7 @@ private:
     bool m_fido2Available = false;
     int m_killSwitch = 0;
     bool m_busy = false;
+    bool m_backendRestartPending = false;
     bool m_locationsBusy = false;
     bool m_locationSearchBusy = false;
     QString m_countriesError;

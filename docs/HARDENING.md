@@ -27,16 +27,24 @@ shutdown begins. All manual target owners and automatic retry owners are
 cancelled and joined under one 30-second deadline. The provider connection
 coroutine remains shielded while Proton Core 5.6.10 waits on executor-backed
 NetworkManager work, then a compensating disconnect completes before ownership
-is released. Because Core 5.6.10 retains a queued replacement when Down arrives
-in Disconnecting, invalidating transitions keep ownership across subsequent
-Core state notifications and repeat Down until Disconnected is confirmed. The
-pinned overlay verifier executes this exact state sequence; it fails when a
-future Core no longer has that behavior so the barrier is reassessed. If either
-owner class survives the deadline, a Down fails, or the state never becomes
-stable, the backend logs a critical condition and exits nonzero immediately;
-returning a successful Disconnect while an obsolete NetworkManager mutation or
-queued target can still complete would be less safe than a fresh systemd-owned
-process.
+is released on the handled cancellation path. Core 5.6.10 retains a queued
+replacement when Down arrives in Disconnecting. The working-tree candidate
+crosses the public Down event barrier even from an observed Disconnected state
+and records the resulting state inside the task returning through that barrier.
+It repeats the barrier after subsequent state transitions instead of treating
+a state notification as a teardown receipt. Three opt-in adapter conformance
+tests use the exact installed Core 5.6.10 event/state implementation with fake
+I/O; they cover unfinished Disconnected tasks, queued promotion invalidating
+the captured connection, and preservation of an established tunnel during
+transitional cleanup. The shared cancellation helper also retains provider
+failure separately from caller cancellation. These are candidate corrections
+in the current
+[error-class review](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review),
+not final package or installed acceptance. On detected retirement failure,
+including an obsolete Core connection identity, or deadline exhaustion, the
+backend logs a critical condition and exits nonzero. That
+bounds local process lifetime; supervised replacement is not confirmation that
+NetworkManager has disconnected or undone an already accepted operation.
 
 Orderly backend shutdown closes public ingress, drains accepted work under one
 absolute deadline, disconnects D-Bus, and closes the asyncio loop. It then
@@ -47,11 +55,90 @@ worker still retains process lifetime, the backend logs the condition and exits
 immediately with a nonzero status so it cannot later mutate shared state beside
 a replacement instance. `TimeoutStopSec=35s` gives systemd a longer external
 bound around the complete orderly protocol; `Restart=on-failure` then permits a
-fresh D-Bus activation after a forced terminal exit.
+fresh D-Bus activation after a forced terminal exit. Explicit
+`KillMode=control-group` and `SendSIGKILL=yes` retain systemd's external bound
+for all processes in the service control group.
 They are defense-in-depth within the threat boundary below, not a claim that an
 unprivileged process can attest another same-user process cryptographically.
 Support-report temporary files remain mode-restricted and bounded by the
 application's explicit cleanup lifecycle.
+
+The candidate also makes account replacement a process boundary. Once Core
+refresh services have started, that process cannot accept replacement
+credentials. Sign-out records a private, non-secret runtime handoff before
+changing the session. Fresh startup checks outgoing-process exit using a
+pidfd plus PID start time, clears any restored outgoing session, and verifies
+signed-out state before admitting a new login. Missing evidence or unavailable
+pidfd support blocks recovery; bus-name loss alone is not retirement. The
+[architecture contract](ARCHITECTURE.md#ownership-consolidation-checkpoint)
+describes explicit expired-session preparation, bounded startup cleanup and
+the separate installed acceptance gates. This does not change Core's public
+refresher-disable semantics or claim that all its children were joined.
+
+Core refresh errors now enter a bounded, session-tagged adapter handler through
+the public error callback. Raw exception objects, provider messages and
+tracebacks are not queued or published. The callback never synchronously stops
+the scheduler; authentication ownership and epoch are rechecked by the separate
+worker. Shutdown closes admission before joining that worker, while a
+stateless sink receives late Core notices after adapter retirement. This is
+local handler ownership, not proof of provider-child retirement. Generic
+update failures preserve the tunnel and surface a degraded-services warning;
+authentication failures use the existing expiry/connection-retirement path.
+The [architecture contract](ARCHITECTURE.md#ownership-consolidation-checkpoint)
+records the remaining global deadline and installed acceptance gates.
+
+Native connection actions share one admission policy. Starting a connection
+requires a usable account and ready, healthy, idle backend; cancellation and
+tunnel cleanup do not require a still-valid login. Both confirmation acceptance
+and native dispatch recheck their current permission. Missing or invalid state
+never authorizes a mutation. Agent activation and queued intent remain distinct
+from permission to dispatch. These are client-side consistency controls, not
+a replacement for backend authorization or ownership. Schema 1 cannot identify
+the kind of remote busy work. The backend now retains one session-tagged worker
+per cleanup kind, coalescing repeated requests. Disconnect preempts connection
+work but waits for an accepted non-connect foreground transaction, because
+Core settings saves can apply protection outside its connector event lock.
+Accepting cleanup does not promise immediate completion; whole-operation
+cleanup now has one 30-second admission-to-retirement budget. Expiry while
+waiting for a conflicting transaction rejects that request without cancelling
+the transaction or dispatching cleanup later. Duplicate callers cannot extend
+the original budget. Session and deadline checks precede final dispatch.
+Once adapter retirement starts, connection ownership and public Down use the
+remaining time; unconfirmed retirement retains the existing nonzero process
+boundary. A capture Stop provider task is retained through caller cancellation
+and bounded by the same deadline. If still live at expiry, process retirement
+preserves the capture recovery journal rather than discarding its owner.
+
+Retry scheduling requires the adapter's connection and account-lifecycle
+callbacks. There is no standalone direct Core Up/Down fallback: the shared
+connection owner handles post-lock validation, retained provider work and stale
+success compensation. This is an in-process ownership contract, not a new
+security isolation boundary. The production binding and retry/network policy
+outside shutdown are unchanged; tests separate scheduling from actual ownership
+and cleanup. Shutdown now fences retry scheduling immediately; ordered disable
+still joins the existing retry and unregisters its observer.
+
+Close is singleflight at both controller and adapter boundaries. The service's
+absolute deadline is passed inward rather than restarted by capture drainage,
+background-handler retirement or connection supersession. Repeated callers
+share the original deadline and terminal outcome, including failure; caller
+cancellation does not detach teardown. A pending provider call is retained on
+timeout, with later teardown stages guarded against an expired budget. The
+enclosing service reports failure and applies the existing process-retirement
+boundary. This does not prove external tunnel removal or Core child quiescence.
+Process-task/thread graces and the systemd stop limit remain external backstops,
+especially if synchronous provider code stalls the event loop.
+
+Foreground mutations have one 180-second admission-to-retirement budget.
+Pre-admission expiry withdraws just that request. After admission, the complete
+transaction and its compensation remain owned through caller cancellation;
+settings and authentication are not abandoned after a transport timeout.
+Connection, capture Start and FIDO retain their explicit cancellation paths.
+Inner recovery limits cannot detach accepted side effects or extend the outer
+budget. Unconfirmed foreground work fences admission and retires the process
+nonzero, using the existing boundary without altering Core or network policy.
+The controller's deadline assumes a progressing event loop; it is not proof of
+external tunnel teardown. Installed acceptance remains required.
 
 Packet capture first requires Core to accept the selected destination, then
 reserves its bounded lifecycle before Core receives the start request. A
@@ -69,10 +156,15 @@ is not eligible for the ordinary no-client idle exit, so a hanging bounded stop
 cannot be canceled into an unsupervised clean shutdown. The recovered watchdog
 retains the original deadline and continues bounded attempts after that deadline
 until Core confirms completion.
-Risk-reducing Stop remains callable after account-session expiry and waits
-behind an already accepted mutation rather than failing on the global operation
-lock. It captures the session epoch before waiting and rechecks it after lock
-acquisition, preventing cleanup from being applied to a replacement account.
+Risk-reducing Stop remains callable after account-session expiry and bypasses
+unrelated foreground mutations. It cancels accepted Start only once and joins
+its compensation. Final Stop and Down calls serialize; each rechecks its
+captured session epoch immediately before dispatch. New mutations wait for
+accepted cleanup and revalidate their account after waiting. Caller cancellation
+cannot cancel or drop a cleanup worker, and shutdown grace expiry does not
+cancel mandatory cleanup. If the shutdown deadline expires first, close fails
+explicitly without closing Core underneath that work. Existing process and
+capture recovery bounds remain necessary; this is not proof of external teardown.
 The frontend gives capture its own completion generation so a later foreground
 operation cannot discard a valid Stop reply or release shutdown early.
 Authentication, settings, and protection recovery states block ordinary
@@ -196,12 +288,21 @@ executables.
 Successful authorization already verifies that the caller's unique D-Bus name
 is still owned. Frontend lifetime registration reuses that verified result
 instead of issuing a second asynchronous owner probe, then checks authorization
-again and rolls the lease back if owner loss raced registration. The fallback
-authorizer-free demo/test path retains its independent ownership probe. Owner
+again and rolls the lease back if owner loss raced registration. Every service
+requires an authorizer; demo mode uses an explicit non-networking demo policy
+rather than an authorizer-free export path. Owner
 loss during the asynchronous identity checks also invalidates the pending
 authorization before it can create a lifetime lease; this pending marker is
 removed when the check completes rather than accumulating unique-name
 tombstones for the backend lifetime.
+
+The ingress policy covers every supported exported-call representation and
+rejects unexpected descriptors even on standard-interface calls at the backend
+object. The shared export boundary applies the generated method classification
+again before any protected operation body runs. This second check covers
+revocation while an asynchronous call is queued and closes its secret descriptor
+if authorization is lost before the method adopts it. Request identity defaults
+to empty outside ingress; test identities are established explicitly.
 
 Read-only settings and protection replies are also scoped to the active account
 session. A logout or account transition advances the session generation and

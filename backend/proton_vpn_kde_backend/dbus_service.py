@@ -16,7 +16,9 @@ from dbus_fast.service import ServiceInterface, method, signal
 
 from .dbus_contract import (
     CLASSIFIED_METHODS,
+    HANDSHAKE_METHODS,
     INTERFACE_NAME,
+    READ_ONLY_METHODS,
     SECRET_DESCRIPTOR_METHODS,
     Error,
     Method,
@@ -85,6 +87,7 @@ def dbus_error_boundary(
             @wraps(operation)
             async def call_async(*args: Any, **kwargs: Any):
                 try:
+                    args[0]._authorize_export(operation.__name__, args[1:], kwargs)
                     return await operation(*args, **kwargs)
                 except DBusError:
                     raise
@@ -117,6 +120,7 @@ def dbus_error_boundary(
         @wraps(operation)
         def call_sync(*args: Any, **kwargs: Any):
             try:
+                args[0]._authorize_export(operation.__name__, args[1:], kwargs)
                 return operation(*args, **kwargs)
             except DBusError:
                 raise
@@ -148,29 +152,46 @@ class VpnDbusService(ServiceInterface):
     def __init__(
         self,
         controller: BackendController,
-        lifetime: BackendLifetime | None = None,
-        authorizer: ClientAuthorizer | None = None,
+        lifetime: BackendLifetime | None,
+        authorizer: ClientAuthorizer,
     ):
+        if authorizer is None:
+            raise TypeError("A backend service requires an authorizer")
         super().__init__(INTERFACE_NAME)
         self._controller = controller
         self._lifetime = lifetime
         self._authorizer = authorizer
         self._secret_payloads = SecretPayloadReader()
-        if authorizer is not None:
-            authorizer.subscribe_revocation(self._secret_payloads.revoke_sender)
-            if lifetime is not None:
-                authorizer.subscribe_revocation(lifetime.unregister_client)
+        authorizer.subscribe_revocation(self._secret_payloads.revoke_sender)
+        if lifetime is not None:
+            authorizer.subscribe_revocation(lifetime.unregister_client)
         controller.subscribe(self._on_snapshot)
         controller.subscribe_server_data(self._on_server_data)
         controller.subscribe_settings(self._on_settings)
         controller.subscribe_split_tunneling(self._on_split_tunneling)
         controller.subscribe_custom_dns(self._on_custom_dns)
 
+    def _authorize_export(
+        self, operation_name: str, arguments: tuple[Any, ...], keywords: dict[str, Any]
+    ) -> None:
+        """Enforce the generated policy immediately before the operation body."""
+        member = _EXPORTED_METHODS[operation_name]
+        if member in READ_ONLY_METHODS or member in HANDSHAKE_METHODS:
+            return
+        try:
+            self._authorizer.require_authorized_sender()
+        except PermissionError:
+            # A queued async call may lose authority after ingress accepted its
+            # descriptor. The method body has not adopted it on this path.
+            if member in SECRET_DESCRIPTOR_METHODS:
+                descriptor = arguments[0] if arguments else keywords["secret_fd"]
+                close_descriptor(descriptor)
+            raise
+
     @method(name=Method.AUTHORIZE_CLIENT)
     @dbus_error_boundary()
     async def authorize_client(self, unique_name: "s"):  # noqa: F722,F821
-        if self._authorizer is not None:
-            await self._authorizer.authorize(unique_name)
+        await self._authorizer.authorize(unique_name)
 
     @method(name=Method.REGISTER_CLIENT)
     @dbus_error_boundary()
@@ -180,48 +201,36 @@ class VpnDbusService(ServiceInterface):
             if self._lifetime is not None
             else None
         )
-        if self._authorizer is not None:
-            try:
-                await self._authorizer.authorize(unique_name)
-            except BaseException:
-                if self._lifetime is not None:
-                    assert registration_generation is not None
-                    self._lifetime.cancel_registration(
-                        unique_name, registration_generation
-                    )
-                raise
-            unique_name = current_request_sender()
-        if self._lifetime is not None:
-            if self._authorizer is not None:
-                self._lifetime.register_authorized_client(
+        try:
+            await self._authorizer.authorize(unique_name)
+        except BaseException:
+            if self._lifetime is not None:
+                assert registration_generation is not None
+                self._lifetime.cancel_registration(
                     unique_name, registration_generation
                 )
-            else:
-                await self._lifetime.register_client(unique_name)
-            if self._authorizer is not None:
-                try:
-                    self._authorizer.require_authorized_sender()
-                except PermissionError:
-                    # Owner loss can arrive while the asynchronous ownership
-                    # probe is in flight. Roll back a lease recorded after its
-                    # revocation callback already ran.
-                    self._lifetime.unregister_client(unique_name)
-                    raise
+            raise
+        unique_name = current_request_sender()
+        if self._lifetime is not None:
+            self._lifetime.register_authorized_client(
+                unique_name, registration_generation
+            )
+            try:
+                self._authorizer.require_authorized_sender()
+            except PermissionError:
+                # Owner loss can overtake the asynchronous identity probe.
+                self._lifetime.unregister_client(unique_name)
+                raise
 
     @method(name=Method.UNREGISTER_CLIENT)
     @dbus_error_boundary()
     def unregister_client(self, unique_name: "s"):  # noqa: F722,F821
-        if self._authorizer is not None:
-            # Unregister is risk-reducing cleanup and the session bus supplies
-            # an unforgeable unique sender. Accept retirement before a
-            # concurrent RegisterClient identity probe completes so its
-            # lifetime tombstone can prevent a late lease commit.
-            sender = current_request_sender()
-            if unique_name != sender:
-                raise PermissionError(UNAUTHORIZED_MESSAGE)
-            unique_name = sender
+        # Cleanup may overtake registration, but can retire only its sender.
+        sender = current_request_sender()
+        if not sender.startswith(":") or unique_name != sender:
+            raise PermissionError(UNAUTHORIZED_MESSAGE)
         if self._lifetime is not None:
-            self._lifetime.unregister_client(unique_name)
+            self._lifetime.unregister_client(sender)
 
     @method(name=Method.GET_SNAPSHOT)
     @dbus_error_boundary()
@@ -530,13 +539,16 @@ class VpnDbusService(ServiceInterface):
             ) from error
 
 
+_EXPORTED_METHODS = {
+    name: getattr(member, "__DBUS_METHOD").name
+    for name, member in vars(VpnDbusService).items()
+    if getattr(member, "__DBUS_METHOD", None) is not None
+}
+
+
 def exported_method_names() -> frozenset[str]:
     """Expose the declared method set for the authorization meta-test."""
-    return frozenset(
-        member.__DBUS_METHOD.name
-        for member in vars(VpnDbusService).values()
-        if getattr(member, "__DBUS_METHOD", None) is not None
-    )
+    return frozenset(_EXPORTED_METHODS.values())
 
 
 assert exported_method_names() == CLASSIFIED_METHODS

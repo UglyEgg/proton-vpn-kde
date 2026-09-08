@@ -9,6 +9,15 @@ baseline_commit="ec27fdce4967325d0f5e604c135caa23f5158474"
 
 cd "$project_dir"
 
+# A diff cannot seal untracked source. Require explicit staging before this
+# gate is used locally; CI's clean checkout naturally satisfies the condition.
+untracked_files="$(git ls-files --others --exclude-standard)"
+if [[ -n "$untracked_files" ]]; then
+    echo "Stage or remove untracked files before sealing the candidate:" >&2
+    printf '  %s\n' "$untracked_files" >&2
+    exit 1
+fi
+
 if ! git cat-file -e "${baseline_commit}^{commit}" 2>/dev/null; then
     echo "The 0.13 UX mechanics baseline is unavailable: $baseline_commit" >&2
     echo "Fetch complete Git history before running this release gate." >&2
@@ -47,7 +56,7 @@ assert_diff_hash() {
     local actual
     actual="$(diff_hash "$@")"
     if [[ "$actual" != "$expected" ]]; then
-        echo "The reviewed 0.13 $label delta changed:" >&2
+        echo "The recorded 0.13 $label delta changed:" >&2
         printf '  expected %s\n  actual   %s\n' "$expected" "$actual" >&2
         exit 1
     fi
@@ -66,9 +75,11 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/__init__.py|\
         backend/proton_vpn_kde_backend/__main__.py|\
         backend/proton_vpn_kde_backend/adapters.py|\
+        backend/proton_vpn_kde_backend/account_transition.py|\
         backend/proton_vpn_kde_backend/async_utils.py|\
         backend/proton_vpn_kde_backend/client_authorization.py|\
         backend/proton_vpn_kde_backend/controller.py|\
+        backend/proton_vpn_kde_backend/demo_adapter.py|\
         backend/proton_vpn_kde_backend/core_compatibility.py|\
         backend/proton_vpn_kde_backend/core_snapshot.py|\
         backend/proton_vpn_kde_backend/core_support.py|\
@@ -77,21 +88,32 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/errors.py|\
         backend/proton_vpn_kde_backend/fido_interaction.py|\
         backend/proton_vpn_kde_backend/lifetime.py|\
+        backend/proton_vpn_kde_backend/packet_capture.py|\
         backend/proton_vpn_kde_backend/reconnector.py|\
+        backend/proton_vpn_kde_backend/refresher_events.py|\
+        backend/proton_vpn_kde_backend/task_scope.py|\
+        backend/tests/test_account_transition.py|\
         backend/tests/test_async_utils.py|\
         backend/tests/test_client_authorization.py|\
         backend/tests/test_controller.py|\
+        backend/tests/test_core_lifecycle_conformance.py|\
+        backend/tests/test_dbus_contract.py|\
         backend/tests/test_dbus_service.py|\
         backend/tests/test_lifetime.py|\
         backend/tests/test_main.py|\
         backend/tests/test_proton_core_adapter.py|\
         backend/tests/test_reconnector.py|\
+        backend/tests/test_refresher_events.py|\
+        backend/tests/test_task_scope.py|\
         data/proton-vpn-kde-backend.service.in|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
         packaging/fedora/api-core-overlay/rebuild_overlay.py|\
         packaging/fedora/core-compatibility.json|\
         packaging/fedora/proton-vpn-kde.spec|\
         src/AgentVpnClient.cpp|src/AgentVpnClient.h|src/TrayIntegration.cpp|\
+        src/BackendCallPolicy.h|src/BackgroundQuitCoordinator.cpp|\
+        src/ConnectionAction.h|src/OperationCompletion.h|src/ShortcutIntegration.cpp|\
+        src/VpnConnectionController.h|\
         src/DbusContract.h|\
         src/VpnController.cpp|src/VpnController.h|\
         src/VpnControllerActions.cpp|\
@@ -99,6 +121,8 @@ while IFS= read -r path; do
         src/VpnControllerSettings.cpp|src/VpnControllerSnapshot.cpp|\
         src/main.cpp|\
         tests/AgentVpnClientTest.cpp|tests/GroupedNavigationTest.cpp|\
+        tests/BackendCallPolicyTest.cpp|tests/BackgroundQuitCoordinatorTest.cpp|\
+        tests/ConnectionActionTest.cpp|\
         tests/SignInPresentationTest.cpp)
             # Exact reviewed deltas are checked below.
             ;;
@@ -106,6 +130,7 @@ while IFS= read -r path; do
         scripts/check-qml-ui-hygiene.sh|scripts/check-qml-visual-matrix.sh|\
         scripts/check-compatibility-metadata.py|\
         scripts/check-core-compatibility.sh|\
+        scripts/check-core-contract.py|\
         scripts/check-release-metadata.sh|scripts/check-rpm-artifact.sh|\
         scripts/check-ux-mechanics-freeze.sh|\
         scripts/smoke-qml-diagnostics.sh|scripts/smoke-qml-layout-variants.sh|\
@@ -127,43 +152,25 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "89be18e1e42ead89a3c3a7c0c8f413e5610f7ae3e7d88d08dba0fac7d7532bdf" \
+    "eceb4a5872ad5d75efe4396f73043f5d1e189bd9e1448e081b46781b88832aea" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "0fe97367765a4843642ba237ef402224d985a0f0717d1263e4bc0d9711b5ad6d" \
-    "backend reviewed behavior exceptions" \
-    backend/proton_vpn_kde_backend/__main__.py \
-    backend/proton_vpn_kde_backend/adapters.py \
-    backend/proton_vpn_kde_backend/async_utils.py \
-    backend/proton_vpn_kde_backend/client_authorization.py \
-    backend/proton_vpn_kde_backend/controller.py \
-    backend/proton_vpn_kde_backend/core_compatibility.py \
-    backend/proton_vpn_kde_backend/core_snapshot.py \
-    backend/proton_vpn_kde_backend/core_support.py \
-    backend/proton_vpn_kde_backend/dbus_service.py \
-    backend/proton_vpn_kde_backend/errors.py \
-    backend/proton_vpn_kde_backend/fido_interaction.py \
-    backend/proton_vpn_kde_backend/lifetime.py \
-    backend/proton_vpn_kde_backend/reconnector.py \
-    backend/tests/test_async_utils.py \
-    backend/tests/test_client_authorization.py backend/tests/test_controller.py \
-    backend/tests/test_dbus_service.py \
-    backend/tests/test_lifetime.py \
-    backend/tests/test_main.py \
-    backend/tests/test_proton_core_adapter.py backend/tests/test_reconnector.py
+    "65c8e5ccbf8c3384cac60c28d9a19e036e86aef0f50a08a2ed15a7b2c1d0bbb2" \
+    "backend ownership and recovery" \
+    backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
-    "29bc3e1c607c1faff639b8c3046db88ac5fe1a79bf822b06e7fa532bdbfb6690" \
+    "fc1cefe07356bf5efb693f4369ea2361ab1e713f719f15941d5a99118a85060d" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
-    scripts/check-core-compatibility.sh
+    scripts/check-core-compatibility.sh scripts/check-core-contract.py
 assert_diff_hash \
-    "ddcdc71a363c340563f71ed991e1339a982d5a578e0f2662137851c1044aee00" \
+    "3cf652676ae9f7eefc062c61a28c663942fbdf58d6a57707d8eb94c598021bff" \
     "finite process-stop packaging" \
     data/proton-vpn-kde-backend.service.in \
     scripts/check-rpm-artifact.sh scripts/smoke-staged-install.sh
@@ -179,16 +186,11 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "d86348e478192506a61271ad12fb38c0b4037cc91315787cc185c3cbee10888c" \
+    "e418c13ea27eb33037e3e5bb10e6b0065edd8b19a16d3fdf8226b0c673d60c64" \
     "frontend presentation contract" \
-    src/AgentVpnClient.cpp src/AgentVpnClient.h src/TrayIntegration.cpp \
-    src/VpnController.h src/VpnController.cpp src/VpnControllerActions.cpp \
-    src/VpnControllerLifecycle.cpp src/VpnControllerLocations.cpp \
-    src/VpnControllerSettings.cpp src/VpnControllerSnapshot.cpp src/main.cpp \
-    tests/AgentVpnClientTest.cpp tests/GroupedNavigationTest.cpp \
-    tests/SignInPresentationTest.cpp
+    src runner kcm tests
 assert_diff_hash \
-    "fe91cb9445496e30d1b9ca5ec227f0a48e2f996b9884bc099f36e7a9012a7cfc" \
+    "a2319e5d44bb424040119977ec9ddaa521b30ea56b7fd469fc984d4a47f0aa59" \
     "QML presentation" qml
 
-echo "0.13 change boundary matches accepted baseline $baseline_commit plus exact reviewed deltas"
+echo "0.13 change boundary matches baseline $baseline_commit plus recorded candidate deltas (not review approval)"

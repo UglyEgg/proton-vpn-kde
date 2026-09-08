@@ -35,12 +35,11 @@ void BackgroundQuitCoordinator::disconnectAndQuit()
     if (m_pending) {
         return;
     }
-    if (m_controller->state() == QStringLiteral("disconnected")) {
-        emit readyToQuit();
+    setPending(true);
+    finishIfDisconnected();
+    if (!m_pending) {
         return;
     }
-
-    setPending(true);
     m_disconnectTimeout.start();
     if (m_controller->state() != QStringLiteral("disconnecting")) {
         m_controller->disconnect();
@@ -50,9 +49,7 @@ void BackgroundQuitCoordinator::disconnectAndQuit()
 
 void BackgroundQuitCoordinator::finishIfDisconnected()
 {
-    if (!m_pending || !m_controller->backendAvailable()
-        || m_controller->busy()
-        || m_controller->state() != QStringLiteral("disconnected")) {
+    if (!m_pending || !m_controller->connectionCapabilities().idleDisconnected) {
         return;
     }
     m_disconnectTimeout.stop();

@@ -24,17 +24,23 @@ Kirigami.InlineMessage {
         showPacketCaptureError
         && vpnController.packetCaptureError.length > 0
     readonly property bool shutdownActive: vpnController.shutdownPending
+    readonly property bool backgroundServicesDegraded:
+        vpnController.loggedIn && vpnController.authState === "signed_in_degraded"
     readonly property bool bannerActive:
         snapshotErrorActive || packetCaptureErrorActive
         || recoveryActive || connectionErrorActive || shutdownActive
+        || backgroundServicesDegraded
 
     objectName: "applicationBackendRecovery"
     visible: bannerActive
     height: visible ? implicitHeight : 0
-    type: shutdownActive
-          && !snapshotErrorActive && !packetCaptureErrorActive
-          && !recoveryActive && !connectionErrorActive
-          ? Kirigami.MessageType.Information : Kirigami.MessageType.Error
+    type: {
+        if (snapshotErrorActive || packetCaptureErrorActive
+                || recoveryActive || connectionErrorActive) {
+            return Kirigami.MessageType.Error
+        }
+        return shutdownActive ? Kirigami.MessageType.Information : Kirigami.MessageType.Warning
+    }
     text: {
         if (root.snapshotErrorActive) {
             return vpnController.snapshotError
@@ -49,6 +55,11 @@ Kirigami.InlineMessage {
         }
         if (root.shutdownActive) {
             return qsTr("Stopping the troubleshooting capture before closing…")
+        }
+        if (root.backgroundServicesDegraded && !root.connectionErrorActive) {
+            return vpnController.message.length > 0
+                   ? vpnController.message
+                   : qsTr("Some Proton background updates stopped. Sign out and sign in again to restart them.")
         }
         const summary = root.connectionErrorText(vpnController.errorCode)
         return summary

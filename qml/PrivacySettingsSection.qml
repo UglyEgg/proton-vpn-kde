@@ -66,6 +66,7 @@ SectionCard {
             }
 
             Controls.Button {
+                objectName: "packetCaptureAction"
                 text: vpnController.packetCaptureActive
                       ? qsTr("Stop capture")
                       : qsTr("Start capture")
@@ -73,12 +74,9 @@ SectionCard {
                            ? "media-playback-stop"
                            : "media-record"
                 highlighted: vpnController.packetCaptureActive
-                enabled: !vpnController.busy
-                         && ((vpnController.packetCaptureActive
-                              && vpnController.backendAvailable
-                              && vpnController.ready)
-                             || (!vpnController.packetCaptureActive
-                                 && vpnController.ready
+                enabled: vpnController.backendAvailable && vpnController.ready
+                         && (vpnController.packetCaptureActive
+                             || (!vpnController.busy
                                  && vpnController.state === "connected"))
                 onClicked: {
                     if (vpnController.packetCaptureActive) {

@@ -160,7 +160,7 @@ class PacketCaptureCoordinator:
         self._arm_watchdog(generation, connection, deadline)
         self._notify(None)
 
-    async def stop(self) -> None:
+    async def stop(self, *, deadline: float | None = None) -> None:
         if not self.active:
             self.cancel_watchdog()
             return
@@ -171,6 +171,7 @@ class PacketCaptureCoordinator:
             failure_message=None,
             completion_message=None,
             raise_on_failure=True,
+            operation_deadline=deadline,
         )
 
     def cancel_watchdog(self) -> None:
@@ -286,6 +287,7 @@ class PacketCaptureCoordinator:
         failure_message: str | None,
         completion_message: str | None,
         raise_on_failure: bool,
+        operation_deadline: float | None = None,
     ) -> bool:
         """Stop one capture generation exactly once across every caller."""
         async with self._stop_lock:
@@ -297,10 +299,15 @@ class PacketCaptureCoordinator:
                 return False
 
             for attempt in range(attempts):
+                remaining = self._stop_attempt_seconds
+                if operation_deadline is not None:
+                    remaining = min(remaining, operation_deadline - asyncio.get_running_loop().time())
+                    if remaining <= 0:
+                        raise TimeoutError("Packet-capture stop exceeded the shutdown deadline")
                 try:
                     if connection is None:
                         raise RuntimeError("capture connection is unavailable")
-                    async with asyncio.timeout(self._stop_attempt_seconds):
+                    async with asyncio.timeout(remaining):
                         await connection.stop_packet_capture()
                     break
                 except Exception:

@@ -168,6 +168,7 @@ private slots:
     void failedReconnectionPolicyBlocksQueuedConnect();
     void staleSnapshotCannotClearReplacementAction();
     void reconcilesCompletionUnknownOperationBeforeReleasingLease();
+    void reconcilesCompletionUnknownOperationBeforeReleasingLease_data();
     void staleConnectReplyCannotOverrideNewerDisconnect();
     void disconnectPreemptsConnectBeforeConnectingSnapshot();
     void staleReconciliationSnapshotCannotOverrideNewerDisconnect();
@@ -176,6 +177,10 @@ private slots:
     void completionUnknownRegistrationRetiresPossibleLease();
     void reconciliationSnapshotCannotReleaseSuccessorLease();
     void definitiveFailureDispatchesQueuedSuccessor();
+    void connectionAdmissionAndSnapshotHealth();
+    void failedSnapshotCannotAuthorizeAnotherConnection();
+    void autoConnectDoesNotSurviveAnExistingTransition_data();
+    void autoConnectDoesNotSurviveAnExistingTransition();
     void observesLeaseFreeAndUsesTransientActionLeases();
 
 private:
@@ -371,6 +376,7 @@ void AgentVpnClientTest::observesLeaseFreeAndUsesTransientActionLeases()
 
 void AgentVpnClientTest::reconcilesCompletionUnknownOperationBeforeReleasingLease()
 {
+    QFETCH(bool, busyFirst);
     m_backend.failReconnection = false;
     m_backend.resetCounters();
     m_backend.delayedSnapshotMessage = {};
@@ -393,13 +399,28 @@ void AgentVpnClientTest::reconcilesCompletionUnknownOperationBeforeReleasingLeas
     QCOMPARE(m_backend.unregistrationCalls, unregistrationBaseline);
     QVERIFY(client.busy());
 
-    QVERIFY(m_backendBus->send(
-        m_backend.delayedSnapshotMessage.createReply(
-            ProtonVpnKde::TestData::completeSnapshot(m_backend.state))));
+    auto snapshot = QJsonDocument::fromJson(
+        ProtonVpnKde::TestData::completeSnapshot(m_backend.state).toUtf8()).object();
+    snapshot.insert(QStringLiteral("busy"), busyFirst);
+    QVERIFY(m_backendBus->send(m_backend.delayedSnapshotMessage.createReply(
+        QString::fromUtf8(QJsonDocument(snapshot).toJson(QJsonDocument::Compact)))));
     QTRY_COMPARE_WITH_TIMEOUT(client.state(), QStringLiteral("connected"), 2000);
+    if (busyFirst) {
+        QVERIFY(client.busy());
+        QCOMPARE(m_backend.unregistrationCalls, unregistrationBaseline);
+        emit m_backend.SnapshotChanged(
+            ProtonVpnKde::TestData::completeSnapshot(m_backend.state));
+    }
     QTRY_COMPARE_WITH_TIMEOUT(
         m_backend.unregistrationCalls, unregistrationBaseline + 1, 2000);
     QVERIFY(!client.busy());
+}
+
+void AgentVpnClientTest::reconcilesCompletionUnknownOperationBeforeReleasingLease_data()
+{
+    QTest::addColumn<bool>("busyFirst");
+    QTest::newRow("idle-read") << false;
+    QTest::newRow("busy-read-then-idle-signal") << true;
 }
 
 void AgentVpnClientTest::staleConnectReplyCannotOverrideNewerDisconnect()
@@ -687,6 +708,112 @@ void AgentVpnClientTest::definitiveFailureDispatchesQueuedSuccessor()
     QTRY_COMPARE_WITH_TIMEOUT(
         m_backend.unregistrationCalls, unregistrationBaseline + 1, 2000);
     QVERIFY(!client.busy());
+}
+
+void AgentVpnClientTest::connectionAdmissionAndSnapshotHealth()
+{
+    m_backend.failReconnection = false;
+    m_backend.resetCounters();
+    AgentVpnClient client;
+    QTRY_VERIFY_WITH_TIMEOUT(client.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    QVERIFY(client.canConnect());
+    QVERIFY(!client.canDisconnect());
+
+    m_backend.state = QStringLiteral("connecting");
+    m_backend.busy = true;
+    emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
+    QTRY_COMPARE_WITH_TIMEOUT(client.state(), QStringLiteral("connecting"), 2000);
+    QVERIFY(!client.canConnect());
+    QVERIFY(client.canDisconnect());
+    QVERIFY(client.primaryActionEnabled());
+    QVERIFY(client.primaryActionDisconnects());
+    // Existing native queueing is retained, but cannot dispatch against a
+    // busy transition. Disconnect also retires this queued successor.
+    client.connectTarget(QStringLiteral("CH"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.registrationCalls, 1, 2000);
+    QCOMPARE(m_backend.countryCalls, 0);
+    client.activatePrimaryAction();
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.disconnectCalls, 1, 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(!client.busy(), 2000);
+    QCOMPARE(m_backend.countryCalls, 0);
+
+    emit m_backend.SnapshotChanged(QStringLiteral("{"));
+    QTRY_VERIFY_WITH_TIMEOUT(!client.canConnect(), 2000);
+    QVERIFY(!client.canDisconnect());
+    QVERIFY(!client.primaryActionEnabled());
+    QVERIFY(client.backendAvailable());
+    emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
+    QTRY_VERIFY_WITH_TIMEOUT(client.canConnect(), 2000);
+
+    auto snapshot = QJsonDocument::fromJson(
+        ProtonVpnKde::TestData::completeSnapshot(QStringLiteral("connected")).toUtf8()).object();
+    snapshot.insert(QStringLiteral("authState"), QStringLiteral("authentication_unknown"));
+    emit m_backend.SnapshotChanged(QString::fromUtf8(
+        QJsonDocument(snapshot).toJson(QJsonDocument::Compact)));
+    QTRY_VERIFY_WITH_TIMEOUT(!client.canConnect(), 2000);
+    QVERIFY(client.canDisconnect());
+    client.disconnect();
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.disconnectCalls, 2, 2000);
+}
+
+void AgentVpnClientTest::failedSnapshotCannotAuthorizeAnotherConnection()
+{
+    m_backend.resetCounters();
+    m_backend.delayedSnapshotMessage = {};
+    AgentVpnClient client;
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    QVERIFY(client.canConnect());
+
+    m_backend.delayNextSnapshot = true;
+    client.connectTarget(QStringLiteral("FASTEST"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_backend.delayedSnapshotMessage.type(),
+        QDBusMessage::MethodCallMessage, 2000);
+    QVERIFY(m_backendBus->send(
+        m_backend.delayedSnapshotMessage.createErrorReply(
+            QDBusError::NoReply, QStringLiteral("state read failed"))));
+    QTRY_VERIFY_WITH_TIMEOUT(!client.busy(), 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.unregistrationCalls, 1, 2000);
+    QVERIFY(client.backendAvailable());
+    QVERIFY(!client.canConnect());
+    QVERIFY(!client.canDisconnect());
+    QVERIFY(!client.primaryActionEnabled());
+    client.activatePrimaryAction();
+    QCOMPARE(m_backend.fastestCalls, 1);
+
+    emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
+    QTRY_VERIFY_WITH_TIMEOUT(client.canConnect(), 2000);
+    QVERIFY(client.canDisconnect());
+}
+
+void AgentVpnClientTest::autoConnectDoesNotSurviveAnExistingTransition_data()
+{
+    QTest::addColumn<QString>("state");
+    QTest::newRow("connecting") << QStringLiteral("connecting");
+    QTest::newRow("disconnecting") << QStringLiteral("disconnecting");
+    QTest::newRow("connected") << QStringLiteral("connected");
+}
+
+void AgentVpnClientTest::autoConnectDoesNotSurviveAnExistingTransition()
+{
+    QFETCH(QString, state);
+    m_backend.resetCounters();
+    m_backend.state = state;
+    AgentVpnClient client;
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    QCOMPARE(client.state(), state);
+
+    client.autoConnect(QStringLiteral("FASTEST"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.registrationCalls, 1, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.unregistrationCalls, 1, 2000);
+    QCOMPARE(m_backend.fastestCalls, 0);
+
+    m_backend.state = QStringLiteral("disconnected");
+    emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
+    QTRY_COMPARE_WITH_TIMEOUT(client.state(), QStringLiteral("disconnected"), 2000);
+    QVERIFY(client.canConnect());
+    QCOMPARE(m_backend.fastestCalls, 0);
 }
 
 QTEST_MAIN(AgentVpnClientTest)

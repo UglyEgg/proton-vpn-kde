@@ -13,14 +13,16 @@ import tempfile
 import textwrap
 import threading
 import time
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from dbus_fast.constants import RequestNameReply
 
 from proton_vpn_kde_backend import __main__ as backend_main
 from proton_vpn_kde_backend.capture_recovery import PacketCaptureRecoveryJournal
-from proton_vpn_kde_backend.controller import VpnSnapshot
+from proton_vpn_kde_backend.controller import BackendController, VpnSnapshot
+from proton_vpn_kde_backend.demo_adapter import DemoCoreAdapter
 
 
 class BackendMainTests(unittest.TestCase):
@@ -190,6 +192,67 @@ class BackendMainTests(unittest.TestCase):
 
 
 class BackendRetirementTests(unittest.IsolatedAsyncioTestCase):
+    async def test_service_deadline_is_inherited_by_controller_and_adapter(self):
+        adapter = DemoCoreAdapter()
+        adapter.close = AsyncMock()
+        controller = BackendController(adapter)
+        bus = SimpleNamespace(unexport=Mock(), remove_message_handler=Mock(),
+                              release_name=AsyncMock(), disconnect=Mock())
+        authorizer = SimpleNamespace(message_handler=object(), uninstall=AsyncMock())
+        with (
+            patch.object(controller, "close", wraps=controller.close) as close,
+            patch.object(backend_main, "_run_cleanup_before_deadline", wraps=backend_main._run_cleanup_before_deadline) as cleanup,
+        ):
+            error = await backend_main._shutdown_published_service(
+                bus=bus, service=object(), authorizer=authorizer,
+                controller=controller, initialized=True, initialization_task=None,
+                lifetime_task=None, stopped_task=None, loop=asyncio.get_running_loop(),
+            )
+        self.assertIsNone(error)
+        deadline = close.await_args.kwargs["deadline"]
+        adapter.close.assert_awaited_once_with(deadline=deadline)
+        self.assertEqual(3, cleanup.await_count)
+        self.assertTrue(all(call.args[1] == deadline for call in cleanup.await_args_list))
+        bus.disconnect.assert_called_once_with()
+
+    async def test_expired_service_budget_does_not_launch_another_cleanup(self):
+        async def operation():
+            self.fail("An expired budget must not dispatch fresh cleanup")
+
+        with patch.object(asyncio, "create_task", wraps=asyncio.create_task) as create:
+            error = await backend_main._run_cleanup_before_deadline(
+                operation(), asyncio.get_running_loop().time() - 1
+            )
+        self.assertIsInstance(error, TimeoutError)
+        create.assert_not_called()
+
+    async def test_service_drain_does_not_recancel_provider_compensation(self):
+        entered, compensating, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+        async def operation():
+            entered.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                compensating.set()
+                await release.wait()
+                raise
+
+        task = asyncio.create_task(operation())
+        await entered.wait()
+        deadline = asyncio.get_running_loop().time() + 1
+        try:
+            for _ in range(2):
+                result = await backend_main._finish_task_before_deadline(
+                    task, deadline, cancel=True, grace_seconds=0.005
+                )
+                self.assertIsInstance(result, TimeoutError)
+                self.assertTrue(compensating.is_set())
+                self.assertEqual(1, task.cancelling())
+        finally:
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+
     async def test_every_cleanup_operation_uses_the_shared_deadline(self):
         cancellation_seen = asyncio.Event()
         release_cleanup = asyncio.Event()
@@ -545,7 +608,7 @@ class BackendPublicationTests(unittest.IsolatedAsyncioTestCase):
                             callback(self.snapshot)
                         return True
 
-                    async def close(self):
+                    async def close(self, *, deadline=None):
                         pass
 
                 controller = FakeController()

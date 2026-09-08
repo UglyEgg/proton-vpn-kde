@@ -127,7 +127,12 @@ class LogindSessionProbe:
 
 
 class AsyncReconnector:
-    """Reconnect dropped Proton connections without a GLib main loop."""
+    """Schedule retry requests; the supplied owner controls Core Up and Down.
+
+    Account checks here fence obsolete requests before dispatch. The connection
+    owner must recheck after acquiring its lifecycle scope and retain accepted
+    provider work through cancellation and compensation.
+    """
 
     _NO_RETRY_EVENTS = {
         "AuthDenied",
@@ -141,14 +146,23 @@ class AsyncReconnector:
         connector: Any,
         refresher: Any,
         status_callback: StatusCallback | None = None,
+        *,
+        connection_attempt: ConnectionAttempt,
+        authentication_epoch_source: AuthenticationEpochSource,
+        authentication_epoch_validator: AuthenticationEpochValidator,
+        authentication_error_callback: AuthenticationErrorCallback,
         network_probe: ConditionProbe = network_route_available,
         session_probe: LogindSessionProbe | None = None,
         delay_factory: DelayFactory | None = None,
-        authentication_epoch_source: AuthenticationEpochSource | None = None,
-        authentication_epoch_validator: AuthenticationEpochValidator | None = None,
-        authentication_error_callback: AuthenticationErrorCallback | None = None,
-        connection_attempt: ConnectionAttempt | None = None,
     ):
+        for name, callback in (
+            ("connection_attempt", connection_attempt),
+            ("authentication_epoch_source", authentication_epoch_source),
+            ("authentication_epoch_validator", authentication_epoch_validator),
+            ("authentication_error_callback", authentication_error_callback),
+        ):
+            if not callable(callback):
+                raise TypeError(f"Reconnection requires callable {name}")
         self._connector = connector
         self._refresher = refresher
         self._status_callback = status_callback or (lambda _message: None)
@@ -164,6 +178,7 @@ class AsyncReconnector:
         self._retry_counter = 0
         self._retry_generation = 0
         self._enabled = False
+        self._closing = False
         self._suspension_owners: set[object] = set()
         self._retiring_retry_tasks: set[asyncio.Task] = set()
 
@@ -186,7 +201,7 @@ class AsyncReconnector:
         return len(self._suspension_owners)
 
     def enable(self) -> None:
-        if self._enabled:
+        if self._enabled or self._closing:
             return
         self._connector.register(self)
         self._enabled = True
@@ -200,7 +215,12 @@ class AsyncReconnector:
                 self._reset()
             raise
 
-    async def disable(self) -> None:
+    def begin_shutdown(self) -> None:
+        """Fence scheduling now; ordered disable still joins and unregisters."""
+        self._closing = True
+        self._reset()
+
+    async def disable(self, *, deadline: float | None = None) -> None:
         unregister_error: Exception | None = None
         try:
             if self._enabled:
@@ -214,7 +234,7 @@ class AsyncReconnector:
         self._enabled = False
         retry_task = self._reset()
         try:
-            await self._join_retry(retry_task)
+            await self._join_retry(retry_task, deadline=deadline)
         finally:
             if self._retry_task is retry_task and retry_task is not None:
                 self._retry_task = None
@@ -248,7 +268,7 @@ class AsyncReconnector:
                 self.status_update(self._connector.current_state)
 
     def status_update(self, state: Any) -> None:
-        if not self._enabled or self._suspended:
+        if not self._enabled or self._suspended or self._closing:
             return
         state_name = type(state).__name__
         if state_name in {"Connected", "Disconnected"}:
@@ -355,11 +375,7 @@ class AsyncReconnector:
             self._status_callback("Waiting for the previous VPN connection…")
             return True
 
-        authentication_epoch = (
-            self._authentication_epoch_source()
-            if self._authentication_epoch_source is not None
-            else 0
-        )
+        authentication_epoch = self._authentication_epoch_source()
         try:
             logical_server = self._refresher.server_list.get_by_id(
                 connection.server_id
@@ -369,42 +385,23 @@ class AsyncReconnector:
             )
             if not self._retry_is_current(generation):
                 return False
-            if (
-                self._authentication_epoch_validator is not None
-                and not self._authentication_epoch_validator(authentication_epoch)
-            ):
+            if not self._authentication_epoch_validator(authentication_epoch):
                 return False
             self._retry_counter += 1
             self._status_callback("Reconnecting…")
-            if self._connection_attempt is not None:
-                if not await self._connection_attempt(
-                    vpn_server,
-                    connection.protocol,
-                    connection.backend,
-                    authentication_epoch,
-                ):
-                    return False
-            else:
-                await self._connector.connect(
-                    vpn_server, connection.protocol, connection.backend
-                )
-                if (
-                    self._authentication_epoch_validator is not None
-                    and not self._authentication_epoch_validator(authentication_epoch)
-                ):
-                    # The standalone reconnector retains the same fail-closed
-                    # rule as the adapter-owned production coordinator.
-                    await await_owned(self._connector.disconnect())
-                    return False
+            if not await self._connection_attempt(
+                vpn_server,
+                connection.protocol,
+                connection.backend,
+                authentication_epoch,
+            ):
+                return False
         except asyncio.CancelledError:
             raise
         except Exception as error:
             if not self._retry_is_current(generation):
                 return False
-            if (
-                is_proton_authentication_needed(error)
-                and self._authentication_error_callback is not None
-            ):
+            if is_proton_authentication_needed(error):
                 try:
                     await self._authentication_error_callback(
                         error, authentication_epoch
@@ -422,6 +419,7 @@ class AsyncReconnector:
     def _retry_is_current(self, generation: int) -> bool:
         return (
             self._enabled
+            and not self._closing
             and not self._suspended
             and generation == self._retry_generation
             and type(self._connector.current_state).__name__ == "Error"

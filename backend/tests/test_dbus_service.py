@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import os
 import unittest
 from unittest.mock import AsyncMock, Mock
@@ -12,6 +14,12 @@ from dbus_fast.errors import DBusError
 from fd_helpers import create_test_fd
 from proton_vpn_kde_backend.adapters import DemoCoreAdapter
 from proton_vpn_kde_backend.controller import BackendController
+from proton_vpn_kde_backend.client_authorization import (
+    _request_sender,
+    ClientAuthorizer,
+    UNAUTHORIZED_ERROR,
+)
+from proton_vpn_kde_backend.dbus_contract import PROTECTED_METHODS, SECRET_DESCRIPTOR_METHODS
 from proton_vpn_kde_backend.dbus_service import (
     INVALID_SUPPORT_REPORT_ERROR,
     INVALID_SETTINGS_ERROR,
@@ -38,11 +46,88 @@ def make_service() -> tuple[VpnDbusService, Mock]:
     controller.connect_country_with_features = AsyncMock()
     controller.connect_group_with_features = AsyncMock()
     controller.update_settings_json = AsyncMock()
-    service = VpnDbusService(controller)
+    service = VpnDbusService(controller, None, Mock())
     return service, controller
 
 
 class VpnDbusServiceTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        token = _request_sender.set(":direct.test")
+        self.addCleanup(_request_sender.reset, token)
+
+    def test_authorizer_is_required(self):
+        with self.assertRaises(TypeError):
+            VpnDbusService(Mock(), None, None)
+
+    async def test_expired_cleanup_is_an_explicit_rejection_not_success_or_owner_loss(self):
+        adapter = DemoCoreAdapter()
+        adapter.disconnect = AsyncMock()
+        adapter.stop_packet_capture = AsyncMock()
+        controller = BackendController(adapter, cleanup_seconds=0)
+        await controller.start()
+        service = VpnDbusService(controller, None, Mock())
+        for operation in (type(service).disconnect, type(service).stop_packet_capture):
+            with self.assertRaises(DBusError) as raised:
+                await operation.__wrapped__(service)
+            self.assertEqual(OPERATION_FAILED_ERROR, raised.exception.type)
+            self.assertIn("could not be dispatched before its deadline", raised.exception.text)
+            self.assertTrue(controller.snapshot.ready)
+            self.assertFalse(controller.snapshot.busy)
+        adapter.disconnect.assert_not_awaited()
+        adapter.stop_packet_capture.assert_not_awaited()
+
+    async def test_revocation_before_async_entry_closes_unadopted_descriptor(self):
+        authorizer = ClientAuthorizer(None, (), enforce_identity=False)
+        await authorizer.authorize(":direct.test")
+        controller = Mock()
+        controller.login = AsyncMock()
+        service = VpnDbusService(controller, None, authorizer)
+        descriptor = create_test_fd("queued-service-rejection")
+        operation = asyncio.create_task(
+            type(service).login.__wrapped__(service, descriptor)
+        )
+        authorizer.revoke(":direct.test")
+
+        with self.assertRaises(DBusError) as raised:
+            await operation
+
+        self.assertEqual(UNAUTHORIZED_ERROR, raised.exception.type)
+        controller.login.assert_not_awaited()
+        with self.assertRaises(OSError):
+            os.fstat(descriptor)
+
+    async def test_every_protected_export_checks_authority_before_side_effects(self):
+        controller = Mock()
+        authorizer = Mock()
+        authorizer.require_authorized_sender.side_effect = PermissionError
+        service = VpnDbusService(controller, None, authorizer)
+        controller.reset_mock()
+        seen = set()
+        for exported in vars(VpnDbusService).values():
+            metadata = getattr(exported, "__DBUS_METHOD", None)
+            if metadata is None or metadata.name not in PROTECTED_METHODS:
+                continue
+            with self.subTest(method=metadata.name):
+                seen.add(metadata.name)
+                operation = exported.__wrapped__
+                arguments = [None] * (len(inspect.signature(operation).parameters) - 1)
+                descriptor = None
+                if metadata.name in SECRET_DESCRIPTOR_METHODS:
+                    descriptor = create_test_fd("service-rejection")
+                    arguments[0] = descriptor
+                with self.assertRaises(DBusError) as raised:
+                    if inspect.iscoroutinefunction(operation):
+                        await operation(service, *arguments)
+                    else:
+                        operation(service, *arguments)
+                self.assertEqual(UNAUTHORIZED_ERROR, raised.exception.type)
+                if descriptor is not None:
+                    with self.assertRaises(OSError):
+                        os.fstat(descriptor)
+        self.assertEqual(PROTECTED_METHODS, seen)
+        self.assertEqual([], controller.mock_calls)
+
+
     def test_authorizer_revocation_releases_lifetime_lease(self):
         controller = Mock()
         lifetime = Mock()
@@ -160,7 +245,7 @@ class VpnDbusServiceTests(unittest.IsolatedAsyncioTestCase):
         adapter.disable_kill_switch_for_login = AsyncMock()
         controller = BackendController(adapter)
         self.assertTrue(await controller.start())
-        service = VpnDbusService(controller)
+        service = VpnDbusService(controller, None, Mock())
         service._read_secret = Mock(  # type: ignore[method-assign]
             return_value={"username": "demo-user", "password": "password"}
         )

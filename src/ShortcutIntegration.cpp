@@ -22,8 +22,10 @@ ShortcutIntegration::ShortcutIntegration(
     QAction *toggleConnection = registerAction(
         QStringLiteral("toggle-connection"), tr("Toggle VPN connection"));
     connect(toggleConnection, &QAction::triggered, this, [this] {
-        const QString action = m_controller->state() == QStringLiteral("connected")
-            || m_controller->state() == QStringLiteral("connecting")
+        if (!m_controller->primaryActionEnabled()) {
+            return;
+        }
+        const QString action = m_controller->primaryActionDisconnects()
             ? QStringLiteral("disconnect") : QStringLiteral("fastest");
         ProtonVpnKde::requestConfirmedControlCenterAction(action);
     });
@@ -31,7 +33,7 @@ ShortcutIntegration::ShortcutIntegration(
     QAction *connectFastest = registerAction(
         QStringLiteral("connect-fastest"), tr("Connect to fastest VPN server"));
     connect(connectFastest, &QAction::triggered, this, [this] {
-        if (m_controller->state() == QStringLiteral("disconnected")) {
+        if (m_controller->canConnect()) {
             ProtonVpnKde::requestConfirmedControlCenterAction(
                 QStringLiteral("fastest"));
         }
@@ -40,8 +42,7 @@ ShortcutIntegration::ShortcutIntegration(
     QAction *disconnect = registerAction(
         QStringLiteral("disconnect"), tr("Disconnect VPN"));
     connect(disconnect, &QAction::triggered, this, [this] {
-        if (m_controller->state() == QStringLiteral("connected")
-            || m_controller->state() == QStringLiteral("connecting")) {
+        if (m_controller->canDisconnect()) {
             ProtonVpnKde::requestConfirmedControlCenterAction(
                 QStringLiteral("disconnect"));
         }

@@ -67,7 +67,7 @@ async def _finish_task_before_deadline(
     grace_seconds: float | None = None,
 ) -> BaseException | None:
     """Join one owned task without allowing cleanup to outlive a deadline."""
-    if cancel and not task.done():
+    if cancel and not task.done() and not task.cancelling():
         task.cancel()
     if not task.done():
         remaining = max(0.0, deadline - asyncio.get_running_loop().time())
@@ -93,6 +93,9 @@ async def _run_cleanup_before_deadline(
     deadline: float,
 ) -> BaseException | None:
     """Start and bound one cleanup operation under the run-level deadline."""
+    if asyncio.get_running_loop().time() >= deadline:
+        operation.close()
+        return TimeoutError("Backend cleanup exceeded its shutdown deadline")
     task = asyncio.create_task(operation)
     error = await _finish_task_before_deadline(task, deadline)
     if isinstance(error, TimeoutError) and not task.done():
@@ -140,7 +143,7 @@ async def _shutdown_published_service(
                 cleanup_error = task_error
         if initialized:
             controller_error = await _run_cleanup_before_deadline(
-                controller.close(), shutdown_deadline
+                controller.close(deadline=shutdown_deadline), shutdown_deadline
             )
             if controller_error is not None and cleanup_error is None:
                 cleanup_error = controller_error

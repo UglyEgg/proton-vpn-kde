@@ -23,6 +23,8 @@ namespace BackendDbus = ProtonVpnKde::DBusContract::Backend;
 bool authenticationRecoveryRequired(const QString &authState)
 {
     return authState == QStringLiteral("authentication_unknown")
+        || authState == QStringLiteral("expired")
+        || authState == QStringLiteral("account_restart_required")
         || authState == QStringLiteral("settings_unavailable")
         || authState == QStringLiteral("protection_unknown");
 }
@@ -94,13 +96,8 @@ void VpnController::activatePrimaryAction()
     if (!primaryActionEnabled()) {
         return;
     }
-    if (m_state == QStringLiteral("connecting")) {
-        callControlOperation(QString::fromLatin1(BackendDbus::Method::disconnect));
-        return;
-    }
-    const bool shouldDisconnect = ProtonVpnKde::primaryActionDisconnects(m_state);
-    if (shouldDisconnect) {
-        callOperation(QString::fromLatin1(BackendDbus::Method::disconnect));
+    if (primaryActionDisconnects()) {
+        disconnect();
     } else {
         callFastestOperation(m_fastestFeatures);
     }
@@ -108,8 +105,7 @@ void VpnController::activatePrimaryAction()
 
 void VpnController::disconnect()
 {
-    if (!m_backendAvailable || !m_ready
-        || m_state == QStringLiteral("disconnected")) {
+    if (!canDisconnect()) {
         return;
     }
     callControlOperation(QString::fromLatin1(BackendDbus::Method::disconnect));
@@ -344,7 +340,7 @@ void VpnController::submitSupportReport(const QString &username,
 
 void VpnController::connectCountry(const QString &countryCode)
 {
-    if (primaryActionEnabled()) {
+    if (canConnect()) {
         callOperation(QString::fromLatin1(BackendDbus::Method::connectCountry), {countryCode});
     }
 }
@@ -353,7 +349,7 @@ void VpnController::connectCountryWithFeatures(
     const QString &countryCode, const QStringList &features)
 {
     QStringList normalized;
-    if (primaryActionEnabled()
+    if (canConnect()
         && normalizeServerFeatures(features, &normalized)) {
         callOperation(
             QString::fromLatin1(BackendDbus::Method::connectCountryWithFeatures),
@@ -363,7 +359,7 @@ void VpnController::connectCountryWithFeatures(
 
 void VpnController::connectTarget(const QString &target)
 {
-    if (!primaryActionEnabled()) {
+    if (!canConnect()) {
         return;
     }
     const QString normalized = target.trimmed().toUpper();
@@ -383,7 +379,7 @@ void VpnController::connectFastestWithFeature(const QString &feature)
 
 void VpnController::connectFastestWithFeatures(const QStringList &features)
 {
-    if (primaryActionEnabled()) {
+    if (canConnect()) {
         callFastestOperation(features);
     }
 }
@@ -392,7 +388,7 @@ void VpnController::connectGroup(const QString &countryCode,
                                  const QString &groupKind,
                                  const QString &groupName)
 {
-    if (primaryActionEnabled()) {
+    if (canConnect()) {
         callOperation(
             QString::fromLatin1(BackendDbus::Method::connectGroup),
             {countryCode, groupKind, groupName});
@@ -404,7 +400,7 @@ void VpnController::connectGroupWithFeatures(
     const QString &groupName, const QStringList &features)
 {
     QStringList normalized;
-    if (primaryActionEnabled()
+    if (canConnect()
         && normalizeServerFeatures(features, &normalized)) {
         callOperation(
             QString::fromLatin1(BackendDbus::Method::connectGroupWithFeatures),
@@ -415,7 +411,7 @@ void VpnController::connectGroupWithFeatures(
 
 void VpnController::connectServer(const QString &serverName)
 {
-    if (primaryActionEnabled()) {
+    if (canConnect()) {
         callOperation(QString::fromLatin1(BackendDbus::Method::connectServer), {serverName});
     }
 }
@@ -558,6 +554,8 @@ void VpnController::callOperation(const QString &method,
     watcher->setProperty("connectionOperationGeneration",
                          QVariant::fromValue<qulonglong>(connectionGeneration));
     watcher->setProperty("packetCaptureTargetActive", captureTarget);
+    watcher->setProperty("restartAfterAccountRetirement",
+                         method == QString::fromLatin1(BackendDbus::Method::logout));
     watcher->setProperty("packetCaptureOperationGeneration",
                          QVariant::fromValue<qulonglong>(captureGeneration));
     connect(watcher, &QDBusPendingCallWatcher::finished,

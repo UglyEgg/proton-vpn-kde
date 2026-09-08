@@ -14,6 +14,7 @@ namespace ProtonVpnKde
 enum class BackendCallFailure
 {
     Unavailable,
+    CompletionUnknown,
     Unauthorized,
     InvalidSecretPayload,
     Rejected,
@@ -70,13 +71,12 @@ enum class BackendCallFailure
     case QDBusError::ServiceUnknown:
     case QDBusError::NoServer:
     case QDBusError::Disconnected:
+        return BackendCallFailure::Unavailable;
     case QDBusError::NoReply:
     case QDBusError::Timeout:
     case QDBusError::NoNetwork:
-        // The caller must check isTransientSameOwnerFailure() before treating
-        // these as owner loss. Classification remains conservative for older
-        // consumers that cannot reconcile a same-owner operation.
-        return BackendCallFailure::Unavailable;
+        // A transport deadline cannot establish either rejection or owner loss.
+        return BackendCallFailure::CompletionUnknown;
     default:
         return BackendCallFailure::Rejected;
     }

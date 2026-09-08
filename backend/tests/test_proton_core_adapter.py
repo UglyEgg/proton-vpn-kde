@@ -104,6 +104,7 @@ class CoreMemoryOptimizationProbeTests(unittest.TestCase):
 class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self._runtime_directory = tempfile.TemporaryDirectory()
+        self._adapter_sequence = 0
         self._runtime_environment = patch.dict(
             os.environ, {"XDG_RUNTIME_DIR": self._runtime_directory.name}
         )
@@ -138,6 +139,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         refresher = SimpleNamespace(
             enable=AsyncMock(),
             disable=AsyncMock(),
+            set_error_callback=Mock(),
             set_server_list_updated_callback=Mock(),
             set_server_loads_updated_callback=Mock(),
             set_location_names_updated_callback=Mock(),
@@ -216,6 +218,16 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         return api, connector
 
+    def make_adapter(self, api, **kwargs):
+        # Each unit-test adapter is an independent backend world. Dedicated
+        # handoff tests explicitly share one journal across process generations.
+        self._adapter_sequence += 1
+        kwargs.setdefault(
+            "account_transition_path",
+            Path(self._runtime_directory.name) / f"account-{self._adapter_sequence}.json",
+        )
+        return ProtonCoreAdapter(api, **kwargs)
+
     async def start_cancellation_resistant_reconnect(self, adapter, connector):
         connect_started = asyncio.Event()
         release_connect = threading.Event()
@@ -259,7 +271,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_startup_compatibility_uses_official_core_check(self):
         api, _ = self.make_api()
         api.validate_connection_availability.return_value = False
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
 
         snapshot = await adapter.initialize(Mock())
 
@@ -270,7 +282,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, connector = self.make_api()
         del api.validate_connection_availability
         connector.iter_available_protocols.return_value = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
 
         snapshot = await adapter.initialize(Mock())
 
@@ -281,7 +293,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, connector = self.make_api()
         protocol = connector.iter_available_protocols.return_value[0]
         protocol.supports_packet_capture.return_value = True
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         settings = await adapter.get_settings()
@@ -296,7 +308,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_support_report_uses_official_api_without_logs(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         await adapter.submit_support_report(
@@ -319,7 +331,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
         api.submit_bug_report.side_effect = expired_error()
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "session expired"):
@@ -347,7 +359,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 event_loop_thread, threading.get_ident()
             )
         )
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._logged_in = True
 
         self.assertTrue(await adapter.take_pending_nps_survey())
@@ -374,7 +386,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             release_write.wait(timeout=2)
 
         api.set_notification_seen.side_effect = blocked_write
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._logged_in = True
         survey_task = asyncio.create_task(adapter.take_pending_nps_survey())
         for _ in range(100):
@@ -406,7 +418,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.submit_nps_response.side_effect = RuntimeError(
             "accepted before the response was lost"
         )
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._logged_in = True
 
         with self.assertRaises(NpsCompletionUnknownError):
@@ -421,7 +433,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
         api.submit_nps_response.side_effect = expired_error()
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaises(NpsCompletionUnknownError):
@@ -446,7 +458,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             authenticated=True,
             twofa_required=False,
         )
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         submission = asyncio.create_task(
@@ -463,12 +475,13 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.login.assert_not_awaited()
         release_submit.set()
         await submission
-        await asyncio.wait_for(replacement_login, timeout=1)
-        api.login.assert_awaited_once_with("replacement-user", "not-recorded")
+        with self.assertRaisesRegex(RuntimeError, "restart the backend"):
+            await asyncio.wait_for(replacement_login, timeout=1)
+        api.login.assert_not_awaited()
 
     async def test_initialize_reuses_core_and_subscribes_without_connecting(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
 
         snapshot = await adapter.initialize(Mock())
 
@@ -487,7 +500,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_initialize_supports_core_without_location_name_callback(self):
         api, connector = self.make_api()
         del api.refresher.set_location_names_updated_callback
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
 
         snapshot = await adapter.initialize(Mock())
         self.assertTrue(snapshot.ready)
@@ -500,7 +513,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_server_refresh_callbacks_preserve_update_scope(self):
         api, _ = self.make_api()
         events = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock(), events.append)
 
         list_callback = api.refresher.set_server_list_updated_callback.call_args.args[0]
@@ -518,7 +531,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_only_topology_callbacks_discard_the_search_projection(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         marker = object()
         adapter._search_projection = marker
@@ -547,7 +560,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             return True
 
         api.is_user_logged_in = wait_for_provider_approval
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         initialize_task = asyncio.create_task(adapter.initialize(Mock()))
         try:
             for _ in range(100):
@@ -688,7 +701,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             time.clock_gettime(time.CLOCK_BOOTTIME) - 0.01
         )
         api.is_user_logged_in = wait_for_provider_approval
-        adapter = ProtonCoreAdapter(api, packet_capture_recovery_path=recovery_path)
+        adapter = self.make_adapter(api, packet_capture_recovery_path=recovery_path)
 
         with patch(
             "proton_vpn_kde_backend.adapters."
@@ -716,7 +729,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         PacketCaptureRecoveryJournal(recovery_path).store_deadline(
             time.clock_gettime(time.CLOCK_BOOTTIME) - 0.01
         )
-        adapter = ProtonCoreAdapter(api, packet_capture_recovery_path=recovery_path)
+        adapter = self.make_adapter(api, packet_capture_recovery_path=recovery_path)
 
         with self.assertRaisesRegex(
             UserVisibleRuntimeError,
@@ -743,7 +756,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             time.clock_gettime(time.CLOCK_BOOTTIME) - 0.01
         )
         api.get_vpn_connector = AsyncMock(side_effect=wait_for_connector)
-        adapter = ProtonCoreAdapter(api, packet_capture_recovery_path=recovery_path)
+        adapter = self.make_adapter(api, packet_capture_recovery_path=recovery_path)
 
         with patch(
             "proton_vpn_kde_backend.adapters."
@@ -762,7 +775,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_logged_out_start_does_not_enable_refresher(self):
         api, _ = self.make_api(logged_in=False)
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
 
         snapshot = await adapter.initialize(Mock())
 
@@ -775,7 +788,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         settings = await api.load_settings()
         settings.killswitch = 2
         api.load_settings.reset_mock()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
 
         snapshot = await adapter.initialize(Mock())
         self.assertEqual(2, snapshot.kill_switch)
@@ -806,7 +819,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         api.load_settings = AsyncMock(side_effect=load_settings)
         api.save_settings = AsyncMock(side_effect=save_settings)
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(RuntimeError, "save the VPN settings"):
@@ -827,7 +840,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         settings.killswitch = 2
         api.load_settings.side_effect = [RuntimeError("temporary read failure"), settings]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
 
         initial = await adapter.initialize(snapshots.append)
 
@@ -848,7 +861,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             twofa_required=False,
         )
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         await adapter.login("test-user", "not-recorded")
@@ -869,7 +882,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         api.refresher.enable.side_effect = RuntimeError("refresh failed")
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "rolled back"):
@@ -879,12 +892,12 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(adapter._logged_in)
         self.assertFalse(adapter._session_services_enabled)
         self.assertFalse(snapshots[-1].logged_in)
-        self.assertEqual("signed_out", snapshots[-1].auth_state)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
         self.assertEqual(
             "Proton session services could not start; sign-in was rolled back",
             snapshots[-1].message,
         )
-        restarted = ProtonCoreAdapter(api)
+        restarted = self.make_adapter(api)
         restarted_snapshot = await restarted.initialize(Mock())
         self.assertFalse(restarted_snapshot.logged_in)
         self.assertEqual("signed_out", restarted_snapshot.auth_state)
@@ -900,14 +913,14 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.logout.side_effect = RuntimeError("logout failed")
         api.is_user_logged_in.side_effect = [False, True]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "could not be cleared"):
             await adapter.login("test-user", "not-recorded")
 
         self.assertTrue(adapter._logged_in)
-        self.assertEqual("signed_in_degraded", snapshots[-1].auth_state)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
         self.assertIn("could not be cleared", snapshots[-1].message)
 
     async def test_failed_login_rollback_accepts_core_confirmed_sign_out(self):
@@ -921,14 +934,14 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.logout.side_effect = RuntimeError("late cleanup failed")
         api.is_user_logged_in.side_effect = [False, False]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "rolled back"):
             await adapter.login("test-user", "not-recorded")
 
         self.assertFalse(adapter._logged_in)
-        self.assertEqual("signed_out", snapshots[-1].auth_state)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
 
     async def test_successful_login_cleanup_does_not_hide_persisted_session(self):
         api, _ = self.make_api(logged_in=False)
@@ -940,7 +953,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.enable.side_effect = RuntimeError("refresh failed")
         api.is_user_logged_in.side_effect = [False, True]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "could not be cleared"):
@@ -948,7 +961,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         api.logout.assert_awaited_once_with()
         self.assertTrue(adapter._logged_in)
-        self.assertEqual("signed_in_degraded", snapshots[-1].auth_state)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
 
     async def test_successful_login_cleanup_preserves_unknown_account_state(self):
         api, _ = self.make_api(logged_in=False)
@@ -963,7 +976,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             RuntimeError("secret store unavailable"),
         ]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "could not confirm"):
@@ -986,7 +999,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(success=True),
         ]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         await adapter.login("test-user", "not-recorded")
@@ -1005,7 +1018,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, _ = self.make_api(logged_in=False)
         api.login.side_effect = RuntimeError("password=super-secret")
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         await adapter.login("test-user", "super-secret")
@@ -1020,7 +1033,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.login.side_effect = RuntimeError("late session-data failure")
         api.is_user_logged_in.side_effect = [False, True]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         await adapter.login("test-user", "not-recorded")
@@ -1035,7 +1048,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.login.side_effect = RuntimeError("late session-data failure")
         api.is_user_logged_in.side_effect = [False, RuntimeError("store unavailable")]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "could not confirm"):
@@ -1049,7 +1062,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.logout.side_effect = RuntimeError("logout failed")
         api.is_user_logged_in.side_effect = [False, True]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "still active"):
@@ -1077,7 +1090,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.generate_2fa_fido2_assertion.side_effect = generate_assertion
         api.submit_2fa_fido2.return_value = SimpleNamespace(success=True)
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
         await adapter.login("test-user", "not-recorded")
 
@@ -1091,7 +1104,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, connector = self.make_api(logged_in=False)
         api.supports_fido2 = True
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
         adapter._auth_state = "two_factor"
 
@@ -1118,7 +1131,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 worker_returned.set()
 
         api.generate_2fa_fido2_assertion.side_effect = generate_assertion
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         # Thread wake-up latency under the supported Python 3.11 floor can
         # exceed 10 ms on a loaded CI worker. Keep the test deadline bounded
         # without making scheduler jitter the behavior under test.
@@ -1169,7 +1182,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         api.submit_2fa_fido2.side_effect = late_submit_failure
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
         adapter._auth_state = "two_factor"
 
@@ -1183,11 +1196,92 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("signed_in", snapshots[-1].auth_state)
         self.assertIn("incomplete authentication response", snapshots[-1].message)
 
+    async def test_cancelled_fido_caller_joins_submission_and_reconciliation(self):
+        api, _ = self.make_api(logged_in=False)
+        api.supports_fido2 = True
+        api.supports_cancellable_fido2_key_selection = True
+        api.is_user_logged_in.side_effect = [False, True]
+        api.generate_2fa_fido2_assertion.return_value = "assertion"
+        submit_started = asyncio.Event()
+        release_submit = asyncio.Event()
+
+        async def late_submit_failure(_assertion):
+            submit_started.set()
+            await release_submit.wait()
+            raise RuntimeError("late session-data failure")
+
+        api.submit_2fa_fido2.side_effect = late_submit_failure
+        adapter = self.make_adapter(api)
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+        adapter._auth_state = "two_factor"
+
+        fido_task = asyncio.create_task(controller.begin_fido2())
+        await submit_started.wait()
+        interaction = adapter._fido_interaction
+        self.assertIsNotNone(interaction)
+        try:
+            fido_task.cancel()
+            for _ in range(10):
+                if interaction.cancelled:
+                    break
+                await asyncio.sleep(0)
+            fido_task.cancel()
+            await asyncio.sleep(0)
+            self.assertTrue(interaction.cancelled)
+            self.assertFalse(fido_task.done())
+            self.assertTrue(controller.snapshot.busy)
+            self.assertTrue(adapter._authentication_scope._lock.locked())
+        finally:
+            release_submit.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await fido_task
+
+        self.assertTrue(adapter._logged_in)
+        self.assertEqual("signed_in", controller.snapshot.auth_state)
+        self.assertIn("incomplete authentication response", controller.snapshot.message)
+        self.assertFalse(controller.snapshot.busy)
+        self.assertIsNone(adapter._fido_interaction)
+
+    async def test_fido_cancellation_before_provider_start_prevents_prompt(self):
+        api, _ = self.make_api(logged_in=False)
+        api.supports_fido2 = True
+        api.supports_cancellable_fido2_key_selection = True
+        adapter = self.make_adapter(api)
+        await adapter.initialize(Mock())
+        adapter._auth_state = "two_factor"
+        child_started = asyncio.Event()
+        release_child = asyncio.Event()
+        authenticate = adapter._authenticate_fido2
+
+        async def delayed_child(interaction):
+            child_started.set()
+            await release_child.wait()
+            await authenticate(interaction)
+
+        with patch.object(adapter, "_authenticate_fido2", delayed_child):
+            fido_task = asyncio.create_task(adapter.begin_fido2())
+            await child_started.wait()
+            fido_task.cancel()
+            try:
+                await asyncio.sleep(0)
+                self.assertTrue(adapter._fido_interaction.cancelled)
+                self.assertFalse(fido_task.done())
+                api.generate_2fa_fido2_assertion.assert_not_called()
+            finally:
+                release_child.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await fido_task
+
+        api.generate_2fa_fido2_assertion.assert_not_called()
+        self.assertEqual("two_factor", adapter._auth_state)
+        self.assertIsNone(adapter._fido_interaction)
+
     async def test_logout_disconnects_and_clears_account_metadata(self):
         api, connector = self.make_api()
         connector.current_state = state_named("Connected")
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         await adapter.logout()
@@ -1196,7 +1290,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.logout.assert_awaited_once_with()
         self.assertFalse(snapshots[-1].logged_in)
         self.assertEqual("", snapshots[-1].account_name)
-        self.assertEqual("signed_out", snapshots[-1].auth_state)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
 
     async def test_failed_logout_restores_persisted_kill_switch(self):
         api, _ = self.make_api()
@@ -1205,7 +1299,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         unreachable = type("ProtonAPINotReachable", (Exception,), {})
         api.logout.side_effect = unreachable()
         api.is_user_logged_in.return_value = True
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(RuntimeError, "unreachable"):
@@ -1223,14 +1317,14 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.logout.side_effect = RuntimeError("late cleanup failed")
         api.is_user_logged_in.side_effect = [True, False]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "Signed out"):
             await adapter.logout()
 
         self.assertFalse(adapter._logged_in)
-        self.assertEqual("signed_out", snapshots[-1].auth_state)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
         self.assertEqual(0, adapter._kill_switch)
         self.assertEqual(1, api.save_settings.await_count)
 
@@ -1241,7 +1335,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.logout.side_effect = RuntimeError("remote failure")
         api.save_settings.side_effect = [None, RuntimeError("disk failure")]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "could not be confirmed"):
@@ -1279,7 +1373,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.save_settings.side_effect = delayed_executor_shaped_save
         api.is_user_logged_in.return_value = True
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         logout_task = asyncio.create_task(adapter.logout())
@@ -1296,7 +1390,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([0, 2], write_order)
         self.assertEqual(2, adapter._kill_switch)
         self.assertTrue(adapter._logged_in)
-        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
 
     async def test_unquiesced_zero_save_blocks_compensation_and_reconnection(self):
         api, _ = self.make_api()
@@ -1320,7 +1414,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.save_settings.side_effect = blocked_executor_shaped_save
         api.is_user_logged_in.return_value = True
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with patch(
@@ -1330,8 +1424,15 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             logout_task = asyncio.create_task(adapter.logout())
             await first_save_started.wait()
             logout_task.cancel()
-            with self.assertRaises(asyncio.CancelledError):
-                await logout_task
+            try:
+                await asyncio.sleep(0.03)
+                self.assertFalse(logout_task.done())
+                self.assertEqual(1, save_calls)
+                self.assertFalse(first_save_finished.is_set())
+            finally:
+                release_first_save.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await logout_task
 
         self.assertEqual(1, save_calls)
         self.assertFalse(adapter._logged_in)
@@ -1340,8 +1441,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, snapshots[-1].kill_switch)
         self.assertEqual("protection_unknown", snapshots[-1].auth_state)
 
-        release_first_save.set()
-        await first_save_finished.wait()
+        self.assertTrue(first_save_finished.is_set())
         self.assertEqual(0, persisted_kill_switch)
         self.assertEqual(1, save_calls)
         self.assertEqual("protection_unknown", snapshots[-1].auth_state)
@@ -1362,7 +1462,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         api.save_settings.side_effect = commit_then_fail_once
         api.is_user_logged_in.return_value = True
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(RuntimeError, "could not complete"):
@@ -1378,28 +1478,41 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         settings.killswitch = 2
         persisted_kill_switch = 2
         save_calls = 0
+        rollback_started = asyncio.Event()
+        release_rollback = asyncio.Event()
 
         async def block_rollback(saved_settings):
             nonlocal persisted_kill_switch, save_calls
             save_calls += 1
             if save_calls == 2:
-                await asyncio.Future()
+                rollback_started.set()
+                await release_rollback.wait()
             persisted_kill_switch = saved_settings.killswitch
 
         api.save_settings.side_effect = block_rollback
         api.logout.side_effect = RuntimeError("remote failure")
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with patch(
             "proton_vpn_kde_backend.adapters.LOGOUT_RECOVERY_TIMEOUT_SECONDS",
             0.01,
         ):
-            with self.assertRaisesRegex(RuntimeError, "could not be confirmed"):
-                await adapter.logout()
+            logout_task = asyncio.create_task(adapter.logout())
+            await rollback_started.wait()
+            try:
+                await asyncio.sleep(0.03)
+                self.assertFalse(logout_task.done())
+                self.assertEqual(0, persisted_kill_switch)
+                self.assertTrue(adapter._authentication_scope._lock.locked())
+                self.assertTrue(adapter._connection_scope._lock.locked())
+            finally:
+                release_rollback.set()
+                with self.assertRaisesRegex(RuntimeError, "could not be confirmed"):
+                    await logout_task
 
-        self.assertEqual(0, persisted_kill_switch)
+        self.assertEqual(2, persisted_kill_switch)
         self.assertEqual(2, save_calls)
         self.assertFalse(adapter._logged_in)
         self.assertFalse(adapter._session_services_enabled)
@@ -1411,7 +1524,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, _ = self.make_api()
         settings = await api.load_settings()
         settings.killswitch = 2
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         adapter._reconnector.disable = AsyncMock(
             side_effect=RuntimeError("reconnector failure")
@@ -1429,7 +1542,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_logout_waits_for_reconnect_worker_before_disconnect(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         release_connect = await self.start_cancellation_resistant_reconnect(
             adapter, connector
@@ -1459,7 +1572,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_disconnect_waits_for_reconnect_worker_before_returning(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         release_connect = await self.start_cancellation_resistant_reconnect(
             adapter, connector
@@ -1493,7 +1606,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_logout_waits_for_an_accepted_public_disconnect(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         disconnect_started = asyncio.Event()
         release_disconnect = asyncio.Event()
@@ -1523,7 +1636,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_overlapping_disconnects_do_not_share_reconnect_suspension(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         first_started = asyncio.Event()
         release_first = asyncio.Event()
@@ -1559,7 +1672,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_reentrant_locks_do_not_treat_child_tasks_as_the_owner(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         lock_contexts = (
             ("authentication", adapter._serialized_authentication_transition),
             ("connection", adapter._serialized_connection_lifecycle),
@@ -1589,7 +1702,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_owned_authentication_delegate_does_not_authorize_siblings(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         delegate_entered = asyncio.Event()
         sibling_entered = asyncio.Event()
 
@@ -1613,7 +1726,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_owned_connection_delegate_does_not_authorize_siblings(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         delegate_entered = asyncio.Event()
         sibling_entered = asyncio.Event()
 
@@ -1662,9 +1775,10 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         for operation_name, operation_factory in operation_factories:
             with self.subTest(operation=operation_name):
                 api, _ = self.make_api()
-                adapter = ProtonCoreAdapter(api)
+                adapter = self.make_adapter(api)
                 await adapter.initialize(Mock())
-                await adapter._disconnect_lock.acquire()
+                connection_scope = adapter._serialized_connection_lifecycle()
+                await connection_scope.__aenter__()
                 operation = asyncio.create_task(operation_factory(adapter))
                 for _ in range(20):
                     if adapter._reconnector._suspend_count:
@@ -1673,10 +1787,17 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(1, adapter._reconnector._suspend_count)
 
                 operation.cancel()
+                if operation_name == "close":
+                    # Close now retains its sole owner through caller
+                    # cancellation. Release the conflicting scope before join.
+                    await asyncio.sleep(0)
+                    self.assertFalse(operation.done())
+                    await connection_scope.__aexit__(None, None, None)
                 result = (await asyncio.gather(
                     operation, return_exceptions=True
                 ))[0]
-                adapter._disconnect_lock.release()
+                if operation_name != "close":
+                    await connection_scope.__aexit__(None, None, None)
 
                 if operation_name == "session quiesce":
                     self.assertTrue(result)
@@ -1688,7 +1809,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_logout_settings_failure_releases_reconnection_suspension(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         api.load_settings.side_effect = RuntimeError("settings unavailable")
 
@@ -1701,7 +1822,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_reconnection_enable_retry_does_not_leak_suspension(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         await adapter.set_reconnection_enabled(False)
         connector.register.side_effect = [RuntimeError("observer failure"), None]
@@ -1717,7 +1838,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_repeated_retry_retirement_cannot_interrupt_compensating_down(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         connect_started = asyncio.Event()
         release_connect = asyncio.Event()
@@ -1804,7 +1925,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_close_drains_an_accepted_disconnect_scope(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         disconnect_started = asyncio.Event()
         release_disconnect = asyncio.Event()
@@ -1837,7 +1958,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             await release_logout.wait()
 
         api.logout.side_effect = blocked_logout
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         logout_task = asyncio.create_task(adapter.logout())
         await logout_started.wait()
@@ -1860,33 +1981,41 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         settings = await api.load_settings()
         settings.killswitch = 2
         logout_started = asyncio.Event()
+        release_logout = asyncio.Event()
 
         async def blocked_logout():
             logout_started.set()
-            await asyncio.Future()
+            await release_logout.wait()
 
         api.logout.side_effect = blocked_logout
         api.is_user_logged_in.return_value = True
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         logout_task = asyncio.create_task(adapter.logout())
         await logout_started.wait()
         logout_task.cancel()
-        with self.assertRaises(asyncio.CancelledError):
-            await logout_task
+        try:
+            await asyncio.sleep(0)
+            self.assertFalse(logout_task.done())
+            self.assertEqual(1, api.save_settings.await_count)
+            self.assertTrue(adapter._authentication_scope._lock.locked())
+        finally:
+            release_logout.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await logout_task
 
         self.assertEqual(2, settings.killswitch)
         self.assertEqual(2, adapter._kill_switch)
         self.assertEqual(2, api.save_settings.await_count)
         self.assertTrue(adapter._logged_in)
-        self.assertTrue(adapter._session_services_enabled)
-        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertFalse(adapter._session_services_enabled)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
 
     async def test_core_state_probe_propagates_cancellation(self):
         api, _ = self.make_api(logged_in=False)
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with patch(
@@ -1901,7 +2030,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
         api.refresher.get_up_to_date_server_list.side_effect = expired_error()
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "session expired"):
@@ -1911,7 +2040,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("expired", snapshots[-1].auth_state)
         api.refresher.disable.assert_awaited_once_with()
 
-    async def test_stale_session_error_cannot_sign_out_replacement_account(self):
+    async def test_stale_session_error_cannot_sign_out_retired_account(self):
         api, _ = self.make_api()
         settings = api.load_settings.return_value
         stale_read_started = asyncio.Event()
@@ -1928,7 +2057,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 raise expired_error()
             return settings
 
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         snapshots = []
         await adapter.initialize(snapshots.append)
         api.load_settings.side_effect = load_settings
@@ -1941,21 +2070,23 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         stale_read = asyncio.create_task(adapter.get_settings())
         await stale_read_started.wait()
         await adapter.logout()
-        await adapter.login("replacement-user", "not-recorded")
+        with self.assertRaisesRegex(RuntimeError, "restart the backend"):
+            await adapter.login("replacement-user", "not-recorded")
+        api.login.assert_not_awaited()
         cleanup_count = api.refresher.disable.await_count
-        self.assertTrue(adapter._logged_in)
-        self.assertTrue(adapter._session_services_enabled)
+        self.assertFalse(adapter._logged_in)
+        self.assertFalse(adapter._session_services_enabled)
 
         release_stale_read.set()
         with self.assertRaisesRegex(RuntimeError, "session changed"):
             await stale_read
 
-        self.assertTrue(adapter._logged_in)
-        self.assertTrue(adapter._session_services_enabled)
-        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertFalse(adapter._logged_in)
+        self.assertFalse(adapter._session_services_enabled)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
         self.assertEqual(cleanup_count, api.refresher.disable.await_count)
 
-    async def test_stale_server_error_cannot_sign_out_replacement_account(self):
+    async def test_stale_server_error_cannot_sign_out_retired_account(self):
         api, _ = self.make_api()
         server_read_started = asyncio.Event()
         release_server_read = asyncio.Event()
@@ -1967,7 +2098,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             raise expired_error()
 
         api.refresher.get_up_to_date_server_list.side_effect = stale_server_list
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         snapshots = []
         await adapter.initialize(snapshots.append)
         api.login.return_value = SimpleNamespace(
@@ -1979,18 +2110,20 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         stale_read = asyncio.create_task(adapter.get_countries())
         await server_read_started.wait()
         await adapter.logout()
-        await adapter.login("replacement-user", "not-recorded")
+        with self.assertRaisesRegex(RuntimeError, "restart the backend"):
+            await adapter.login("replacement-user", "not-recorded")
+        api.login.assert_not_awaited()
         cleanup_count = api.refresher.disable.await_count
         release_server_read.set()
 
         with self.assertRaisesRegex(RuntimeError, "session changed"):
             await stale_read
-        self.assertTrue(adapter._logged_in)
-        self.assertTrue(adapter._session_services_enabled)
-        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertFalse(adapter._logged_in)
+        self.assertFalse(adapter._session_services_enabled)
+        self.assertEqual("account_restart_required", snapshots[-1].auth_state)
         self.assertEqual(cleanup_count, api.refresher.disable.await_count)
 
-    async def test_stale_successful_search_cannot_poison_replacement_cache(self):
+    async def test_stale_successful_search_cannot_poison_retired_cache(self):
         api, _ = self.make_api()
         stale_server_list = SimpleNamespace(logicals=[])
         stale_read_started = asyncio.Event()
@@ -2001,7 +2134,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             await release_stale_read.wait()
             return stale_server_list
 
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         api.refresher.get_up_to_date_server_list.side_effect = delayed_server_list
         api.login.return_value = SimpleNamespace(
@@ -2012,15 +2145,17 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         stale_search = asyncio.create_task(adapter.search_locations("zurich"))
         await stale_read_started.wait()
         await adapter.logout()
-        await adapter.login("replacement-user", "not-recorded")
+        with self.assertRaisesRegex(RuntimeError, "restart the backend"):
+            await adapter.login("replacement-user", "not-recorded")
+        api.login.assert_not_awaited()
         release_stale_read.set()
 
         with self.assertRaisesRegex(RuntimeError, "session changed"):
             await stale_search
         self.assertIsNone(adapter._search_projection)
-        self.assertTrue(adapter._logged_in)
+        self.assertFalse(adapter._logged_in)
 
-    async def test_login_waits_for_current_session_expiry_cleanup(self):
+    async def test_login_waits_for_expiry_cleanup_then_requires_process_replacement(self):
         api, _ = self.make_api()
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
         api.refresher.get_up_to_date_server_list.side_effect = expired_error()
@@ -2029,7 +2164,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             authenticated=True,
             twofa_required=False,
         )
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         snapshots = []
         await adapter.initialize(snapshots.append)
         cleanup_started = asyncio.Event()
@@ -2053,18 +2188,20 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         release_cleanup.set()
         with self.assertRaisesRegex(RuntimeError, "session expired"):
             await expiring_read
-        await asyncio.wait_for(replacement_login, timeout=1)
+        with self.assertRaisesRegex(RuntimeError, "restart the backend"):
+            await asyncio.wait_for(replacement_login, timeout=1)
+        api.login.assert_not_awaited()
 
-        self.assertTrue(adapter._logged_in)
-        self.assertTrue(adapter._session_services_enabled)
-        self.assertEqual("signed_in", snapshots[-1].auth_state)
+        self.assertFalse(adapter._logged_in)
+        self.assertFalse(adapter._session_services_enabled)
+        self.assertEqual("expired", snapshots[-1].auth_state)
 
     async def test_expired_session_during_settings_save_stays_signed_out(self):
         api, _ = self.make_api()
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
         api.save_settings.side_effect = expired_error()
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "session expired"):
@@ -2083,7 +2220,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             expired_error(),
         ]
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "session expired"):
@@ -2107,17 +2244,25 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         api.save_settings.side_effect = delayed_expiry
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
-        update_task = asyncio.create_task(
-            adapter.update_settings({"moderateNat": True})
-        )
-        await save_started.wait()
-        update_task.cancel()
-        release_save.set()
-        with self.assertRaises(asyncio.CancelledError):
-            await update_task
+        with patch(
+            "proton_vpn_kde_backend.adapters.LOGOUT_RECOVERY_TIMEOUT_SECONDS",
+            0.01,
+        ):
+            update_task = asyncio.create_task(
+                adapter.update_settings({"moderateNat": True})
+            )
+            await save_started.wait()
+            update_task.cancel()
+            try:
+                await asyncio.sleep(0.03)
+                self.assertFalse(update_task.done())
+            finally:
+                release_save.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await update_task
 
         self.assertEqual(1, api.save_settings.await_count)
         self.assertFalse(adapter._logged_in)
@@ -2128,7 +2273,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
         api.refresher.get_up_to_date_server_list.side_effect = expired_error()
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
         adapter._reconnector.disable = AsyncMock(
             side_effect=RuntimeError("observer cleanup failed")
@@ -2153,7 +2298,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.Future()
 
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
         adapter._reconnector.disable = AsyncMock(side_effect=blocked_cleanup)
 
@@ -2171,28 +2316,35 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
         api.refresher.get_up_to_date_server_list.side_effect = expired_error()
         cleanup_started = asyncio.Event()
+        release_cleanup = asyncio.Event()
 
         async def blocked_cleanup():
             cleanup_started.set()
-            await asyncio.Future()
+            await release_cleanup.wait()
 
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
         api.refresher.disable.side_effect = blocked_cleanup
 
         request = asyncio.create_task(adapter.get_countries())
         await cleanup_started.wait()
         request.cancel()
-        with self.assertRaises(asyncio.CancelledError):
-            await request
+        try:
+            await asyncio.sleep(0)
+            self.assertFalse(request.done())
+            self.assertTrue(adapter._authentication_scope._lock.locked())
+        finally:
+            release_cleanup.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await request
 
         self.assertFalse(adapter._logged_in)
         self.assertEqual("expired", snapshots[-1].auth_state)
 
     async def test_disabled_reconnection_preference_survives_initialization(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
 
         await adapter.set_reconnection_enabled(False)
         snapshot = await adapter.initialize(Mock())
@@ -2217,7 +2369,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.server_list = SimpleNamespace(
             get_by_name=Mock(return_value=logical_server)
         )
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._connector = connector
         adapter._logged_in = True
 
@@ -2276,7 +2428,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         logical_server = object()
         server_list = SimpleNamespace(get_fastest=Mock(return_value=logical_server))
         api.refresher.get_up_to_date_server_list.return_value = server_list
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._connector = connector
         adapter._logged_in = True
 
@@ -2305,7 +2457,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.get_up_to_date_client_config.side_effect = (
             delayed_client_config
         )
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         connect = asyncio.create_task(adapter.connect_fastest())
         await config_started.wait()
@@ -2376,7 +2528,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                     await release.wait()
                     return result
 
-                adapter = ProtonCoreAdapter(api)
+                adapter = self.make_adapter(api)
                 await adapter.initialize(Mock())
                 adapter._country = Mock(
                     return_value=SimpleNamespace(servers=[logical_server])
@@ -2439,7 +2591,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 api.refresher.get_up_to_date_server_list.side_effect = (
                     blocked_server_list
                 )
-                adapter = ProtonCoreAdapter(api)
+                adapter = self.make_adapter(api)
                 await adapter.initialize(Mock())
                 connection = asyncio.create_task(adapter.connect_fastest())
                 await lookup_started.wait()
@@ -2462,7 +2614,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.Future()
 
         api.refresher.get_up_to_date_server_list.side_effect = blocked_server_list
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         controller = BackendController(adapter)
         self.assertTrue(await controller.start())
 
@@ -2506,7 +2658,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 terminal_exit = Mock(
                     side_effect=RuntimeError("unexpected terminal exit")
                 )
-                adapter = ProtonCoreAdapter(api, terminal_exit=terminal_exit)
+                adapter = self.make_adapter(api, terminal_exit=terminal_exit)
                 await adapter.initialize(Mock())
                 connector.current_state = state_named("Disconnecting")
                 first_down = asyncio.Event()
@@ -2533,6 +2685,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                         adapter.status_update(connector.current_state)
                     elif disconnect_count == 3:
                         ignored_replacement_down.set()
+                    elif disconnect_count == 4:
+                        self.assertEqual("Disconnected", type(connector.current_state).__name__)
                     else:
                         self.fail("Stable disconnect issued an unexpected Down")
 
@@ -2555,17 +2709,28 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 adapter.status_update(connector.current_state)
                 await asyncio.wait_for(invalidator, timeout=1)
 
-                self.assertEqual(3, connector.disconnect.await_count)
+                self.assertEqual(4, connector.disconnect.await_count)
                 self.assertEqual(
                     "Disconnected", type(connector.current_state).__name__
                 )
                 self.assertEqual(0, adapter._reconnector._suspend_count)
                 terminal_exit.assert_not_called()
 
+    async def test_unconfirmed_foreground_operation_uses_process_retirement(self):
+        api, _ = self.make_api()
+        terminal_exit = Mock(side_effect=RuntimeError("recorded terminal exit"))
+        adapter = self.make_adapter(api, terminal_exit=terminal_exit)
+
+        with self.assertRaisesRegex(RuntimeError, "recorded terminal exit"):
+            adapter.retire_unconfirmed_operation()
+
+        terminal_exit.assert_called_once_with(1)
+        api.logout.assert_not_awaited()
+
     async def test_failed_stable_disconnect_forces_fresh_backend(self):
         api, connector = self.make_api()
         terminal_exit = Mock(side_effect=RuntimeError("forced backend exit"))
-        adapter = ProtonCoreAdapter(api, terminal_exit=terminal_exit)
+        adapter = self.make_adapter(api, terminal_exit=terminal_exit)
         await adapter.initialize(Mock())
         connector.current_state = state_named("Connecting")
         connector.disconnect.side_effect = RuntimeError("Down failed")
@@ -2583,7 +2748,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         operation_started = asyncio.Event()
         release_operation = asyncio.Event()
         terminal_exit = Mock(side_effect=RuntimeError("forced backend exit"))
-        adapter = ProtonCoreAdapter(api, terminal_exit=terminal_exit)
+        adapter = self.make_adapter(api, terminal_exit=terminal_exit)
         await adapter.initialize(Mock())
 
         async def operation():
@@ -2796,7 +2961,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                     async def connect(*_args, target=connector, **_kwargs):
                         target.current_state = state_named("Connected")
 
-                    adapter = ProtonCoreAdapter(api)
+                    adapter = self.make_adapter(api)
                     await adapter.initialize(Mock())
                     adapter._country = Mock(
                         return_value=SimpleNamespace(servers=[logical_server])
@@ -2895,7 +3060,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             return server_list
 
         api.refresher.get_up_to_date_server_list.side_effect = server_lookup
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         older = asyncio.create_task(adapter.connect_fastest())
@@ -2918,7 +3083,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unknown_refresher_cleanup_is_normalized_before_reenable(self):
         api, connector = self.make_api(logged_in=False)
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         adapter._logged_in = True
         events: list[str] = []
@@ -2963,7 +3128,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_close_retries_completion_unknown_refresher_disable(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         api.refresher.disable.side_effect = RuntimeError(
@@ -2979,6 +3144,86 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, api.refresher.disable.await_count)
         self.assertEqual("DISABLED", adapter._session_services_state.name)
         connector.unregister.assert_any_call(adapter)
+
+    async def test_retry_owner_rechecks_intent_and_account_after_scope_wait(self):
+        for invalidator in ("account", "intent"):
+            with self.subTest(invalidator=invalidator):
+                api, connector = self.make_api()
+                adapter = self.make_adapter(api)
+                await adapter.initialize(Mock())
+                self.assertEqual(
+                    adapter._attempt_reconnection,
+                    adapter._reconnector._connection_attempt,
+                )
+                epoch = adapter._authentication_epoch
+                entered = asyncio.Event()
+
+                async def request_retry(adapter=adapter, entered=entered, epoch=epoch):
+                    entered.set()
+                    return await adapter._attempt_reconnection(
+                        "vpn-server", "wireguard", "networkmanager", epoch
+                    )
+
+                retry = None
+                try:
+                    async with adapter._serialized_connection_lifecycle():
+                        retry = asyncio.create_task(request_retry())
+                        await asyncio.wait_for(entered.wait(), timeout=1)
+                        self.assertFalse(retry.done())
+                        connector.connect.assert_not_awaited()
+                        if invalidator == "account":
+                            adapter._authentication_epoch += 1
+                        else:
+                            adapter._advance_connection_intent()
+                    if invalidator == "account":
+                        with self.assertRaisesRegex(RuntimeError, "session changed"):
+                            await asyncio.wait_for(retry, timeout=1)
+                    else:
+                        self.assertFalse(await asyncio.wait_for(retry, timeout=1))
+                    connector.connect.assert_not_awaited()
+                    connector.disconnect.assert_not_awaited()
+                finally:
+                    if retry is not None:
+                        if not retry.done():
+                            retry.cancel()
+                        await asyncio.gather(retry, return_exceptions=True)
+                    await adapter._reconnector.disable()
+
+    async def test_retry_owner_compensates_stale_success(self):
+        for invalidator in ("account", "intent"):
+            with self.subTest(invalidator=invalidator):
+                api, connector = self.make_api()
+                adapter = self.make_adapter(api)
+                await adapter.initialize(Mock())
+                epoch = adapter._authentication_epoch
+
+                async def connect(
+                    *_args, adapter=adapter, connector=connector, invalidator=invalidator
+                ):
+                    connector.current_state = state_named("Connected")
+                    if invalidator == "account":
+                        adapter._authentication_epoch += 1
+                    else:
+                        adapter._advance_connection_intent()
+
+                connector.connect.side_effect = connect
+                try:
+                    if invalidator == "account":
+                        with self.assertRaisesRegex(RuntimeError, "session changed"):
+                            await adapter._attempt_reconnection(
+                                "vpn-server", "wireguard", "networkmanager", epoch
+                            )
+                    else:
+                        self.assertFalse(await adapter._attempt_reconnection(
+                            "vpn-server", "wireguard", "networkmanager", epoch
+                        ))
+                    connector.connect.assert_awaited_once_with(
+                        "vpn-server", "wireguard", "networkmanager"
+                    )
+                    connector.disconnect.assert_awaited_once_with()
+                    self.assertEqual("Disconnected", type(connector.current_state).__name__)
+                finally:
+                    await adapter._reconnector.disable()
 
     async def test_manual_connect_retires_and_joins_automatic_attempt(self):
         api, connector = self.make_api()
@@ -3026,7 +3271,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             return server_list
 
         api.refresher.get_up_to_date_server_list.side_effect = current_server_list
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         connector.current_connection = SimpleNamespace(
             server_id="server-id",
@@ -3090,7 +3335,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         connector.connect.side_effect = delayed_connect
         connector.disconnect.side_effect = disconnect
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         api.load_settings.side_effect = [
             settings,
@@ -3112,7 +3357,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, "session expired"):
             await expiry
 
-        connector.disconnect.assert_awaited_once_with()
+        # Compensation plus the expiry path's public event barrier.
+        self.assertEqual(2, connector.disconnect.await_count)
         self.assertEqual("Disconnected", type(connector.current_state).__name__)
         self.assertFalse(adapter._logged_in)
 
@@ -3129,7 +3375,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_fastest_server=Mock(return_value=logical_server),
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._connector = connector
         adapter._logged_in = True
 
@@ -3156,7 +3402,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_capability_connect_rejects_unknown_or_unavailable_selection(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._connector = connector
         adapter._logged_in = True
 
@@ -3196,7 +3442,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_fastest_server=Mock(side_effect=[country_server, group_server]),
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._connector = connector
         adapter._logged_in = True
 
@@ -3217,7 +3463,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_settings_round_trip_uses_official_core_objects(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         current = await adapter.get_settings()
@@ -3240,7 +3486,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_settings_read_does_not_mutate_snapshot_kill_switch_state(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         adapter._kill_switch = 0
         api.load_settings.return_value.killswitch = 2
@@ -3276,7 +3522,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         api.load_settings.side_effect = load_settings
         api.save_settings.side_effect = save_settings
-        controller = BackendController(ProtonCoreAdapter(api))
+        controller = BackendController(self.make_adapter(api))
         self.assertTrue(await controller.start())
 
         stale_read = asyncio.create_task(controller.get_settings_json())
@@ -3296,7 +3542,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         persisted = api.load_settings.return_value
         persisted.anonymous_crash_reports = True
         api.usage_reporting.enabled = True
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         current = await adapter.get_settings()
         again = await adapter.get_settings()
@@ -3309,7 +3555,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unofficial_build_rejects_crash_reporting_enable(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(RuntimeError, "unofficial community build"):
@@ -3322,7 +3568,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, _ = self.make_api()
         api.load_settings.return_value.anonymous_crash_reports = True
         api.usage_reporting.enabled = True
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         await adapter.update_settings({"ipv6": False})
@@ -3334,7 +3580,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, _ = self.make_api()
         api.load_settings.return_value.anonymous_crash_reports = True
         api.usage_reporting.enabled = True
-        adapter = ProtonCoreAdapter(api, crash_report_submission_enabled=True)
+        adapter = self.make_adapter(api, crash_report_submission_enabled=True)
         await adapter.initialize(Mock())
 
         current = await adapter.get_settings()
@@ -3346,7 +3592,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_connection_sensitive_settings_require_disconnect(self):
         api, connector = self.make_api()
         connector.current_state = state_named("Connected")
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(RuntimeError, "Disconnect"):
@@ -3379,7 +3625,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         snapshots = []
         await adapter.initialize(snapshots.append)
 
@@ -3396,6 +3642,99 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connection.stop_packet_capture.assert_awaited_once_with()
         self.assertFalse(snapshots[-1].packet_capture_active)
         self.assertFalse(recovery_path.exists())
+
+    async def test_controller_disconnect_expiry_preserves_core_save_without_late_down(self):
+        api, connector = self.make_api()
+        entered, release = asyncio.Event(), asyncio.Event()
+        connector.current_state = state_named("Connected")
+
+        async def save_settings(_settings):
+            entered.set()
+            await release.wait()
+
+        api.save_settings.side_effect = save_settings
+        adapter = self.make_adapter(api)
+        controller = BackendController(adapter, cleanup_seconds=0.02)
+        self.assertTrue(await controller.start())
+        save = asyncio.create_task(controller.update_settings_json('{"ipv6":false}'))
+        await asyncio.wait_for(entered.wait(), 1)
+        try:
+            with self.assertRaisesRegex(RuntimeError, "could not be dispatched"):
+                await asyncio.wait_for(controller.disconnect(), 0.5)
+            self.assertFalse(save.done())
+            self.assertEqual(0, save.cancelling())
+            self.assertTrue(controller.snapshot.busy)
+            connector.disconnect.assert_not_awaited()
+        finally:
+            release.set()
+            await save
+        connector.disconnect.assert_not_awaited()
+        self.assertEqual("connected", controller.snapshot.state)
+        self.assertEqual(1, api.save_settings.await_count)
+        await controller.disconnect()
+        connector.disconnect.assert_awaited_once_with()
+        await controller.close()
+
+    async def test_controller_stop_bypasses_save_but_down_waits_for_protection_apply(self):
+        api, connector = self.make_api()
+        save_entered = asyncio.Event()
+        release_save = asyncio.Event()
+        order = []
+
+        async def save_settings(_settings):
+            save_entered.set()
+            await release_save.wait()
+            order.append("saved")
+
+        async def stop_capture():
+            order.append("capture-stopped")
+
+        async def disconnect():
+            order.append("down")
+            connector.current_state = state_named("Disconnected")
+
+        api.save_settings.side_effect = save_settings
+        connector.disconnect.side_effect = disconnect
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(
+                packet_capture=SimpleNamespace(
+                    directory_path="/tmp", max_bytes=512 * 1024 * 1024
+                )
+            ),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(side_effect=stop_capture),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = self.make_adapter(api)
+        controller = BackendController(adapter)
+        self.assertTrue(await controller.start())
+        with tempfile.TemporaryDirectory() as capture_directory:
+            await controller.start_packet_capture(capture_directory)
+            # Core save_settings reapplies protection even for a permitted
+            # connected-state preference such as IPv6.
+            save = asyncio.create_task(controller.update_settings_json('{"ipv6":false}'))
+            await asyncio.wait_for(save_entered.wait(), 1)
+            down = asyncio.create_task(controller.disconnect())
+            stop = asyncio.create_task(controller.stop_packet_capture())
+            try:
+                done, _ = await asyncio.wait({stop}, timeout=1)
+                self.assertIn(stop, done)
+                stop.result()
+                self.assertEqual(["capture-stopped"], order)
+                self.assertFalse(save.done())
+                self.assertTrue(controller.snapshot.busy)
+                self.assertFalse(controller.snapshot.packet_capture_active)
+                connector.disconnect.assert_not_awaited()
+            finally:
+                release_save.set()
+                await asyncio.gather(save, down, stop)
+                order_before_close = list(order)
+                await controller.close()
+        self.assertEqual(["capture-stopped", "saved", "down"], order_before_close)
+        connection.stop_packet_capture.assert_awaited_once_with()
 
     async def test_session_expiry_cannot_overtake_capture_start(self):
         api, connector = self.make_api()
@@ -3420,7 +3759,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3468,7 +3807,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3506,7 +3845,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3539,7 +3878,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3619,7 +3958,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = first_connection
-        first = ProtonCoreAdapter(api, packet_capture_stop_attempt_seconds=0.01)
+        first = self.make_adapter(api, packet_capture_stop_attempt_seconds=0.01)
         await first.initialize(Mock())
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3665,7 +4004,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
-        first = ProtonCoreAdapter(api, packet_capture_stop_attempt_seconds=0.01)
+        first = self.make_adapter(api, packet_capture_stop_attempt_seconds=0.01)
         await first.initialize(Mock())
         with tempfile.TemporaryDirectory() as capture_directory:
             await first.start_packet_capture(capture_directory)
@@ -3697,7 +4036,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3721,7 +4060,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3748,7 +4087,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
         snapshots = []
-        adapter = ProtonCoreAdapter(api, packet_capture_max_seconds=0.01)
+        adapter = self.make_adapter(api, packet_capture_max_seconds=0.01)
         await adapter.initialize(snapshots.append)
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3813,7 +4152,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
-        adapter = ProtonCoreAdapter(api, packet_capture_max_seconds=0.02)
+        adapter = self.make_adapter(api, packet_capture_max_seconds=0.02)
         await adapter.initialize(Mock())
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3845,7 +4184,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         connector.current_state = state_named("Connected")
         connector.current_connection = connection
-        adapter = ProtonCoreAdapter(api, packet_capture_max_seconds=0.01)
+        adapter = self.make_adapter(api, packet_capture_max_seconds=0.01)
         await adapter.initialize(Mock())
 
         with tempfile.TemporaryDirectory() as capture_directory:
@@ -3864,7 +4203,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         settings = await api.load_settings()
         settings.features.split_tunneling.enabled = True
         settings.custom_dns.enabled = True
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(ValueError, "split tunneling"):
@@ -3876,7 +4215,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_settings_core_failures_are_sanitized(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         api.load_settings.side_effect = RuntimeError("token=must-not-escape")
@@ -3912,7 +4251,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             live_kill_switch = value
 
         api.save_settings.side_effect = commit_then_fail
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(RuntimeError, "save the VPN settings"):
@@ -3932,7 +4271,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             RuntimeError("late acknowledgement failure"),
             RuntimeError("compensation failed"),
         ]
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "could not confirm"):
@@ -3949,7 +4288,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             RuntimeError("late acknowledgement failure"),
             RuntimeError("compensation failed"),
         ]
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         with self.assertRaisesRegex(RuntimeError, "could not confirm"):
@@ -3958,6 +4297,100 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(adapter._logged_in)
         self.assertEqual("settings_unavailable", snapshots[-1].auth_state)
         self.assertIn("restart", snapshots[-1].message)
+
+    async def test_timed_out_settings_compensation_retains_executor_write(self):
+        api, _ = self.make_api()
+        compensation_started = asyncio.Event()
+        release_write = threading.Event()
+        write_finished = threading.Event()
+        write_order = []
+        save_calls = 0
+
+        async def save_with_blocked_compensation(settings):
+            nonlocal save_calls
+            save_calls += 1
+            value = int(settings.features.netshield)
+            if save_calls == 1:
+                write_order.append(value)
+                raise RuntimeError("late acknowledgement failure")
+
+            def complete_write():
+                if not release_write.wait(timeout=2):
+                    raise RuntimeError("test did not release compensation")
+                write_order.append(value)
+                write_finished.set()
+
+            compensation_started.set()
+            await asyncio.to_thread(complete_write)
+
+        api.save_settings.side_effect = save_with_blocked_compensation
+        snapshots = []
+        adapter = self.make_adapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with patch(
+            "proton_vpn_kde_backend.adapters.LOGOUT_RECOVERY_TIMEOUT_SECONDS",
+            0.01,
+        ):
+            update = asyncio.create_task(adapter.update_settings({"netShield": 2}))
+            await compensation_started.wait()
+            try:
+                await asyncio.sleep(0.03)
+                update.cancel()
+                await asyncio.sleep(0)
+                update.cancel()
+                await asyncio.sleep(0)
+                self.assertFalse(update.done())
+                self.assertFalse(write_finished.is_set())
+                self.assertTrue(adapter._authentication_scope._lock.locked())
+                self.assertEqual([2], write_order)
+            finally:
+                release_write.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await update
+
+        self.assertTrue(write_finished.is_set())
+        self.assertEqual([2, 1], write_order)
+        self.assertEqual("settings_unavailable", snapshots[-1].auth_state)
+        self.assertFalse(adapter._authentication_scope._lock.locked())
+
+    async def test_expiry_after_compensation_stage_timeout_stays_authoritative(self):
+        api, _ = self.make_api()
+        expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
+        compensation_started = asyncio.Event()
+        release_compensation = asyncio.Event()
+        save_calls = 0
+
+        async def expire_after_compensation(_settings):
+            nonlocal save_calls
+            save_calls += 1
+            if save_calls == 1:
+                raise RuntimeError("late acknowledgement failure")
+            compensation_started.set()
+            await release_compensation.wait()
+            raise expired_error()
+
+        api.save_settings.side_effect = expire_after_compensation
+        snapshots = []
+        adapter = self.make_adapter(api)
+        await adapter.initialize(snapshots.append)
+
+        with patch(
+            "proton_vpn_kde_backend.adapters.LOGOUT_RECOVERY_TIMEOUT_SECONDS",
+            0.01,
+        ):
+            update = asyncio.create_task(adapter.update_settings({"netShield": 2}))
+            await compensation_started.wait()
+            try:
+                await asyncio.sleep(0.03)
+                self.assertFalse(update.done())
+            finally:
+                release_compensation.set()
+                with self.assertRaisesRegex(RuntimeError, "session expired"):
+                    await update
+
+        self.assertEqual("expired", snapshots[-1].auth_state)
+        self.assertFalse(adapter._logged_in)
 
     async def test_cancelled_setting_save_finishes_before_compensation(self):
         api, _ = self.make_api()
@@ -3974,7 +4407,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             write_order.append(value)
 
         api.save_settings.side_effect = delayed_save
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         update_task = asyncio.create_task(
@@ -4011,7 +4444,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         api.save_settings.side_effect = blocked_save
         snapshots = []
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(snapshots.append)
 
         update_task = asyncio.create_task(
@@ -4023,20 +4456,26 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             "proton_vpn_kde_backend.adapters.LOGOUT_RECOVERY_TIMEOUT_SECONDS",
             0.01,
         ):
-            with self.assertRaises(asyncio.CancelledError):
-                await update_task
+            try:
+                await asyncio.sleep(0.03)
+                self.assertFalse(update_task.done())
+                self.assertFalse(save_finished.is_set())
+                self.assertEqual(1, api.save_settings.await_count)
+            finally:
+                release_save.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await update_task
 
         self.assertTrue(save_started.is_set())
         self.assertEqual(1, api.save_settings.await_count)
         self.assertEqual("protection_unknown", snapshots[-1].auth_state)
-        release_save.set()
-        await save_finished.wait()
+        self.assertTrue(save_finished.is_set())
         self.assertEqual(2, persisted_kill_switch)
         self.assertEqual(1, api.save_settings.await_count)
 
     async def test_split_tunneling_round_trip_preserves_ip_ranges(self):
         api, _ = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         current = await adapter.get_split_tunneling()
@@ -4072,7 +4511,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, _ = self.make_api()
         settings = await api.load_settings()
         settings.features.netshield = 0
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         current = await adapter.get_custom_dns()
@@ -4101,7 +4540,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_custom_dns_conflict_is_rejected_without_side_effects(self):
         api, _ = self.make_api()
         settings = await api.load_settings()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(ValueError, "Disable NetShield"):
@@ -4114,7 +4553,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_custom_dns_requires_paid_plan(self):
         api, _ = self.make_api()
         api.account_data.max_tier = 0
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(RuntimeError, "paid Proton VPN plan"):
@@ -4126,7 +4565,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, connector = self.make_api()
         settings = await api.load_settings()
         settings.killswitch = 1
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(ValueError, "kill switch"):
@@ -4143,7 +4582,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_include_mode_requires_a_target_before_enabling(self):
         api, _ = self.make_api()
         settings = await api.load_settings()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         with self.assertRaisesRegex(ValueError, "at least one included"):
@@ -4227,7 +4666,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._logged_in = True
 
         countries = await adapter.get_countries()
@@ -4306,7 +4745,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._logged_in = True
 
         country_info = await adapter.get_countries()
@@ -4333,7 +4772,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             user_tier=2,
         )
         api.refresher.get_up_to_date_server_list.return_value = server_list
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         adapter._connector = connector
         adapter._logged_in = True
 
@@ -4351,9 +4790,148 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         server_list.get_fastest_server.assert_called_once()
         connector.connect.assert_awaited_once()
 
+    async def test_cleanup_inherits_one_deadline_across_the_adapter(self):
+        api, _ = self.make_api()
+        adapter = self.make_adapter(api)
+        await adapter.initialize(Mock())
+        deadline = asyncio.get_running_loop().time() + 1
+        with (
+            patch.object(adapter, "_superseding_connection_targets", wraps=adapter._superseding_connection_targets) as supersede,
+            patch.object(adapter, "_disconnect_until_stable", wraps=adapter._disconnect_until_stable) as down,
+            patch.object(adapter._packet_capture, "stop", wraps=adapter._packet_capture.stop) as stop,
+        ):
+            await adapter.disconnect(deadline=deadline)
+            await adapter.stop_packet_capture(deadline=deadline)
+        supersede.assert_called_once_with(deadline=deadline)
+        down.assert_awaited_once_with(deadline=deadline)
+        stop.assert_awaited_once_with(deadline=deadline)
+        self.assertFalse(adapter._capture_stop_tasks)
+
+    async def test_expired_cleanup_cannot_begin_adapter_mutation(self):
+        api, connector = self.make_api()
+        adapter = self.make_adapter(api)
+        await adapter.initialize(Mock())
+        intent = adapter._connection_intent_generation
+        with patch.object(adapter._packet_capture, "stop", wraps=adapter._packet_capture.stop) as stop:
+            for call in (adapter.disconnect, adapter.stop_packet_capture):
+                with self.assertRaisesRegex(RuntimeError, "could not be dispatched"):
+                    await call(deadline=asyncio.get_running_loop().time() - 1)
+        self.assertEqual(intent, adapter._connection_intent_generation)
+        connector.disconnect.assert_not_awaited()
+        stop.assert_not_awaited()
+
+    async def test_disconnect_scope_wait_uses_failed_retirement_boundary_at_deadline(self):
+        api, connector = self.make_api()
+        terminal_exit = Mock(side_effect=RuntimeError("recorded terminal exit"))
+        adapter = self.make_adapter(api, terminal_exit=terminal_exit)
+        await adapter.initialize(Mock())
+        async with adapter._connection_scope.enter():
+            deadline = asyncio.get_running_loop().time() + 0.02
+            with self.assertLogs("proton_vpn_kde_backend.adapters", level="CRITICAL"):
+                operation = asyncio.create_task(adapter.disconnect(deadline=deadline))
+                with self.assertRaisesRegex(RuntimeError, "recorded terminal exit"):
+                    await asyncio.wait_for(operation, 0.5)
+        terminal_exit.assert_called_once_with(1)
+        connector.disconnect.assert_not_awaited()
+        self.assertEqual(0, adapter._reconnector._suspend_count)
+
+    async def test_disconnect_barrier_uses_remaining_not_fresh_retirement_budget(self):
+        api, connector = self.make_api()
+        entered, release, finished = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        terminal_exit = Mock(side_effect=RuntimeError("recorded terminal exit"))
+        adapter = self.make_adapter(api, terminal_exit=terminal_exit)
+        await adapter.initialize(Mock())
+
+        async def down():
+            entered.set()
+            await release.wait()
+            connector.current_state = state_named("Disconnected")
+            finished.set()
+
+        connector.disconnect.side_effect = down
+        try:
+            with self.assertLogs("proton_vpn_kde_backend.adapters", level="CRITICAL"):
+                with self.assertRaisesRegex(RuntimeError, "recorded terminal exit"):
+                    await asyncio.wait_for(adapter.disconnect(deadline=asyncio.get_running_loop().time() + 0.02), 0.5)
+            self.assertTrue(entered.is_set())
+            self.assertFalse(finished.is_set())
+            terminal_exit.assert_called_once_with(1)
+        finally:
+            release.set()
+            await asyncio.wait_for(finished.wait(), 1)
+
+    async def test_capture_stop_deadline_keeps_live_owner_and_durable_recovery(self):
+        api, connector = self.make_api()
+        entered, cancelled, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        terminal_exit = Mock(side_effect=RuntimeError("recorded terminal exit"))
+
+        async def stop():
+            entered.set()
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                await release.wait()
+
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(packet_capture=SimpleNamespace(
+                directory_path="/tmp", max_bytes=512 * 1024 * 1024)),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(side_effect=stop),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = self.make_adapter(api, terminal_exit=terminal_exit)
+        await adapter.initialize(Mock())
+        with tempfile.TemporaryDirectory() as directory:
+            await adapter.start_packet_capture(directory)
+            recorded_deadline = adapter._packet_capture._journal.load_deadline()
+            try:
+                with self.assertLogs("proton_vpn_kde_backend.adapters", level="CRITICAL"):
+                    with self.assertRaisesRegex(RuntimeError, "recorded terminal exit"):
+                        await asyncio.wait_for(adapter.stop_packet_capture(deadline=asyncio.get_running_loop().time() + 0.03), 0.5)
+                await asyncio.wait_for(cancelled.wait(), 1)
+                self.assertTrue(entered.is_set())
+                self.assertTrue(adapter._packet_capture_active)
+                self.assertEqual(recorded_deadline, adapter._packet_capture._journal.load_deadline())
+                self.assertEqual(1, len(adapter._capture_stop_tasks))
+                terminal_exit.assert_called_once_with(1)
+            finally:
+                release.set()
+                await asyncio.gather(*adapter._capture_stop_tasks)
+                adapter._cancel_packet_capture_watchdog()
+        self.assertFalse(adapter._capture_stop_tasks)
+
+    async def test_capture_stop_caller_cancellation_retains_provider_until_completion(self):
+        api, _ = self.make_api()
+        adapter = self.make_adapter(api)
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def stop(*, deadline):
+            entered.set()
+            await release.wait()
+
+        adapter._packet_capture.stop = AsyncMock(side_effect=stop)
+        operation = asyncio.create_task(adapter.stop_packet_capture())
+        await asyncio.wait_for(entered.wait(), 1)
+        operation.cancel()
+        await asyncio.sleep(0)
+        operation.cancel()
+        try:
+            self.assertFalse(operation.done())
+            self.assertEqual(1, len(adapter._capture_stop_tasks))
+            self.assertEqual(0, next(iter(adapter._capture_stop_tasks)).cancelling())
+        finally:
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await operation
+        self.assertFalse(adapter._capture_stop_tasks)
+
     async def test_close_unsubscribes_and_stops_refresher(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         await adapter.close()
@@ -4365,9 +4943,137 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.set_server_loads_updated_callback.assert_called_with(None)
         api.refresher.set_location_names_updated_callback.assert_called_with(None)
 
+    async def test_close_result_is_singleflight_sticky_and_cancellation_safe(self):
+        for terminal in ("success", "failure", "timeout"):
+            with self.subTest(terminal=terminal):
+                api, connector = self.make_api()
+                adapter = self.make_adapter(api)
+                await adapter.initialize(Mock())
+                entered, release = asyncio.Event(), asyncio.Event()
+
+                async def disable(entered=entered, release=release, terminal=terminal):
+                    entered.set()
+                    await release.wait()
+                    if terminal == "failure":
+                        raise RuntimeError("provider close failed")
+
+                api.refresher.disable.side_effect = disable
+                deadline = asyncio.get_running_loop().time() + (0.05 if terminal == "timeout" else 1)
+                first = asyncio.create_task(adapter.close(deadline=deadline))
+                await asyncio.wait_for(entered.wait(), 1)
+                second = asyncio.create_task(adapter.close(deadline=deadline + 100))
+                first.cancel()
+                await asyncio.sleep(0)
+                first.cancel()
+                if terminal != "timeout":
+                    release.set()
+                try:
+                    outcomes = await asyncio.gather(first, second, return_exceptions=True)
+                    self.assertIsInstance(outcomes[0], asyncio.CancelledError)
+                    if terminal == "success":
+                        self.assertIsNone(outcomes[1])
+                        await adapter.close()
+                    else:
+                        error_type = TimeoutError if terminal == "timeout" else RuntimeError
+                        self.assertIsInstance(outcomes[1], error_type)
+                        with self.assertRaises(error_type):
+                            await adapter.close(deadline=deadline + 100)
+                    if terminal == "timeout":
+                        self.assertFalse(adapter._close_work_task.done())
+                        self.assertEqual(0, adapter._close_work_task.cancelling())
+                finally:
+                    release.set()
+                    await asyncio.gather(adapter._close_work_task, return_exceptions=True)
+                api.refresher.disable.assert_awaited_once_with()
+                connector.unregister.assert_any_call(adapter)
+
+    async def test_close_inherits_deadline_at_each_teardown_boundary(self):
+        api, _ = self.make_api()
+        adapter = self.make_adapter(api)
+        await adapter.initialize(Mock())
+        deadline = asyncio.get_running_loop().time() + 1
+        with (
+            patch.object(adapter, "_retire_refresher_error_handler", wraps=adapter._retire_refresher_error_handler) as handler,
+            patch.object(adapter, "_superseding_connection_targets", wraps=adapter._superseding_connection_targets) as supersede,
+            patch.object(adapter, "_disconnect_until_stable", wraps=adapter._disconnect_until_stable) as down,
+            patch.object(adapter._reconnector, "disable", wraps=adapter._reconnector.disable) as disable,
+        ):
+            await adapter.close(deadline=deadline)
+        handler.assert_awaited_once_with(deadline)
+        supersede.assert_called_once_with(deadline=deadline)
+        down.assert_awaited_once_with(deadline=deadline, transitional_only=True)
+        disable.assert_awaited_once_with(deadline=deadline)
+
+    async def test_expired_close_does_not_dispatch_core_teardown(self):
+        api, connector = self.make_api()
+        adapter = self.make_adapter(api)
+        await adapter.initialize(Mock())
+        now = asyncio.get_running_loop().time()
+        for deadline in (now - 1, now + 100):
+            with self.assertRaisesRegex(TimeoutError, "shutdown deadline"):
+                await adapter.close(deadline=deadline)
+        self.assertIsNone(adapter._close_work_task)
+        connector.disconnect.assert_not_awaited()
+        connector.unregister.assert_not_called()
+        api.refresher.disable.assert_not_awaited()
+
+    async def test_close_waiting_for_scope_cannot_dispatch_after_deadline(self):
+        for scope_name in ("_authentication_scope", "_connection_scope"):
+            with self.subTest(scope=scope_name):
+                api, connector = self.make_api()
+                adapter = self.make_adapter(api)
+                await adapter.initialize(Mock())
+                async with getattr(adapter, scope_name).enter():
+                    with self.assertRaisesRegex(TimeoutError, "shutdown deadline"):
+                        await adapter.close(deadline=asyncio.get_running_loop().time() + 0.03)
+                    self.assertFalse(adapter._close_work_task.done())
+                await asyncio.gather(adapter._close_work_task, return_exceptions=True)
+                connector.disconnect.assert_not_awaited()
+                connector.unregister.assert_not_called()
+                api.refresher.disable.assert_not_awaited()
+                # Late scope release and Error notifications cannot re-arm retry.
+                connector.current_state = state_named("Error")
+                adapter._reconnector.status_update(connector.current_state)
+                adapter._reconnector.enable()
+                self.assertIsNone(adapter._reconnector._retry_task)
+
+    async def test_capture_stop_uses_remaining_shutdown_budget_and_keeps_recovery(self):
+        api, connector = self.make_api()
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def stop():
+            entered.set()
+            await release.wait()
+
+        connection = SimpleNamespace(
+            server_name="US-IL#42",
+            settings=SimpleNamespace(packet_capture=SimpleNamespace(
+                directory_path="/tmp", max_bytes=512 * 1024 * 1024)),
+            supports_packet_capture=Mock(return_value=True),
+            start_packet_capture=AsyncMock(),
+            stop_packet_capture=AsyncMock(side_effect=stop),
+        )
+        connector.current_state = state_named("Connected")
+        connector.current_connection = connection
+        adapter = self.make_adapter(api, packet_capture_stop_attempt_seconds=5)
+        await adapter.initialize(Mock())
+        with tempfile.TemporaryDirectory() as directory:
+            await adapter.start_packet_capture(directory)
+            try:
+                with self.assertRaisesRegex(TimeoutError, "shutdown deadline"):
+                    await asyncio.wait_for(adapter.close(deadline=asyncio.get_running_loop().time() + 0.03), 0.5)
+                self.assertTrue(entered.is_set())
+                self.assertTrue(adapter._packet_capture_active)
+                self.assertTrue(adapter._packet_capture.has_pending_recovery())
+                api.refresher.disable.assert_not_awaited()
+            finally:
+                release.set()
+                await asyncio.gather(adapter._close_work_task, return_exceptions=True)
+                await adapter.stop_packet_capture()
+
     async def test_close_waits_for_reconnect_worker_before_core_teardown(self):
         api, connector = self.make_api()
-        adapter = ProtonCoreAdapter(api)
+        adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         release_connect = await self.start_cancellation_resistant_reconnect(
             adapter, connector

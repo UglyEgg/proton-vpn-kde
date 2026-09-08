@@ -22,10 +22,10 @@ Item {
     })
     readonly property var recoveryErrorCodes: Object.keys(recoveryDialogs)
     readonly property bool runnerActionEnabled:
-        !vpnController.busy
-        && vpnController.primaryActionEnabled
-        && (runnerActionDialog.actionId !== "disconnect"
-            || vpnController.state !== "disconnected")
+        runnerActionDialog.actionId === "disconnect"
+        ? vpnController.canDisconnect
+        : ["fastest", "country", "server", "group"].includes(runnerActionDialog.actionId)
+          && vpnController.canConnect
 
     function supportsRecovery(code) {
         return recoveryErrorCodes.includes(code)

@@ -208,15 +208,17 @@ QString VpnController::primaryActionText() const
         || m_state == QStringLiteral("error")) {
         return tr("Cancel Connection");
     }
+    if (m_state == QStringLiteral("disconnecting")) {
+        return tr("Disconnecting…");
+    }
     return tr("Connect fastest");
 }
 
-bool VpnController::primaryActionEnabled() const
+ProtonVpnKde::ConnectionActionCapabilities VpnController::connectionCapabilities() const
 {
-    const bool disconnectAction = ProtonVpnKde::primaryActionDisconnects(m_state);
-    return m_backendAvailable && m_ready && snapshotHealthy()
-        && (disconnectAction || m_loggedIn)
-        && (!m_busy || m_state == QStringLiteral("connecting"));
+    return ProtonVpnKde::connectionActionCapabilities(
+        m_backendAvailable, m_ready, snapshotHealthy(), m_loggedIn, m_busy,
+        m_state, m_authState);
 }
 
 QAbstractItemModel *VpnController::countryModel() const { return m_countryFilterModel; }

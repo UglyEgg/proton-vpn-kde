@@ -54,6 +54,8 @@ QString fixedCallFailureMessage(const QDBusError &error)
         error.type(), error.name())) {
     case BackendCallFailure::Unavailable:
         return AgentVpnClient::tr("The Proton backend is not available");
+    case BackendCallFailure::CompletionUnknown:
+        return AgentVpnClient::tr("The backend request completion could not be confirmed");
     case BackendCallFailure::Unauthorized:
     case BackendCallFailure::InvalidSecretPayload:
     case BackendCallFailure::Rejected:
@@ -102,17 +104,17 @@ QString AgentVpnClient::primaryActionText() const
         || m_state == QStringLiteral("error")) {
         return tr("Cancel Connection");
     }
+    if (m_state == QStringLiteral("disconnecting")) {
+        return tr("Disconnecting…");
+    }
     return tr("Connect fastest");
 }
 
-bool AgentVpnClient::primaryActionEnabled() const
+ProtonVpnKde::ConnectionActionCapabilities AgentVpnClient::connectionCapabilities() const
 {
-    if (!m_backendAvailable) {
-        return true;
-    }
-    const bool disconnectAction = ProtonVpnKde::primaryActionDisconnects(m_state);
-    return m_ready && (disconnectAction || m_loggedIn)
-        && (!m_busy || m_state == QStringLiteral("connecting"));
+    return ProtonVpnKde::connectionActionCapabilities(
+        m_backendAvailable, m_ready, m_snapshotHealthy, m_loggedIn, m_busy,
+        m_state, m_authState, true);
 }
 
 void AgentVpnClient::setReconnectionEnabled(bool enabled)
@@ -142,8 +144,10 @@ void AgentVpnClient::autoConnect(const QString &target)
 
 void AgentVpnClient::activatePrimaryAction()
 {
-    if (m_backendAvailable && m_ready
-        && ProtonVpnKde::primaryActionDisconnects(m_state)) {
+    if (!primaryActionEnabled()) {
+        return;
+    }
+    if (primaryActionDisconnects()) {
         disconnect();
         return;
     }
@@ -197,13 +201,7 @@ void AgentVpnClient::disconnect()
     // yet. Retire queued connects before inspecting the current projection so
     // a delayed lease or snapshot cannot dispatch them afterward.
     clearPendingConnection();
-    if (!m_backendAvailable || !m_ready) {
-        releaseTransientLease();
-        return;
-    }
-    // A just-dispatched connect owns busy before its first connecting snapshot
-    // arrives. It must still be preemptible from KRunner or another controller.
-    if (m_state == QStringLiteral("disconnected") && !m_busy) {
+    if (!canDisconnect()) {
         releaseTransientLease();
         return;
     }
@@ -212,13 +210,13 @@ void AgentVpnClient::disconnect()
 
 void AgentVpnClient::onServiceRegistered(const QString &)
 {
+    m_snapshotHealthy = false;
     ++m_serviceGeneration;
     ++m_transientLeaseRequestGeneration;
     m_transientLeasePending = false;
     m_transientLeaseActive = false;
     m_transientLeaseMayExist = false;
-    ++m_operationGeneration;
-    m_operationReconciliationGeneration = 0;
+    m_operationCompletion.invalidate();
     m_authorizationPending = false;
     const auto identity = ProtonVpnKde::verifyBackendIdentity(
         QDBusConnection::sessionBus(),
@@ -247,12 +245,13 @@ void AgentVpnClient::onServiceUnregistered(const QString &)
     ++m_serviceGeneration;
     setBackendAvailable(false);
     m_ready = false;
+    m_snapshotHealthy = false;
+    m_authState = QStringLiteral("signed_out");
     m_loggedIn = false;
     m_busy = false;
     m_reconnectionApplied = false;
     m_reconnectionPending = false;
-    ++m_operationGeneration;
-    m_operationReconciliationGeneration = 0;
+    m_operationCompletion.invalidate();
     m_authorizationPending = false;
     ++m_transientLeaseRequestGeneration;
     m_transientLeasePending = false;
@@ -394,7 +393,7 @@ void AgentVpnClient::requestSnapshot(bool allowActivation,
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
     stampBackendRequest(watcher);
     const quint64 requestGeneration = operationGeneration == 0
-        ? m_operationGeneration
+        ? m_operationCompletion.generation()
         : operationGeneration;
     watcher->setProperty(
         "operationGeneration",
@@ -405,6 +404,7 @@ void AgentVpnClient::requestSnapshot(bool allowActivation,
 
 void AgentVpnClient::applySnapshot(const QString &snapshotJson)
 {
+    m_snapshotHealthy = false;
     QJsonParseError error;
     const QJsonDocument document = QJsonDocument::fromJson(
         snapshotJson.toUtf8(), &error);
@@ -432,8 +432,11 @@ void AgentVpnClient::applySnapshot(const QString &snapshotJson)
         return;
     }
 
+    const quint64 operationGeneration = m_operationCompletion.generation();
+    m_snapshotHealthy = true;
     m_ready = snapshot.value(QStringLiteral("ready")).toBool();
     m_loggedIn = snapshot.value(QStringLiteral("loggedIn")).toBool();
+    m_authState = snapshot.value(QStringLiteral("authState")).toString();
     m_busy = snapshot.value(QStringLiteral("busy")).toBool();
     m_killSwitch = std::clamp(
         snapshot.value(QStringLiteral("killSwitch")).toInt(), 0, 2);
@@ -445,6 +448,13 @@ void AgentVpnClient::applySnapshot(const QString &snapshotJson)
     m_message = snapshot.value(QStringLiteral("message")).toString();
     emit snapshotChanged();
     dispatchPendingConnection();
+    // Emission/dispatch can synchronously start a successor. Only this
+    // generation's post-reply reconciliation may release its transient lease.
+    if (m_operationCompletion.settleIfIdle(
+            operationGeneration, m_ready && !m_busy
+                && m_pendingTarget.isEmpty() && m_pendingGroup.isEmpty())) {
+        releaseTransientLease();
+    }
 }
 
 void AgentVpnClient::applyReconnectionPreference()
@@ -611,12 +621,12 @@ void AgentVpnClient::queueConnection(const QString &target, bool interactive,
 void AgentVpnClient::dispatchPendingConnection()
 {
     if ((m_pendingTarget.isEmpty() && m_pendingGroup.isEmpty())
-        || !m_backendAvailable || !m_ready
+        || !m_backendAvailable || !m_ready || !m_snapshotHealthy
         || !m_transientLeaseActive
         || !m_reconnectionApplied || m_busy) {
         return;
     }
-    if (!m_loggedIn) {
+    if (!m_loggedIn || !ProtonVpnKde::accountAllowsConnection(m_authState)) {
         const bool interactive = m_pendingInteractive;
         clearPendingConnection();
         releaseTransientLease();
@@ -629,6 +639,9 @@ void AgentVpnClient::dispatchPendingConnection()
         && m_state != QStringLiteral("disconnected")) {
         clearPendingConnection();
         releaseTransientLease();
+        return;
+    }
+    if (!connectionCapabilities().connect) {
         return;
     }
 
@@ -671,8 +684,7 @@ void AgentVpnClient::callOperation(const QString &method,
     if (!m_backendAvailable || m_backendDestination.isEmpty()) {
         return;
     }
-    const quint64 operationGeneration = ++m_operationGeneration;
-    m_operationReconciliationGeneration = 0;
+    const quint64 operationGeneration = m_operationCompletion.begin();
     m_busy = true;
     m_message.clear();
     emit snapshotChanged();
@@ -698,14 +710,13 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         watcher->property("operationGeneration").toULongLong();
     const QDBusPendingReply<QString> reply = *watcher;
     watcher->deleteLater();
-    if (!current || operationGeneration != m_operationGeneration) {
+    if (!current || operationGeneration != m_operationCompletion.generation()) {
         return;
     }
     if (reply.isError()) {
+        m_snapshotHealthy = false;
         m_busy = false;
-        if (m_operationReconciliationGeneration == operationGeneration) {
-            m_operationReconciliationGeneration = 0;
-        }
+        m_operationCompletion.finish(operationGeneration);
         m_message = fixedCallFailureMessage(reply.error());
         const bool interactive = m_pendingInteractive;
         clearPendingConnection();
@@ -721,19 +732,7 @@ void AgentVpnClient::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
         && (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty())) {
         acquireTransientLease();
     }
-    const bool settlesOperation = operationGeneration != 0
-        && operationGeneration == m_operationGeneration;
-    if (m_operationReconciliationGeneration == operationGeneration) {
-        m_operationReconciliationGeneration = 0;
-    }
     applySnapshot(reply.value());
-    // applySnapshot may synchronously dispatch a newer queued operation.  An
-    // older reconciliation owns lease retirement only while its operation
-    // generation is still current and no successor still needs the lease.
-    if (settlesOperation && operationGeneration == m_operationGeneration
-        && !m_busy && m_pendingTarget.isEmpty() && m_pendingGroup.isEmpty()) {
-        releaseTransientLease();
-    }
 }
 
 void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
@@ -743,12 +742,12 @@ void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
         watcher->property("operationGeneration").toULongLong();
     const QDBusPendingReply<> reply = *watcher;
     watcher->deleteLater();
-    if (!current || operationGeneration != m_operationGeneration) {
+    if (!current || operationGeneration != m_operationCompletion.generation()) {
         return;
     }
     if (reply.isError()) {
         if (ProtonVpnKde::isTransientSameOwnerFailure(reply.error().type())) {
-            m_operationReconciliationGeneration = operationGeneration;
+            m_operationCompletion.reconcile(operationGeneration);
             m_busy = true;
             m_message = tr(
                 "The VPN operation may still be completing; refreshing its state");
@@ -757,7 +756,7 @@ void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
             return;
         }
         m_busy = false;
-        m_operationReconciliationGeneration = 0;
+        m_operationCompletion.finish(operationGeneration);
         m_message = fixedCallFailureMessage(reply.error());
         emit snapshotChanged();
         if (!m_pendingTarget.isEmpty() || !m_pendingGroup.isEmpty()) {
@@ -767,6 +766,6 @@ void AgentVpnClient::handleOperationReply(QDBusPendingCallWatcher *watcher)
         }
         return;
     }
-    m_operationReconciliationGeneration = 0;
+    m_operationCompletion.reconcile(operationGeneration);
     requestSnapshot(false, operationGeneration);
 }

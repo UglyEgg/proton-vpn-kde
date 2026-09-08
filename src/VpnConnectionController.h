@@ -3,12 +3,17 @@
 
 #pragma once
 
+#include "ConnectionAction.h"
+
 #include <QObject>
 #include <QString>
 
 class VpnConnectionController : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(bool canConnect READ canConnect NOTIFY snapshotChanged)
+    Q_PROPERTY(bool canDisconnect READ canDisconnect NOTIFY snapshotChanged)
+    Q_PROPERTY(bool primaryActionDisconnects READ primaryActionDisconnects NOTIFY snapshotChanged)
 
 public:
     using QObject::QObject;
@@ -24,7 +29,24 @@ public:
     [[nodiscard]] virtual int forwardedPort() const = 0;
     [[nodiscard]] virtual QString message() const = 0;
     [[nodiscard]] virtual QString primaryActionText() const = 0;
-    [[nodiscard]] virtual bool primaryActionEnabled() const = 0;
+    [[nodiscard]] virtual ProtonVpnKde::ConnectionActionCapabilities
+    connectionCapabilities() const = 0;
+    [[nodiscard]] bool canConnect() const
+    {
+        const auto capability = connectionCapabilities();
+        return capability.connect || capability.activate;
+    }
+    [[nodiscard]] bool canDisconnect() const { return connectionCapabilities().disconnect; }
+    [[nodiscard]] bool primaryActionDisconnects() const
+    {
+        return connectionCapabilities().primaryDisconnects;
+    }
+    [[nodiscard]] bool primaryActionEnabled() const
+    {
+        const auto capability = connectionCapabilities();
+        return capability.primaryDisconnects ? capability.disconnect
+                                             : capability.connect || capability.activate;
+    }
 
 public slots:
     virtual void activatePrimaryAction() = 0;

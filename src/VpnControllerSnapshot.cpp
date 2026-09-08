@@ -297,6 +297,8 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
     const quint64 packetCaptureGeneration =
         watcher->property("packetCaptureOperationGeneration").toULongLong();
     const QDBusPendingReply<> reply = *watcher;
+    const bool restartAfterRetirement =
+        watcher->property("restartAfterAccountRetirement").toBool();
     watcher->deleteLater();
     if (!current) {
         return;
@@ -404,6 +406,11 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
             }
         }
     }
+    if (restartAfterRetirement && globalCurrent) {
+        m_busy = false;
+        restartBackendService();
+        return;
+    }
     refresh();
 }
 
@@ -468,7 +475,11 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
         const auto failure = ProtonVpnKde::classifyBackendCallFailure(
             reply.error().type(), reply.error().name());
         QString operationMessage;
-        if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
+        if (failure == ProtonVpnKde::BackendCallFailure::CompletionUnknown) {
+            operationMessage = tr(
+                "The VPN operation may still be completing; refreshing its state");
+            scheduleSnapshotRefreshRetry();
+        } else if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
             setBackendAvailable(false);
             operationMessage = tr("The Proton backend service stopped");
         } else if (failure

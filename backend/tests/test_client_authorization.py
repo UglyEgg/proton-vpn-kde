@@ -33,13 +33,14 @@ def method_message(
     member: str,
     *,
     sender: str = ":1.40",
+    interface: str | None = BACKEND_INTERFACE,
     signature: str = "",
     body: list[object] | None = None,
     unix_fds: list[int] | None = None,
 ) -> Message:
     return Message(
         path=BACKEND_OBJECT_PATH,
-        interface=BACKEND_INTERFACE,
+        interface=interface,
         member=member,
         message_type=MessageType.METHOD_CALL,
         sender=sender,
@@ -51,6 +52,40 @@ def method_message(
 
 
 class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
+    def test_supported_representations_share_the_same_authorization_policy(self):
+        for interface in (BACKEND_INTERFACE, None):
+            with self.subTest(interface=interface):
+                authorizer = ClientAuthorizer(None, ())
+                denied = authorizer.message_handler(
+                    method_message("GetAuthPublicKey", interface=interface,
+                                   signature="s", body=["Login"])
+                )
+                self.assertEqual(UNAUTHORIZED_ERROR, denied.error_name)
+                self.assertIsNone(authorizer.message_handler(
+                    method_message("GetSnapshot", interface=interface)
+                ))
+
+    def test_standard_interfaces_preserve_calls_and_reject_ancillary_descriptors(self):
+        for interface, member in (
+            ("org.freedesktop.DBus.Introspectable", "Introspect"),
+            ("org.freedesktop.DBus.Peer", "Ping"),
+            ("org.freedesktop.DBus.Properties", "GetAll"),
+            ("org.freedesktop.DBus.ObjectManager", "GetManagedObjects"),
+        ):
+            with self.subTest(interface=interface):
+                authorizer = ClientAuthorizer(None, ())
+                self.assertIsNone(authorizer.message_handler(
+                    method_message(member, interface=interface)
+                ))
+                descriptor = create_test_fd("standard-rejection")
+                rejected = authorizer.message_handler(method_message(
+                    member, interface=interface, unix_fds=[descriptor]
+                ))
+                self.assertEqual(INVALID_ARGUMENTS_ERROR, rejected.error_name)
+                with self.assertRaises(OSError):
+                    os.fstat(descriptor)
+
+
     def test_unsafe_environment_contract_is_complete_and_unique(self):
         self.assertEqual(len(UNSAFE_ENVIRONMENT_NAMES), len(set(UNSAFE_ENVIRONMENT_NAMES)))
         self.assertTrue(

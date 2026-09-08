@@ -7,6 +7,7 @@
 #include <QScopedPointer>
 #include <QStringListModel>
 #include <QtTest>
+#include "ConnectionAction.h"
 
 namespace
 {
@@ -18,6 +19,8 @@ class FakeVpnController final : public QObject
     Q_PROPERTY(bool busy MEMBER busy NOTIFY snapshotChanged)
     Q_PROPERTY(bool backendAvailable MEMBER backendAvailable NOTIFY snapshotChanged)
     Q_PROPERTY(bool primaryActionEnabled READ primaryActionEnabled NOTIFY snapshotChanged)
+    Q_PROPERTY(bool canConnect READ canConnect NOTIFY snapshotChanged)
+    Q_PROPERTY(bool canDisconnect READ canDisconnect NOTIFY snapshotChanged)
     Q_PROPERTY(bool backendRestartAllowed MEMBER backendRestartAllowed NOTIFY snapshotChanged)
     Q_PROPERTY(bool fido2Available MEMBER fido2Available NOTIFY snapshotChanged)
     Q_PROPERTY(int killSwitch MEMBER killSwitch NOTIFY snapshotChanged)
@@ -29,7 +32,10 @@ class FakeVpnController final : public QObject
     Q_PROPERTY(bool snapshotRestartAllowed MEMBER snapshotRestartAllowed NOTIFY snapshotChanged)
     Q_PROPERTY(bool snapshotRefreshPending MEMBER snapshotRefreshPending NOTIFY snapshotChanged)
     Q_PROPERTY(QString packetCaptureError MEMBER packetCaptureError NOTIFY snapshotChanged)
+    Q_PROPERTY(bool packetCaptureActive MEMBER packetCaptureActive NOTIFY snapshotChanged)
+    Q_PROPERTY(bool crashReportSubmissionEnabled MEMBER crashReportSubmissionEnabled CONSTANT)
     Q_PROPERTY(bool shutdownPending MEMBER shutdownPending NOTIFY snapshotChanged)
+    Q_PROPERTY(bool npsSurveySubmissionPending MEMBER npsSurveySubmissionPending NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy MEMBER locationsBusy NOTIFY snapshotChanged)
     Q_PROPERTY(QString serversError MEMBER serversError NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverLoadsError MEMBER serverLoadsError NOTIFY snapshotChanged)
@@ -51,20 +57,33 @@ public:
     bool snapshotRestartAllowed = false;
     bool snapshotRefreshPending = false;
     QString packetCaptureError;
+    bool packetCaptureActive = false;
+    bool crashReportSubmissionEnabled = false;
+    int captureStartCalls = 0;
+    int captureStopCalls = 0;
     bool shutdownPending = false;
+    bool npsSurveySubmissionPending = false;
     bool locationsBusy = false;
     QString serversError;
     QString serverLoadsError = QStringLiteral("Unable to update server loads");
     int restartCalls = 0;
     int refreshCalls = 0;
     int disconnectCalls = 0;
+    int connectCalls = 0;
     QString serverFilter;
     QStringListModel emptyServerModel;
 
     [[nodiscard]] bool primaryActionEnabled() const
     {
-        return backendAvailable && ready && loggedIn
-            && (!busy || state == QStringLiteral("connecting"));
+        const auto capability = capabilities();
+        return capability.primaryDisconnects ? capability.disconnect : capability.connect;
+    }
+    [[nodiscard]] bool canConnect() const { return capabilities().connect; }
+    [[nodiscard]] bool canDisconnect() const { return capabilities().disconnect; }
+    [[nodiscard]] ProtonVpnKde::ConnectionActionCapabilities capabilities() const
+    {
+        return ProtonVpnKde::connectionActionCapabilities(
+            backendAvailable, ready, snapshotError.isEmpty(), loggedIn, busy, state, authState);
     }
 
     Q_INVOKABLE void restartBackend() { ++restartCalls; }
@@ -77,6 +96,10 @@ public:
     Q_INVOKABLE void submitFido2Pin(const QString &) { }
     Q_INVOKABLE void cancelLogin() { }
     Q_INVOKABLE void disconnect() { ++disconnectCalls; }
+    Q_INVOKABLE void stopPacketCapture() { ++captureStopCalls; }
+    Q_INVOKABLE void startPacketCapture(const QString &) { ++captureStartCalls; }
+    Q_INVOKABLE void connectCountry(const QString &) { ++connectCalls; }
+    Q_INVOKABLE void connectFastestWithFeatures(const QStringList &) { ++connectCalls; }
     Q_INVOKABLE void setServerFeatureFilter(const QStringList &) { }
     Q_INVOKABLE quint64 claimGroupServerContext(
         const QString &, const QString &, const QString &) { return 1; }
@@ -88,10 +111,10 @@ public:
         serverFilter = filter;
     }
     Q_INVOKABLE void connectGroup(
-        const QString &, const QString &, const QString &) { }
+        const QString &, const QString &, const QString &) { ++connectCalls; }
     Q_INVOKABLE void connectGroupWithFeatures(
         const QString &, const QString &, const QString &, const QStringList &) { }
-    Q_INVOKABLE void connectServer(const QString &) { }
+    Q_INVOKABLE void connectServer(const QString &) { ++connectCalls; }
 
     [[nodiscard]] QAbstractItemModel *serverModel()
     {
@@ -100,6 +123,7 @@ public:
 
 signals:
     void snapshotChanged();
+    void npsSurveySubmissionFinished(bool success, const QString &message);
     void connectionOperationStarted(quint64 operationId,
                                     const QString &targetState);
     void connectionOperationFinished(quint64 operationId,
@@ -133,9 +157,12 @@ private slots:
     void recoveryPreservesAuthoritativeMessage();
     void applicationRecoveryIsPersistentAndActionable();
     void connectionActionFeedbackTracksOwnedResult();
-    void unavailableBackendRejectsRunnerDisconnect();
+    void runnerActionsUseCurrentIntentPermission_data();
+    void runnerActionsUseCurrentIntentPermission();
     void serverEmptyStateExplainsActiveFilters_data();
     void serverEmptyStateExplainsActiveFilters();
+    void captureActionPreservesCleanupAdmission_data();
+    void captureActionPreservesCleanupAdmission();
 
 private:
     QObject *createComponent(QQmlEngine &engine, FakeVpnController &controller,
@@ -244,6 +271,8 @@ void SignInPresentationTest::recoveryPreservesAuthoritativeMessage_data()
     QTest::newRow("settings-unavailable")
         << QStringLiteral("settings_unavailable");
     QTest::newRow("protection-unknown") << QStringLiteral("protection_unknown");
+    QTest::newRow("account-restart") << QStringLiteral("account_restart_required");
+    QTest::newRow("expired") << QStringLiteral("expired");
 }
 
 void SignInPresentationTest::recoveryPreservesAuthoritativeMessage()
@@ -259,9 +288,19 @@ void SignInPresentationTest::recoveryPreservesAuthoritativeMessage()
     QVERIFY2(page, qPrintable(m_componentErrors));
 
     QCOMPARE(page->property("activeStepHeading").toString(),
-             QStringLiteral("Account state unavailable"));
+             authState == QStringLiteral("account_restart_required")
+                 ? QStringLiteral("Finish signing out")
+                 : authState == QStringLiteral("expired")
+                     ? QStringLiteral("Prepare to sign in again")
+                     : QStringLiteral("Account state unavailable"));
+    QVERIFY(!page->property("credentialsVisible").toBool());
     QCOMPARE(page->property("activeStepDescription").toString(),
              controller.message);
+    if (authState == QStringLiteral("expired")) {
+        const QObject *notice = page->findChild<QObject *>(QStringLiteral("accountRecoveryNotice"));
+        QVERIFY(notice);
+        QVERIFY(notice->property("text").toString().contains(QStringLiteral("disconnects")));
+    }
 }
 
 void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
@@ -323,6 +362,26 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
     QVERIFY(!banner->property("bannerActive").toBool());
     QCOMPARE(banner->property("height").toReal(), 0.0);
 
+    controller.state = QStringLiteral("connected");
+    controller.authState = QStringLiteral("signed_in_degraded");
+    controller.message = QStringLiteral("Background updates stopped; sign out and sign in again.");
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(banner->property("backgroundServicesDegraded").toBool());
+    QVERIFY(banner->property("bannerActive").toBool());
+    QVERIFY(!banner->property("connectionErrorActive").toBool());
+    QCOMPARE(banner->property("text").toString(), controller.message);
+    const QObject *degradedRestart = banner->findChild<QObject *>(
+        QStringLiteral("restartUnresponsiveBackendAction"));
+    QVERIFY(degradedRestart);
+    QVERIFY(!degradedRestart->property("visible").toBool());
+    QCOMPARE(controller.disconnectCalls, 0);
+
+    controller.authState = QStringLiteral("signed_in");
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QVERIFY(!banner->property("bannerActive").toBool());
+    controller.authState = QStringLiteral("signed_in_degraded");
     controller.snapshotError = QStringLiteral(
         "The backend returned an incomplete state snapshot");
     controller.snapshotRestartAllowed = true;
@@ -367,6 +426,11 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
     banner->setProperty("showPacketCaptureError", false);
     QCoreApplication::processEvents();
     QVERIFY(!banner->property("packetCaptureErrorActive").toBool());
+    QVERIFY(banner->property("bannerActive").toBool());
+    QCOMPARE(banner->property("text").toString(), controller.message);
+    controller.authState = QStringLiteral("signed_in");
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
     QVERIFY(!banner->property("bannerActive").toBool());
 
     controller.packetCaptureError.clear();
@@ -518,13 +582,58 @@ void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
     QVERIFY(!feedback->property("messageActive").toBool());
 }
 
-void SignInPresentationTest::unavailableBackendRejectsRunnerDisconnect()
+void SignInPresentationTest::runnerActionsUseCurrentIntentPermission_data()
 {
+    QTest::addColumn<QString>("action");
+    QTest::addColumn<QString>("state");
+    QTest::addColumn<bool>("busy");
+    QTest::addColumn<bool>("loggedIn");
+    QTest::addColumn<bool>("available");
+    QTest::addColumn<bool>("expectedEnabled");
+    QTest::addColumn<bool>("loseOwnerBeforeAccept");
+    QTest::newRow("unavailable-disconnect") << QStringLiteral("disconnect")
+        << QStringLiteral("connected") << false << true << false << false << false;
+    QTest::newRow("pending-connect-cancel") << QStringLiteral("disconnect")
+        << QStringLiteral("disconnected") << true << true << true << true << false;
+    QTest::newRow("connecting-cancel") << QStringLiteral("disconnect")
+        << QStringLiteral("connecting") << true << true << true << true << false;
+    QTest::newRow("expired-tunnel-disconnect") << QStringLiteral("disconnect")
+        << QStringLiteral("connected") << false << false << true << true << false;
+    QTest::newRow("idle-disconnect") << QStringLiteral("disconnect")
+        << QStringLiteral("disconnected") << false << true << true << false << false;
+    QTest::newRow("idle-fastest") << QStringLiteral("fastest")
+        << QStringLiteral("disconnected") << false << true << true << true << false;
+    for (const QString &action : {QStringLiteral("fastest"), QStringLiteral("country"),
+                                  QStringLiteral("server"), QStringLiteral("group")}) {
+        QTest::newRow(qPrintable(action + QStringLiteral("-busy")))
+            << action << QStringLiteral("connecting") << true << true << true << false << false;
+        QTest::newRow(qPrintable(action + QStringLiteral("-switch-target")))
+            << action << QStringLiteral("connected") << false << true << true << true << false;
+    }
+    QTest::newRow("reject-unknown-intent") << QStringLiteral("unknown")
+        << QStringLiteral("disconnected") << false << true << true << false << false;
+    QTest::newRow("owner-lost-before-disconnect-confirmation") << QStringLiteral("disconnect")
+        << QStringLiteral("connecting") << true << true << true << true << true;
+    QTest::newRow("owner-lost-before-connect-confirmation") << QStringLiteral("fastest")
+        << QStringLiteral("disconnected") << false << true << true << true << true;
+}
+
+void SignInPresentationTest::runnerActionsUseCurrentIntentPermission()
+{
+    QFETCH(QString, action);
+    QFETCH(QString, state);
+    QFETCH(bool, busy);
+    QFETCH(bool, loggedIn);
+    QFETCH(bool, available);
+    QFETCH(bool, expectedEnabled);
+    QFETCH(bool, loseOwnerBeforeAccept);
     FakeVpnController controller;
-    controller.backendAvailable = false;
+    controller.backendAvailable = available;
     controller.ready = true;
-    controller.loggedIn = true;
-    controller.state = QStringLiteral("connected");
+    controller.loggedIn = loggedIn;
+    controller.authState = loggedIn ? QStringLiteral("signed_in") : QStringLiteral("expired");
+    controller.busy = busy;
+    controller.state = state;
     FakeAppSettings appSettings;
     QQmlEngine engine;
     const QString sourcePath = QStringLiteral(
@@ -548,16 +657,28 @@ void SignInPresentationTest::unavailableBackendRejectsRunnerDisconnect()
         QFAIL(qPrintable(errors.join(QLatin1Char('\n'))));
     }
 
-    const QVariant action = QStringLiteral("disconnect");
-    const QVariant argument = QString{};
+    const QVariant actionValue = action;
+    const QVariant argument = action == QStringLiteral("group")
+        ? QStringLiteral(R"json({"countryCode":"CH","kind":"location","name":"Zurich"})json")
+        : QStringLiteral("CH");
     QVERIFY(QMetaObject::invokeMethod(
         dialogs.data(), "requestRunnerAction",
-        Q_ARG(QVariant, action), Q_ARG(QVariant, argument)));
+        Q_ARG(QVariant, actionValue), Q_ARG(QVariant, argument)));
     QCoreApplication::processEvents();
-    QVERIFY(!dialogs->property("runnerActionEnabled").toBool());
+    QCOMPARE(dialogs->property("runnerActionEnabled").toBool(), expectedEnabled);
+    if (loseOwnerBeforeAccept) {
+        controller.backendAvailable = false;
+        emit controller.snapshotChanged();
+        QCoreApplication::processEvents();
+        QVERIFY(!dialogs->property("runnerActionEnabled").toBool());
+    }
     QVERIFY(QMetaObject::invokeMethod(dialogs.data(), "acceptRunnerAction"));
     QCoreApplication::processEvents();
-    QCOMPARE(controller.disconnectCalls, 0);
+    const bool shouldDispatch = expectedEnabled && !loseOwnerBeforeAccept;
+    QCOMPARE(controller.disconnectCalls,
+             shouldDispatch && action == QStringLiteral("disconnect") ? 1 : 0);
+    QCOMPARE(controller.connectCalls,
+             shouldDispatch && action != QStringLiteral("disconnect") ? 1 : 0);
 }
 
 void SignInPresentationTest::serverEmptyStateExplainsActiveFilters_data()
@@ -655,6 +776,86 @@ Kirigami.ApplicationWindow {
     QCOMPARE(page->property("serverBrowserError").toString(),
              controller.serverLoadsError);
     QCOMPARE(controller.serverFilter, filter);
+}
+
+void SignInPresentationTest::captureActionPreservesCleanupAdmission_data()
+{
+    QTest::addColumn<bool>("active");
+    QTest::addColumn<bool>("busy");
+    QTest::addColumn<bool>("ready");
+    QTest::addColumn<bool>("available");
+    QTest::addColumn<QString>("state");
+    QTest::addColumn<bool>("enabled");
+    QTest::newRow("stop-beside-busy-save")
+        << true << true << true << true << QStringLiteral("connected") << true;
+    QTest::newRow("stop-after-session-expiry")
+        << true << false << true << true << QStringLiteral("disconnected") << true;
+    QTest::newRow("stop-service-unavailable")
+        << true << false << true << false << QStringLiteral("connected") << false;
+    QTest::newRow("stop-service-not-ready")
+        << true << false << false << true << QStringLiteral("connected") << false;
+    QTest::newRow("start-connected")
+        << false << false << true << true << QStringLiteral("connected") << true;
+    QTest::newRow("start-busy")
+        << false << true << true << true << QStringLiteral("connected") << false;
+    QTest::newRow("start-disconnected")
+        << false << false << true << true << QStringLiteral("disconnected") << false;
+    QTest::newRow("start-service-unavailable")
+        << false << false << true << false << QStringLiteral("connected") << false;
+}
+
+void SignInPresentationTest::captureActionPreservesCleanupAdmission()
+{
+    QFETCH(bool, active);
+    QFETCH(bool, busy);
+    QFETCH(bool, ready);
+    QFETCH(bool, available);
+    QFETCH(QString, state);
+    QFETCH(bool, enabled);
+    FakeVpnController controller;
+    controller.packetCaptureActive = active;
+    controller.busy = busy;
+    controller.ready = ready;
+    controller.backendAvailable = available;
+    controller.state = state;
+    controller.loggedIn = !active;
+    controller.authState = active ? QStringLiteral("expired") : QStringLiteral("signed_in");
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty(QStringLiteral("testController"), &controller);
+    QQmlComponent component(&engine);
+    component.setData(R"qml(
+import QtQuick
+import "." as Local
+Local.PrivacySettingsSection {
+    vpnController: testController
+    vpnSettings: QtObject {
+        property bool packetCaptureSupported: true
+        property bool anonymousCrashReports: false
+        property bool loaded: true
+        property bool busy: false
+    }
+    appSettings: QtObject { property string packetCaptureDirectory: "/tmp" }
+    pageWidth: 800
+    width: 800
+}
+)qml", QUrl::fromLocalFile(QStringLiteral(
+        PROTON_VPN_KDE_SOURCE_DIR "/qml/CaptureActionHarness.qml")));
+    QScopedPointer<QObject> page(component.create());
+    QVERIFY2(page, qPrintable(component.errorString()));
+    QObject *button = page->findChild<QObject *>(QStringLiteral("packetCaptureAction"));
+    QVERIFY(button);
+    QCOMPARE(button->property("enabled").toBool(), enabled);
+    QCOMPARE(button->property("text").toString(),
+             active ? QStringLiteral("Stop capture") : QStringLiteral("Start capture"));
+    if (enabled)
+    {
+        QVERIFY(QMetaObject::invokeMethod(button, "clicked"));
+        QCOMPARE(controller.captureStopCalls, active ? 1 : 0);
+        QCOMPARE(controller.captureStartCalls, active ? 0 : 1);
+    }
+    controller.backendAvailable = false;
+    emit controller.snapshotChanged();
+    QVERIFY(!button->property("enabled").toBool());
 }
 
 QTEST_MAIN(SignInPresentationTest)

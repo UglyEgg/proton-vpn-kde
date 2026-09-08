@@ -31,15 +31,37 @@ constexpr auto backendUnit = "proton-vpn-kde-backend.service";
 
 void VpnController::restartBackend()
 {
+    if (m_backendRestartPending) {
+        return;
+    }
+    if (m_backendAvailable && ready() && m_authState == QStringLiteral("expired")) {
+        if (m_busy) {
+            return;
+        }
+        // Explicit sign-in recovery retires the old tunnel/account first.
+        // Credentials are neither retained nor replayed across this boundary.
+        callOperation(QString::fromLatin1(BackendDbus::Method::logout));
+        return;
+    }
     const bool recoveryRequired =
         m_authState == QStringLiteral("authentication_unknown")
         || m_authState == QStringLiteral("settings_unavailable")
         || m_authState == QStringLiteral("protection_unknown")
+        || m_authState == QStringLiteral("account_restart_required")
         || m_state == QStringLiteral("unresponsive");
     if (ready() && !recoveryRequired) {
         return;
     }
+    restartBackendService();
+}
+
+void VpnController::restartBackendService()
+{
+    if (m_backendRestartPending) {
+        return;
+    }
     m_message = tr("Restarting the Proton backend service…");
+    m_backendRestartPending = true;
     emit snapshotChanged();
 
     QDBusMessage message = QDBusMessage::createMethodCall(
@@ -55,9 +77,12 @@ void VpnController::restartBackend()
             [this, backendGeneration](QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<QDBusObjectPath> reply = *finished;
         finished->deleteLater();
-        if (backendGeneration == m_backendGeneration && reply.isError()) {
-            m_message = tr("Unable to restart the Proton backend service");
-            emit snapshotChanged();
+        if (backendGeneration == m_backendGeneration) {
+            m_backendRestartPending = false;
+            if (reply.isError()) {
+                m_message = tr("Unable to restart the Proton backend service");
+                emit snapshotChanged();
+            }
         }
     });
 }
@@ -102,6 +127,7 @@ void VpnController::disconnectBackendSignals()
 
 void VpnController::onServiceRegistered(const QString &)
 {
+    m_backendRestartPending = false;
     m_snapshotError.clear();
     m_snapshotRestartAllowed = false;
     m_packetCaptureError.clear();
@@ -137,6 +163,7 @@ void VpnController::onServiceRegistered(const QString &)
 
 void VpnController::onServiceUnregistered(const QString &)
 {
+    m_backendRestartPending = false;
     disconnectBackendSignals();
     m_backendDestination.clear();
     ++m_backendGeneration;

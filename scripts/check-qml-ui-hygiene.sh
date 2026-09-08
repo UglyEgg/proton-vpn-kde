@@ -142,13 +142,8 @@ if ! rg -q 'function prepareForRemoval\(\)' "$qml_dir/SettingsPage.qml" \
     exit 1
 fi
 
-if ! rg -U -q 'enabled: !vpnController\.busy\n[[:space:]]*&& \(\(vpnController\.packetCaptureActive\n[[:space:]]*&& vpnController\.backendAvailable\n[[:space:]]*&& vpnController\.ready\)' \
-        "$qml_dir/PrivacySettingsSection.qml" \
-        || ! rg -U -q '!vpnController\.packetCaptureActive\n[[:space:]]*&& vpnController\.ready\n[[:space:]]*&& vpnController\.state === "connected"' \
-        "$qml_dir/PrivacySettingsSection.qml"; then
-    echo "Diagnostics must fail closed for capture start while preserving an available capture stop" >&2
-    exit 1
-fi
+# Capture action admission is exercised against the actual component by
+# sign-in-presentation-tests, including busy, unavailable and expired states.
 
 recovery_state_fixture="$(
     sed -n \
@@ -156,7 +151,7 @@ recovery_state_fixture="$(
         "$qml_dir/SignInPage.qml"
 )"
 for recovery_state in \
-        authentication_unknown settings_unavailable protection_unknown; do
+        authentication_unknown settings_unavailable protection_unknown expired account_restart_required; do
     if ! grep -Fq "\"$recovery_state\"" <<<"$recovery_state_fixture"; then
         echo "Missing authentication recovery presentation for $recovery_state" >&2
         exit 1
@@ -252,7 +247,7 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$qml_dir/Main.qml" "$qml_dir/MainDialogs.qml" \
         "$qml_dir/OverviewPage.qml" "$qml_dir/LocationsPage.qml" \
         "$qml_dir/CountryPage.qml" "$qml_dir/ServersPage.qml" \
-        || ! rg -U -q 'readonly property bool browserConnectionActionEnabled:\n[[:space:]]*controller\.primaryActionEnabled && !controller\.busy' \
+        || ! rg -U -q 'readonly property bool browserConnectionActionEnabled:\n[[:space:]]*controller\.canConnect' \
         "$qml_dir/Main.qml" \
         || rg -q 'vpnController\.primaryActionEnabled' \
         "$qml_dir/LocationsPage.qml" "$qml_dir/CountryPage.qml" \
@@ -266,7 +261,11 @@ if ! rg -q 'objectName: "backendStartupDiagnostic"' \
         "$project_dir/src/VpnControllerActions.cpp" \
         || ! rg -q 'readonly property bool runnerActionEnabled' \
         "$qml_dir/MainDialogs.qml" \
-        || ! rg -U -q 'readonly property bool runnerActionEnabled:\n[[:space:]]*!vpnController\.busy\n[[:space:]]*&& vpnController\.primaryActionEnabled' \
+        || ! rg -q 'vpnController\.canDisconnect' \
+        "$qml_dir/MainDialogs.qml" \
+        || ! rg -q 'vpnController\.canConnect' \
+        "$qml_dir/MainDialogs.qml" \
+        || rg -q 'vpnController\.primaryActionEnabled|!vpnController\.busy' \
         "$qml_dir/MainDialogs.qml" \
         || ! rg -U -q 'onAccepted: \{\n[[:space:]]*const confirmedAction.*\n[[:space:]]*const confirmedArgument.*\n[[:space:]]*if \(!dialogs\.runnerActionEnabled\)' \
         "$qml_dir/MainDialogs.qml" \

@@ -7,8 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Coroutine
-from contextlib import asynccontextmanager
-from contextvars import ContextVar
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, replace
 from enum import Enum, auto
 import logging
@@ -16,9 +15,13 @@ import os
 from pathlib import Path
 from typing import Any, Callable, NoReturn, TypeVar
 
-from .async_utils import await_owned, run_in_daemon_thread
+from .async_utils import await_owned, join_owned, run_in_daemon_thread
+from . import account_transition
+from .account_transition import AccountTransitionJournal
+from .task_scope import ScopeAdmissionExpired, TaskScope, create_owned_task
 from .demo_adapter import DemoCoreAdapter
 from .errors import (
+    CleanupAdmissionExpired,
     NpsCompletionUnknownError,
     SessionExpiredError,
     UserVisibleRuntimeError,
@@ -88,6 +91,9 @@ from .packet_capture import (
     PacketCaptureCoordinator,
 )
 from .reconnector import AsyncReconnector, ReconnectionRetirementTimeout
+from .refresher_events import (
+    RefreshFailure, RefreshFailureKind, RefresherFailureRelay, ignore_retired_refresh_error,
+)
 from .search_projection import ServerSearchProjection
 
 
@@ -103,6 +109,10 @@ CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS = 5.0
 CAPTURE_RECOVERY_CONNECTOR_TIMEOUT_SECONDS = 5.0
 CONNECTION_RETIREMENT_SECONDS = 30.0
 INCOMPLETE_CONNECTION_RETIREMENT_EXIT_CODE = 1
+BACKGROUND_REFRESH_DEGRADED_MESSAGE = (
+    "Some Proton background updates stopped. "
+    "Sign out and sign in again to restart them."
+)
 _OwnedTaskResult = TypeVar("_OwnedTaskResult")
 
 
@@ -123,7 +133,7 @@ class _ConnectionSupersession:
 
 
 class _SessionServicesState(Enum):
-    """What the adapter can prove about Core's background refresher."""
+    """Acknowledged scheduling state, not proof that Core children retired."""
 
     DISABLED = auto()
     ENABLED = auto()
@@ -149,6 +159,7 @@ class ProtonCoreAdapter:
         crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
         connection_retirement_seconds: float = CONNECTION_RETIREMENT_SECONDS,
         terminal_exit: Callable[[int], NoReturn] = os._exit,
+        account_transition_path: Path | None = None,
     ):
         self._api: Any = api
         self._connector: Any = None
@@ -157,21 +168,9 @@ class ProtonCoreAdapter:
         self._initialized = False
         self._logged_in = False
         self._authentication_epoch = 0
-        self._authentication_lock = asyncio.Lock()
-        self._authentication_context: ContextVar[object | None] = ContextVar(
-            f"proton_vpn_authentication_transition_{id(self)}", default=None
-        )
-        self._active_authentication_token: object | None = None
-        self._active_authentication_task: asyncio.Task[Any] | None = None
-        self._authentication_delegate_tasks: set[asyncio.Task[Any]] = set()
+        self._authentication_scope = TaskScope()
         self._reconnector: AsyncReconnector | None = None
-        self._disconnect_lock = asyncio.Lock()
-        self._connection_lifecycle_context: ContextVar[object | None] = ContextVar(
-            f"proton_vpn_connection_lifecycle_{id(self)}", default=None
-        )
-        self._active_connection_lifecycle_token: object | None = None
-        self._active_connection_lifecycle_task: asyncio.Task[Any] | None = None
-        self._connection_lifecycle_delegate_tasks: set[asyncio.Task[Any]] = set()
+        self._connection_scope = TaskScope()
         self._connection_intent_generation = 0
         self._manual_connection_tasks: dict[asyncio.Task[Any], int] = {}
         self._connector_state_revision = 0
@@ -179,11 +178,21 @@ class ProtonCoreAdapter:
         self._connection_retirement_seconds = max(
             0.0, connection_retirement_seconds
         )
+        self._close_task: asyncio.Task[None] | None = None
+        self._close_work_task: asyncio.Task[None] | None = None
+        self._capture_stop_tasks: set[asyncio.Task[None]] = set()
         self._terminal_exit = terminal_exit
         self._reconnection_enabled = True
         self._status_message = ""
         self._auth_state = "signed_out"
         self._session_services_state = _SessionServicesState.DISABLED
+        self._session_services_started = False
+        self._background_refresh_degraded = False
+        self._refresher_errors = RefresherFailureRelay(
+            self._handle_refresher_failure, self._refresher_handler_failed
+        )
+        self._account_transition = AccountTransitionJournal(account_transition_path)
+        self._account_restart_required = False
         self._fido_interaction: FidoInteraction | None = None
         self._crash_report_submission_enabled = crash_report_submission_enabled
         self._packet_capture = PacketCaptureCoordinator(
@@ -200,8 +209,9 @@ class ProtonCoreAdapter:
         self._core_version = ""
 
     def has_pending_startup_recovery(self) -> bool:
-        """Keep initialization alive while durable capture recovery is pending."""
-        return self._packet_capture.has_pending_recovery()
+        """Keep initialization alive while durable local cleanup is pending."""
+        return (self._packet_capture.has_pending_recovery()
+                or self._account_transition.exists())
 
     @property
     def _session_services_enabled(self) -> bool:
@@ -229,12 +239,24 @@ class ProtonCoreAdapter:
         # provider unlock prompt (KeePassXC, KWallet, etc.) cannot freeze the
         # entire backend while waiting for user approval. Core also restores
         # this session while constructing its connector, so recovery cannot
-        # safely acquire the connection first. When a durable capture record
-        # exists, bound the prewarm: an unanswered prompt must fail startup
+        # safely acquire the connection first. When a capture or account
+        # recovery record exists, bound the prewarm: an unanswered prompt must fail startup
         # nonzero with the record retained for systemd retry.
         pending_capture_recovery = self._packet_capture.has_pending_recovery()
+        pending_account_transition = self._account_transition.load()
+        if pending_account_transition is not None:
+            self._account_restart_required = True
+            if pending_account_transition.process_generation == account_transition.PROCESS_GENERATION:
+                raise UserVisibleRuntimeError(
+                    "Account replacement requires a new backend process"
+                )
+            if not account_transition.retired_process_confirmed(pending_account_transition):
+                raise UserVisibleRuntimeError(
+                    "The outgoing backend is still stopping; retry the service shortly"
+                )
+        pending_cleanup = pending_capture_recovery or pending_account_transition is not None
         session_probe = run_in_daemon_thread(self._api.is_user_logged_in)
-        if pending_capture_recovery:
+        if pending_cleanup:
             try:
                 self._logged_in = await asyncio.wait_for(
                     session_probe,
@@ -243,7 +265,7 @@ class ProtonCoreAdapter:
             except TimeoutError:
                 raise UserVisibleRuntimeError(
                     "Proton session restoration did not finish while "
-                    "packet-capture recovery was pending"
+                    "local cleanup was pending"
                 ) from None
         else:
             self._logged_in = await session_probe
@@ -259,7 +281,7 @@ class ProtonCoreAdapter:
             )
 
         connector_request = self._api.get_vpn_connector()
-        if pending_capture_recovery:
+        if pending_cleanup:
             try:
                 self._connector = await asyncio.wait_for(
                     connector_request,
@@ -268,7 +290,7 @@ class ProtonCoreAdapter:
             except TimeoutError:
                 raise UserVisibleRuntimeError(
                     "Proton Core did not restore the VPN connection while "
-                    "packet-capture recovery was pending"
+                    "local cleanup was pending"
                 ) from None
         else:
             self._connector = await connector_request
@@ -276,6 +298,30 @@ class ProtonCoreAdapter:
         # Packet capture is external to this process. Reacquire any durable
         # completion-unknown generation before backend-readiness publication.
         await self._packet_capture.recover(self._connector)
+        if pending_account_transition is not None:
+            if not self._logged_in and not pending_account_transition.tunnel_retired:
+                # Core deliberately cannot restore a persisted tunnel without
+                # a session. Its synthetic Disconnected is not teardown proof.
+                raise UserVisibleRuntimeError(
+                    "The previous account's tunnel cleanup is unconfirmed; "
+                    "account recovery requires operator assistance"
+                )
+            # No refresher has been enabled in this process. Clear any saved
+            # session resurrected by an outgoing refresh before publishing
+            # readiness or accepting replacement credentials.
+            async with self._serialized_authentication_transition():
+                async with self._serialized_connection_lifecycle():
+                    cleanup = self._create_owned_child_task(
+                        self._finish_account_restart(),
+                        authentication=True,
+                        connection=True,
+                    )
+                    _, pending = await asyncio.wait(
+                        {cleanup}, timeout=self._connection_retirement_seconds
+                    )
+                    if pending:
+                        self._terminate_failed_connection_retirement("account recovery", 1)
+                    cleanup.result()
         self._auth_state = "signed_in" if self._logged_in else "signed_out"
         validator = getattr(self._api, "validate_connection_availability", None)
         if callable(validator):
@@ -311,8 +357,9 @@ class ProtonCoreAdapter:
             else:
                 self._kill_switch = self._kill_switch_value(settings)
 
-        if self._logged_in:
-            await self._enable_session_services()
+        async with self._serialized_authentication_transition():
+            if self._logged_in:
+                await self._enable_session_services()
 
         snapshot = self._snapshot_from_state(self._connector.current_state)
         # Connector, capture-recovery, and refresher callbacks may run while
@@ -320,6 +367,14 @@ class ProtonCoreAdapter:
         # the controller receives this single authoritative ready snapshot.
         self._initialized = True
         return snapshot
+
+    async def _finish_account_restart(self) -> None:
+        await self._logout_with_disconnect_barrier(self._connection_retirement_deadline())
+        if await run_in_daemon_thread(self._api.is_user_logged_in):
+            raise UserVisibleRuntimeError("The outgoing Proton account could not be cleared")
+        self._account_transition.clear()
+        self._account_restart_required = False
+        self._logged_in = False
 
     async def connect_fastest(self) -> None:
         async with self._manual_connection_target() as (
@@ -869,14 +924,11 @@ class ProtonCoreAdapter:
         completed, _ = await asyncio.wait(
             (save_task,), timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS
         )
-        if not completed:
-            # The executor-backed Core write may still commit. Do not race a
-            # compensation against it; require a backend restart instead.
-            save_task.add_done_callback(self._consume_background_task_result)
-            await self._publish_unknown_settings(protection_sensitive)
-            return False
         try:
-            save_task.result()
+            # A stage timeout is not retirement of Core's executor-backed
+            # write. Keep its authentication owner until it is terminal; the
+            # enclosing foreground deadline remains the process backstop.
+            await await_owned(save_task)
         except SessionExpiredError:
             rollback()
             raise
@@ -885,10 +937,22 @@ class ProtonCoreAdapter:
             # write, so compensation is still mandatory.
             pass
 
+        if not completed:
+            await self._publish_unknown_settings(protection_sensitive)
+            return False
+
         rollback()
         try:
             async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
-                await self._save_settings(settings, authentication_epoch)
+                outcome = await join_owned(self._create_owned_child_task(
+                    self._save_settings(settings, authentication_epoch),
+                    authentication=True,
+                ))
+                # Expiry reconciled by the write's owner stays authoritative
+                # even when the acknowledgement crossed this stage's timer.
+                if isinstance(outcome.error, SessionExpiredError):
+                    raise outcome.error
+                outcome.result()
         except SessionExpiredError:
             raise
         except (Exception, asyncio.CancelledError):
@@ -1031,8 +1095,40 @@ class ProtonCoreAdapter:
             await self._packet_capture.start(self._connector, directory_path)
             self._require_authenticated_epoch(authentication_epoch)
 
-    async def stop_packet_capture(self) -> None:
-        await self._packet_capture.stop()
+    async def stop_packet_capture(self, *, deadline: float | None = None) -> None:
+        if deadline is None:
+            deadline = self._connection_retirement_deadline()
+        self._require_cleanup_dispatch_time(deadline)
+        await await_owned(self._stop_packet_capture_before_deadline(deadline))
+
+    async def _stop_packet_capture_before_deadline(self, deadline: float) -> None:
+        self._require_cleanup_dispatch_time(deadline)
+        pending_stop = self._packet_capture.stop(deadline=deadline)
+        try:
+            task = asyncio.create_task(pending_stop)
+        except BaseException:
+            pending_stop.close()
+            raise
+        self._capture_stop_tasks.add(task)
+        task.add_done_callback(self._retire_capture_stop)
+        _, pending = await asyncio.wait(
+            {task}, timeout=max(0.0, deadline - asyncio.get_running_loop().time())
+        )
+        if pending:
+            # The durable capture journal remains authoritative on restart.
+            # Never drop a live Stop owner or race it with replacement work.
+            self._terminate_failed_connection_retirement("packet capture stop", len(pending))
+        task.result()
+
+    def _retire_capture_stop(self, task: asyncio.Task[None]) -> None:
+        self._capture_stop_tasks.discard(task)
+        if not task.cancelled():
+            task.exception()
+
+    @staticmethod
+    def _require_cleanup_dispatch_time(deadline: float) -> None:
+        if asyncio.get_running_loop().time() >= deadline:
+            raise CleanupAdmissionExpired()
 
     def _cancel_packet_capture_watchdog(self) -> None:
         self._packet_capture.cancel_watchdog()
@@ -1244,11 +1340,12 @@ class ProtonCoreAdapter:
 
     @asynccontextmanager
     async def _superseding_connection_targets(
-        self,
+        self, *, deadline: float | None = None,
     ) -> AsyncIterator[_ConnectionSupersession]:
         """Invalidate and join all older manual and automatic connection work."""
         generation = self._advance_connection_intent()
-        deadline = self._connection_retirement_deadline()
+        if deadline is None:
+            deadline = self._connection_retirement_deadline()
         async with self._suspended_reconnection(deadline=deadline) as reconnector:
             await self._retire_manual_connection_tasks(
                 before_generation=generation,
@@ -1299,6 +1396,10 @@ class ProtonCoreAdapter:
         if caller_cancelled:
             raise asyncio.CancelledError
 
+    def retire_unconfirmed_operation(self) -> NoReturn:
+        """Retire the provider process after foreground ownership expires."""
+        self._terminate_failed_connection_retirement("foreground operation", 1)
+
     def _terminate_failed_connection_retirement(
         self, failure_kind: str, owner_count: int
     ) -> NoReturn:
@@ -1339,7 +1440,9 @@ class ProtonCoreAdapter:
         if self._connector is None:
             return
         state_name = type(self._connector.current_state).__name__
-        if transitional_only and state_name not in {"Connecting", "Disconnecting"}:
+        if transitional_only and state_name not in {
+            "Connecting", "Disconnecting", "Disconnected"
+        }:
             return
 
         while True:
@@ -1348,7 +1451,9 @@ class ProtonCoreAdapter:
                 0.0,
                 deadline - asyncio.get_running_loop().time(),
             )
-            disconnect_task = asyncio.create_task(self._connector.disconnect())
+            if not remaining:
+                self._terminate_failed_connection_retirement("stable disconnect deadline", 1)
+            disconnect_task = asyncio.create_task(self._disconnect_barrier())
             _, pending = await asyncio.wait(
                 {disconnect_task},
                 timeout=remaining,
@@ -1359,21 +1464,27 @@ class ProtonCoreAdapter:
                     len(pending),
                 )
             try:
-                disconnect_task.result()
+                disconnected_at_barrier = disconnect_task.result()
             except (Exception, asyncio.CancelledError) as error:
                 self._terminate_failed_connection_retirement(
                     "stable disconnect raised " + type(error).__name__,
                     1,
                 )
 
-            if type(self._connector.current_state).__name__ == "Disconnected":
+            if disconnected_at_barrier:
                 return
             await self._wait_for_connector_state_change(
                 observed_revision,
                 deadline,
             )
-            if type(self._connector.current_state).__name__ == "Disconnected":
-                return
+            # A state property or notification is not a completed Core event
+            # barrier. Reenter through public Down after every observed change.
+
+    async def _disconnect_barrier(self) -> bool:
+        await self._connector.disconnect()
+        # Sample in the task that crossed Core's public event barrier. Sampling
+        # later in its waiter could observe a different, unfinished event.
+        return type(self._connector.current_state).__name__ == "Disconnected"
 
     async def _wait_for_connector_state_change(
         self,
@@ -1460,22 +1571,32 @@ class ProtonCoreAdapter:
     def _mode_value(mode: Any) -> str:
         return core_mode_value(mode)
 
-    async def disconnect(self) -> None:
+    async def disconnect(self, *, deadline: float | None = None) -> None:
         # A connecting tunnel may be cancelled outside the controller's main
         # operation lock. Serialize that preemption boundary here so multiple
         # authorized clients cannot overlap suspend/resume scopes and release
         # automatic reconnection while another disconnect is still active.
-        async with self._superseding_connection_targets() as supersession:
-            async with self._serialized_connection_lifecycle():
-                await self._disconnect_until_stable(
-                    deadline=supersession.deadline
-                )
+        if deadline is None:
+            deadline = self._connection_retirement_deadline()
+        self._require_cleanup_dispatch_time(deadline)
+        try:
+            async with self._superseding_connection_targets(deadline=deadline) as supersession:
+                async with self._serialized_connection_lifecycle(deadline=deadline):
+                    await self._disconnect_until_stable(deadline=supersession.deadline)
+        except ScopeAdmissionExpired:
+            self._terminate_failed_connection_retirement("disconnect ownership", 1)
 
     async def login(self, username: str, password: str) -> None:
         async with self._serialized_authentication_transition():
             await self._login(username, password)
 
     async def _login(self, username: str, password: str) -> None:
+        if self._account_restart_required or self._session_services_started:
+            raise UserVisibleRuntimeError(
+                "Sign out and restart the backend before replacing the Proton account"
+            )
+        if self._logged_in:
+            raise UserVisibleRuntimeError("The Proton account is already signed in")
         # Invalidate account-scoped work accepted for any earlier session,
         # including a signed-out session whose credentials are being replaced.
         self._authentication_epoch += 1
@@ -1539,6 +1660,9 @@ class ProtonCoreAdapter:
             await self._cancel_login()
 
     async def _cancel_login(self) -> None:
+        if self._session_services_started or self._account_restart_required:
+            await self._logout()
+            return
         self._authentication_epoch += 1
         await self.cancel_fido2()
         try:
@@ -1597,56 +1721,68 @@ class ProtonCoreAdapter:
             "Insert your security key and follow its prompts",
         )
         try:
-            assertion_operation = self._api.generate_2fa_fido2_assertion(
-                interaction,
-                interaction.cancel_assertion,
+            await await_owned(
+                self._create_owned_child_task(
+                    self._authenticate_fido2(interaction), authentication=True,
+                ),
+                cancel_operation=interaction.cancel,
             )
-            try:
-                assertion = await await_owned(
-                    assertion_operation,
-                    cancel_operation=interaction.cancel,
-                )
-            except asyncio.CancelledError:
-                raise
-            except Exception as error:
-                if interaction.cancelled:
-                    self._set_auth_status(
-                        "two_factor", "Security-key authentication cancelled"
-                    )
-                else:
-                    await self._reconcile_authentication_failure(
-                        error,
-                        fallback_state="fido_error",
-                        fido_error=True,
-                    )
-                return
+        finally:
+            if self._fido_interaction is interaction:
+                self._fido_interaction = None
+
+    async def _authenticate_fido2(self, interaction: FidoInteraction) -> None:
+        """Own assertion submission and reconciliation after prompt cancellation."""
+        # The caller may cancel after creating this task but before it starts.
+        if interaction.cancelled:
+            self._set_auth_status(
+                "two_factor", "Security-key authentication cancelled"
+            )
+            return
+        assertion_operation = self._api.generate_2fa_fido2_assertion(
+            interaction,
+            interaction.cancel_assertion,
+        )
+        try:
+            assertion = await await_owned(assertion_operation)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
             if interaction.cancelled:
                 self._set_auth_status(
                     "two_factor", "Security-key authentication cancelled"
                 )
-                return
-            try:
-                result = await self._api.submit_2fa_fido2(assertion)
-            except Exception as error:
-                # Once Core accepts an assertion it may persist authentication
-                # before a later session-data fetch fails. A concurrent UI
-                # cancel cannot classify that late failure as signed out.
+            else:
                 await self._reconcile_authentication_failure(
                     error,
                     fallback_state="fido_error",
                     fido_error=True,
                 )
-                return
+            return
+        if interaction.cancelled:
+            self._set_auth_status(
+                "two_factor", "Security-key authentication cancelled"
+            )
+            return
+        try:
+            result = await self._api.submit_2fa_fido2(assertion)
+        except Exception as error:
+            # Once Core accepts an assertion it may persist authentication
+            # before a later session-data fetch fails. A concurrent UI
+            # cancel cannot classify that late failure as signed out.
+            await self._reconcile_authentication_failure(
+                error,
+                fallback_state="fido_error",
+                fido_error=True,
+            )
+            return
 
-            if not result.success:
-                self._set_auth_status(
-                    "fido_error", "The security key was not accepted"
-                )
-                return
-            await self._complete_login()
-        finally:
-            if self._fido_interaction is interaction:
-                self._fido_interaction = None
+        if not result.success:
+            self._set_auth_status(
+                "fido_error", "The security key was not accepted"
+            )
+            return
+        await self._complete_login()
 
     async def submit_fido2_pin(self, pin: str) -> None:
         if not self._fido_interaction or not self._fido_interaction.provide_pin(pin):
@@ -1666,6 +1802,10 @@ class ProtonCoreAdapter:
         # teardown all mutate the same connector/reconnector pair.  One
         # lifecycle barrier prevents any of those sibling operations from
         # overtaking another.
+        # Persist before changing credentials; a crash or a late old refresh
+        # cannot turn a replacement login into same-process session reuse.
+        self._account_restart_required = True
+        self._account_transition.store(tunnel_retired=False)
         async with self._superseding_connection_targets() as supersession:
             async with self._serialized_connection_lifecycle():
                 await self._logout_with_disconnect_barrier(
@@ -1686,6 +1826,7 @@ class ProtonCoreAdapter:
                 await self._reconnector.disable()
             await self._disable_refresher()
             await self._disconnect_until_stable(deadline=deadline)
+            self._account_transition.store(tunnel_retired=True)
             if kill_switch_changed:
                 # Proton Core persists settings in an executor. Shield this
                 # task so outer cancellation cannot abandon a worker that may
@@ -1694,10 +1835,11 @@ class ProtonCoreAdapter:
                 kill_switch_zero_task = self._create_owned_child_task(
                     self._save_settings(settings),
                     authentication=True,
+                    connection=True,
                 )
                 await asyncio.shield(kill_switch_zero_task)
             self._kill_switch = 0
-            await self._api.logout()
+            await await_owned(self._api.logout())
         except (Exception, asyncio.CancelledError) as error:
             recovery, recovery_cancelled = await self._finish_logout_recovery(
                 settings,
@@ -1779,32 +1921,87 @@ class ProtonCoreAdapter:
         else:
             await reconnector.disable()
 
-    async def close(self) -> None:
-        async with self._serialized_authentication_transition():
-            await self._close()
+    async def close(self, *, deadline: float | None = None) -> None:
+        """Retain one teardown and terminal result under the first deadline."""
+        if self._close_task is None:
+            if deadline is None:
+                deadline = self._connection_retirement_deadline()
+            # Fence callback admission before taking a lock its worker may need.
+            # This owns our callback work, not Core's refresh children.
+            self._refresher_errors.stop()
+            if self._reconnector:
+                self._reconnector.begin_shutdown()
+            self._close_task = asyncio.create_task(self._close_before_deadline(deadline))
+        await await_owned(self._close_task)
 
-    async def _close(self) -> None:
+    async def _close_before_deadline(self, deadline: float) -> None:
+        self._require_close_time(deadline)
+        self._close_work_task = asyncio.create_task(self._close_once(deadline))
+        self._close_work_task.add_done_callback(self._observe_close_work)
+        _, pending = await asyncio.wait(
+            {self._close_work_task},
+            timeout=max(0.0, deadline - asyncio.get_running_loop().time()),
+        )
+        if pending:
+            # Do not cancel mandatory provider cleanup or pretend it joined.
+            # Keep the worker, forbid later stages, and let the service's
+            # existing failed-shutdown/process boundary retire remaining work.
+            raise TimeoutError("Proton Core teardown outlived the shutdown deadline")
+        self._close_work_task.result()
+
+    @staticmethod
+    def _observe_close_work(task: asyncio.Task[None]) -> None:
+        if not task.cancelled():
+            task.exception()
+
+    @staticmethod
+    def _require_close_time(deadline: float) -> None:
+        if asyncio.get_running_loop().time() >= deadline:
+            raise TimeoutError("Proton Core teardown outlived the shutdown deadline")
+
+    async def _close_once(self, deadline: float) -> None:
+        await self._retire_refresher_error_handler(deadline)
+        async with self._serialized_authentication_transition():
+            self._require_close_time(deadline)
+            await self._close(deadline)
+
+    async def _retire_refresher_error_handler(self, deadline: float) -> None:
+        worker = self._refresher_errors.task
+        if worker is not None:
+            _, pending = await asyncio.wait(
+                {worker}, timeout=max(0.0, deadline - asyncio.get_running_loop().time())
+            )
+            if pending:
+                raise TimeoutError("Background session recovery exceeded the shutdown deadline")
+
+    async def _close(self, deadline: float) -> None:
         # Disconnect may deliberately bypass the controller operation lock to
         # preempt a connecting tunnel. Drain that accepted scope before
         # unregistering Core observers or disabling the reconnector.
-        async with self._superseding_connection_targets() as supersession:
+        async with self._superseding_connection_targets(deadline=deadline) as supersession:
             async with self._serialized_connection_lifecycle():
+                self._require_close_time(deadline)
                 await self._disconnect_until_stable(
                     deadline=supersession.deadline,
                     transitional_only=True,
                 )
+                self._require_close_time(deadline)
                 await self.cancel_fido2()
                 if self._packet_capture_active:
+                    self._require_close_time(deadline)
                     try:
-                        await self.stop_packet_capture()
+                        await self._packet_capture.stop(deadline=deadline)
                     except RuntimeError:
                         # Preserve active state when Core cannot confirm the stop.
                         # The service must not report a false clean shutdown state.
                         pass
+                self._require_close_time(deadline)
                 self._packet_capture.release_for_shutdown()
                 if supersession.reconnector:
-                    await supersession.reconnector.disable()
+                    await supersession.reconnector.disable(deadline=deadline)
+                self._require_close_time(deadline)
                 if self._api:
+                    self._api.refresher.set_error_callback(ignore_retired_refresh_error)
                     self._api.refresher.set_server_list_updated_callback(None)
                     self._api.refresher.set_server_loads_updated_callback(None)
                     location_callback_setter = getattr(
@@ -1821,6 +2018,7 @@ class ProtonCoreAdapter:
                     and self._session_services_state
                     is not _SessionServicesState.DISABLED
                 ):
+                    self._require_close_time(deadline)
                     await self._disable_refresher()
 
     def status_update(self, state: Any) -> None:
@@ -1852,14 +2050,50 @@ class ProtonCoreAdapter:
         self._server_list_generation += 1
         self._search_projection = None
 
+    def _current_refresher_failure(self, failure: RefreshFailure) -> bool:
+        return (
+            self._refresher_errors.is_current(failure)
+            and failure.epoch == self._authentication_epoch
+            and self._logged_in
+            and not self._account_restart_required
+        )
+
+    async def _handle_refresher_failure(self, failure: RefreshFailure) -> None:
+        async with self._serialized_authentication_transition():
+            if not self._current_refresher_failure(failure):
+                return
+            if failure.kind is RefreshFailureKind.AUTHENTICATION:
+                await self._expire_session(failure.epoch)
+            else:
+                # An escaped exception removes that job from Core scheduling.
+                # Preserve the account, tunnel, other jobs and recovery policy;
+                # report degraded updates rather than inventing a retry.
+                self._background_refresh_degraded = True
+                self._publish_snapshot()
+
+    def _refresher_handler_failed(self, failure: RefreshFailure) -> None:
+        if not self._current_refresher_failure(failure):
+            return
+        self._publish_signed_out_state(
+            "Background session recovery failed; restart the backend before continuing",
+            "authentication_unknown",
+        )
+
     async def _complete_login(self) -> None:
         try:
             await self._enable_session_services()
         except asyncio.CancelledError:
             raise
         except Exception:
+            # Enable can create refresh children before failing. Only a new
+            # process may clear this session and admit another account.
+            self._account_transition.store(tunnel_retired=False)
+            self._account_restart_required = True
             try:
-                await self._api.logout()
+                async with self._serialized_connection_lifecycle():
+                    await self._disconnect_until_stable()
+                    self._account_transition.store(tunnel_retired=True)
+                    await await_owned(self._api.logout())
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -1913,21 +2147,30 @@ class ProtonCoreAdapter:
             await self._enable_session_services_with_connection_barrier()
 
     async def _enable_session_services_with_connection_barrier(self) -> None:
+        if self._account_restart_required:
+            raise UserVisibleRuntimeError(
+                "Restart the backend to finish the account transition"
+            )
         try:
             if (
                 self._session_services_state
                 is _SessionServicesState.CLEANUP_REQUIRED
             ):
                 # An earlier enable/disable may have committed before its
-                # acknowledgement failed. Normalize Core to a proven stopped
-                # state before starting it again.
+                # acknowledgement failed. Obtain a stopped-scheduler
+                # acknowledgement before starting it again; not a child join.
                 await self._disable_refresher()
             if self._session_services_state is _SessionServicesState.DISABLED:
                 self._session_services_state = (
                     _SessionServicesState.CLEANUP_REQUIRED
                 )
-                await self._api.refresher.enable()
+                self._session_services_started = True
+                self._api.refresher.set_error_callback(
+                    self._refresher_errors.bind(self._authentication_epoch)
+                )
+                await await_owned(self._api.refresher.enable())
                 self._session_services_state = _SessionServicesState.ENABLED
+                self._background_refresh_degraded = False
             if not self._reconnector:
                 self._reconnector = AsyncReconnector(
                     self._connector,
@@ -1961,14 +2204,15 @@ class ProtonCoreAdapter:
             raise
 
     async def _disable_refresher(self) -> None:
-        """Disable Core refresh and commit DISABLED only after acknowledgement."""
+        """Acknowledge disabled scheduling, not retirement of Core's children."""
         if (
             not self._api
             or self._session_services_state is _SessionServicesState.DISABLED
         ):
             return
+        self._refresher_errors.invalidate()
         self._session_services_state = _SessionServicesState.CLEANUP_REQUIRED
-        await self._api.refresher.disable()
+        await await_owned(self._api.refresher.disable())
         self._session_services_state = _SessionServicesState.DISABLED
 
     async def _set_signed_out(
@@ -2039,21 +2283,19 @@ class ProtonCoreAdapter:
         """Publish only protection and session state confirmed after logout failure."""
 
         if kill_switch_zero_task is not None:
+            completed, _ = await asyncio.wait(
+                (kill_switch_zero_task,), timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS
+            )
             try:
-                async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
-                    await asyncio.shield(kill_switch_zero_task)
-            except TimeoutError:
-                # Never race compensation against Core's still-live executor
-                # worker. Its eventual zero write agrees with the conservative
-                # recovery projection published below.
-                kill_switch_zero_task.add_done_callback(
-                    self._consume_background_task_result
-                )
-                return await self._publish_unknown_protection(None)
+                await await_owned(kill_switch_zero_task)
             except (Exception, asyncio.CancelledError):
                 # A failed acknowledgement is still terminal. The provider may
                 # have committed, so a compensating write remains required.
                 pass
+            if not completed:
+                # Preserve the conservative stage-expiry result, but only
+                # release ownership after the original write has retired.
+                return await self._publish_unknown_protection(None)
 
         try:
             async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
@@ -2070,7 +2312,11 @@ class ProtonCoreAdapter:
             settings.killswitch = previous_kill_switch
             try:
                 async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
-                    await self._save_settings(settings)
+                    await await_owned(self._create_owned_child_task(
+                        self._save_settings(settings),
+                        authentication=True,
+                        connection=True,
+                    ))
             except (Exception, asyncio.CancelledError):
                 protection_restored = False
 
@@ -2081,10 +2327,23 @@ class ProtonCoreAdapter:
 
         if core_logged_in is True:
             self._logged_in = True
+            if self._account_restart_required:
+                # Keep compensation for the old protection setting, but never
+                # restart refreshers after accepting an account transition.
+                self._auth_state = "account_restart_required"
+                self._status_message = (
+                    "Sign-out is incomplete; restart the backend to finish it"
+                )
+                self._publish_snapshot()
+                return _LogoutRecoveryOutcome(True, True, False)
             session_recovery_failed = False
             try:
                 async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
-                    await self._enable_session_services()
+                    await await_owned(self._create_owned_child_task(
+                        self._enable_session_services(),
+                        authentication=True,
+                        connection=True,
+                    ))
             except (Exception, asyncio.CancelledError):
                 session_recovery_failed = True
             self._auth_state = (
@@ -2130,13 +2389,6 @@ class ProtonCoreAdapter:
         self._search_projection = None
         self._publish_snapshot()
         return _LogoutRecoveryOutcome(core_logged_in, False, True)
-
-    @staticmethod
-    def _consume_background_task_result(task: asyncio.Task[None]) -> None:
-        try:
-            task.result()
-        except (Exception, asyncio.CancelledError):
-            pass
 
     async def _quiesce_session_services(self) -> bool:
         """Best-effort bounded stop used before publishing recovery-required state."""
@@ -2252,35 +2504,11 @@ class ProtonCoreAdapter:
 
     def _require_authenticated_epoch(self, authentication_epoch: int) -> None:
         self._require_authentication_epoch(authentication_epoch)
-        if not self._logged_in:
+        if not self._logged_in or self._account_restart_required:
             raise SessionExpiredError("The Proton account session changed") from None
 
-    @asynccontextmanager
-    async def _serialized_authentication_transition(self) -> AsyncIterator[None]:
-        inherited_token = self._authentication_context.get()
-        current_task = asyncio.current_task()
-        if (
-            inherited_token is not None
-            and inherited_token is self._active_authentication_token
-            and (
-                current_task is self._active_authentication_task
-                or current_task in self._authentication_delegate_tasks
-            )
-        ):
-            yield
-            return
-        async with self._authentication_lock:
-            owner_token = object()
-            self._active_authentication_token = owner_token
-            self._active_authentication_task = current_task
-            reset_token = self._authentication_context.set(owner_token)
-            try:
-                yield
-            finally:
-                self._authentication_context.reset(reset_token)
-                if self._active_authentication_token is owner_token:
-                    self._active_authentication_token = None
-                    self._active_authentication_task = None
+    def _serialized_authentication_transition(self) -> AbstractAsyncContextManager[None]:
+        return self._authentication_scope.enter()
 
     def _create_owned_child_task(
         self,
@@ -2289,45 +2517,12 @@ class ProtonCoreAdapter:
         authentication: bool = False,
         connection: bool = False,
     ) -> asyncio.Task[_OwnedTaskResult]:
-        """Delegate only the lifecycle locks explicitly owned by this task."""
-        current_task = asyncio.current_task()
-        authentication_owned = (
-            self._authentication_context.get()
-            is self._active_authentication_token
-            and self._active_authentication_token is not None
-            and (
-                current_task is self._active_authentication_task
-                or current_task in self._authentication_delegate_tasks
-            )
-        )
-        connection_owned = (
-            self._connection_lifecycle_context.get()
-            is self._active_connection_lifecycle_token
-            and self._active_connection_lifecycle_token is not None
-            and (
-                current_task is self._active_connection_lifecycle_task
-                or current_task in self._connection_lifecycle_delegate_tasks
-            )
-        )
-        if (
-            (not authentication and not connection)
-            or (authentication and not authentication_owned)
-            or (connection and not connection_owned)
-        ):
-            coroutine.close()
-            raise RuntimeError(
-                "Owned child task requested a lifecycle transition it does not own"
-            )
-        task = asyncio.create_task(coroutine)
+        scopes = []
         if authentication:
-            self._authentication_delegate_tasks.add(task)
-            task.add_done_callback(self._authentication_delegate_tasks.discard)
+            scopes.append(self._authentication_scope)
         if connection:
-            self._connection_lifecycle_delegate_tasks.add(task)
-            task.add_done_callback(
-                self._connection_lifecycle_delegate_tasks.discard
-            )
-        return task
+            scopes.append(self._connection_scope)
+        return create_owned_task(coroutine, *scopes)
 
     @asynccontextmanager
     async def _suspended_reconnection(
@@ -2352,32 +2547,10 @@ class ProtonCoreAdapter:
                 len(reconnector._retiring_retry_tasks),
             )
 
-    @asynccontextmanager
-    async def _serialized_connection_lifecycle(self) -> AsyncIterator[None]:
-        inherited_token = self._connection_lifecycle_context.get()
-        current_task = asyncio.current_task()
-        if (
-            inherited_token is not None
-            and inherited_token is self._active_connection_lifecycle_token
-            and (
-                current_task is self._active_connection_lifecycle_task
-                or current_task in self._connection_lifecycle_delegate_tasks
-            )
-        ):
-            yield
-            return
-        async with self._disconnect_lock:
-            owner_token = object()
-            self._active_connection_lifecycle_token = owner_token
-            self._active_connection_lifecycle_task = current_task
-            reset_token = self._connection_lifecycle_context.set(owner_token)
-            try:
-                yield
-            finally:
-                self._connection_lifecycle_context.reset(reset_token)
-                if self._active_connection_lifecycle_token is owner_token:
-                    self._active_connection_lifecycle_token = None
-                    self._active_connection_lifecycle_task = None
+    def _serialized_connection_lifecycle(
+        self, *, deadline: float | None = None
+    ) -> AbstractAsyncContextManager[None]:
+        return self._connection_scope.enter(deadline=deadline)
 
     async def _expire_session(self, authentication_epoch: int) -> None:
         if authentication_epoch != self._authentication_epoch:
@@ -2482,20 +2655,36 @@ class ProtonCoreAdapter:
         if core_state_name(state) in {"disconnected", "device_disconnected"}:
             if self._packet_capture_active or self._packet_capture_watchdog_task:
                 self._finish_packet_capture_state()
+        degraded = (
+            self._background_refresh_degraded
+            and self._logged_in
+            and not self._account_restart_required
+            and self._auth_state == "signed_in"
+        )
         return translate_snapshot(
             state,
             SnapshotContext(
                 connector=self._connector,
                 api=self._api,
                 startup_compatible=self._startup_compatible,
-                logged_in=self._logged_in,
-                auth_state=self._auth_state,
+                logged_in=self._logged_in and not self._account_restart_required,
+                auth_state=(
+                    "account_restart_required"
+                    if self._account_restart_required
+                    and self._auth_state not in {
+                        "authentication_unknown", "settings_unavailable", "protection_unknown"
+                    }
+                    else "signed_in_degraded" if degraded else self._auth_state
+                ),
                 reconnection_enabled=self._reconnection_enabled,
                 kill_switch=self._kill_switch,
                 packet_capture_active=self._packet_capture_active,
                 core_memory_optimized=self._core_memory_optimized,
                 core_version=self._core_version,
-                status_message=self._status_message,
+                status_message=(
+                    self._status_message
+                    or (BACKGROUND_REFRESH_DEGRADED_MESSAGE if degraded else "")
+                ),
             ),
         )
 

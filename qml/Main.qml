@@ -20,7 +20,7 @@ Kirigami.ApplicationWindow {
     readonly property var controller: vpnController
     readonly property var integrationSettings: appSettings
     readonly property bool browserConnectionActionEnabled:
-        controller.primaryActionEnabled && !controller.busy
+        controller.canConnect
 
     footer: Column {
         width: root.width

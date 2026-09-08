@@ -827,6 +827,7 @@ if(BUILD_TESTING)
     qt_add_executable(sign-in-presentation-tests
         tests/SignInPresentationTest.cpp
     )
+    target_include_directories(sign-in-presentation-tests PRIVATE src)
     set_target_properties(sign-in-presentation-tests PROPERTIES
         QT_QML_MODULE_NO_IMPORT_SCAN TRUE
     )

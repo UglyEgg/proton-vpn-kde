@@ -14,6 +14,7 @@
 #include <QDBusUnixFileDescriptor>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QScopeGuard>
 #include <QtTest>
 #include <memory>
 #include <openssl/evp.h>
@@ -22,6 +23,22 @@ namespace
 {
 constexpr auto kBackendService = "quest.entropy.PlasmaVPN.Backend";
 constexpr auto kBackendPath = "/quest/entropy/PlasmaVPN/Backend";
+
+class AccountRestartManager final : public QObject
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.systemd1.Manager")
+public:
+    QStringList units;
+public slots:
+    QDBusObjectPath RestartUnit(const QString &unit, const QString &mode)
+    {
+        if (mode == QStringLiteral("replace")) {
+            units.append(unit);
+        }
+        return QDBusObjectPath(QStringLiteral("/org/freedesktop/systemd1/job/1"));
+    }
+};
 
 using PKey = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using PKeyContext = std::unique_ptr<EVP_PKEY_CTX,
@@ -56,6 +73,7 @@ class GroupedNavigationBackend final : public QObject, protected QDBusContext
 
 public:
     int registrationCalls = 0;
+    int authPublicKeyCalls = 0;
     int disconnectCalls = 0;
     int countryCalls = 0;
     int groupCalls = 0;
@@ -250,6 +268,7 @@ public slots:
 
     QString GetAuthPublicKey(const QString &)
     {
+        ++authPublicKeyCalls;
         if (delayAuthPublicKey) {
             setDelayedReply(true);
             delayedAuthPublicKeyMessage = message();
@@ -448,6 +467,10 @@ private slots:
     void retriesSnapshotAfterTransientSameOwnerFailure();
     void invalidSnapshotOwnsGlobalHealthError();
     void loggedOutActiveTunnelCanBeDisconnected();
+    void connectionAdmissionAcrossDirectRoutes_data();
+    void connectionAdmissionAcrossDirectRoutes();
+    void accountRecoveryWaitsForRetirement_data();
+    void accountRecoveryWaitsForRetirement();
     void invalidSnapshotStillAllowsCaptureStopAndRestart();
     void packetCaptureFailuresHaveTypedState();
     void rejectedCaptureStartAllowsShutdownAfterIdleSnapshot();
@@ -463,6 +486,8 @@ private slots:
     void stopsRetryingAnUnresponsiveSameOwner();
     void queuesInitialBrowserLoadUntilBackendIsReady();
     void staleCountryReplyCannotMutateReplacementSession();
+    void pageRetirementDispatchesPendingParentRefresh();
+    void controlTimeoutDoesNotInventBackendLoss();
     void loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint();
     void retriesTransientEmptyServerGroupResponses();
     void retriesTransientEmptyServerResponse();
@@ -704,6 +729,138 @@ void GroupedNavigationTest::loggedOutActiveTunnelCanBeDisconnected()
 
     m_backend.connectionState = QStringLiteral("disconnected");
     m_backend.loggedIn = true;
+}
+
+void GroupedNavigationTest::connectionAdmissionAcrossDirectRoutes_data()
+{
+    QTest::addColumn<QString>("state");
+    QTest::addColumn<bool>("busy");
+    QTest::addColumn<bool>("loggedIn");
+    QTest::addColumn<QString>("authState");
+    QTest::addColumn<bool>("healthy");
+    QTest::addColumn<bool>("disconnectAllowed");
+    QTest::newRow("pending-lookup") << QStringLiteral("disconnected") << true << true
+        << QStringLiteral("signed_in") << true << true;
+    QTest::newRow("connecting") << QStringLiteral("connecting") << true << true
+        << QStringLiteral("signed_in") << true << true;
+    QTest::newRow("expired-tunnel") << QStringLiteral("connected") << false << false
+        << QStringLiteral("expired") << true << true;
+    QTest::newRow("unknown-account") << QStringLiteral("connected") << false << true
+        << QStringLiteral("authentication_unknown") << true << true;
+    QTest::newRow("bad-snapshot") << QStringLiteral("connected") << false << true
+        << QStringLiteral("signed_in") << false << false;
+    QTest::newRow("already-disconnecting") << QStringLiteral("disconnecting") << true << true
+        << QStringLiteral("signed_in") << true << false;
+}
+
+void GroupedNavigationTest::connectionAdmissionAcrossDirectRoutes()
+{
+    QFETCH(QString, state);
+    QFETCH(bool, busy);
+    QFETCH(bool, loggedIn);
+    QFETCH(QString, authState);
+    QFETCH(bool, healthy);
+    QFETCH(bool, disconnectAllowed);
+    m_backend.connectionState = state;
+    m_backend.operationBusy = busy;
+    m_backend.loggedIn = loggedIn;
+    m_backend.authStateOverride = authState;
+    const auto cleanup = qScopeGuard([&] {
+        m_backend.connectionState = QStringLiteral("disconnected");
+        m_backend.operationBusy = false;
+        m_backend.loggedIn = true;
+        m_backend.authStateOverride.clear();
+    });
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QCOMPARE(controller.busy(), busy);
+    if (!healthy) {
+        controller.applySnapshot(QStringLiteral("{"));
+    }
+    QVERIFY(!controller.canConnect());
+    QCOMPARE(controller.canDisconnect(), disconnectAllowed);
+    // Every direct connection route must guard Up, not borrow permission to
+    // cancel Down from the primary action.
+    QSignalSpy operations(&controller, &VpnController::connectionOperationStarted);
+    controller.connectTarget(QStringLiteral("FASTEST"));
+    controller.connectCountry(QStringLiteral("CH"));
+    controller.connectCountryWithFeatures(QStringLiteral("CH"), {QStringLiteral("p2p")});
+    controller.connectServer(QStringLiteral("CH#1"));
+    controller.connectFastestWithFeatures({});
+    controller.connectFastestWithFeature(QStringLiteral("p2p"));
+    controller.connectGroup(QStringLiteral("US"), QStringLiteral("location"), QStringLiteral("NY"));
+    controller.connectGroupWithFeatures(
+        QStringLiteral("US"), QStringLiteral("location"), QStringLiteral("NY"), {});
+    QCOMPARE(operations.count(), 0);
+
+    const int before = m_backend.disconnectCalls;
+    controller.disconnect();
+    if (disconnectAllowed) {
+        QTRY_COMPARE_WITH_TIMEOUT(m_backend.disconnectCalls, before + 1, 2000);
+        QCOMPARE(operations.count(), 1);
+        QCOMPARE(operations.first().at(1).toString(), QStringLiteral("disconnected"));
+    } else {
+        QCOMPARE(operations.count(), 0);
+        QCOMPARE(m_backend.disconnectCalls, before);
+    }
+}
+
+void GroupedNavigationTest::accountRecoveryWaitsForRetirement_data()
+{
+    QTest::addColumn<bool>("succeeds");
+    QTest::newRow("confirmed") << true;
+    QTest::newRow("unconfirmed") << false;
+}
+
+void GroupedNavigationTest::accountRecoveryWaitsForRetirement()
+{
+    QFETCH(bool, succeeds);
+    AccountRestartManager manager;
+    auto bus = QDBusConnection::sessionBus();
+    QVERIFY(bus.registerService(QStringLiteral("org.freedesktop.systemd1")));
+    const auto cleanup = qScopeGuard([&] {
+        bus.unregisterObject(QStringLiteral("/org/freedesktop/systemd1"));
+        bus.unregisterService(QStringLiteral("org.freedesktop.systemd1"));
+        m_backend.delayLogout = false;
+        m_backend.delayedLogoutMessage = {};
+        m_backend.authStateOverride.clear();
+        m_backend.connectionState = QStringLiteral("disconnected");
+        m_backend.loggedIn = true;
+    });
+    QVERIFY(bus.registerObject(QStringLiteral("/org/freedesktop/systemd1"),
+                               &manager, QDBusConnection::ExportAllSlots));
+    m_backend.loggedIn = false;
+    m_backend.authStateOverride = QStringLiteral("expired");
+    m_backend.connectionState = QStringLiteral("connected");
+    m_backend.delayLogout = true;
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QTRY_COMPARE(controller.authState(), QStringLiteral("expired"));
+    const int keyReads = m_backend.authPublicKeyCalls;
+    controller.login(QStringLiteral("unused"), QStringLiteral("unused"));
+    QVERIFY(!controller.busy());
+    controller.restartBackend();
+    QTRY_COMPARE(m_backend.delayedLogoutMessage.type(), QDBusMessage::MethodCallMessage);
+    QVERIFY(manager.units.isEmpty());
+    // A snapshot alone cannot authorize restart before the accepted operation
+    // has returned. No password is queued for replay into the next owner.
+    m_backend.authStateOverride = QStringLiteral("account_restart_required");
+    m_backend.publishSession(true, false);
+    QTRY_COMPARE(controller.authState(), QStringLiteral("account_restart_required"));
+    QVERIFY(manager.units.isEmpty());
+    if (succeeds) {
+        QVERIFY(bus.send(m_backend.delayedLogoutMessage.createReply()));
+        QTRY_COMPARE(manager.units.size(), 1);
+        QCOMPARE(manager.units.first(), QStringLiteral("proton-vpn-kde-backend.service"));
+    } else {
+        QVERIFY(bus.send(m_backend.delayedLogoutMessage.createErrorReply(
+            QDBusError::Failed, QStringLiteral("Tunnel retirement unconfirmed"))));
+        QTRY_VERIFY(!controller.busy());
+        QVERIFY(manager.units.isEmpty());
+    }
+    controller.login(QStringLiteral("unused"), QStringLiteral("unused"));
+    QCOMPARE(m_backend.authPublicKeyCalls, keyReads);
 }
 
 void GroupedNavigationTest::invalidSnapshotStillAllowsCaptureStopAndRestart()
@@ -1306,6 +1463,53 @@ void GroupedNavigationTest::staleCountryReplyCannotMutateReplacementSession()
     QCOMPARE(controller.countryModel()->rowCount(), 2);
     QVERIFY(controller.countriesError().isEmpty());
     QVERIFY(!controller.locationsBusy());
+}
+
+void GroupedNavigationTest::pageRetirementDispatchesPendingParentRefresh()
+{
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    const auto context = controller.claimServerContext(QStringLiteral("CH"));
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.locationsBusy(), 2000);
+    m_backend.delayCountries = true;
+    m_backend.delayedCountriesMessage = {};
+    controller.loadCountries();
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.delayedCountriesMessage.type(),
+                              QDBusMessage::MethodCallMessage, 2000);
+    const auto oldRead = m_backend.delayedCountriesMessage;
+    controller.loadCountries(); // A valid parent refresh is now pending.
+    m_backend.delayCountries = false;
+    controller.releaseServerContext(context);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.locationsBusy(), 2000);
+    QCOMPARE(controller.countryModel()->rowCount(), 2);
+    QVERIFY(m_backendBus->send(oldRead.createErrorReply(
+        QDBusError::Failed, QStringLiteral("retired page read"))));
+    QTest::qWait(50);
+    QVERIFY(!controller.locationsBusy());
+    QVERIFY(controller.countriesError().isEmpty());
+}
+
+void GroupedNavigationTest::controlTimeoutDoesNotInventBackendLoss()
+{
+    m_backend.connectionState = QStringLiteral("connected");
+    m_backend.publishSession(true, true);
+    m_backend.delayDisconnect = true;
+    m_backend.delayedDisconnectMessage = {};
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    controller.disconnect();
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.delayedDisconnectMessage.type(),
+                              QDBusMessage::MethodCallMessage, 2000);
+    const int snapshots = m_backend.snapshotCalls;
+    QVERIFY(m_backendBus->send(m_backend.delayedDisconnectMessage.createErrorReply(
+        QDBusError::NoReply, QStringLiteral("completion unknown"))));
+    QTRY_VERIFY_WITH_TIMEOUT(m_backend.snapshotCalls > snapshots, 2000);
+    QVERIFY(controller.backendAvailable());
+    QVERIFY(!controller.message().contains(QStringLiteral("service stopped")));
+    m_backend.delayDisconnect = false;
+    m_backend.delayedDisconnectMessage = {};
+    m_backend.connectionState = QStringLiteral("disconnected");
 }
 
 void GroupedNavigationTest::retriesTransientEmptyServerResponse()

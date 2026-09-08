@@ -61,7 +61,7 @@ class DbusContractTests(unittest.TestCase):
         )
 
     def test_python_service_signatures_match_the_xml_contract(self):
-        service_interface = VpnDbusService(Mock()).introspect()
+        service_interface = VpnDbusService(Mock(), None, Mock()).introspect()
         xml_methods = {
             method.attrib["name"]: (
                 signature(method, "in"),

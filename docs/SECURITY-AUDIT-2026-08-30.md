@@ -1,4 +1,4 @@
-# Security and engineering assessment — 2026-08-30, refreshed 2026-09-03
+# Security and engineering assessment — 2026-08-30, refreshed 2026-09-08
 
 ## Current assessment posture
 
@@ -21,28 +21,38 @@ asynchronous state-ownership corrections where the new presentation exposed a
 real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
-The current remediation candidate treats connection supersession as one error
-class rather than a sequence of route-specific patches. Manual connection
-targets own retry suspension before topology lookup and are explicitly tracked
-across all seven routes. A newer target, Disconnect, logout, session expiry,
-disabled recovery, or close cancels and joins every older owner. Cancellation
-also retains Proton Core 5.6.10's executor-backed NetworkManager coroutine until
-it terminates and a compensating disconnect completes. It then follows Core
-state notifications and repeats Down until Disconnected proves that no queued
-replacement can start later. A failed Down, missing stable transition, or
-unfinished owner shares one absolute deadline and forces a nonzero backend
-restart rather than acknowledging stale ownership. The overlay verifier
-executes the pinned 5.6.10 queue semantics and fails when they change.
-Inherited Python context separately grants no reentrant lifecycle authority
-without explicit owned-task delegation, and a Core executor worker cannot
-retain an old backend process past its finite terminal shutdown boundary. These
-are current candidate controls, not accepted release evidence, until all
-isolated reviews and final package/live gates pass.
+**Current source decision: changes required.** The 2026-09-07 error-class
+review of `7d1f1b3b94b562dada9622fe004acc0b7afb99b3` found seven concrete
+correctness defects and an additional provider-quiescence proof gap. They are
+listed in the current register below, separately from earlier remediation
+claims. **PV-013-036 now has a local candidate fix**, using a public Core
+event-barrier receipt rather than an observed Disconnected state. Three
+combined adapter/actual-Core conformance cases supplement fake-driven route
+tests. Account replacement also now requires confirmed outgoing-process
+retirement and fresh-process session cleanup. Neither correction has yet
+passed final independent review or installed acceptance; the remaining
+error-class work below still blocks release.
 
-**Version `0.13.0` remains explicitly not release-ready until all six isolated
+The review checked the installed Core **5.6.10** source, owned by
+`python3-proton-vpn-api-core-5.6.10-8.plasmavpn1.fc44.x86_64`. The separate
+5.5.6 static API check was not used to infer runtime defects. This was an
+error-class investigation with three isolated perspectives (backend, frontend,
+and engineering process), not a new six-leg release battery or independent
+third-party security audit. The subsequent baseline discovery and working-tree
+implementation checkpoint below supersede the review's documentation-only
+status; they are not final release approval.
+
+**Version `0.13.0` remains explicitly not release-ready until all seven isolated
 reviewers pass one exact remediated
 commit, its binary/source package set repeats the release battery, live
 acceptance succeeds, and the planned local soak completes.**
+
+The current battery adds **Cognitive Load/Code Maintainability** to Hostile,
+Subtractive, Entropy, Error-Class, HPC/Performance and Hardening/Security.
+Each perspective has its own isolated reviewer. The seventh review checks
+unnecessary abstraction, duplicate ownership, hidden control flow and the
+cost of understanding and changing the implementation. References to six
+reviewers in historical records describe the earlier process, not this gate.
 
 The pre-remediation `0.13.0` snapshot `1d88e35` passed Mypy, Ruff, all 35
 production translation units under Clang-Tidy, 215 backend tests at 82%
@@ -77,8 +87,11 @@ attestation, certification, or warranty of security.
 
 ## How to read this document
 
-- **Current assessment posture** and **0.13.0 isolated review gate** describe
-  the unreleased branch and make its release decision explicit.
+- **Current assessment posture** and **Current 0.13.0 error-class review**
+  describe the unreleased branch and its open work. This current register takes
+  precedence over candidate-remediation statements in the historical rounds.
+- **Historical 0.13.0 remediation rounds** records superseded partial reviews;
+  a proposed or implemented candidate correction there is not release approval.
 - **Historical 0.12.0 isolated review gate** records superseded review cycles
   and closed findings; it is not a list of current vulnerabilities.
 - **Current controls**, **Verification**, and **Residual risk** describe the
@@ -91,7 +104,241 @@ attestation, certification, or warranty of security.
 - Snapshot identifiers document what was reviewed; they are preserved in their
   tool-generated form and are not release signatures.
 
-## 0.13.0 isolated review gate
+## Current 0.13.0 error-class review
+
+### Working-tree remediation checkpoint — 2026-09-08
+
+The baseline is frozen at `7d1f1b3`. Discovery now includes independent hostile,
+subtractive, entropy, error-class, performance and security perspectives. The
+standard security scan reviewed the 317-file source scope and reported one
+additional medium-severity authorization finding under the documented local
+session-peer threat boundary. Its validation was static; no live exploitation
+or VPN mutation was performed. This is a baseline assessment, not a security
+approval of the subsequent edits.
+
+| Item | Current working-tree status | Evidence / remaining gate |
+| --- | --- | --- |
+| EC-02 | Candidate fixed | Shared `join_owned` retains provider and caller outcomes separately. Direct tests cover child success/error/cancellation, repeated caller cancellation, cancellation-hook failure and already-complete work. No detached provider exception is logged by the helper on Python 3.14. |
+| EC-04 | Candidate fixed | Timeout has a distinct completion-unknown disposition; control operations reconcile without declaring owner loss. Native fake-backend test confirms continued availability and a state refresh. |
+| EC-06 | Candidate fixed | Page retirement dispatches retained parent refreshes. Test covers a pending read, context release, successor completion and a late obsolete reply. |
+| EC-07 | Candidate fixed | `OperationCompletion` retains reconciliation through a busy read and later idle signal; tests include signal-before-reply, successor isolation and exactly-once lease settlement. |
+| EC-01 / PV-013-036 | Candidate fixed | Public Down is required even from observed Disconnected; completion state is captured inside the provider task. Queued promotion identity failure remains unconfirmed and forces terminal exit. Three actual-Core 5.6.10 conformance cases pass with external I/O replaced. Final route review and installed acceptance remain required; no Core logic was changed. |
+| EC-03 | Candidate fixed | Public callback is installed before enable. One owned worker plus one coalesced classified notice rechecks account/binding after authentication-lock acquisition. Auth failures expire the session; other failures show persistent degraded updates without disconnecting or automatic replay. Shutdown fences and joins this handler, not Core's children. Provider-free tests and two actual-Core scheduler cases pass; installed acceptance and final independent review remain open. |
+| EC-05 | Candidate fixed | One native capability policy separates Connect from cancellation/cleanup across GUI, Agent, browser, pins, tray, shortcuts and confirmations. Explicit Disconnect covers pending lookup before Connecting and remains available after expiry; acceptance rechecks current permission. Invalid or unreadable snapshots block dispatch. Matrix, private-bus client and offscreen confirmation tests pass. Installed surface acceptance and final independent review remain open; backend cleanup admission is still separate. |
+| Backend authorization boundary | Locally remediated, release/package verification pending | Ingress and shared export guards now enforce the generated policy consistently, including queued-call revocation and descriptor ownership. Authorizer-free service mode was removed. One fresh independent bypass/regression review found duplicate test imports, which were corrected; no surviving source-backed bypass was reported. |
+| Disconnect-and-quit fast path | Candidate fixed | Entry and later updates share the native policy's available, ready, healthy, idle-disconnected predicate. Native tests reject unavailable, busy-disconnected and unreadable-state cases, both on entry and while awaiting completion. |
+| Account/tunnel attribution | Candidate fixed | After refresh services start, replacement login requires a fresh process. A private non-secret handoff records tunnel retirement; fresh startup checks outgoing-process exit and clears the saved account before accepting credentials. Expiry preserves an established tunnel until explicit preparation. Native fake-service, adapter handoff and real pidfd tests pass; installed systemd/Secret Service/NetworkManager acceptance remains open. This is an engineering lifecycle finding, not a demonstrated credential disclosure. |
+| Retry ownership | Consolidated locally | The optional direct Core mutation/compensation fallback is removed. Attempt and account-lifecycle callbacks are mandatory; production already used the shared owner. The constructor regression failed before the change for all eight missing/invalid callback cases and passes afterward. Policy tests forbid direct Core Up/Down; adapter tests cover stale account/intent at lock admission and after success. This is subtraction of an alternate implementation, not a new networking policy or evidence of a deployed bypass. |
+| Independent cleanup admission | Candidate fixed | One session-tagged worker per cleanup kind coalesces callers and retains ownership through caller cancellation. Stop bypasses unrelated foreground work; Down is accepted but waits for non-connect transactions to avoid racing Core settings/protection changes. Final Stop/Down dispatch serializes and revalidates the account; successor mutations cannot overtake cleanup. Controller timing cases, a combined controller/adapter ordering test and eight offscreen capture-button cases pass. This is not an immediate-completion guarantee; installed acceptance and final independent review remain open. |
+| Close deadline consolidation | Candidate fixed | Service, controller and adapter inherit one absolute deadline. Repeated/cancelled callers share the first close outcome. Capture Stop consumes remaining shutdown time without resetting durable capture limits. Accepted teardown remains owned on expiry, later stages recheck the deadline, and failed close cannot re-arm retries or become success after late completion. Propagation, sticky-outcome, blocked-scope, capture recovery and retry-fence tests pass. Existing process/systemd bounds remain; installed acceptance and final independent review are pending. |
+| Cleanup-request deadlines | Candidate fixed | One 30-second budget starts at controller admission and flows through dependency waits, dispatch and adapter retirement. Pre-dispatch expiry rejects the request without cancelling prior work or issuing cleanup later; duplicate callers cannot reset its deadline. Adapter connection-scope expiry or an unconfirmed provider retirement uses the existing nonzero process boundary. Capture Stop retains its live provider task and recovery journal. Controller/adapter integration, scope and D-Bus tests pass; no live exit, capture or networking was tested. |
+| Foreground end-to-end deadlines | Candidate fixed | One 180-second controller budget spans admission, provider work, recovery and state publication. Admission expiry rejects without disturbing preceding work. A whole-transaction child retains auth/settings results through caller cancellation; connect, capture Start and FIDO retain explicit cancellation cleanup. Nested recovery stages join their accepted writes instead of detaching them. Unconfirmed expiry fences new work and uses the existing nonzero process boundary. Installed acceptance and exact-candidate independent review remain required. |
+
+The repeated authentication/connection lock ownership implementation was
+replaced by task-scoped ownership with acquisition-bound child delegation.
+Controller admission remains separate. Scope tests cover siblings, expired
+delegation, cancellation before first execution and eager task startup.
+
+Verification at this checkpoint includes both modeled lifecycle orderings and
+the exact installed Core 5.6.10 event/state source. The opt-in conformance
+harness verifies source hashes, constructs neither the live API nor
+NetworkManager, and replaces external I/O. It is local evidence, not an
+implicit CI pass. All 428 backend tests pass on system Python 3.14 with that
+fixture enabled; branch-aware coverage is 86%. The hash-pinned Python 3.11
+minimum environment passes with eight skips: the five opt-in Core cases,
+two eager-task cases, and the real pidfd case because that standalone Python
+build omits `os.pidfd_open`. A separate test verifies the missing-API refusal
+on both interpreters; Fedora's Python passes the real process-exit case.
+Mypy passes for all 31 backend source files. The native presentation test also
+checks that degraded background updates remain visible while connected,
+preserve stronger diagnostics and do not trigger a restart or disconnect.
+
+Cleanup tests hold provider completion with explicit events. They verify Stop
+finishes while settings persistence remains blocked, Down follows that save,
+final Stop/Down calls serialize in either order, and duplicate callers share
+one worker. Repeated caller cancellation, cancellation before worker entry,
+Start compensation during close, account replacement after waiting, successor
+admission and shutdown-deadline failure have targeted cases. Busy remains true
+for surviving owners and cleanup failure cannot erase foreground guidance.
+No live capture, VPN, credential prompt or installed package was exercised.
+
+The close checkpoint adds exact deadline-propagation assertions from service
+through controller to adapter and nested retirement boundaries. Success, error
+and timeout cases verify singleflight teardown, repeated caller cancellation
+and sticky outcomes. Tests also hold authentication/connection scopes beyond
+the deadline, reject new teardown after expiry, preserve capture recovery on a
+shortened stop budget and prevent retry re-arming after failed shutdown. This
+is source/unit evidence; it does not claim that synchronous provider code can
+be preempted or that a failed close proves an external tunnel was removed.
+
+Cleanup-deadline tests prove that an expired Disconnect cannot cancel a held
+Core settings save or dispatch after that save is released. They also cover
+duplicate/cancelled callers, Stop waiting for Start compensation, either kind
+waiting for cleanup dispatch, exact deadline propagation, exhausted scope
+admission and a cancellation-resistant capture Stop with durable recovery.
+The D-Bus test verifies an explicit bounded rejection while backend readiness
+remains true. Process-exit tests use substituted providers and injected exit
+callbacks; they do not terminate the live backend or reproduce a network fault.
+
+EC-05 adds a 3,584-combination native permission sweep plus named state cases,
+all eight direct GUI Connect routes under blocked conditions, explicit pending
+Disconnect, and QML confirmation dispatch/revocation cases. Agent tests retain
+queued-successor and lease reconciliation coverage, reject malformed/failed
+state reads, recover permission after a valid snapshot, and ensure startup
+auto-connect is retired on an existing non-disconnected state once not busy. Desktop
+handlers consume the tested policy; no live global shortcuts, tray actions or
+VPN operations were exercised for this checkpoint.
+
+The native build was repeated from an empty directory against Qt 6.11.2.
+All 40 CTest targets passed in that clean build using a disk-backed temporary
+directory. An older incremental directory produced native crashes with objects
+left from before the Qt update; those failures did not reproduce after the
+complete rebuild. That older directory is not acceptance evidence.
+The earlier checkpoint also encountered the host's `/tmp` quota, resolved for
+validation by using the disk-backed directory.
+Development static analysis passes; its source-archive reproducibility
+subcheck examines committed `HEAD` and must be repeated after committing the
+candidate. No new package, installed acceptance, or final seven-reviewer
+approval is claimed by this development checkpoint.
+
+The foreground completion checkpoint passes 428 backend tests on Python 3.14
+(including the opt-in actual-Core fixture), 428 on Python 3.11 with eight
+expected skips, Mypy and 86% branch-aware coverage. Focused cases cover
+admission expiry without late dispatch, retained auth/settings publication
+after repeated caller cancellation, shutdown of the transaction supervisor,
+expired provider writes, and FIDO cancellation before assertion entry and
+during submission. The six-image layout matrix was rendered and visually
+inspected; the Inspector's second open/close cycle retained 794 KiB PSS and
+632 KiB private memory in the isolated demo probe. These are local snapshots,
+not a long-duration memory bound or installed desktop acceptance.
+
+The approved refresher boundary is implemented locally, not a renamed success
+state. Public Core disable still joins scheduling but not all refresh children.
+The adapter fences replacement credentials once services have started, records
+sign-out before changing account state, and requires a fresh backend to finish
+cleanup. The native client requests systemd replacement only after a successful
+current-owner Logout acknowledgement; expired-session preparation explains
+the disconnect and does not queue credentials across owners. A pidfd/start-time
+check refuses manually overlapping startup, and the service explicitly retains
+systemd control-group termination. Unavailable pidfd support and incomplete
+cleanup fail closed. See the
+[account boundary](ARCHITECTURE.md#ownership-consolidation-checkpoint) for
+the runtime record and recovery limits. Installed acceptance and the remaining
+ownership consolidation are still open. The released versions' exposure to
+the newly identified authorization finding has not been determined by this
+baseline scan.
+
+### Baseline findings at `7d1f1b3`
+
+The priorities below are engineering remediation priorities, not new claims
+of exploitable security vulnerabilities. P1 means a protection/lifecycle
+contract can be violated; P2 means a concrete correctness, recovery, or
+resource-lifetime defect. All seven need resolution before this candidate is
+accepted; the checkpoint above records candidate remediations without rewriting
+the original evidence. Static findings describe reachable source paths; they do not assert
+that every reported live incident had that cause.
+
+| ID / priority | Current defect and consequence | Source evidence at reviewed commit |
+| --- | --- | --- |
+| EC-01 / P1 | Transitional cleanup skips directly observed Disconnected, although Core can still own a queued target. Disable recovery, close, signed-out cleanup, and expiry can return before that target is retired. This is the remaining PV-013-036 gap. | [adapters.py](../backend/proton_vpn_kde_backend/adapters.py), lines 1341–1343 and callers at 1760, 1792, 1980, 2410. Installed Core `vpnconnector.py:477,499–504` and `connection/states.py:174–187`. |
+| EC-02 / P2 | `await_owned` can replace already-recorded caller cancellation with a later child exception, bypassing cancellation-specific reconciliation. A provider-free asyncio check returned ValueError while the owner still had a cancellation request; external connection consequences were not exercised. | [async_utils.py](../backend/proton_vpn_kde_backend/async_utils.py), lines 31–51; connection and FIDO consumers in `adapters.py:1188–1201,1605–1622`. |
+| EC-03 / P2 | Background Core refresh failures have no installed error callback into the adapter. A failed refresh can disappear from scheduling while the client retains its signed-in/service-enabled projection until some other operation detects failure. | `adapters.py:289–299,1915–1942`; installed Core `api.py:84–85`, `refresher/scheduler.py:195–210`, and public `VPNDataRefresher.set_error_callback`. Neither the backend nor installed Core bootstrap registers that callback. |
+| EC-04 / P2 | Same-owner control-operation timeouts are classified as service loss except for NPS. Disconnect, FIDO cancellation, and recovery-preference replies can falsely report “service stopped” without initiating reconciliation. A permanent wedge is not established. | [VpnControllerSnapshot.cpp](../src/VpnControllerSnapshot.cpp), lines 448–496; [BackendCallPolicy.h](../src/BackendCallPolicy.h), lines 73–79. |
+| EC-05 / P2 | Action admission differs between surfaces. The external-action confirmation requires not-busy, disabling tray/shortcut cancellation during connecting although the native primary action permits it. GUI Disconnect also ignores disconnected-with-pending-connect while the Agent supports that interval. | [MainDialogs.qml](../qml/MainDialogs.qml), lines 24–28; [VpnControllerActions.cpp](../src/VpnControllerActions.cpp), lines 97–115; [AgentVpnClient.cpp](../src/AgentVpnClient.cpp), lines 194–210. |
+| EC-06 / P2 | Page teardown invalidates a server request but does not dispatch retained parent refreshes. After a topology change, the obsolete reply is discarded and the remaining pending flags can leave parent refresh disabled until another event dispatches work. | [VpnControllerLocations.cpp](../src/VpnControllerLocations.cpp), lines 340–381, 590–592; `VpnControllerSnapshot.cpp:35–41`; `VpnController.cpp:149–152`. |
+| EC-07 / P2 | Agent operation reconciliation is cleared after one snapshot even if it is still busy. A later idle signal does not retire the transient lease, retaining an otherwise idle disconnected backend until another action, owner loss, or Agent exit. | `AgentVpnClient.cpp:269–274,435–447,724–757`; [lifetime.py](../backend/proton_vpn_kde_backend/lifetime.py), lines 188–190. |
+
+**Required proof gap — refresher retirement.** `adapters.py:1963–1972`
+commits DISABLED after public `refresher.disable()`. Installed Core
+`refresher/vpn_data_refresher.py:211–231` and `refresher/scheduler.py:109–129`
+cancel background children but join only the scheduler task. This does not
+establish that all accepted background work has stopped. A late stale-session
+side effect was not demonstrated. The refactor must distinguish disabled
+scheduling from retired work, and either prove the necessary public contract
+or record a narrow upstream capability dependency. It must not quietly reach
+into Core's private scheduler to claim completion.
+The working-tree checkpoint above now isolates replacement accounts through
+process retirement; it does not retroactively establish a public join contract
+at this baseline.
+
+Other design risks are not counted as confirmed defects: overlapping task,
+lock, epoch, and delegate ownership across controller/adapter/reconnector;
+independently started shutdown budgets; and settings-model parsers that clear
+operation busy state even when called by unsolicited data signals. No current
+deadlock or separate settings incident was established. These are review and
+test obligations for the consolidation, not grounds for speculative patches.
+
+### Common causes and why the earlier cycle kept expanding
+
+1. **Observation was confused with completion.** A state label, method reply,
+   cancellation request, or disabled scheduler is not necessarily evidence
+   that all accepted work has stopped. In Core 5.6.10, `current_state` is
+   assigned before state tasks finish. Disconnected subscriber notification
+   is normally *after* those tasks; it is the directly readable property that
+   exposes the intermediate interval. Even one public Down is not a proven
+   universal barrier: Core captures the connection before acquiring its event
+   lock, and queued promotion can make that identity obsolete.
+2. **Ownership rules were implemented repeatedly.** Python tasks and locks,
+   C++ watcher properties, generations, busy flags, page contexts, and lifetime
+   leases each encode part of the same protocol. Rejecting stale output is
+   necessary but does not release resources, complete compensation, or dispatch
+   remaining work. A fix in one callback therefore left sibling routes open.
+3. **The tests copied simplified completion sequences.** Adapter tests replace
+   Core imports and default to a disconnect that immediately sets Disconnected
+   (`test_proton_core_adapter.py:103–137`). The queued-target regression at
+   2481–2557 jumps from Disconnecting directly to Connecting. The real-Core
+   [overlay oracle](../packaging/fedora/api-core-overlay/rebuild_overlay.py)
+   at 689–705 explicitly passes through Disconnected-with-reconnection, but
+   runs separately from the adapter. Likewise, Agent timeout coverage supplies
+   an immediately idle reconciliation reply, and browser teardown coverage
+   releases already-settled requests. Passing those tests leaves ordering gaps.
+4. **Discovery and final approval were interleaved.** Twelve recorded partial
+   rounds were superseded, often after the opening three reviewers. Fixing
+   immediately and restarting approval meant other perspectives arrived after
+   design decisions had already changed. One concrete reversal moved NPS cache
+   persistence onto the event loop in `950015d`, then off it with retained
+   ownership in `039b96c`, 45 minutes later. Cancellation safety and event-loop
+   responsiveness needed one joint contract from the start.
+5. **Evidence bookkeeping grew faster than evidence fidelity.** The mechanics
+   hash gate seals an admitted diff; it cannot prove semantic preservation or
+   independent approval. Exact-expression UI checks similarly bind some tests
+   to source spelling. Test counts, coverage, sanitizers, and checksums are
+   useful complementary evidence, not proofs of temporal ownership.
+
+Git history makes the cost measurable. From accepted baseline `ec27fdce` at
+2026-09-01 21:23:13 −05 to `7d1f1b3` at 2026-09-03 08:08:59 −05 there are
+40 commits spanning **34h 45m 46s**. The final diff covers 99 files with
++13,050/−1,678 lines; cumulative commit edits total +14,878/−3,506. The
+mechanics gate and UI-hygiene gate each changed in 27 commits, the changelog in
+31. The adapter grew from 1,650 to 2,504 lines through 11 commits. These are
+author-timestamp spans and edit counts, not measured active work or a claim
+that all of that effort was wasted. Thirty commits followed the first review
+candidate `1d88e35` over a further 20h 37m.
+
+### Evidence limits and disposition
+
+The three reviewers independently inspected backend lifecycle, frontend
+operation ownership, and history/test fidelity before consolidation. Installed
+Core source was read without constructing a provider or touching networking.
+One isolated in-memory cancellation check exercised only `async_utils`; the
+other findings are source traces. No live authentication, VPN operation,
+installation, GitHub action, or full-suite rerun was performed for this review.
+Earlier passing counts remain historical evidence, not a fresh release pass.
+
+The remedy is one bounded ownership/reconciliation program, delivered in
+reviewable commits, not a replacement Core or a single unreviewable rewrite.
+The [roadmap](ROADMAP.md#ownership-consolidation-before-further-ux-work)
+contains its boundaries, dependency order, scenario matrix, and stopping
+criteria. No finding is marked fixed by writing that plan. Complete discovery
+on a frozen baseline before implementation; seal the resulting candidate only
+after class-level proofs exist, then run all six independent final reviewers.
+
+## Historical 0.13.0 remediation rounds
+
+The following records describe earlier candidate intentions and superseded
+results. Their “remediated” labels mean an implementation was attempted, not
+that the current error-class register is closed. No partial pass is release
+approval.
 
 Six fresh reviewers inspect Hostile, Subtractive, Entropy, Error-Class,
 HPC/Performance, and Hardening/Security concerns independently. Reviewers do
@@ -265,10 +512,10 @@ commit.
 | --- | --- |
 | Manual admission | All seven public routes register one task owner before their first topology await and suspend automatic retry through Core completion. |
 | Invalidating transitions | Newer manual target, Disconnect, logout, session expiry, disabled recovery, and close advance intent, cancel every older manual owner, and join it before completion. |
-| Provider-side mutation | Cancellation shields and joins the Core 5.6.10 connection coroutine and its executor work, then owns repeated Down and state transitions until Disconnected proves that no queued target remains. |
+| Provider-side mutation | At this historical checkpoint, directly observed Disconnected was insufficient. The current register records the later public-barrier candidate fix; final acceptance remains pending. |
 | Bounded failure | Manual and automatic retirement share one absolute 30-second deadline; incomplete ownership, failed Down, or missing stable state exits nonzero for a fresh systemd process. |
-| Current-Core oracle | The overlay verifier executes pinned 5.6.10 queue replacement, Down-in-Disconnecting, and late promotion behavior; a future semantic change fails the build for explicit review. |
-| Observable release | 318 backend tests require terminal tasks, empty manual-owner state, zero retry-suspension owners, no stale connector side effect, confirmed Disconnected state, and cleared controller busy state. |
+| Current-Core oracle | At this historical checkpoint, the overlay verifier tested pinned 5.6.10 separately from the adapter. The current register adds three combined adapter/Core conformance cases. |
+| Observable release | 318 backend tests passed their modeled sequences. The current review identifies omitted provider and frontend event orderings; those counts do not close the class. |
 
 | ID | Pre-final severity | Finding at reviewed snapshot | Current candidate status |
 | --- | --- | --- | --- |
@@ -307,7 +554,7 @@ commit.
 | PV-013-033 | High | A Core executor thread could retain a name-less backend process and mutate shared state beside its replacement | **Remediated with finite process-wide thread retirement; independent verification pending** |
 | PV-013-034 | High | Disconnect could return while a blocked manual lookup retained busy and retry-suspension ownership | **Remediated across every manual route and invalidating transition; independent verification pending** |
 | PV-013-035 | High | Cancelling a retry task could detach Core 5.6.10's executor-backed NetworkManager mutation and permit a late stale connection | **Remediated with provider-operation joining and compensating disconnect; independent verification pending** |
-| PV-013-036 | High | Core 5.6.10 could retain and later promote a queued connection after Disconnect, logout, session expiry, disabled recovery, sign-out cleanup, or close returned | **Remediated with current-Core-gated stable-state draining; independent verification pending** |
+| PV-013-036 | High | Core 5.6.10 could retain and later promote a queued connection after Disconnect, logout, session expiry, disabled recovery, sign-out cleanup, or close returned | **Candidate fixed in the current working tree; final verification pending; see EC-01 in the current register** |
 | PV-013-037 | High | A failed compensating Down could be discarded while joining a superseded connection owner | **Remediated with fail-closed shared compensation; independent verification pending** |
 
 ## Historical 0.12.0 isolated review gate

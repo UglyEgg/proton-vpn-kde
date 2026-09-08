@@ -42,7 +42,7 @@ _NAME_OWNER_MATCH = (
 )
 
 _request_sender: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "proton_vpn_kde_request_sender", default=":direct.test"
+    "proton_vpn_kde_request_sender", default=""
 )
 IdentityProbe = Callable[[str], Awaitable[bool]]
 OwnerProbe = Callable[[str], Awaitable[bool]]
@@ -199,12 +199,20 @@ class ClientAuthorizer:
         if (
             message.message_type is not MessageType.METHOD_CALL
             or message.path != BACKEND_OBJECT_PATH
-            or message.interface != BACKEND_INTERFACE
         ):
             return None
 
         sender = message.sender or ""
         _request_sender.set(sender)
+        # The dispatcher also accepts interface-less exported calls. Standard
+        # interfaces remain available, but cannot adopt ancillary descriptors.
+        if message.interface not in {None, BACKEND_INTERFACE}:
+            if message.unix_fds:
+                close_unix_fds(message.unix_fds)
+                return Message.new_error(
+                    message, INVALID_ARGUMENTS_ERROR, INVALID_ARGUMENTS_MESSAGE
+                )
+            return None
         member = message.member or ""
         if member in SECRET_DESCRIPTOR_METHODS:
             valid_descriptor_call = (

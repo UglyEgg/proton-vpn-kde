@@ -26,7 +26,8 @@ Kirigami.ScrollablePage {
     readonly property bool terminalBackendFailure:
         page.preparingSignIn && !vpnController.backendRestartAllowed
     readonly property bool recoveryRequired: [
-        "authentication_unknown", "settings_unavailable", "protection_unknown"
+        "authentication_unknown", "settings_unavailable", "protection_unknown",
+        "expired", "account_restart_required"
     ].includes(vpnController.authState)
     readonly property bool twoFactorVisible: [
         "two_factor", "fido_error"
@@ -86,6 +87,12 @@ Kirigami.ScrollablePage {
                    : qsTr("Preparing sign-in")
         }
         if (page.activeStep === page.recoveryStep) {
+            if (vpnController.authState === "expired") {
+                return qsTr("Prepare to sign in again")
+            }
+            if (vpnController.authState === "account_restart_required") {
+                return qsTr("Finish signing out")
+            }
             return qsTr("Account state unavailable")
         }
         if (page.activeStep === page.signingInStep) {
@@ -342,12 +349,17 @@ Kirigami.ScrollablePage {
                 Layout.fillWidth: true
                 visible: parent.visible
                 type: Kirigami.MessageType.Warning
-                text: qsTr("Sign-in is paused until the service has restarted. Follow the guidance above before reconnecting.")
+                objectName: "accountRecoveryNotice"
+                text: vpnController.authState === "expired"
+                      ? qsTr("Preparing sign-in disconnects any remaining tunnel and restarts the local service before accepting account details.")
+                      : qsTr("Sign-in is paused until the service has restarted. Follow the guidance above before reconnecting.")
             }
 
             Controls.Button {
                 Layout.alignment: Qt.AlignHCenter
-                text: qsTr("Restart service")
+                text: vpnController.authState === "expired"
+                      ? qsTr("Prepare sign-in") : qsTr("Restart service")
+                enabled: !vpnController.busy
                 icon.name: "view-refresh"
                 highlighted: true
                 onClicked: vpnController.restartBackend()

@@ -8,12 +8,15 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import json
 import logging
-from typing import Callable, Protocol
+from typing import Callable, Literal, NoReturn, Protocol, TypeVar
+
+from .async_utils import await_owned
 
 from .errors import (
+    CleanupAdmissionExpired,
     UserVisibleError,
     UserVisibleRuntimeError,
     UserVisibleValueError,
@@ -95,11 +98,14 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 RECOVERY_REQUIRED_AUTH_STATES = frozenset(
-    {"authentication_unknown", "settings_unavailable", "protection_unknown"}
+    {"authentication_unknown", "settings_unavailable", "protection_unknown",
+     "expired", "account_restart_required"}
 )
 RECOVERY_REQUIRED_MESSAGE = (
     "Restart the Proton backend and review VPN settings before continuing"
 )
+FOREGROUND_OPERATION_SECONDS = 180.0
+OperationResult = TypeVar("OperationResult")
 
 class CoreAdapter(Protocol):
     """Minimal surface required from Proton's networking core."""
@@ -148,7 +154,7 @@ class CoreAdapter(Protocol):
     ) -> None: ...
     async def connect_server(self, server_name: str) -> None: ...
     async def start_packet_capture(self, directory_path: str) -> None: ...
-    async def stop_packet_capture(self) -> None: ...
+    async def stop_packet_capture(self, *, deadline: float | None = None) -> None: ...
     async def submit_support_report(self, report: SupportReport) -> None: ...
     async def take_pending_nps_survey(self) -> bool: ...
     async def submit_nps_survey(self, response: NpsSurveyResponse) -> None: ...
@@ -161,8 +167,19 @@ class CoreAdapter(Protocol):
     async def logout(self) -> None: ...
     async def disable_kill_switch_for_login(self) -> None: ...
     async def set_reconnection_enabled(self, enabled: bool) -> None: ...
-    async def disconnect(self) -> None: ...
-    async def close(self) -> None: ...
+    async def disconnect(self, *, deadline: float | None = None) -> None: ...
+    async def close(self, *, deadline: float | None = None) -> None: ...
+    def retire_unconfirmed_operation(self) -> NoReturn: ...
+
+
+CleanupKind = Literal["disconnect", "capture-stop"]
+
+
+@dataclass(frozen=True, slots=True)
+class _CleanupOperation:
+    session_epoch: int
+    deadline: float
+    task: asyncio.Task[None]
 
 
 class BackendController:
@@ -175,6 +192,8 @@ class BackendController:
         crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
         shutdown_drain_seconds: float = 5.0,
         packet_capture_shutdown_seconds: float = 20.0,
+        cleanup_seconds: float = 30.0,
+        foreground_seconds: float = FOREGROUND_OPERATION_SECONDS,
     ):
         self._adapter = adapter
         self._crash_report_submission_enabled = crash_report_submission_enabled
@@ -193,10 +212,13 @@ class BackendController:
         self._settings_lock = asyncio.Lock()
         self._session_epoch = 0
         self._closing = False
-        self._operation_busy = False
         self._active_operation_task: asyncio.Task[None] | None = None
+        self._operation_child: asyncio.Task[object] | None = None
         self._active_operation_kind: str | None = None
-        self._preemptive_disconnect_tasks: set[asyncio.Task[None]] = set()
+        self._cleanup_operations: dict[CleanupKind, _CleanupOperation] = {}
+        self._cleanup_dispatch_lock = asyncio.Lock()
+        self._cleanup_seconds = max(0.0, cleanup_seconds)
+        self._foreground_seconds = max(0.0, foreground_seconds)
         self._active_session_side_effect_task: asyncio.Task[object] | None = None
         self._active_settings_task: asyncio.Task[object] | None = None
         self._active_account_read_tasks: set[asyncio.Task[object]] = set()
@@ -368,41 +390,15 @@ class BackendController:
             raise UserVisibleRuntimeError(
                 "Anonymous crash reporting is disabled in this unofficial community build"
             )
-        if self._operation_lock.locked():
-            raise UserVisibleRuntimeError(
-                "Another VPN operation is already in progress"
-            )
-        async with self._serialized_operation():
-            self._publish(replace(self._snapshot, busy=True, message=""))
-            try:
-                async with self._serialized_settings_access():
-                    settings = await self._adapter.update_settings(patch)
-            except asyncio.CancelledError:
-                self._publish(replace(self._snapshot, busy=False))
-                raise
-            except UserVisibleError as error:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message=bounded_user_message(
-                            error, "The VPN settings could not be updated"
-                        ),
-                    )
-                )
-                raise
-            except Exception:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message="The VPN settings could not be updated",
-                    )
-                )
-                raise
-            self._publish(replace(self._snapshot, busy=False))
-        self._publish_settings(settings)
-        return settings.to_json()
+        async def update() -> str:
+            async with self._serialized_settings_access():
+                settings = await self._adapter.update_settings(patch)
+                self._publish_settings(settings)
+                return settings.to_json()
+
+        return await self._run_operation(
+            update, failure_message="The VPN settings could not be updated"
+        )
 
     async def get_split_tunneling_json(self) -> str:
         session_epoch = self._current_session_epoch()
@@ -415,46 +411,17 @@ class BackendController:
     async def update_split_tunneling_json(self, patch_json: str) -> str:
         self._require_session()
         patch = split_tunneling_patch_from_json(patch_json)
-        if self._operation_lock.locked():
-            raise UserVisibleRuntimeError(
-                "Another VPN operation is already in progress"
-            )
-        async with self._serialized_operation():
-            self._publish(replace(self._snapshot, busy=True, message=""))
-            try:
-                async with self._serialized_settings_access():
-                    split_tunneling = await self._adapter.update_split_tunneling(
-                        patch
-                    )
-                    settings = await self._adapter.get_settings()
-            except asyncio.CancelledError:
-                self._publish(replace(self._snapshot, busy=False))
-                raise
-            except UserVisibleError as error:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message=bounded_user_message(
-                            error,
-                            "The split-tunneling settings could not be updated",
-                        ),
-                    )
-                )
-                raise
-            except Exception:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message="The split-tunneling settings could not be updated",
-                    )
-                )
-                raise
-            self._publish(replace(self._snapshot, busy=False))
-        self._publish_split_tunneling(split_tunneling)
-        self._publish_settings(settings)
-        return split_tunneling.to_json()
+        async def update() -> str:
+            async with self._serialized_settings_access():
+                split_tunneling = await self._adapter.update_split_tunneling(patch)
+                settings = await self._adapter.get_settings()
+                self._publish_split_tunneling(split_tunneling)
+                self._publish_settings(settings)
+                return split_tunneling.to_json()
+
+        return await self._run_operation(
+            update, failure_message="The split-tunneling settings could not be updated"
+        )
 
     async def get_custom_dns_json(self) -> str:
         session_epoch = self._current_session_epoch()
@@ -467,43 +434,17 @@ class BackendController:
     async def update_custom_dns_json(self, patch_json: str) -> str:
         self._require_session()
         patch = custom_dns_patch_from_json(patch_json)
-        if self._operation_lock.locked():
-            raise UserVisibleRuntimeError(
-                "Another VPN operation is already in progress"
-            )
-        async with self._serialized_operation():
-            self._publish(replace(self._snapshot, busy=True, message=""))
-            try:
-                async with self._serialized_settings_access():
-                    custom_dns = await self._adapter.update_custom_dns(patch)
-                    settings = await self._adapter.get_settings()
-            except asyncio.CancelledError:
-                self._publish(replace(self._snapshot, busy=False))
-                raise
-            except UserVisibleError as error:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message=bounded_user_message(
-                            error, "The custom-DNS settings could not be updated"
-                        ),
-                    )
-                )
-                raise
-            except Exception:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message="The custom-DNS settings could not be updated",
-                    )
-                )
-                raise
-            self._publish(replace(self._snapshot, busy=False))
-        self._publish_custom_dns(custom_dns)
-        self._publish_settings(settings)
-        return custom_dns.to_json()
+        async def update() -> str:
+            async with self._serialized_settings_access():
+                custom_dns = await self._adapter.update_custom_dns(patch)
+                settings = await self._adapter.get_settings()
+                self._publish_custom_dns(custom_dns)
+                self._publish_settings(settings)
+                return custom_dns.to_json()
+
+        return await self._run_operation(
+            update, failure_message="The custom-DNS settings could not be updated"
+        )
 
     async def connect_country(self, country_code: str) -> None:
         self._require_session()
@@ -598,37 +539,13 @@ class BackendController:
             or "\r" in directory_path
         ):
             raise UserVisibleValueError("Select a valid packet-capture folder")
-        if self._operation_lock.locked():
-            raise UserVisibleRuntimeError(
-                "Another VPN operation is already in progress"
-            )
-        task = asyncio.current_task()
-        if task is None:
-            raise RuntimeError("Packet capture requires an asyncio task")
-        self._packet_capture_start_task = task
-        try:
-            await self._run_operation(
-                lambda: self._adapter.start_packet_capture(directory_path)
-            )
-        finally:
-            if self._packet_capture_start_task is task:
-                self._packet_capture_start_task = None
+        await self._run_operation(
+            lambda: self._adapter.start_packet_capture(directory_path),
+            operation_kind="capture-start",
+        )
 
     async def stop_packet_capture(self) -> None:
-        self._require_cleanup_ready()
-        session_epoch = self._session_epoch
-        start_task = self._packet_capture_start_task
-        if start_task is not None and start_task is not asyncio.current_task():
-            # Stopping capture is risk-reducing. Cancel an accepted Start first
-            # and wait for the adapter's cancellation compensation before the
-            # idempotent Stop obtains the normal mutation lock.
-            start_task.cancel()
-            await asyncio.gather(start_task, return_exceptions=True)
-        # Stop is risk-reducing cleanup. Queue it behind an unrelated mutation
-        # instead of rejecting it, but never apply it after account replacement.
-        async with self._serialized_operation():
-            self._require_unchanged_session(session_epoch)
-            await self._execute_operation(self._adapter.stop_packet_capture)
+        await self._run_cleanup("capture-stop")
 
     async def submit_support_report(
         self,
@@ -639,44 +556,18 @@ class BackendController:
     ) -> None:
         self._require_session()
         report = validate_support_report(username, email, description, include_logs)
-        if self._operation_lock.locked():
-            raise UserVisibleRuntimeError(
-                "Another VPN operation is already in progress"
-            )
-        async with self._serialized_operation():
-            self._publish(replace(self._snapshot, busy=True, message=""))
-            try:
-                await self._adapter.submit_support_report(report)
-            except asyncio.CancelledError:
-                self._publish(replace(self._snapshot, busy=False))
-                raise
-            except UserVisibleError as error:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message=bounded_user_message(
-                            error, "The issue report could not be submitted"
-                        ),
-                    )
-                )
-                raise
-            except Exception:
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=False,
-                        message="The issue report could not be submitted",
-                    )
-                )
-                raise
+        async def submit() -> None:
+            await self._adapter.submit_support_report(report)
             self._publish(
                 replace(
                     self._snapshot,
-                    busy=False,
                     message="Your issue has been reported",
                 )
             )
+
+        await self._run_operation(
+            submit, failure_message="The issue report could not be submitted"
+        )
 
     async def login(self, username: str, password: str) -> None:
         self._require_ready()
@@ -724,7 +615,7 @@ class BackendController:
             async with self._serialized_session_side_effect():
                 await self._adapter.begin_fido2()
 
-        await self._run_operation(serialized_fido2)
+        await self._run_operation(serialized_fido2, operation_kind="fido")
 
     async def submit_fido2_pin(self, pin: str) -> None:
         self._require_ready()
@@ -737,7 +628,10 @@ class BackendController:
         await self._adapter.cancel_fido2()
 
     async def logout(self) -> None:
-        self._require_ready()
+        if self._snapshot.auth_state in {"expired", "account_restart_required"}:
+            self._require_cleanup_ready()
+        else:
+            self._require_ready()
 
         async def serialized_logout() -> None:
             async with self._serialized_session_side_effect():
@@ -754,58 +648,147 @@ class BackendController:
     async def disconnect(self) -> None:
         # Disconnect is risk-reducing cleanup and remains available after an
         # account expiry strands an otherwise-live tunnel.
+        await self._run_cleanup("disconnect")
+
+    async def _run_cleanup(self, kind: CleanupKind) -> None:
+        """Accept one retained cleanup owner per kind, independent of callers."""
         self._require_cleanup_ready()
-        if self._operation_lock.locked():
-            if self._active_operation_kind != "connect":
-                raise UserVisibleRuntimeError(
-                    "Another VPN operation is already in progress"
-                )
-            # Admission follows semantic operation ownership, not a snapshot
-            # that may lag before Connect publishes its first state.
-            task = asyncio.current_task()
-            if task is None:
-                raise RuntimeError("Disconnect requires an asyncio task")
-            self._preemptive_disconnect_tasks.add(task)
-            self._publish(replace(self._snapshot, busy=True))
+        epoch = self._session_epoch
+        operation = self._cleanup_operations.get(kind)
+        if operation is None:
+            deadline = asyncio.get_running_loop().time() + self._cleanup_seconds
+            pending = self._execute_cleanup(
+                kind, epoch, self._active_operation_task,
+                self._active_operation_kind, self._packet_capture_start_task,
+                deadline,
+            )
             try:
-                await self._adapter.disconnect()
-            finally:
-                self._preemptive_disconnect_tasks.discard(task)
-                self._publish(
-                    replace(
-                        self._snapshot,
-                        busy=(
-                            self._operation_busy
-                            or bool(self._preemptive_disconnect_tasks)
-                        ),
-                    )
+                task = asyncio.create_task(pending)
+            except BaseException:
+                pending.close()
+                raise
+            operation = _CleanupOperation(epoch, deadline, task)
+            self._cleanup_operations[kind] = operation
+            task.add_done_callback(lambda finished: self._retire_cleanup(kind, finished))
+            self._publish(self._snapshot)
+        elif operation.session_epoch != epoch:
+            raise UserVisibleRuntimeError(
+                "Cleanup for the previous Proton session is still in progress"
+            )
+        # Cancelling one caller cannot cancel another caller's cleanup, drop
+        # Start compensation, or release admission while Core can still act.
+        await await_owned(operation.task)
+
+    def _retire_cleanup(self, kind: CleanupKind, task: asyncio.Task[None]) -> None:
+        # A task cancelled before its first execution cannot run a finally
+        # block. Its completion callback still owns registry retirement.
+        if not task.cancelled():
+            task.exception()
+        operation = self._cleanup_operations.get(kind)
+        if operation is not None and operation.task is task:
+            del self._cleanup_operations[kind]
+            self._publish(self._snapshot)
+
+    async def _execute_cleanup(
+        self,
+        kind: CleanupKind,
+        epoch: int,
+        foreground: asyncio.Task[None] | None,
+        foreground_kind: str | None,
+        capture_start: asyncio.Task[None] | None,
+        deadline: float,
+    ) -> None:
+        try:
+            # Publish ownership before any work, including under eager tasks.
+            await asyncio.sleep(0)
+            self._require_cleanup_time(deadline)
+            if capture_start is not None and not capture_start.done():
+                if not capture_start.cancelling():
+                    capture_start.cancel()
+                await self._wait_cleanup_dependency(capture_start, deadline)
+            if (kind == "disconnect" and foreground_kind != "connect"
+                    and foreground is not None and not foreground.done()):
+                # Core save_settings applies protection outside its event
+                # lock. Preserve that transaction; Down must not race it.
+                await self._wait_cleanup_dependency(foreground, deadline)
+            # Stop may bypass unrelated foreground work, but final Stop and
+            # Down calls serialize because both can touch the same connection.
+            async with self._cleanup_dispatch(deadline):
+                self._require_unchanged_session(epoch)
+                if kind == "disconnect":
+                    await self._adapter.disconnect(deadline=deadline)
+                else:
+                    await self._adapter.stop_packet_capture(deadline=deadline)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            # Foreground transactions retain their own result/message. Native
+            # capture completion already has a separate error channel.
+            if self._active_operation_task is None and epoch == self._session_epoch:
+                message = (
+                    bounded_user_message(error, "The VPN cleanup could not be completed")
+                    if isinstance(error, UserVisibleError)
+                    else "The VPN cleanup could not be completed"
                 )
-            return
-        await self._run_operation(self._adapter.disconnect)
+                self._publish(replace(self._snapshot, message=message))
+            raise
+
+    @staticmethod
+    def _require_cleanup_time(deadline: float) -> None:
+        if asyncio.get_running_loop().time() >= deadline:
+            raise CleanupAdmissionExpired()
+
+    async def _wait_cleanup_dependency(self, task: asyncio.Task, deadline: float) -> None:
+        self._require_cleanup_time(deadline)
+        _, pending = await asyncio.wait(
+            {task}, timeout=max(0.0, deadline - asyncio.get_running_loop().time())
+        )
+        if pending:
+            # Expiry withdraws this request, not the earlier owner's work.
+            raise CleanupAdmissionExpired()
+
+    @asynccontextmanager
+    async def _cleanup_dispatch(self, deadline: float) -> AsyncIterator[None]:
+        try:
+            await self._acquire_before_deadline(self._cleanup_dispatch_lock, deadline)
+        except TimeoutError:
+            raise CleanupAdmissionExpired() from None
+        try:
+            self._require_cleanup_time(deadline)
+            yield
+        finally:
+            self._cleanup_dispatch_lock.release()
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
         # Preference updates arrive from both desktop processes. Serialize them
         # with logout/session expiry so a late update cannot re-enable the live
         # reconnector after the account has been signed out.
-        async with self._serialized_operation():
-            if self._closing:
-                return
-            await self._adapter.set_reconnection_enabled(enabled)
+        await self._run_operation(
+            lambda: self._adapter.set_reconnection_enabled(enabled),
+            operation_kind="preference",
+        )
 
-    async def close(self) -> None:
+    async def close(self, *, deadline: float | None = None) -> None:
         """Join one authoritative shutdown, preserving its terminal outcome."""
         self._closing = True
         if self._close_task is None:
-            self._close_task = asyncio.create_task(self._close_once())
-        await asyncio.shield(self._close_task)
+            if deadline is None:
+                # Standalone callers retain the existing total allowance. The
+                # service supplies its already-running absolute deadline.
+                capture = self._packet_capture_start_task
+                seconds = self._shutdown_drain_seconds
+                if capture is not None and not capture.done():
+                    seconds += self._packet_capture_shutdown_seconds
+                deadline = asyncio.get_running_loop().time() + seconds
+            self._close_task = asyncio.create_task(self._close_once(deadline))
+        await await_owned(self._close_task)
 
-    async def _close_once(self) -> None:
-        # The D-Bus object is unexported before this runs, so acquiring the
-        # mutation lock first drains the accepted VPN operation, then settings
-        # and session-side-effect locks drain independent accepted reads/survey
-        # work. A stuck task is cancelled only after a bounded grace period;
-        # adapter transactions perform their own cancellation-safe state repair
-        # before unwinding.
+    async def _close_once(self, deadline: float) -> None:
+        # The D-Bus object is unexported before this runs. Drain accepted
+        # foreground and cleanup owners, then acquire the read/side-effect
+        # locks before closing Core. Ordinary work may be cancelled after a
+        # grace period; mandatory cleanup retains ownership until completion
+        # or an explicit shutdown failure.
         current_task = asyncio.current_task()
         capture_task = self._packet_capture_start_task
         if (
@@ -817,7 +800,7 @@ class BackendController:
             # three bounded Core stop attempts. Cancel it immediately and give
             # that safety protocol its explicit worst-case budget before the
             # ordinary mutation drain begins.
-            capture_deadline = (
+            capture_deadline = min(deadline,
                 asyncio.get_running_loop().time()
                 + self._packet_capture_shutdown_seconds
             )
@@ -828,17 +811,15 @@ class BackendController:
         accepted_tasks = {
             task
             for task in (
-                *self._preemptive_disconnect_tasks,
+                *(operation.task for operation in self._cleanup_operations.values()),
                 self._active_operation_task,
                 self._active_settings_task,
                 self._active_session_side_effect_task,
                 *self._active_account_read_tasks,
             )
-            if task is not None and task is not current_task and not task.done()
+            if task is not None and task is not current_task
+            and task is not self._operation_child and not task.done()
         }
-        deadline = (
-            asyncio.get_running_loop().time() + self._shutdown_drain_seconds
-        )
         await self._drain_accepted_tasks(accepted_tasks, deadline)
 
         acquired_locks: list[asyncio.Lock] = []
@@ -861,7 +842,8 @@ class BackendController:
         deadline: float,
     ) -> None:
         for task in tasks:
-            task.cancel()
+            if not task.cancelling():
+                task.cancel()
         remaining = max(
             0.0, deadline - asyncio.get_running_loop().time()
         )
@@ -883,9 +865,12 @@ class BackendController:
             return
         loop = asyncio.get_running_loop()
         remaining = max(0.0, deadline - loop.time())
-        _, pending = await asyncio.wait(tasks, timeout=remaining / 2)
-        for task in pending:
-            task.cancel()
+        grace = min(remaining / 2, self._shutdown_drain_seconds / 2)
+        _, pending = await asyncio.wait(tasks, timeout=grace)
+        cleanup_tasks = {operation.task for operation in self._cleanup_operations.values()}
+        for task in pending - cleanup_tasks:
+            if not task.cancelling():
+                task.cancel()
         if pending:
             remaining = max(0.0, deadline - loop.time())
             if remaining:
@@ -898,7 +883,11 @@ class BackendController:
     async def _close_adapter_before_deadline(self, deadline: float) -> None:
         """Bound final provider teardown without detaching it silently."""
         if self._adapter_close_task is None:
-            self._adapter_close_task = asyncio.create_task(self._adapter.close())
+            if asyncio.get_running_loop().time() >= deadline:
+                raise TimeoutError("Proton Core teardown outlived the shutdown deadline")
+            self._adapter_close_task = asyncio.create_task(
+                self._adapter.close(deadline=deadline)
+            )
         close_task = self._adapter_close_task
         remaining = max(
             0.0, deadline - asyncio.get_running_loop().time()
@@ -1001,99 +990,144 @@ class BackendController:
 
     async def _run_operation(
         self,
-        operation: Callable[[], Awaitable[None]],
+        operation: Callable[[], Awaitable[OperationResult]],
         *,
         operation_kind: str = "mutation",
-    ) -> None:
-        if self._operation_lock.locked():
+        failure_message: str = "The VPN operation could not be completed",
+    ) -> OperationResult:
+        if self._operation_lock.locked() and operation_kind != "preference":
             raise UserVisibleRuntimeError(
                 "Another VPN operation is already in progress"
             )
 
         async with self._serialized_operation(operation_kind):
-            await self._execute_operation(operation)
+            pending = self._execute_operation(operation, failure_message)
+            try:
+                task = asyncio.create_task(pending)
+            except BaseException:
+                pending.close()
+                raise
+            # Join the complete transaction, including state publication and
+            # compensation. Cancelling an auth/save waiter must not detach a
+            # Core executor or skip reconciliation after a committed result.
+            # Connect, capture Start and FIDO have explicit cancellation cleanup.
+            self._operation_child = task
+            def cancel_child() -> None:
+                task.cancel()
 
-    async def _execute_operation(
-        self, operation: Callable[[], Awaitable[None]]
-    ) -> None:
-        """Run one operation while the caller owns the serialization lock."""
-        self._operation_busy = True
-        self._publish(replace(self._snapshot, busy=True, message=""))
-        try:
-            await operation()
-        except asyncio.CancelledError:
-            self._operation_busy = False
-            self._publish(
-                replace(
-                    self._snapshot,
-                    busy=bool(self._preemptive_disconnect_tasks),
-                )
-            )
-            raise
-        except UserVisibleError as error:
-            self._operation_busy = False
-            self._publish(
-                replace(
-                    self._snapshot,
-                    busy=bool(self._preemptive_disconnect_tasks),
-                    message=bounded_user_message(
-                        error, "The VPN operation could not be completed"
+            try:
+                return await await_owned(
+                    task,
+                    cancel_operation=(
+                        cancel_child if operation_kind in {"connect", "capture-start", "fido"} else None
                     ),
                 )
-            )
+            finally:
+                self._operation_child = None
+
+    async def _execute_operation(
+        self,
+        operation: Callable[[], Awaitable[OperationResult]],
+        failure_message: str,
+    ) -> OperationResult:
+        """The surrounding serialization scope owns busy through completion."""
+        self._publish(replace(self._snapshot, message=""))
+        try:
+            return await operation()
+        except UserVisibleError as error:
+            self._publish(replace(
+                self._snapshot,
+                message=bounded_user_message(
+                    error, failure_message
+                ),
+            ))
             raise
         except Exception:
-            self._operation_busy = False
-            self._publish(
-                replace(
-                    self._snapshot,
-                    busy=bool(self._preemptive_disconnect_tasks),
-                    message="The VPN operation could not be completed",
-                )
-            )
+            self._publish(replace(
+                self._snapshot, message=failure_message
+            ))
             raise
-        else:
-            self._operation_busy = False
-            self._publish(
-                replace(
-                    self._snapshot,
-                    busy=bool(self._preemptive_disconnect_tasks),
-                )
-            )
 
     @asynccontextmanager
     async def _serialized_operation(
         self, operation_kind: str = "mutation"
     ) -> AsyncIterator[None]:
-        await self._wait_for_preemptive_disconnects()
-        async with self._operation_lock:
+        epoch = self._session_epoch
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._foreground_seconds
+        try:
+            # No mutation has been dispatched here: expiry can withdraw just
+            # this request without cancelling an existing cleanup owner.
+            async with asyncio.timeout_at(deadline):
+                while True:
+                    await self._wait_for_cleanup()
+                    await self._operation_lock.acquire()
+                    if not self._cleanup_operations:
+                        break
+                    self._operation_lock.release()
+        except TimeoutError:
+            raise UserVisibleRuntimeError(
+                "The VPN operation expired before it could start"
+            ) from None
+        try:
+            if loop.time() >= deadline:
+                raise UserVisibleRuntimeError(
+                    "The VPN operation expired before it could start"
+                )
             if self._closing:
                 raise UserVisibleRuntimeError(
                     "The Proton backend is shutting down"
                 )
+            self._require_unchanged_session(epoch)
             task = asyncio.current_task()
             self._active_operation_task = task
             self._active_operation_kind = operation_kind
+            if operation_kind == "capture-start":
+                self._packet_capture_start_task = task
+            expired = False
+
+            def expire() -> None:
+                nonlocal expired
+                if expired:
+                    return
+                expired = True
+                self._closing = True
+                self._publish(replace(
+                    self._snapshot, ready=False,
+                    message="The VPN operation could not be confirmed; the backend must restart",
+                ))
+                self._adapter.retire_unconfirmed_operation()
+
+            # A cancellation timer cannot stop Core executor work. Keep one
+            # process deadline armed through the owned transaction and all
+            # recovery. Inner stage caps cannot extend this lifetime budget.
+            watchdog = loop.call_at(deadline, expire)
             try:
+                self._publish(self._snapshot)
                 yield
             finally:
+                watchdog.cancel()
+                # Also catch synchronous work that returned after the deadline
+                # before the event loop could deliver the watchdog callback.
+                if loop.time() >= deadline:
+                    expire()
+                if self._packet_capture_start_task is task:
+                    self._packet_capture_start_task = None
                 if self._active_operation_task is task:
                     self._active_operation_task = None
                     self._active_operation_kind = None
+                    self._publish(self._snapshot)
+            if expired:
+                # Only reachable with a substituted exit hook in tests.
+                raise UserVisibleRuntimeError("The backend must restart")
+        finally:
+            self._operation_lock.release()
 
-    async def _wait_for_preemptive_disconnects(self) -> None:
-        current_task = asyncio.current_task()
-        while True:
-            active = tuple(
-                task
-                for task in self._preemptive_disconnect_tasks
-                if task is not current_task and not task.done()
-            )
-            if not active:
-                return
-            await asyncio.shield(
-                asyncio.gather(*active, return_exceptions=True)
-            )
+    async def _wait_for_cleanup(self) -> None:
+        while self._cleanup_operations:
+            await asyncio.wait({
+                operation.task for operation in self._cleanup_operations.values()
+            })
 
     @asynccontextmanager
     async def _accepted_account_read(self) -> AsyncIterator[None]:
@@ -1142,7 +1176,7 @@ class BackendController:
     def _on_adapter_snapshot(self, snapshot: VpnSnapshot) -> None:
         if snapshot.logged_in != self._snapshot.logged_in:
             self._session_epoch += 1
-        self._publish(replace(snapshot, busy=self._snapshot.busy))
+        self._publish(snapshot)
 
     def _on_adapter_server_data(self, topology_changed: bool) -> None:
         for listener in tuple(self._server_data_listeners):
@@ -1161,6 +1195,11 @@ class BackendController:
             listener(settings)
 
     def _publish(self, snapshot: VpnSnapshot) -> None:
+        # One projection of live ownership: no completion may clear another
+        # foreground transaction or cleanup owner's busy state.
+        busy = self._active_operation_task is not None or bool(self._cleanup_operations)
+        if snapshot.busy != busy:
+            snapshot = replace(snapshot, busy=busy)
         if snapshot == self._snapshot:
             return
         self._snapshot = snapshot

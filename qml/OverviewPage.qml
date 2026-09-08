@@ -133,11 +133,9 @@ Kirigami.ScrollablePage {
             protocolName: page.protocolLabel()
             forwardedPort: vpnController.forwardedPort
             portCopied: page.portCopied
-            primaryText: vpnController.busy ? qsTr("Working…")
-                                            : vpnController.primaryActionText
-            primaryIcon: page.connected
-                         || vpnController.state === "connecting"
-                         || vpnController.state === "error"
+            primaryText: vpnController.busy && !vpnController.primaryActionEnabled
+                         ? qsTr("Working…") : vpnController.primaryActionText
+            primaryIcon: vpnController.primaryActionDisconnects
                          ? "network-disconnect" : "network-connect"
             primaryEnabled: vpnController.primaryActionEnabled
             secureCore: vpnController.secureCore
@@ -145,13 +143,7 @@ Kirigami.ScrollablePage {
             p2p: vpnController.p2p
             streaming: vpnController.streaming
             smartRouting: vpnController.smartRouting
-            onPrimaryActionRequested: {
-                const disconnecting = page.connected
-                    || vpnController.state === "connecting"
-                    || vpnController.state === "disconnecting"
-                    || vpnController.state === "error"
-                vpnController.activatePrimaryAction()
-            }
+            onPrimaryActionRequested: vpnController.activatePrimaryAction()
             onSignInRequested: applicationWindow().showSignIn()
             onNavigateRequested: destination => {
                 applicationWindow().openOverviewDestination(destination)

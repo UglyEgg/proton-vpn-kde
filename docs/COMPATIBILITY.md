@@ -11,7 +11,7 @@ The source build requires:
 - CMake 3.24 or newer;
 - Qt 6.8 or newer;
 - KDE Frameworks 6;
-- Python 3.11 or newer;
+- Python 3.11 or newer, built with Linux `os.pidfd_open` support for account recovery;
 - OpenSSL 3;
 - `cryptography` 45.0.1 or newer;
 - `dbus-fast` 2.20 or newer.
@@ -27,7 +27,7 @@ The supported Fedora package installs both Plasma and project executables below
 prefix; non-`/usr` custom-prefix layouts are not currently an accepted runtime
 configuration.
 
-CI runs all 318 isolated backend tests under Python 3.11 with the exact minimum
+CI runs the isolated backend suite under Python 3.11 with the exact minimum
 `cryptography` 45.0.1 and `dbus-fast` 2.20.0 wheels. A separate source-level
 contract check downloads and extracts Proton's SHA-256-pinned Fedora 44 API
 Core 5.5.6 RPM, then verifies every public class, method, property, and exported
@@ -36,9 +36,41 @@ or touch networking and must not be interpreted as the behavioral runtime
 under test. The overlay verifier imports the pinned 5.6.10 payload and exercises
 its queued-target state machine: the newest Up replaces an older queued target,
 Down while Disconnecting retains it, and the old tunnel's late Disconnected
-event promotes it. This current-Core contract is what drives the adapter's
-stable-disconnect regression tests. A future Core change fails that verifier so
-the workaround must be reviewed instead of carried forward by assumption.
+event promotes it. This is a provider-semantics oracle, not a combined
+adapter/provider conformance test. The 2026-09-07
+[error-class review](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review)
+found an intermediate state missing from the adapter's fake-driven regression.
+The working-tree refactor adds an opt-in combined adapter/Core conformance
+harness for the unmodified, SHA-256-checked 5.6.10 connector, state, scheduler
+and refresher callback-forwarding modules:
+
+```sh
+PYTHONPATH=backend:backend/tests \
+PLASMA_VPN_TEST_CORE_SITE_PACKAGES=/usr/lib64/python3.14/site-packages \
+python3 -m unittest -v test_core_lifecycle_conformance
+```
+
+It constructs neither the live API nor NetworkManager, and substitutes all
+external I/O. It checks paused teardown, queued promotion with stale connection
+identity, preservation of established tunnels, and authentication/non-authentication
+failures dispatched by the actual scheduler. Its five cases skip unless
+the fixture is explicitly selected; they currently supplement local validation
+and are not a silently assumed CI pass. A changed provider hash requires
+contract review. Core 5.5.6 static lint establishes neither runtime support nor
+cancellation/event-order behavior. Installed lifecycle acceptance remains open.
+The static public-API check also requires `set_error_callback`; the runtime
+implementation does not read or manipulate Core's private scheduler.
+
+Account replacement now depends on the packaged systemd user service, Linux
+pidfds and Python's `os.pidfd_open` API: the new backend confirms
+outgoing-process death before consuming its
+non-secret runtime handoff. Manual overlapping startup is refused. Failed
+cleanup retains recovery state and cannot expose a replacement login form.
+No Core networking, protocol or session-persistence patch is added for this.
+Some standalone Python builds omit that API even when the kernel supports it.
+They report a blocked-recovery diagnostic instead of assuming process death.
+The local minimum-version Python build exercises that refusal and skips the
+real pidfd test; the installed Fedora Python exercises actual process exit.
 
 KeePassXC acceptance also depends on the downstream
 `python3-proton-keyring-linux` capability identified below. It contains the
