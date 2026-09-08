@@ -1,5 +1,11 @@
 # Backend service hardening
 
+Current review limitation: repository-package switching uses a direct `pkexec`
+child, while the systemd-launched Control Center has `NoNewPrivileges=true`.
+That launch path needs installed acceptance testing. This is a functionality/
+launch-policy question, not a validated privilege escalation; the review did
+not weaken the hardening policy.
+
 The installed backend is an unprivileged, D-Bus-activated systemd user service.
 Its sandbox must protect the process without moving VPN networking, session
 storage, or privileged split tunneling out of Proton's official components.

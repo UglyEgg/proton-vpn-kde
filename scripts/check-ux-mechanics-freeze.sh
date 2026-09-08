@@ -113,6 +113,8 @@ while IFS= read -r path; do
         src/AgentVpnClient.cpp|src/AgentVpnClient.h|src/TrayIntegration.cpp|\
         src/BackendCallPolicy.h|src/BackgroundQuitCoordinator.cpp|\
         src/ConnectionAction.h|src/OperationCompletion.h|src/ShortcutIntegration.cpp|\
+        src/SettingsRequestState.h|src/VpnSettingsModel.cpp|\
+        src/SplitTunnelingModel.cpp|src/CustomDnsModel.cpp|\
         src/VpnConnectionController.h|\
         src/DbusContract.h|\
         src/VpnController.cpp|src/VpnController.h|\
@@ -123,8 +125,10 @@ while IFS= read -r path; do
         tests/AgentVpnClientTest.cpp|tests/GroupedNavigationTest.cpp|\
         tests/BackendCallPolicyTest.cpp|tests/BackgroundQuitCoordinatorTest.cpp|\
         tests/ConnectionActionTest.cpp|\
+        tests/VpnSettingsModelTest.cpp|tests/SplitTunnelingModelTest.cpp|\
+        tests/CustomDnsModelTest.cpp|\
         tests/SignInPresentationTest.cpp)
-            # Exact reviewed deltas are checked below.
+            # Exact candidate deltas are checked below; this is not approval.
             ;;
         scripts/auth-dbus-client.py|scripts/capture-qml-page.sh|\
         scripts/check-qml-ui-hygiene.sh|scripts/check-qml-visual-matrix.sh|\
@@ -159,7 +163,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "65c8e5ccbf8c3384cac60c28d9a19e036e86aef0f50a08a2ed15a7b2c1d0bbb2" \
+    "994f228f1c938f396957ce7f523c4250d78480a6e0d18e46f625c500ff116487" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
@@ -186,11 +190,11 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "e418c13ea27eb33037e3e5bb10e6b0065edd8b19a16d3fdf8226b0c673d60c64" \
+    "4eaab798e69f25fa6deedd39885fd0442e1745ec5d3d708809bbcc1b644e2bef" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "a2319e5d44bb424040119977ec9ddaa521b30ea56b7fd469fc984d4a47f0aa59" \
+    "3aa851dc2bcb63d775296f1f7f9ed766e1d4c9f0416e7619762ea1e0445014c0" \
     "QML presentation" qml
 
 echo "0.13 change boundary matches baseline $baseline_commit plus recorded candidate deltas (not review approval)"

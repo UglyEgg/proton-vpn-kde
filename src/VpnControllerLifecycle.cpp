@@ -35,7 +35,7 @@ void VpnController::restartBackend()
         return;
     }
     if (m_backendAvailable && ready() && m_authState == QStringLiteral("expired")) {
-        if (m_busy) {
+        if (busy()) {
             return;
         }
         // Explicit sign-in recovery retires the old tunnel/account first.
@@ -189,6 +189,7 @@ void VpnController::onServiceUnregistered(const QString &)
     m_fido2Available = false;
     m_killSwitch = 0;
     m_busy = false;
+    m_foregroundReconciliation.reset();
     const bool wasLocationsBusy = locationsBusy();
     const bool hadBrowserErrors = !m_countriesError.isEmpty()
         || !m_locationSearchError.isEmpty()
@@ -234,6 +235,7 @@ void VpnController::onServiceUnregistered(const QString &)
     m_locationSearchQuery.clear();
     ++m_locationSearchGeneration;
     m_locationSearchBusy = false;
+    m_locationSearchRequestPending = false;
     m_countriesError.clear();
     m_locationSearchError.clear();
     m_serverGroupsError.clear();
@@ -248,6 +250,9 @@ void VpnController::onServiceUnregistered(const QString &)
         false);
     emit npsSurveyChanged();
     m_settings->reset(tr("The Proton backend service stopped"));
+    m_settingsRequest.invalidate();
+    m_splitTunnelingRequest.invalidate();
+    m_customDnsRequest.invalidate();
     m_splitTunneling->reset(tr("The Proton backend service stopped"));
     m_customDns->reset(tr("The Proton backend service stopped"));
     if (wasLocationsBusy != locationsBusy() || hadBrowserErrors) {

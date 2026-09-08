@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "VpnSettingsModel.h"
+#include "SettingsRequestState.h"
 
 #include <QSignalSpy>
 #include <QtTest>
@@ -37,8 +38,50 @@ class VpnSettingsModelTest final : public QObject
 
 private slots:
     void appliesVersionedSettingsAtomically();
+    void dataReceiptPreservesRequestOwnership();
+    void requestStateRetainsUnknownWritesUntilReadback();
     void rejectsInvalidPayloadWithoutReplacingCurrentState();
 };
+
+void VpnSettingsModelTest::requestStateRetainsUnknownWritesUntilReadback()
+{
+    ProtonVpnKde::SettingsRequestState request;
+    QVERIFY(request.canRead());
+    const auto oldRead = request.beginRead();
+    request.invalidate();
+    const auto write = request.beginWrite();
+    request.complete(oldRead, true, false);
+    QVERIFY(request.busy());
+    request.complete(write, false, true);
+    QVERIFY(request.needsRead());
+    QVERIFY(request.canRead());
+    const auto failedRead = request.beginRead();
+    QVERIFY(!request.canRead());
+    request.complete(failedRead, false, false);
+    QVERIFY(request.needsRead());
+    const auto readback = request.beginRead();
+    request.complete(write, true, false);
+    QVERIFY(request.busy());
+    request.complete(readback, true, false);
+    QVERIFY(!request.busy());
+    const auto rejectedWrite = request.beginWrite();
+    request.complete(rejectedWrite, false, false);
+    QVERIFY(!request.busy());
+}
+
+void VpnSettingsModelTest::dataReceiptPreservesRequestOwnership()
+{
+    VpnSettingsModel model;
+    model.setBusy(true);
+    model.setMessage(QStringLiteral("The current request is still completing"));
+    QVERIFY(model.applyJson(QString::fromUtf8(kValidSettings)));
+    QVERIFY(model.busy());
+    QCOMPARE(model.message(), QStringLiteral("The current request is still completing"));
+    QVERIFY(!model.applyJson(QStringLiteral("{}")));
+    QVERIFY(model.busy());
+    model.reset();
+    QVERIFY(!model.busy());
+}
 
 void VpnSettingsModelTest::appliesVersionedSettingsAtomically()
 {

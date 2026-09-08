@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch as mock_patch
 from proton_vpn_kde_backend.adapters import DemoCoreAdapter
 from proton_vpn_kde_backend.controller import (
     BackendController,
+    MAX_ACCOUNT_READS,
     NpsSurveyResponse,
     VpnSnapshot,
     custom_dns_patch_from_json,
@@ -1893,6 +1894,98 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         await settings_read
         await close_task
         self.assertEqual(1, adapter.close_calls)
+
+    async def test_account_read_bound_survives_cancelled_waiters(self):
+        cases = (
+            ("get_countries", "get_countries_json", ()),
+            ("get_server_groups", "get_server_groups_json", ("CH",)),
+            ("get_group_servers", "get_group_servers_json", ("CH", "location", "Zurich")),
+            ("get_server_loads", "get_server_loads_json", ("CH",)),
+            ("search_locations", "search_locations_json", ("Zurich",)),
+        )
+        for provider_method, method, arguments in cases:
+            with self.subTest(method=method):
+                adapter = DemoCoreAdapter()
+                controller = BackendController(adapter)
+                await controller.start()
+                release, all_started, cancelled = asyncio.Event(), asyncio.Event(), asyncio.Event()
+                calls = []
+
+                async def blocked_read(*args, release=release, all_started=all_started,
+                                       cancelled=cancelled, calls=calls):
+                    calls.append(args)
+                    if len(calls) == MAX_ACCOUNT_READS:
+                        all_started.set()
+                    try:
+                        await release.wait()
+                    except asyncio.CancelledError:
+                        cancelled.set()
+                        await release.wait()
+                    return []
+
+                requests = []
+                with mock_patch.object(adapter, provider_method, blocked_read):
+                    try:
+                        requests = [asyncio.create_task(getattr(controller, method)(*arguments))
+                                    for _ in range(MAX_ACCOUNT_READS)]
+                        await asyncio.wait_for(all_started.wait(), 1)
+                        requests[0].cancel()
+                        await asyncio.wait_for(cancelled.wait(), 1)
+                        requests[0].cancel()
+                        await asyncio.sleep(0)
+                        self.assertEqual(MAX_ACCOUNT_READS, len(controller._active_account_read_tasks))
+                        rejected = asyncio.create_task(getattr(controller, method)(*arguments))
+                        requests.append(rejected)
+                        await asyncio.sleep(0)
+                        self.assertTrue(rejected.done())
+                        with self.assertRaisesRegex(RuntimeError, "browsing is still busy"):
+                            await rejected
+                        self.assertEqual(MAX_ACCOUNT_READS, len(calls))
+                    finally:
+                        release.set()
+                        await asyncio.gather(*requests, return_exceptions=True)
+                        await controller.close()
+                self.assertFalse(controller._active_account_read_tasks)
+                self.assertTrue(requests[0].cancelled())
+
+    async def test_account_read_bound_includes_queued_settings_reads(self):
+        for method in ("get_settings", "get_split_tunneling", "get_custom_dns"):
+            with self.subTest(method=method):
+                adapter = DemoCoreAdapter()
+                controller = BackendController(adapter)
+                await controller.start()
+                original = getattr(adapter, method)
+                release, entered = asyncio.Event(), asyncio.Event()
+                calls = []
+
+                async def blocked_read(original=original, release=release,
+                                       entered=entered, calls=calls):
+                    calls.append(True)
+                    entered.set()
+                    await release.wait()
+                    return await original()
+
+                requests = []
+                with mock_patch.object(adapter, method, blocked_read):
+                    try:
+                        requests = [asyncio.create_task(getattr(controller, method + "_json")())
+                                    for _ in range(MAX_ACCOUNT_READS)]
+                        await asyncio.wait_for(entered.wait(), 1)
+                        self.assertEqual(MAX_ACCOUNT_READS, len(controller._active_account_read_tasks))
+                        self.assertEqual(1, len(calls))
+                        with self.assertRaisesRegex(RuntimeError, "browsing is still busy"):
+                            await getattr(controller, method + "_json")()
+                        # A request still waiting for the settings lock can
+                        # withdraw without releasing the running provider's slot.
+                        requests[-1].cancel()
+                        await asyncio.gather(requests[-1], return_exceptions=True)
+                        self.assertEqual(MAX_ACCOUNT_READS - 1,
+                                         len(controller._active_account_read_tasks))
+                    finally:
+                        release.set()
+                        await asyncio.gather(*requests, return_exceptions=True)
+                        await controller.close()
+                self.assertFalse(controller._active_account_read_tasks)
 
     async def test_close_drains_every_concurrent_account_read_class(self):
         cases = (

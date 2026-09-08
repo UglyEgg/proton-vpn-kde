@@ -19,6 +19,7 @@ import test_proton_core_adapter as adapter_tests
 from proton_vpn_kde_backend import account_transition
 from proton_vpn_kde_backend.account_transition import AccountTransitionJournal
 from proton_vpn_kde_backend.adapters import ProtonCoreAdapter
+from proton_vpn_kde_backend.controller import BackendController
 
 
 class AccountJournalTests(unittest.TestCase):
@@ -120,6 +121,48 @@ class AccountHandoffTests(unittest.IsolatedAsyncioTestCase):
             await self.adapter(api).initialize(Mock())
         api.login.assert_not_awaited()
         self.assertEqual("Disconnected", type(connector.current_state).__name__)
+
+    async def test_early_logout_failures_publish_the_retained_recovery_fence(self):
+        for failure in ("replace", "directory sync", "settings read"):
+            with self.subTest(failure=failure):
+                self.path.unlink(missing_ok=True)
+                api, connector = self.make_api()
+                adapter = self.adapter(api)
+                controller = BackendController(adapter)
+                self.assertTrue(await controller.start())
+                await adapter.set_reconnection_enabled(False)
+                try:
+                    if failure == "settings read":
+                        api.load_settings.side_effect = RuntimeError("unavailable")
+                        with self.assertRaises(RuntimeError):
+                            await controller.logout()
+                    else:
+                        target, method = (
+                            (account_transition.os, "replace")
+                            if failure == "replace"
+                            else (adapter._account_transition, "_sync_parent")
+                        )
+                        with patch.object(target, method, side_effect=OSError):
+                            with self.assertRaisesRegex(RuntimeError, "recorded safely"):
+                                await controller.logout()
+
+                    self.assertTrue(adapter._account_restart_required)
+                    self.assertEqual("account_restart_required", controller.snapshot.auth_state)
+                    self.assertFalse(controller.snapshot.logged_in)
+                    self.assertFalse(controller.snapshot.busy)
+                    self.assertTrue(controller.snapshot.ready)
+                    api.logout.assert_not_awaited()
+                    with self.assertRaisesRegex(RuntimeError, "restart the backend"):
+                        await adapter.login("another-account", "unused")
+                    api.login.assert_not_awaited()
+                    self.assertEqual("Disconnected", type(connector.current_state).__name__)
+                    if failure != "replace":
+                        # In particular, fsync failure must not erase a record
+                        # that was already atomically replaced.
+                        self.assertFalse(self.journal.load().tunnel_retired)
+                finally:
+                    api.load_settings.side_effect = None
+                    await controller.close()
 
     async def test_fresh_process_clears_late_restored_session_before_login(self):
         self.inherited_record()

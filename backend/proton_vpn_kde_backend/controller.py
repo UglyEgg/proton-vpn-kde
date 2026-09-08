@@ -105,6 +105,9 @@ RECOVERY_REQUIRED_MESSAGE = (
     "Restart the Proton backend and review VPN settings before continuing"
 )
 FOREGROUND_OPERATION_SECONDS = 180.0
+# Enough for browsing and settings projections to overlap, without an unbounded
+# queue when Core's shared server lookup is blocked. This is not a user knob.
+MAX_ACCOUNT_READS = 8
 OperationResult = TypeVar("OperationResult")
 
 class CoreAdapter(Protocol):
@@ -298,7 +301,7 @@ class BackendController:
     async def get_countries_json(self) -> str:
         async with self._accepted_account_read():
             session_epoch = self._current_session_epoch()
-            countries = await self._adapter.get_countries()
+            countries = await self._read_account_data(self._adapter.get_countries())
             self._require_current_session(session_epoch)
         return location_list_to_json("countries", countries)
 
@@ -306,7 +309,9 @@ class BackendController:
         async with self._accepted_account_read():
             session_epoch = self._current_session_epoch()
             normalized_code = self._validate_country_code(country_code)
-            groups = await self._adapter.get_server_groups(normalized_code)
+            groups = await self._read_account_data(
+                self._adapter.get_server_groups(normalized_code)
+            )
             self._require_current_session(session_epoch)
         return location_list_to_json("groups", groups)
 
@@ -319,8 +324,10 @@ class BackendController:
             normalized_kind, normalized_name = self._validate_server_group(
                 group_kind, group_name
             )
-            servers = await self._adapter.get_group_servers(
-                normalized_code, normalized_kind, normalized_name
+            servers = await self._read_account_data(
+                self._adapter.get_group_servers(
+                    normalized_code, normalized_kind, normalized_name
+                )
             )
             self._require_current_session(session_epoch)
         return location_list_to_json(
@@ -332,7 +339,9 @@ class BackendController:
         async with self._accepted_account_read():
             session_epoch = self._current_session_epoch()
             normalized_code = self._validate_country_code(country_code)
-            loads = await self._adapter.get_server_loads(normalized_code)
+            loads = await self._read_account_data(
+                self._adapter.get_server_loads(normalized_code)
+            )
             self._require_current_session(session_epoch)
         return location_list_to_json("loads", loads)
 
@@ -346,15 +355,17 @@ class BackendController:
                 or "\0" in normalized_query
             ):
                 raise UserVisibleValueError("Enter a valid location search")
-            results = await self._adapter.search_locations(normalized_query)
+            results = await self._read_account_data(
+                self._adapter.search_locations(normalized_query)
+            )
             self._require_current_session(session_epoch)
         return location_list_to_json("results", results)
 
     async def get_settings_json(self) -> str:
         session_epoch = self._current_session_epoch()
-        async with self._serialized_settings_access():
+        async with self._accepted_account_read(), self._serialized_settings_access():
             self._require_current_session(session_epoch)
-            settings = await self._adapter.get_settings()
+            settings = await self._read_account_data(self._adapter.get_settings())
             self._require_current_session(session_epoch)
         return settings.to_json()
 
@@ -402,9 +413,9 @@ class BackendController:
 
     async def get_split_tunneling_json(self) -> str:
         session_epoch = self._current_session_epoch()
-        async with self._serialized_settings_access():
+        async with self._accepted_account_read(), self._serialized_settings_access():
             self._require_current_session(session_epoch)
-            settings = await self._adapter.get_split_tunneling()
+            settings = await self._read_account_data(self._adapter.get_split_tunneling())
             self._require_current_session(session_epoch)
         return settings.to_json()
 
@@ -425,9 +436,9 @@ class BackendController:
 
     async def get_custom_dns_json(self) -> str:
         session_epoch = self._current_session_epoch()
-        async with self._serialized_settings_access():
+        async with self._accepted_account_read(), self._serialized_settings_access():
             self._require_current_session(session_epoch)
-            settings = await self._adapter.get_custom_dns()
+            settings = await self._read_account_data(self._adapter.get_custom_dns())
             self._require_current_session(session_epoch)
         return settings.to_json()
 
@@ -1134,6 +1145,10 @@ class BackendController:
         """Own a concurrent account read until completion or shutdown drain."""
         if self._closing:
             raise UserVisibleRuntimeError("The Proton backend is shutting down")
+        if len(self._active_account_read_tasks) >= MAX_ACCOUNT_READS:
+            raise UserVisibleRuntimeError(
+                "Server browsing is still busy; try again after the current reads finish"
+            )
         task = asyncio.current_task()
         if task is None:
             raise RuntimeError("An account read requires an asyncio task")
@@ -1142,6 +1157,18 @@ class BackendController:
             yield
         finally:
             self._active_account_read_tasks.discard(task)
+
+    @staticmethod
+    async def _read_account_data(
+        operation: Awaitable[OperationResult],
+    ) -> OperationResult:
+        # A cancelled reader may ask its read-only provider call to stop, but
+        # retains its admission slot until that call has actually returned.
+        # Native transport timeouts do not cancel this remote owner at all.
+        task = asyncio.ensure_future(operation)
+        def cancel_read() -> None:
+            task.cancel()
+        return await await_owned(task, cancel_operation=cancel_read)
 
     @asynccontextmanager
     async def _serialized_session_side_effect(self) -> AsyncIterator[None]:

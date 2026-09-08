@@ -48,92 +48,43 @@ The implementation constraints are:
 
 This is the approved refactor program following the 2026-09-07
 [error-class review](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review)
-of `7d1f1b3`. Seven defects and a separate refresher-quiescence proof gap remain
-open at that reviewed baseline. Implementation has now started in the working
-tree; the checkpoint below separates local fixes from remaining obligations.
+of `7d1f1b3`. Its seven defects and separate refresher-quiescence proof gap
+informed the refactor. The checkpoint below separates the implemented
+candidate from remaining verification obligations.
 One coordinated design should
 replace repeated symptom patches; implementation should still use small,
 dependency-ordered commits with focused proofs.
 
-#### Working-tree checkpoint — 2026-09-08
+#### Review checkpoint — 2026-09-08
 
-- Baseline discovery is frozen. Independent hostile, subtractive, entropy,
-  error-class, performance and security perspectives have been collected;
-  these are discovery inputs, not final release approvals.
-- Implemented: shared task-scope ownership, explicit joined terminal outcomes,
-  generated-policy enforcement at the D-Bus export boundary, typed Agent
-  completion/reconciliation, completion-unknown control timeouts, browser
-  retirement dispatch, and a single disconnect-and-quit completion predicate.
-- EC-02, EC-04, EC-06 and EC-07 have local candidate fixes and focused tests.
-  The security-boundary fix also received one fresh independent bypass/
-  regression review. Full release review and installed validation are pending.
-- Follow-up implemented with maintainer approval: account replacement requires
-  a process handoff, old-process death verification, and fresh-process saved
-  session cleanup before new credentials. Expiry preserves an established
-  tunnel until explicit **Prepare sign-in**. The account journal stores no
-  credentials. Native, provider-fake and process-liveness tests cover admission.
-- EC-01 now has a local candidate fix: in-task public-Down completion evidence,
-  another barrier after state changes, and explicit unconfirmed/terminal failure
-  on stale Core connection identity. Three hash-checked actual-Core 5.6.10
-  conformance cases supplement the existing route matrix. Installed recovery
-  and exact-candidate independent review remain required.
-- EC-03 now has a local candidate fix: a bounded, session-tagged callback relay
-  installs Core's public error callback before enable and joins its own handler
-  on close. Authentication failures use expiry; other failures surface degraded
-  background updates without disconnecting or replaying failed jobs. Two
-  actual-Core scheduler cases supplement provider-free lifecycle and UI tests.
-- EC-05 now has a local candidate fix: one native capability policy separates
-  Connect from Disconnect and is used by the window, browser, pins, tray,
-  shortcuts and confirmations. Explicit cancellation covers busy connection
-  lookup, expiry still permits tunnel cleanup, and confirmations recheck current
-  permission. Matrix, private-bus and offscreen QML tests pass; no Core or wire
-  contract changed. Installed surface acceptance remains pending.
-- Retry ownership is consolidated locally: lifecycle callbacks are mandatory
-  and the unused direct Core mutation/compensation fallback is removed. The
-  production binding still uses the same shared connection owner. Policy tests
-  forbid direct Core mutation; adapter tests cover stale account/intent at lock
-  admission and after success. Retry policy and networking behavior are unchanged.
-- Independent cleanup admission has a local candidate fix: one retained worker
-  each for Disconnect and capture Stop, with duplicate requests coalesced.
-  Stop bypasses unrelated foreground work; Disconnect waits for an accepted
-  non-connect transaction so Core protection changes cannot race Down.
-  Successor mutations cannot overtake cleanup, session checks follow waits,
-  and busy derives from live ownership. Tests cover held settings saves, both
-  cleanup kinds, cancellation, replacement accounts and shutdown failure;
-  a combined controller/adapter test and offscreen capture-button matrix pass.
-- Close deadline consolidation has a local candidate fix: service, controller
-  and adapter share one absolute deadline. Controller and adapter cache the
-  first close outcome; repeated/cancelled callers cannot restart teardown or
-  refresh its budget. Capture attempts use remaining time without changing
-  their durable safety deadline. Retry scheduling is fenced at close admission,
-  and expired ownership waits cannot dispatch later teardown stages. Targeted
-  tests cover deadline propagation, stuck stages, late completion and sticky
-  failure; existing process/systemd retirement bounds are unchanged.
-- Cleanup-request deadlines have a local candidate fix: Disconnect and capture
-  Stop share one absolute 30-second admission-to-retirement budget per accepted
-  owner. Expired pre-dispatch requests are withdrawn without cancelling the
-  preceding transaction or running later. Duplicates cannot refresh the budget.
-  Adapter ownership waits and provider retirement consume the remaining time;
-  unconfirmed retirement uses the existing nonzero process boundary, retaining
-  capture recovery state. Targeted controller, adapter, scope and D-Bus tests
-  cover both expiry dispositions without live VPN mutation.
-- Foreground deadlines now have a local candidate fix: one 180-second budget
-  starts before controller admission and covers the complete transaction,
-  provider joins, recovery and state publication. Pre-dispatch expiry withdraws
-  only that request. Accepted auth/settings work is not cancelled with its
-  caller; connection, capture Start and FIDO retain their explicit cancellation
-  cleanup. Unconfirmed work at expiry uses the existing process boundary.
-  Nested stage limits cannot extend this budget or detach a live provider.
-  Independent review and installed acceptance remain separate gates.
-- The process boundary resolves the account-replacement design decision without
-  changing Core. It does not create a public refresher join capability or close
-  installed acceptance gates.
-- No new Core overlay, install, commit, publication, mechanics reseal, final
-  six-reviewer approval, or soak completion is claimed by this checkpoint.
+The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
+isolated perspectives have completed review of that same frozen revision.
+Results and the consolidated correction register are in the
+[security and engineering assessment](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review).
+This is a completed development review cycle, not final release approval.
+
+Five runtime corrections and one stale negative-test fixture are being
+closed as one bounded follow-up: settings request ownership, ambiguous GUI
+completion, early sign-out recovery publication, persistent degraded-update
+guidance, and bounded account reads/latest-query coalescing. Cognitive Load
+and Subtractive reviews found no reason for another broad structural refactor.
+Optional cleanup is recorded separately from required corrections.
+
+The refactor retains the approved fresh-process account boundary, public Core
+5.6.10 completion evidence, owned background error handling, shared native
+capability policy, independent cleanup admission, and absolute foreground,
+cleanup and shutdown deadlines. No new Core patch or wire protocol is involved.
+
+Before UAT, finish independent verification of the correction commit and the
+exact-candidate source, sanitizer, static-analysis and package battery.
+The full security scan had partial coverage, explicitly recorded in the
+assessment; no-finding is not full approval. Installed acceptance, true 1.5x
+text/keyboard/accessibility checks and the one-week soak remain separate
+gates. No installation or publication has occurred in this cycle.
 
 #### 1. Freeze discovery and specify the contract
 
-- Finish collecting all six independent perspectives against the unchanged
+- Collect all seven independent perspectives against the unchanged
   runtime baseline before another fix/restart cycle. The current backend,
   frontend, and process investigation is error-class discovery, not six final
   release approvals. Consolidate duplicates under invariant families and

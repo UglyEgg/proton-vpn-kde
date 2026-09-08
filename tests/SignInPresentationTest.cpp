@@ -364,13 +364,19 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
 
     controller.state = QStringLiteral("connected");
     controller.authState = QStringLiteral("signed_in_degraded");
-    controller.message = QStringLiteral("Background updates stopped; sign out and sign in again.");
+    controller.message = QStringLiteral("Packet capture stopped at the 15-minute safety limit");
     emit controller.snapshotChanged();
     QCoreApplication::processEvents();
     QVERIFY(banner->property("backgroundServicesDegraded").toBool());
     QVERIFY(banner->property("bannerActive").toBool());
     QVERIFY(!banner->property("connectionErrorActive").toBool());
-    QCOMPARE(banner->property("text").toString(), controller.message);
+    const QString degradedMessage = QStringLiteral(
+        "Some Proton background updates stopped. Sign out and sign in again to restart them.");
+    QCOMPARE(banner->property("text").toString(), degradedMessage);
+    controller.message = QStringLiteral("The VPN operation is still completing");
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QCOMPARE(banner->property("text").toString(), degradedMessage);
     const QObject *degradedRestart = banner->findChild<QObject *>(
         QStringLiteral("restartUnresponsiveBackendAction"));
     QVERIFY(degradedRestart);
@@ -427,7 +433,7 @@ void SignInPresentationTest::applicationRecoveryIsPersistentAndActionable()
     QCoreApplication::processEvents();
     QVERIFY(!banner->property("packetCaptureErrorActive").toBool());
     QVERIFY(banner->property("bannerActive").toBool());
-    QCOMPARE(banner->property("text").toString(), controller.message);
+    QCOMPARE(banner->property("text").toString(), degradedMessage);
     controller.authState = QStringLiteral("signed_in");
     emit controller.snapshotChanged();
     QCoreApplication::processEvents();

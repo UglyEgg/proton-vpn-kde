@@ -5,6 +5,8 @@
 #include "SnapshotTestData.h"
 #include "VpnController.h"
 #include "VpnSettingsModel.h"
+#include "CustomDnsModel.h"
+#include "SplitTunnelingModel.h"
 
 #include <QAbstractItemModel>
 #include <QDBusConnection>
@@ -102,6 +104,15 @@ public:
     bool ready = true;
     bool loggedIn = true;
     bool failNextSettingsUpdateAsNoReply = false;
+    bool delaySettings = false;
+    bool delaySettingsUpdate = false;
+    bool delaySearch = false;
+    bool delaySnapshot = false;
+    QList<QDBusMessage> delayedSettingsMessages;
+    QList<QDBusMessage> delayedSettingsUpdateMessages;
+    QList<QDBusMessage> delayedSearchMessages;
+    QList<QDBusMessage> delayedSnapshotMessages;
+    QStringList searchQueries;
     bool failNextPacketCaptureOperation = false;
     bool delayPacketCaptureStart = false;
     bool delayPacketCaptureStop = false;
@@ -140,6 +151,9 @@ public:
 
 signals:
     void SnapshotChanged(const QString &snapshotJson);
+    void SettingsChanged(const QString &settingsJson);
+    void SplitTunnelingChanged(const QString &settingsJson);
+    void CustomDnsChanged(const QString &settingsJson);
 
 public slots:
     void RegisterClient(const QString &)
@@ -186,6 +200,11 @@ public slots:
     QString GetSnapshot()
     {
         ++snapshotCalls;
+        if (delaySnapshot && calledFromDBus()) {
+            setDelayedReply(true);
+            delayedSnapshotMessages.append(message());
+            return {};
+        }
         if (snapshotNoReplyFailures > 0) {
             --snapshotNoReplyFailures;
             sendErrorReply(QDBusError::NoReply,
@@ -230,9 +249,15 @@ public slots:
         })json");
     }
 
-    QString SearchLocations(const QString &)
+    QString SearchLocations(const QString &query)
     {
         ++searchCalls;
+        searchQueries.append(query);
+        if (delaySearch) {
+            setDelayedReply(true);
+            delayedSearchMessages.append(message());
+            return {};
+        }
         if (searchFailures > 0) {
             --searchFailures;
             sendErrorReply(QDBusError::Failed,
@@ -295,6 +320,11 @@ public slots:
     QString GetSettings()
     {
         ++settingsCalls;
+        if (delaySettings && calledFromDBus()) {
+            setDelayedReply(true);
+            delayedSettingsMessages.append(message());
+            return {};
+        }
         return QStringLiteral(R"json({
             "schemaVersion":1,
             "protocol":"wireguard",
@@ -318,6 +348,11 @@ public slots:
     QString UpdateSettings(const QString &patchJson)
     {
         ++settingsUpdateCalls;
+        if (delaySettingsUpdate) {
+            setDelayedReply(true);
+            delayedSettingsUpdateMessages.append(message());
+            return {};
+        }
         const QJsonDocument document = QJsonDocument::fromJson(
             patchJson.toUtf8());
         if (document.isObject()
@@ -333,6 +368,50 @@ public slots:
             return {};
         }
         return GetSettings();
+    }
+
+    QString GetSplitTunneling()
+    {
+        if (delaySettings && calledFromDBus()) {
+            setDelayedReply(true);
+            delayedSettingsMessages.append(message());
+            return {};
+        }
+        return QStringLiteral(R"({"schemaVersion":1,"available":true,
+            "paidFeaturesAvailable":true,"enabled":false,"mode":"exclude",
+            "excludeAppPaths":[],"includeAppPaths":[],"excludeIpRanges":[],
+            "includeIpRanges":[],"excludeIpRangeCount":0,"includeIpRangeCount":0})");
+    }
+
+    QString UpdateSplitTunneling(const QString &)
+    {
+        if (delaySettingsUpdate) {
+            setDelayedReply(true);
+            delayedSettingsUpdateMessages.append(message());
+            return {};
+        }
+        return GetSplitTunneling();
+    }
+
+    QString GetCustomDns()
+    {
+        if (delaySettings && calledFromDBus()) {
+            setDelayedReply(true);
+            delayedSettingsMessages.append(message());
+            return {};
+        }
+        return QStringLiteral(R"({"schemaVersion":1,"paidFeaturesAvailable":true,
+            "enabled":false,"servers":[]})");
+    }
+
+    QString UpdateCustomDns(const QString &)
+    {
+        if (delaySettingsUpdate) {
+            setDelayedReply(true);
+            delayedSettingsUpdateMessages.append(message());
+            return {};
+        }
+        return GetCustomDns();
     }
 
     QString GetServerGroups(const QString &countryCode)
@@ -483,6 +562,11 @@ private slots:
     void recoveryStateStillAllowsCaptureStop();
     void duplicateCaptureStopPreservesReconciliation();
     void reconcilesSettingsAfterCompletionUnknownMutation();
+    void settingsSignalsDoNotCompleteRequests_data();
+    void settingsSignalsDoNotCompleteRequests();
+    void foregroundTimeoutWaitsForFreshIdleRead_data();
+    void foregroundTimeoutWaitsForFreshIdleRead();
+    void searchCoalescesToLatestQuery();
     void stopsRetryingAnUnresponsiveSameOwner();
     void queuesInitialBrowserLoadUntilBackendIsReady();
     void staleCountryReplyCannotMutateReplacementSession();
@@ -1341,6 +1425,184 @@ void GroupedNavigationTest::reconcilesSettingsAfterCompletionUnknownMutation()
     QTRY_COMPARE_WITH_TIMEOUT(controller.settings()->netShield(), 2, 2000);
     QTRY_VERIFY_WITH_TIMEOUT(!controller.settings()->busy(), 2000);
     QVERIFY(controller.backendAvailable());
+}
+
+void GroupedNavigationTest::settingsSignalsDoNotCompleteRequests_data()
+{
+    QTest::addColumn<int>("family");
+    QTest::newRow("VPN") << 0;
+    QTest::newRow("split tunneling") << 1;
+    QTest::newRow("custom DNS") << 2;
+}
+
+void GroupedNavigationTest::settingsSignalsDoNotCompleteRequests()
+{
+    QFETCH(int, family);
+    const auto cleanup = qScopeGuard([this] {
+        m_backend.delaySettings = false;
+        m_backend.delaySettingsUpdate = false;
+        m_backend.delayedSettingsMessages.clear();
+        m_backend.delayedSettingsUpdateMessages.clear();
+    });
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY(controller.ready());
+    QTRY_VERIFY(controller.settings()->loaded());
+    controller.loadSplitTunneling();
+    controller.loadCustomDns();
+    QTRY_VERIFY(controller.splitTunneling()->loaded());
+    QTRY_VERIFY(controller.customDns()->loaded());
+    QObject *model = family == 0 ? static_cast<QObject *>(controller.settings())
+        : family == 1 ? static_cast<QObject *>(controller.splitTunneling())
+                      : static_cast<QObject *>(controller.customDns());
+    const auto update = [&controller, family] {
+        if (family == 0) {
+            controller.updateSetting(QStringLiteral("netShield"), 1);
+        } else if (family == 1) {
+            controller.updateSplitTunneling(QStringLiteral("enabled"), true);
+        } else {
+            controller.updateCustomDns(QStringLiteral("enabled"), true);
+        }
+    };
+    const QString payload = family == 0 ? m_backend.GetSettings()
+        : family == 1 ? m_backend.GetSplitTunneling() : m_backend.GetCustomDns();
+    m_backend.delaySettingsUpdate = true;
+    update();
+    QTRY_COMPARE(m_backend.delayedSettingsUpdateMessages.size(), 1);
+    emit m_backend.SettingsChanged(m_backend.GetSettings());
+    emit m_backend.SplitTunnelingChanged(m_backend.GetSplitTunneling());
+    emit m_backend.CustomDnsChanged(m_backend.GetCustomDns());
+    QTest::qWait(30);
+    QVERIFY(model->property("busy").toBool());
+    update();
+    QTest::qWait(30);
+    QCOMPARE(m_backend.delayedSettingsUpdateMessages.size(), 1);
+
+    // A timeout is not a write failure. Even a failed readback must retain
+    // ownership, and another settings signal is not a readback receipt.
+    m_backend.delaySettings = true;
+    QVERIFY(m_backendBus->send(m_backend.delayedSettingsUpdateMessages.at(0)
+        .createErrorReply(QDBusError::NoReply, QStringLiteral("unknown"))));
+    QTRY_COMPARE(m_backend.delayedSettingsMessages.size(), 1);
+    QVERIFY(m_backendBus->send(m_backend.delayedSettingsMessages.at(0)
+        .createErrorReply(QDBusError::Failed, QStringLiteral("read failed"))));
+    QTRY_VERIFY(!model->property("message").toString().isEmpty());
+    QVERIFY(model->property("busy").toBool());
+    update();
+    QCOMPARE(m_backend.delayedSettingsUpdateMessages.size(), 1);
+    m_backend.publishSession(true, true);
+    QTRY_COMPARE(m_backend.delayedSettingsMessages.size(), 2);
+    QVERIFY(m_backendBus->send(m_backend.delayedSettingsMessages.at(1)
+        .createReply(QVariantList{payload})));
+    QTRY_VERIFY(!model->property("busy").toBool());
+    update();
+    QTRY_COMPARE(m_backend.delayedSettingsUpdateMessages.size(), 2);
+    QVERIFY(m_backendBus->send(m_backend.delayedSettingsUpdateMessages.at(1)
+        .createReply(QVariantList{payload})));
+    QTRY_VERIFY(!model->property("busy").toBool());
+}
+
+void GroupedNavigationTest::foregroundTimeoutWaitsForFreshIdleRead_data()
+{
+    QTest::addColumn<bool>("disconnecting");
+    QTest::newRow("connect") << false;
+    QTest::newRow("disconnect") << true;
+}
+
+void GroupedNavigationTest::foregroundTimeoutWaitsForFreshIdleRead()
+{
+    QFETCH(bool, disconnecting);
+    const auto cleanup = qScopeGuard([this] {
+        m_backend.delayDisconnect = false;
+        m_backend.delaySnapshot = false;
+        m_backend.operationBusy = false;
+        m_backend.connectionState = QStringLiteral("disconnected");
+        m_backend.delayedDisconnectMessage = {};
+        m_backend.delayedSnapshotMessages.clear();
+        m_backend.delayedCapabilityOperationCount = 0;
+        m_backend.delayedCapabilityMessages.clear();
+    });
+    m_backend.connectionState = disconnecting ? QStringLiteral("connected")
+                                              : QStringLiteral("disconnected");
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+    QSignalSpy finished(&controller, &VpnController::connectionOperationFinished);
+    QTRY_VERIFY(controller.ready());
+    QTRY_VERIFY(controller.settings()->loaded());
+    m_backend.delayDisconnect = true;
+    m_backend.delayedCapabilityOperationCount = 1;
+    if (disconnecting) {
+        controller.disconnect();
+        QTRY_COMPARE(m_backend.delayedDisconnectMessage.type(), QDBusMessage::MethodCallMessage);
+    } else {
+        controller.connectFastestWithFeatures({QStringLiteral("p2p")});
+        QTRY_COMPARE(m_backend.delayedCapabilityMessages.size(), 1);
+    }
+    m_backend.delaySnapshot = true;
+    controller.refresh();
+    QTRY_COMPARE(m_backend.delayedSnapshotMessages.size(), 1);
+    const QString staleIdle = m_backend.GetSnapshot();
+    const auto operation = disconnecting ? m_backend.delayedDisconnectMessage
+                                         : m_backend.delayedCapabilityMessages.at(0);
+    QVERIFY(m_backendBus->send(operation.createErrorReply(
+        QDBusError::NoReply, QStringLiteral("completion unknown"))));
+    QTRY_VERIFY(controller.message().contains(QStringLiteral("completing")));
+    QVERIFY(controller.busy());
+    QVERIFY(!controller.canConnect());
+    QCOMPARE(finished.count(), 0);
+    QVERIFY(m_backendBus->send(m_backend.delayedSnapshotMessages.at(0)
+        .createReply(QVariantList{staleIdle})));
+    QTRY_COMPARE(m_backend.delayedSnapshotMessages.size(), 2);
+    QVERIFY(controller.busy());
+    QCOMPARE(finished.count(), 0);
+    m_backend.operationBusy = true;
+    QVERIFY(m_backendBus->send(m_backend.delayedSnapshotMessages.at(1)
+        .createReply(QVariantList{m_backend.GetSnapshot()})));
+    QTest::qWait(30);
+    QVERIFY(controller.busy());
+    QCOMPARE(finished.count(), 0);
+    m_backend.operationBusy = false;
+    m_backend.connectionState = disconnecting ? QStringLiteral("disconnected")
+                                              : QStringLiteral("connected");
+    m_backend.publishSession(true, true);
+    QTRY_VERIFY(!controller.busy());
+    QTRY_COMPARE(finished.count(), 1);
+    QVERIFY(finished.at(0).at(2).toBool());
+    m_backend.publishSession(true, true);
+    QTest::qWait(30);
+    QCOMPARE(finished.count(), 1);
+}
+
+void GroupedNavigationTest::searchCoalescesToLatestQuery()
+{
+    const auto cleanup = qScopeGuard([this] {
+        m_backend.delaySearch = false;
+        m_backend.delayedSearchMessages.clear();
+        m_backend.searchQueries.clear();
+    });
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY(controller.ready());
+    m_backend.delaySearch = true;
+    m_backend.searchQueries.clear();
+    controller.searchLocations(QStringLiteral("ca"));
+    QTRY_COMPARE(m_backend.delayedSearchMessages.size(), 1);
+    controller.searchLocations(QStringLiteral("can"));
+    controller.searchLocations(QStringLiteral("canad"));
+    controller.searchLocations(QString{});
+    QVERIFY(!controller.locationSearchBusy());
+    controller.searchLocations(QStringLiteral("canada"));
+    QTest::qWait(30);
+    QCOMPARE(m_backend.delayedSearchMessages.size(), 1);
+    QVERIFY(m_backendBus->send(m_backend.delayedSearchMessages.at(0)
+        .createErrorReply(QDBusError::NoReply, QStringLiteral("old query timeout"))));
+    QTRY_COMPARE(m_backend.delayedSearchMessages.size(), 2);
+    QCOMPARE(m_backend.searchQueries, (QStringList{QStringLiteral("ca"), QStringLiteral("canada")}));
+    QVERIFY(controller.locationSearchBusy());
+    QVERIFY(m_backendBus->send(m_backend.delayedSearchMessages.at(1).createReply(
+        QVariantList{QStringLiteral(R"({"schemaVersion":1,"results":[]})")})));
+    QTRY_VERIFY(!controller.locationSearchBusy());
+    QVERIFY(controller.locationSearchError().isEmpty());
 }
 
 void GroupedNavigationTest::loadsCountryGroupsAndTheirServersWithoutAFlatEndpoint()

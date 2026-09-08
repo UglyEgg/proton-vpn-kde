@@ -124,7 +124,7 @@ void VpnController::copyForwardedPort()
 void VpnController::startPacketCapture(const QString &directoryPath)
 {
     if (!m_backendAvailable || !m_ready || !m_loggedIn || !snapshotHealthy()
-        || m_busy
+        || busy()
         || m_state != QStringLiteral("connected") || m_packetCaptureActive) {
         return;
     }
@@ -256,7 +256,7 @@ void VpnController::submitSupportReport(const QString &username,
         return;
     }
     if (!m_backendAvailable || !m_ready || !m_loggedIn || !snapshotHealthy()
-        || m_busy) {
+        || busy()) {
         emit supportReportFinished(
             false, tr("Sign in and wait for the current VPN operation to finish"));
         return;
@@ -418,7 +418,7 @@ void VpnController::connectServer(const QString &serverName)
 
 void VpnController::login(const QString &username, const QString &password)
 {
-    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy
+    if (!m_backendAvailable || !m_ready || m_loggedIn || busy()
         || authenticationRecoveryRequired(m_authState)) {
         return;
     }
@@ -430,7 +430,7 @@ void VpnController::login(const QString &username, const QString &password)
 
 void VpnController::submitTwoFactor(const QString &code)
 {
-    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy
+    if (!m_backendAvailable || !m_ready || m_loggedIn || busy()
         || authenticationRecoveryRequired(m_authState)) {
         return;
     }
@@ -484,7 +484,7 @@ void VpnController::logout()
 
 void VpnController::disableKillSwitchForLogin()
 {
-    if (!m_backendAvailable || !m_ready || m_loggedIn || m_busy
+    if (!m_backendAvailable || !m_ready || m_loggedIn || busy()
         || m_killSwitch == 0 || authenticationRecoveryRequired(m_authState)) {
         return;
     }
@@ -524,6 +524,7 @@ void VpnController::callOperation(const QString &method,
     m_busy = true;
     m_message.clear();
     const quint64 foregroundGeneration = ++m_foregroundOperationGeneration;
+    m_foregroundReconciliation.reset();
     quint64 captureGeneration = 0;
     if (captureTarget.isValid()) {
         captureGeneration = ++m_packetCaptureOperationGeneration;
@@ -601,6 +602,9 @@ void VpnController::callSecretOperation(const QString &method,
     }
     const quint64 foregroundGeneration = updateBusy
         ? ++m_foregroundOperationGeneration : 0;
+    if (updateBusy) {
+        m_foregroundReconciliation.reset();
+    }
 
     if (!m_backendAvailable || m_backendDestination.isEmpty()) {
         const QString failure = tr("The Proton backend is not available");
@@ -731,8 +735,11 @@ void VpnController::callControlOperation(const QString &method,
         ? m_foregroundOperationGeneration : ++m_foregroundOperationGeneration;
     quint64 connectionGeneration = 0;
     if (!connectionTarget.isEmpty()) {
+        m_foregroundReconciliation.reset();
+        m_busy = true;
         connectionGeneration = ++m_connectionOperationGeneration;
         emit connectionOperationStarted(connectionGeneration, connectionTarget);
+        emit snapshotChanged();
     }
     stampSessionRequest(watcher);
     watcher->setProperty("foregroundOwnershipRequired", true);

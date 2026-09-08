@@ -33,8 +33,8 @@ inline bool accountAllowsConnection(QStringView authState)
 
 // This is client admission, not a substitute for backend operation ownership.
 // Schema 1 exposes busy but not the remote operation kind. An explicit
-// Disconnect may request cleanup during that interval; the backend rejects it
-// when unrelated work owns the mutation lock. Busy alone never authorizes Up.
+// Disconnect may request cleanup during that interval; the backend waits for
+// unrelated accepted work under its cleanup deadline. Busy never authorizes Up.
 inline ConnectionActionCapabilities connectionActionCapabilities(
     bool available, bool ready, bool healthy, bool loggedIn, bool busy,
     QStringView state, QStringView authState, bool allowActivation = false)

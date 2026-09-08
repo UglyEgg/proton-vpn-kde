@@ -205,6 +205,14 @@ class AdapterRefresherErrorTests(unittest.IsolatedAsyncioTestCase):
         self.adapter._status_message = ""
         self.adapter.status_update(self.connector.current_state)
         self.assertEqual(snapshot.message, self.snapshots[-1].message)
+        self.adapter._status_message = "Packet capture stopped at the 15-minute safety limit"
+        self.adapter.status_update(self.connector.current_state)
+        self.assertEqual("signed_in_degraded", self.snapshots[-1].auth_state)
+        self.assertEqual("connected", self.snapshots[-1].state)
+        self.assertTrue(self.snapshots[-1].logged_in)
+        # Presentation derives its persistent warning from auth_state; an
+        # independent status message must not erase that state or be lost.
+        self.assertEqual(self.adapter._status_message, self.snapshots[-1].message)
         self.connector.disconnect.assert_not_awaited()
         await self.adapter.close()
 

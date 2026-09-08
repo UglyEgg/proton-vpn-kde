@@ -31,6 +31,15 @@ scripts/check-release-metadata.sh
 
 ## 2. Verify the source tree
 
+Require seven isolated reviewers on the same immutable candidate: Hostile,
+Subtractive, Entropy, Error-Class, HPC/Performance, Hardening/Security, and
+Cognitive Load/Code Maintainability. Collect every result before remediation,
+consolidate duplicates, and re-review behavioral corrections. The seventh
+perspective checks unnecessary abstraction, duplicate ownership, hidden flow,
+and the cost of understanding and changing code. Record results in the existing
+security assessment; partial coverage and focused fix checks are not a complete
+release approval. Preserve earlier review records as explicitly historical.
+
 Review `git status --short` and the complete release diff first. The committed
 tree must contain no build output, local RPMs, credentials, diagnostics,
 machine-specific paths, editor state, or unrelated development debris.

@@ -135,7 +135,10 @@ int VpnController::userTier() const { return m_userTier; }
 int VpnController::maxConnections() const { return m_maxConnections; }
 bool VpnController::fido2Available() const { return m_fido2Available; }
 int VpnController::killSwitch() const { return m_killSwitch; }
-bool VpnController::busy() const { return m_busy; }
+bool VpnController::busy() const
+{
+    return m_busy || m_foregroundReconciliation.has_value();
+}
 bool VpnController::snapshotRefreshPending() const
 {
     return m_snapshotRefreshPending;
@@ -217,7 +220,7 @@ QString VpnController::primaryActionText() const
 ProtonVpnKde::ConnectionActionCapabilities VpnController::connectionCapabilities() const
 {
     return ProtonVpnKde::connectionActionCapabilities(
-        m_backendAvailable, m_ready, snapshotHealthy(), m_loggedIn, m_busy,
+        m_backendAvailable, m_ready, snapshotHealthy(), m_loggedIn, busy(),
         m_state, m_authState);
 }
 
@@ -297,8 +300,12 @@ void VpnController::refresh()
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(message, 5000), this);
     stampBackendRequest(watcher);
+    const quint64 reconciliationGeneration = m_foregroundReconciliation
+        ? m_foregroundReconciliation->generation : 0;
     connect(watcher, &QDBusPendingCallWatcher::finished,
-            this, &VpnController::handleSnapshotReply);
+            this, [this, reconciliationGeneration](QDBusPendingCallWatcher *finished) {
+        handleSnapshotReply(finished, reconciliationGeneration);
+    });
 }
 
 void VpnController::submitNpsSurvey(int score, const QString &comments)

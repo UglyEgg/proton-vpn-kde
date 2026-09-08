@@ -1805,12 +1805,19 @@ class ProtonCoreAdapter:
         # Persist before changing credentials; a crash or a late old refresh
         # cannot turn a replacement login into same-process session reuse.
         self._account_restart_required = True
-        self._account_transition.store(tunnel_retired=False)
-        async with self._superseding_connection_targets() as supersession:
-            async with self._serialized_connection_lifecycle():
-                await self._logout_with_disconnect_barrier(
-                    supersession.deadline
-                )
+        try:
+            self._account_transition.store(tunnel_retired=False)
+            async with self._superseding_connection_targets() as supersession:
+                async with self._serialized_connection_lifecycle():
+                    await self._logout_with_disconnect_barrier(
+                        supersession.deadline
+                    )
+        except (Exception, asyncio.CancelledError):
+            # A store can replace its record before directory fsync fails.
+            # Keep the fence and possible handoff; expose recovery even when
+            # failure precedes the later logout compensation/publication path.
+            self._publish_snapshot()
+            raise
 
     async def _logout_with_disconnect_barrier(self, deadline: float) -> None:
         # Advance before the first await: reads already in flight belong to the

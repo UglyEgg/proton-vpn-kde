@@ -89,24 +89,24 @@ echo "The UI hygiene gate rejects unowned connection actions"
 
 git clone --quiet --no-hardlinks "$project_dir" "$busy_fixture_dir"
 sed -i \
-    's/controller.primaryActionEnabled && !controller.busy/controller.primaryActionEnabled/' \
+    's/controller.canConnect$/true/' \
     "$busy_fixture_dir/qml/Main.qml"
-if ! rg -q 'controller\.primaryActionEnabled$' \
+if ! rg -U -q 'readonly property bool browserConnectionActionEnabled:\n[[:space:]]*true' \
         "$busy_fixture_dir/qml/Main.qml"; then
-    echo "Unable to construct the busy browser-action negative fixture" >&2
+    echo "Unable to construct the browser-capability negative fixture" >&2
     exit 1
 fi
 
 busy_output="$fixture_root/busy-output"
 if "$busy_fixture_dir/scripts/check-qml-ui-hygiene.sh" \
         >"$busy_output" 2>&1; then
-    echo "The UI hygiene gate accepted browser actions while busy" >&2
+    echo "The UI hygiene gate accepted browser actions without capability checks" >&2
     exit 1
 fi
 if ! rg -q 'Backend failures must preserve diagnostics' "$busy_output"; then
-    echo "The busy-action UI hygiene gate failed for an unexpected reason" >&2
+    echo "The browser-capability UI hygiene gate failed for an unexpected reason" >&2
     sed -n '1,120p' "$busy_output" >&2
     exit 1
 fi
 
-echo "The UI hygiene gate rejects browser connection actions while busy"
+echo "The UI hygiene gate rejects browser actions without capability checks"

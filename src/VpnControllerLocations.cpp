@@ -74,6 +74,12 @@ void VpnController::searchLocations(const QString &query)
 
     m_locationSearchBusy = true;
     emit locationsChanged();
+    if (m_locationSearchRequestPending) {
+        // Keep only the latest query while the previous transport is pending.
+        // Clearing a page retires its intent, not the outstanding request.
+        return;
+    }
+    m_locationSearchRequestPending = true;
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
         QString::fromLatin1(BackendDbus::objectPath),
@@ -514,9 +520,15 @@ void VpnController::handleLocationSearchReply(QDBusPendingCallWatcher *watcher)
     const QString requestedQuery = watcher->property("query").toString();
     const quint64 generation = watcher->property("generation").toULongLong();
     watcher->deleteLater();
-    if (!current
-        || generation != m_locationSearchGeneration
+    if (!current) {
+        return;
+    }
+    m_locationSearchRequestPending = false;
+    if (generation != m_locationSearchGeneration
         || requestedQuery != m_locationSearchQuery) {
+        if (!m_locationSearchQuery.isEmpty()) {
+            searchLocations(m_locationSearchQuery);
+        }
         return;
     }
 

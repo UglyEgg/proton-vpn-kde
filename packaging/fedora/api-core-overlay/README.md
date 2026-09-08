@@ -1,9 +1,14 @@
 # Reproducible API Core overlay
 
-This directory rebuilds the optional optimized API Core package from Proton's
+This directory rebuilds the Plasma-compatible API Core package from Proton's
 exact signed Fedora `5.6.10-1.fc44` RPM. The vendor RPM is a build input only;
 the workflow does not install Proton's GTK client and does not download or
 combine payload files from any other package.
+
+The string-sharing optimizations are optional in principle. The current Fedora
+client RPM nevertheless requires this package's Protun compatibility capability;
+the complete overlay is therefore a runtime dependency of this distribution,
+not an optional Fedora installation step.
 
 The first two applied patches share repeated immutable server strings. The
 third stops `supports_fido2` from calling API Core's own deprecated capability

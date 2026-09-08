@@ -58,7 +58,6 @@ void VpnController::onSettingsChanged(const QString &settingsJson)
     }
     QString errorMessage;
     if (!m_settings->applyJson(settingsJson, &errorMessage)) {
-        m_settings->setBusy(false);
         m_settings->setMessage(errorMessage);
     }
 }
@@ -70,7 +69,6 @@ void VpnController::onSplitTunnelingChanged(const QString &settingsJson)
     }
     QString errorMessage;
     if (!m_splitTunneling->applyJson(settingsJson, &errorMessage)) {
-        m_splitTunneling->setBusy(false);
         m_splitTunneling->setMessage(errorMessage);
     }
 }
@@ -82,12 +80,12 @@ void VpnController::onCustomDnsChanged(const QString &settingsJson)
     }
     QString errorMessage;
     if (!m_customDns->applyJson(settingsJson, &errorMessage)) {
-        m_customDns->setBusy(false);
         m_customDns->setMessage(errorMessage);
     }
 }
 
-void VpnController::applySnapshot(const QString &snapshotJson)
+void VpnController::applySnapshot(const QString &snapshotJson,
+                                  quint64 reconciliationGeneration)
 {
     QJsonParseError error;
     const QJsonDocument document = QJsonDocument::fromJson(
@@ -118,6 +116,10 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         return;
     }
 
+    if (m_foregroundReconciliation
+        && reconciliationGeneration == m_foregroundReconciliation->generation) {
+        m_foregroundReconciliation->observedRead = true;
+    }
     m_snapshotError.clear();
     m_snapshotRestartAllowed = false;
 
@@ -216,6 +218,7 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_locationSearchQuery.clear();
         ++m_locationSearchGeneration;
         m_locationSearchBusy = false;
+        m_locationSearchRequestPending = false;
         m_countriesError.clear();
         m_locationSearchError.clear();
         m_serverGroupsError.clear();
@@ -225,15 +228,47 @@ void VpnController::applySnapshot(const QString &snapshotJson)
         m_npsSurveyAvailable = false;
         emit npsSurveyChanged();
         m_settings->reset();
+        m_settingsRequest.invalidate();
+        m_splitTunnelingRequest.invalidate();
+        m_customDnsRequest.invalidate();
         m_splitTunneling->reset();
         m_customDns->reset();
         if (locationsWereBusy != locationsBusy() || hadBrowserErrors) {
             emit locationsChanged();
         }
     }
+    if (m_foregroundReconciliation && m_foregroundReconciliation->observedRead
+        && !m_busy) {
+        const auto completed = *m_foregroundReconciliation;
+        m_foregroundReconciliation.reset();
+        if (completed.generation == m_foregroundOperationGeneration
+            && completed.connectionGeneration == m_connectionOperationGeneration
+            && !completed.connectionTarget.isEmpty()) {
+            const bool reachedTarget = m_state == completed.connectionTarget;
+            emit connectionOperationFinished(
+                completed.connectionGeneration, completed.connectionTarget,
+                reachedTarget, reachedTarget ? QString{} : m_message);
+        }
+    }
+    if (m_foregroundReconciliation && m_message.isEmpty()) {
+        m_message = tr("The VPN operation is still completing; refreshing its state");
+    }
     emit snapshotChanged();
     if (m_loggedIn && !m_npsSurveyChecked) {
         loadPendingNpsSurvey();
+    }
+    if (m_loggedIn && !m_busy) {
+        // Retrying a failed reconciliation is read-only. No settings write is
+        // replayed, and the local write gate remains closed until it succeeds.
+        if (m_settingsRequest.needsRead()) {
+            loadSettings();
+        }
+        if (m_splitTunnelingRequest.needsRead()) {
+            loadSplitTunneling();
+        }
+        if (m_customDnsRequest.needsRead()) {
+            loadCustomDns();
+        }
     }
     if (m_loggedIn
         && (!m_settings->loaded() || previousState != m_state)
@@ -250,7 +285,8 @@ void VpnController::applySnapshot(const QString &snapshotJson)
     completeShutdownIfSafe();
 }
 
-void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
+void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher,
+                                        quint64 reconciliationGeneration)
 {
     const bool current = backendReplyIsCurrent(watcher);
     const QDBusPendingReply<QString> reply = *watcher;
@@ -280,7 +316,12 @@ void VpnController::handleSnapshotReply(QDBusPendingCallWatcher *watcher)
     m_snapshotRefreshRetryTimer->stop();
     m_snapshotRefreshRetryCount = 0;
     setBackendAvailable(true);
-    applySnapshot(reply.value());
+    applySnapshot(reply.value(), reconciliationGeneration);
+    if (m_foregroundReconciliation && !m_foregroundReconciliation->observedRead
+        && snapshotHealthy()) {
+        // A read sent before the timeout is not a reconciliation receipt.
+        refresh();
+    }
 }
 
 void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
@@ -353,7 +394,12 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
             }
         }
         if (globalCurrent) {
-            m_busy = false;
+            if (transientSameOwnerFailure) {
+                m_foregroundReconciliation = ForegroundReconciliation{
+                    foregroundGeneration, connectionGeneration, connectionTarget};
+            } else {
+                m_busy = false;
+            }
             m_message = operationMessage;
         }
         if (packetCaptureTarget.isValid() && captureCurrent) {
@@ -363,7 +409,7 @@ void VpnController::handleOperationReply(QDBusPendingCallWatcher *watcher)
             emit snapshotChanged();
         }
         if (!connectionTarget.isEmpty() && connectionCurrent
-            && foregroundCurrent) {
+            && foregroundCurrent && !transientSameOwnerFailure) {
             emit connectionOperationFinished(
                 connectionGeneration, connectionTarget, false,
                 operationMessage);
@@ -479,6 +525,10 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
             operationMessage = tr(
                 "The VPN operation may still be completing; refreshing its state");
             scheduleSnapshotRefreshRetry();
+            if (!connectionTarget.isEmpty()) {
+                m_foregroundReconciliation = ForegroundReconciliation{
+                    foregroundGeneration, connectionGeneration, connectionTarget};
+            }
         } else if (failure == ProtonVpnKde::BackendCallFailure::Unavailable) {
             setBackendAvailable(false);
             operationMessage = tr("The Proton backend service stopped");
@@ -498,9 +548,14 @@ void VpnController::handleControlOperationReply(QDBusPendingCallWatcher *watcher
                 npsGeneration, false, operationMessage, npsRetryAllowed);
             return;
         }
+        if (!connectionTarget.isEmpty()
+            && failure != ProtonVpnKde::BackendCallFailure::CompletionUnknown) {
+            m_busy = false;
+        }
         m_message = operationMessage;
         emit snapshotChanged();
-        if (!connectionTarget.isEmpty()) {
+        if (!connectionTarget.isEmpty()
+            && failure != ProtonVpnKde::BackendCallFailure::CompletionUnknown) {
             emit connectionOperationFinished(
                 connectionGeneration, connectionTarget, false, m_message);
         }

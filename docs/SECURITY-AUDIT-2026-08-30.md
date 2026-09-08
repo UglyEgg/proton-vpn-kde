@@ -21,26 +21,18 @@ asynchronous state-ownership corrections where the new presentation exposed a
 real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
-**Current source decision: changes required.** The 2026-09-07 error-class
-review of `7d1f1b3b94b562dada9622fe004acc0b7afb99b3` found seven concrete
-correctness defects and an additional provider-quiescence proof gap. They are
-listed in the current register below, separately from earlier remediation
-claims. **PV-013-036 now has a local candidate fix**, using a public Core
-event-barrier receipt rather than an observed Disconnected state. Three
-combined adapter/actual-Core conformance cases supplement fake-driven route
-tests. Account replacement also now requires confirmed outgoing-process
-retirement and fresh-process session cleanup. Neither correction has yet
-passed final independent review or installed acceptance; the remaining
-error-class work below still blocks release.
+**Current source decision: review corrections under verification; not
+release-ready.** All seven isolated reviewers completed the same frozen
+`a2b3d5e945dc46d92838a9979f0b25805b86e801` candidate before remediation.
+Five distinct P2 runtime issues and one stale negative-test fixture were
+consolidated below. Cognitive Load/Code Maintainability and Subtractive passed
+without required changes. The standard security scan found no validated
+reportable vulnerability in its covered scope, but coverage was partial.
 
-The review checked the installed Core **5.6.10** source, owned by
-`python3-proton-vpn-api-core-5.6.10-8.plasmavpn1.fc44.x86_64`. The separate
-5.5.6 static API check was not used to infer runtime defects. This was an
-error-class investigation with three isolated perspectives (backend, frontend,
-and engineering process), not a new six-leg release battery or independent
-third-party security audit. The subsequent baseline discovery and working-tree
-implementation checkpoint below supersede the review's documentation-only
-status; they are not final release approval.
+The refactor uses hash-checked actual Core **5.6.10** with external I/O replaced
+for conformance tests. The older 5.5.6 static API check is not evidence of a
+current runtime defect. No live VPN, credential prompt, installed package,
+GitHub operation or publication was exercised during this review cycle.
 
 **Version `0.13.0` remains explicitly not release-ready until all seven isolated
 reviewers pass one exact remediated
@@ -106,7 +98,64 @@ attestation, certification, or warranty of security.
 
 ## Current 0.13.0 error-class review
 
-### Working-tree remediation checkpoint — 2026-09-08
+### Seven-perspective review — 2026-09-08
+
+Reviewed commit: `a2b3d5e945dc46d92838a9979f0b25805b86e801`.
+All seven independent results were collected before source edits. The table
+lists engineering defects, not demonstrated security vulnerabilities.
+
+| Item | Finding and affected invariant | Correction status |
+| --- | --- | --- |
+| RC-01, P2 | Settings signals could clear request ownership; old replies lacked a request generation. | Candidate corrected across VPN, split tunneling and DNS. Data-only parsing, typed request state and retained unknown-write readback have three-family private-bus and model tests. |
+| RC-02, P2 | GUI timeout could publish failure and reopen Connect before provider completion. Hostile, Entropy and Error-Class reported the same defect. | Candidate retains unresolved ownership until post-timeout read plus idle state; Connect/Disconnect tests cover stale reads, still-busy reads and exactly-once settlement. |
+| RC-03, P2 | Early logout journal/settings failure retained an internal fence without publishing recovery. | Candidate publishes the fence for replace, directory-sync and early settings failures; tests preserve partial handoff records and reject replacement credentials. |
+| RC-04, P2 | Unrelated operation messages could replace degraded-background recovery guidance. | Candidate derives stable guidance from degraded state while preserving stronger diagnostics; backend and presentation tests cover message changes. |
+| RC-05, P2 | Repeated searches could accumulate accepted reads behind a blocked provider; debounce and stale filtering were not admission bounds. | Candidate adds eight shared browsing/settings slots and latest-query native coalescing. Tests cover saturation, cancellation-resistant reads and queued settings withdrawal. Not a measured ordinary-session leak. |
+| VAL-01 | The negative mechanics fixture searched for a retired blanket-busy expression. Exact committed tests were 39/40, not the earlier dirty-tree 40/40 claim. | Fixture now removes the shared capability check and asserts that its mutation occurred; exact committed rerun is required. |
+
+Dispositions on that commit: **Hostile, Entropy, Error-Class and HPC/Performance:
+changes required; Subtractive and Cognitive Load/Code Maintainability: pass;
+Hardening/Security: no reportable finding within partial coverage, not full
+approval.** Correction verification must name its own revision.
+
+The seventh reviewer found the existing ownership primitives justified.
+Optional follow-ups are broader typed native request context, guaranteed reset
+of older shared test fixtures, deriving the capture-start reference from its
+owner, removing a test-only watchdog shim, and lazy application discovery.
+None warrants another broad refactor or is a demonstrated security defect.
+New delayed-reply fixtures use scope guards; the stale Disconnect comment is
+corrected.
+
+Standard security scan `a4be8b25-6bc5-4b6a-bd3a-840eef70a627` completed with
+**240/325 files covered, 84 deferred and one historical report excluded**.
+Canonical manifest, coverage, findings, report and SARIF artifacts are retained
+outside the source tree. Runtime backend/native/QML/runner/KCM paths and native
+tests were covered; deferred test/tool/document/image files prevent full
+repository approval. Questions about confirmation text rendering, tray remote
+dispatch, off-path UnixFD ownership and provider-authored errors did not
+establish a reportable source-to-impact path; they remain unproven, not closed
+vulnerabilities. External Core, NetworkManager, Secret Service identity and
+installed filesystem behavior remain runtime validation boundaries.
+
+Two non-vulnerability observations: Fedora requires the API-Core overlay's
+compatibility capability (its optional README wording is corrected), and
+direct repository switching through `pkexec` may conflict with the Control
+Center service's `NoNewPrivileges` policy. The installed launch path needs
+acceptance testing; no privilege policy was weakened.
+
+Baseline evidence on `a2b3d5e`: 428 Python 3.14 tests including five opt-in,
+hash-pinned actual-Core cases; Python 3.11 with eight expected skips; Mypy for
+31 files; 86% branch-aware coverage; 35 production Clang-Tidy units; source
+archive reproducibility; and 39/40 native targets normally and under sanitizers
+(VAL-01 only). Six demo layouts were inspected, but device scaling is not
+independent 1.5x text validation. These are development results, not
+exact-correction package, live-UAT or soak evidence.
+
+### Historical refactor checkpoint — baseline `7d1f1b3`
+
+The following records the earlier refactor and its local tests. Candidate-fix
+statements here are historical evidence, not the current defect register or
+final approval; the seven-perspective register above takes precedence.
 
 The baseline is frozen at `7d1f1b3`. Discovery now includes independent hostile,
 subtractive, entropy, error-class, performance and security perspectives. The
@@ -190,8 +239,10 @@ handlers consume the tested policy; no live global shortcuts, tray actions or
 VPN operations were exercised for this checkpoint.
 
 The native build was repeated from an empty directory against Qt 6.11.2.
-All 40 CTest targets passed in that clean build using a disk-backed temporary
-directory. An older incremental directory produced native crashes with objects
+An initial working-tree run reported 40 passing targets using a disk-backed
+temporary directory. Its negative fixture cloned the previous committed HEAD;
+the exact `a2b3d5e` rerun was 39/40 (VAL-01 above), superseding that full-pass
+claim. An older incremental directory produced native crashes with objects
 left from before the Qt update; those failures did not reproduce after the
 complete rebuild. That older directory is not acceptance evidence.
 The earlier checkpoint also encountered the host's `/tmp` quota, resolved for

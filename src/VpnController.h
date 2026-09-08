@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ClientRegistrationState.h"
+#include "SettingsRequestState.h"
 #include "VpnConnectionController.h"
 
 #include <QDBusContext>
@@ -264,7 +265,7 @@ private:
     [[nodiscard]] bool sessionReplyIsCurrent(
         const QDBusPendingCallWatcher *watcher) const;
     [[nodiscard]] bool backendSignalIsCurrent() const;
-    void applySnapshot(const QString &snapshotJson);
+    void applySnapshot(const QString &snapshotJson, quint64 reconciliationGeneration = 0);
     void callOperation(const QString &method, const QVariantList &arguments = {});
     void callFastestOperation(const QStringList &features);
     void callSecretOperation(const QString &method, const QJsonObject &fields,
@@ -297,7 +298,7 @@ private:
                                    bool retryAllowed = true);
     void setLocationsBusy(bool busy);
     void setBrowserError(QString &target, const QString &message);
-    void handleSnapshotReply(QDBusPendingCallWatcher *watcher);
+    void handleSnapshotReply(QDBusPendingCallWatcher *watcher, quint64 reconciliationGeneration);
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
     void handleControlOperationReply(QDBusPendingCallWatcher *watcher);
     void handleRegisterClientReply(QDBusPendingCallWatcher *watcher);
@@ -307,9 +308,9 @@ private:
     void handleServerGroupsReply(QDBusPendingCallWatcher *watcher);
     void handleServersReply(QDBusPendingCallWatcher *watcher);
     void handleServerLoadsReply(QDBusPendingCallWatcher *watcher);
-    void handleSettingsReply(QDBusPendingCallWatcher *watcher);
-    void handleSplitTunnelingReply(QDBusPendingCallWatcher *watcher);
-    void handleCustomDnsReply(QDBusPendingCallWatcher *watcher);
+    void handleSettingsReply(QDBusPendingCallWatcher *watcher, quint64 requestGeneration);
+    void handleSplitTunnelingReply(QDBusPendingCallWatcher *watcher, quint64 requestGeneration);
+    void handleCustomDnsReply(QDBusPendingCallWatcher *watcher, quint64 requestGeneration);
     void loadPendingNpsSurvey();
     void scheduleClientRegistrationRetry();
     void scheduleSnapshotRefreshRetry();
@@ -325,6 +326,9 @@ private:
     VpnSettingsModel *m_settings = nullptr;
     SplitTunnelingModel *m_splitTunneling = nullptr;
     CustomDnsModel *m_customDns = nullptr;
+    ProtonVpnKde::SettingsRequestState m_settingsRequest;
+    ProtonVpnKde::SettingsRequestState m_splitTunnelingRequest;
+    ProtonVpnKde::SettingsRequestState m_customDnsRequest;
     LocationFilterProxyModel *m_countryFilterModel = nullptr;
     LocationFilterProxyModel *m_serverGroupFilterModel = nullptr;
     LocationFilterProxyModel *m_serverFilterModel = nullptr;
@@ -354,6 +358,7 @@ private:
     bool m_backendRestartPending = false;
     bool m_locationsBusy = false;
     bool m_locationSearchBusy = false;
+    bool m_locationSearchRequestPending = false;
     QString m_countriesError;
     QString m_locationSearchError;
     QString m_serverGroupsError;
@@ -398,6 +403,13 @@ private:
     bool m_packetCaptureStopRequested = false;
     bool m_shutdownPending = false;
     quint64 m_foregroundOperationGeneration = 0;
+    struct ForegroundReconciliation {
+        quint64 generation;
+        quint64 connectionGeneration;
+        QString connectionTarget;
+        bool observedRead = false;
+    };
+    std::optional<ForegroundReconciliation> m_foregroundReconciliation;
     quint64 m_connectionOperationGeneration = 0;
     bool m_coreMemoryOptimized = false;
     QString m_coreVersion;

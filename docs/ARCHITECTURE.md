@@ -214,6 +214,34 @@ request's global busy state or guidance.
 
 ## Ownership consolidation checkpoint
 
+The GUI distinguishes a transport timeout from completed provider work. It
+retains a generation-bound unresolved foreground record and suppresses terminal
+connection feedback until a valid snapshot read dispatched after the timeout
+has returned, followed by confirmed idle state. A pending pre-timeout read is
+not that receipt. A busy read preserves ownership; a later current-owner idle
+signal can settle it exactly once. Ordinary signal-before-successful-reply
+ordering still permits a successor; stale replies cannot settle that successor.
+
+Each settings family has one request generation and a small typed request
+state. Applying settings data changes values only, not busy state or request
+messages. An ambiguous write requires serialized readback; failed readback
+keeps writes blocked. An explicit read or later idle snapshot can retry the
+read, never the write. Account or backend replacement invalidates the request.
+
+Browsing and settings reads share eight backend admission slots. Rejection is
+immediate when full, including readers waiting for the settings lock. A
+cancelled provider read retains its slot until its child actually exits. The
+GUI additionally sends at most one search at a time and retains only the newest
+query for dispatch afterward; clearing search does not discard its live owner.
+These bounds cover retained work, not the memory size of Core's server cache.
+
+Sign-out publishes the retained account-restart fence even if its first journal
+write or preliminary settings read fails. A write can replace the handoff file
+before directory sync fails; failure therefore cannot safely erase the record
+or reopen account admission. The UI shows recovery instead of stale signed-in
+readiness. Degraded background updates likewise retain their own warning and
+recovery guidance independently of unrelated operation messages.
+
 The working tree now uses one task-bound reentrant ownership primitive,
 `TaskScope`, for the separate authentication and connection domains. Only the
 actual owning task or an explicitly delegated child can reenter; copying an

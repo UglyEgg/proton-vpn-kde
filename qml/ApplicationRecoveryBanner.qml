@@ -57,9 +57,7 @@ Kirigami.InlineMessage {
             return qsTr("Stopping the troubleshooting capture before closing…")
         }
         if (root.backgroundServicesDegraded && !root.connectionErrorActive) {
-            return vpnController.message.length > 0
-                   ? vpnController.message
-                   : qsTr("Some Proton background updates stopped. Sign out and sign in again to restart them.")
+            return qsTr("Some Proton background updates stopped. Sign out and sign in again to restart them.")
         }
         const summary = root.connectionErrorText(vpnController.errorCode)
         return summary

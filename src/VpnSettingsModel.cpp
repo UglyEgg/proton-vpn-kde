@@ -171,8 +171,7 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
     m_customDnsEnabled = customDnsEnabled;
     m_packetCaptureSupported = packetCaptureSupported;
     m_loaded = true;
-    m_busy = false;
-    m_message.clear();
+    // Data receipt is independent of the controller's request ownership.
     emit changed();
     return true;
 }

@@ -64,6 +64,21 @@ allocation.
 
 ## Search performance
 
+The 2026-09-08 development review found no bound on accepted reads when a
+provider lookup stalls; it did not measure an ordinary-session leak or OOM.
+The follow-up limits browsing/settings reads to eight backend owners, including
+queued settings readers. Cancellation does not free a slot until the provider
+child exits. Native search coalesces to one outstanding request and the latest
+query. Event-controlled tests cover repeated cancellation, saturation,
+withdrawal before provider entry, and delayed query replies.
+
+The reviewed `a2b3d5e` demo snapshot measured combined PSS of 72,275 KiB
+(about 70.6 MiB). The Inspector probe retained 480 KiB PSS / 552 KiB private
+after the first cycle and 794 KiB PSS / 632 KiB private after the second,
+relative to the cold sample. These are short isolated demo observations,
+not real-Core measurements or proof of bounded long-run growth. They precede
+the review corrections and do not replace exact-package acceptance.
+
 The native global-search benchmark uses Proton's existing local server cache.
 It does not contact Proton, connect a VPN, or read credentials.
 
