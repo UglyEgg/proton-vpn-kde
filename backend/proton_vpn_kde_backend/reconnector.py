@@ -13,7 +13,7 @@ import os
 import random
 from typing import Any, AsyncIterator
 
-from .async_utils import await_owned
+from .async_utils import await_owned, join_owned
 from .errors import is_proton_authentication_needed
 
 
@@ -34,22 +34,56 @@ class ReconnectionRetirementTimeout(TimeoutError):
 
 
 IP_COMMAND = "/usr/bin/ip"
+ROUTE_PROBE_SECONDS = 3.0
+ROUTE_PROBE_STOP_SECONDS = 0.5
+
+
+async def _stop_route_probe(process: asyncio.subprocess.Process) -> None:
+    for stop in (process.terminate, process.kill):
+        if process.returncode is not None:
+            return
+        try:
+            stop()
+        except ProcessLookupError:
+            pass
+        try:
+            async with asyncio.timeout(ROUTE_PROBE_STOP_SECONDS):
+                await process.wait()
+            return
+        except TimeoutError:
+            continue
+    raise TimeoutError("The route probe did not stop")
 
 
 async def network_route_available() -> bool:
     """Match Proton's route-based connectivity check without GLib polling."""
     try:
-        process = await asyncio.create_subprocess_exec(
+        spawned = await join_owned(asyncio.create_subprocess_exec(
             IP_COMMAND,
             "route",
             "get",
             "192.0.2.1",
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
-        )
+        ))
+        if spawned.error is not None:
+            spawned.result()
     except FileNotFoundError:
         return False
-    return await process.wait() == 0
+    process = spawned.value
+    assert process is not None
+    try:
+        if spawned.caller_cancelled:
+            raise asyncio.CancelledError
+        async with asyncio.timeout(ROUTE_PROBE_SECONDS):
+            return await process.wait() == 0
+    except TimeoutError:
+        return False
+    finally:
+        if process.returncode is None:
+            # Cancellation of the retry task is not cancellation of its child.
+            # Join bounded termination even if the caller is cancelled again.
+            await await_owned(_stop_route_probe(process))
 
 
 class LogindSessionProbe:

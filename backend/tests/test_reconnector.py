@@ -67,7 +67,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(probe._properties)
 
     async def test_network_probe_uses_packaged_ip_under_hostile_path(self):
-        process = SimpleNamespace(wait=AsyncMock(return_value=0))
+        process = SimpleNamespace(wait=AsyncMock(return_value=0), returncode=0)
         with (
             patch.dict(os.environ, {"PATH": "/tmp/attacker"}),
             patch(
@@ -101,6 +101,71 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
+
+    async def test_route_probe_timeout_and_cancellation_reap_owned_child(self):
+        for cancelled in (False, True):
+            for ignore_terminate in (False, True):
+                with self.subTest(cancelled=cancelled, ignore_terminate=ignore_terminate):
+                    waiting = asyncio.Event()
+                    stopped = asyncio.Event()
+                    process = SimpleNamespace(returncode=None)
+
+                    async def wait(waiting=waiting, stopped=stopped, process=process):
+                        waiting.set()
+                        await stopped.wait()
+                        return process.returncode
+
+                    def stop(process=process, stopped=stopped):
+                        process.returncode = -9
+                        stopped.set()
+
+                    process.wait = AsyncMock(side_effect=wait)
+                    process.terminate = Mock(side_effect=None if ignore_terminate else stop)
+                    process.kill = Mock(side_effect=stop)
+                    with (
+                        patch("proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
+                              new=AsyncMock(return_value=process)),
+                        patch("proton_vpn_kde_backend.reconnector.ROUTE_PROBE_SECONDS", 0.01),
+                        patch("proton_vpn_kde_backend.reconnector.ROUTE_PROBE_STOP_SECONDS", 0.01),
+                    ):
+                        probe = asyncio.create_task(network_route_available())
+                        await waiting.wait()
+                        if cancelled:
+                            probe.cancel()
+                            with self.assertRaises(asyncio.CancelledError):
+                                await probe
+                        else:
+                            self.assertFalse(await probe)
+                    self.assertIsNotNone(process.returncode)
+                    process.terminate.assert_called_once_with()
+                    self.assertEqual(int(ignore_terminate), process.kill.call_count)
+
+    async def test_route_probe_cancellation_during_spawn_retains_child_ownership(self):
+        spawning = asyncio.Event()
+        release_spawn = asyncio.Event()
+        process = SimpleNamespace(returncode=None, wait=AsyncMock(return_value=-15))
+
+        def stop():
+            process.returncode = -15
+
+        process.terminate = Mock(side_effect=stop)
+        process.kill = Mock()
+
+        async def spawn(*_args, **_kwargs):
+            spawning.set()
+            await release_spawn.wait()
+            return process
+
+        with patch("proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec", new=spawn):
+            probe = asyncio.create_task(network_route_available())
+            await spawning.wait()
+            probe.cancel()
+            release_spawn.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await probe
+        process.terminate.assert_called_once_with()
+        process.wait.assert_awaited_once_with()
+        process.kill.assert_not_called()
 
     async def test_network_probe_propagates_non_missing_executable_failures(self):
         with patch(
