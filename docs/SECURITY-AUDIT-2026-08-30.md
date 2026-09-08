@@ -229,10 +229,17 @@ and navigation. Light/dark rendered fixtures were inspected. Static checks
 and the explicit mechanics-boundary seal pass. These are bounded regression
 results, not another independent seven-review approval.
 
-The updated client package and installed visual acceptance are separate gates.
-The `0.1` package checkpoint above remains the installed baseline until an
-approved `0.2` upgrade is recorded. Neither overlay needs a change for these
-presentation corrections.
+The client RPM/SRPM were built from `620a87c467a6465a56f58457b8242869199a4466`
+with mandatory checks enabled: **41/41 archive-eligible CTest targets pass**,
+and the 439-case Python suite passes with its five opt-in Core cases skipped.
+Artifact policy, exact source/spec content, disabled-reporting flags and the
+packaged icon's byte identity all pass. These are unsigned local-host UAT
+packages, not clean-buildroot or repeated-binary-reproducibility evidence.
+
+Installed visual acceptance remains a separate gate. The `0.1` package
+checkpoint above remains the installed baseline until an approved `0.2`
+upgrade is recorded. Neither overlay needs a change for these presentation
+corrections.
 
 ### Historical a2b3d5e review checkpoint
 
