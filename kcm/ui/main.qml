@@ -67,6 +67,13 @@ Kirigami.ScrollablePage {
         }
 
         Controls.Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            visible: page.settings.startMinimized
+            text: qsTr("For tray-only login, configure the startup command ‘proton-vpn-kde’ without ‘--show’ in Plasma. Adding the application launcher to Autostart always opens the Control Center instead.")
+        }
+
+        Controls.Label {
             Kirigami.FormData.isSection: true
             text: qsTr("Plasma integration")
         }

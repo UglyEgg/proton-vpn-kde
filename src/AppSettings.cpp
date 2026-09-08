@@ -31,6 +31,10 @@ AppSettings::AppSettings(QObject *parent)
 bool AppSettings::notificationsEnabled() const { return m_notificationsEnabled; }
 bool AppSettings::reconnectEnabled() const { return m_reconnectEnabled; }
 bool AppSettings::startMinimized() const { return m_startMinimized; }
+bool AppSettings::startTrayOnly(bool openSettings, bool forceShow) const
+{
+    return closeToTray() && startMinimized() && !openSettings && !forceShow;
+}
 bool AppSettings::closeToTray() const { return m_closeToTray; }
 QString AppSettings::autoConnectTarget() const { return m_autoConnectTarget; }
 QString AppSettings::pinnedServersText() const

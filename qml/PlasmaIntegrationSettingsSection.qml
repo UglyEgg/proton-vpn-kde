@@ -103,7 +103,7 @@ SectionCard {
             Layout.fillWidth: true
             visible: appSettings.startMinimized
             type: Kirigami.MessageType.Information
-            text: qsTr("Enable application autostart separately in Plasma System Settings. The full Control Center is not kept in memory.")
+            text: qsTr("For tray-only login, configure the startup command ‘proton-vpn-kde’ without ‘--show’ in Plasma. Adding the application launcher to Autostart always opens the Control Center instead. The full Control Center is not kept in memory in tray-only mode.")
         }
     }
 }

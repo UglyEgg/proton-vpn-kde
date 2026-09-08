@@ -165,8 +165,7 @@ int main(int argc, char *argv[])
                          &app, [&settings] {
             ProtonVpnKde::setAgentEnabled(settings.closeToTray());
         });
-        if (settings.closeToTray() && settings.startMinimized()
-            && !openSettings && !forceShow) {
+        if (settings.startTrayOnly(openSettings, forceShow)) {
             return 0;
         }
     }

@@ -13,7 +13,25 @@ class AppSettingsTest final : public QObject
 
 private slots:
     void persistsKConfigPreferences();
+    void startupCommandHonorsPreferencesWithoutHidingExplicitLaunches();
 };
+
+void AppSettingsTest::startupCommandHonorsPreferencesWithoutHidingExplicitLaunches()
+{
+    QTemporaryDir configHome;
+    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
+    AppSettings settings;
+    for (const bool tray : {false, true}) {
+        for (const bool minimized : {false, true}) {
+            settings.setCloseToTray(tray);
+            settings.setStartMinimized(minimized);
+            QCOMPARE(settings.startTrayOnly(false, false), tray && minimized);
+            QVERIFY(!settings.startTrayOnly(false, true)); // Launcher --show.
+            QVERIFY(!settings.startTrayOnly(true, false)); // Settings route.
+            QVERIFY(!settings.startTrayOnly(true, true));
+        }
+    }
+}
 
 void AppSettingsTest::persistsKConfigPreferences()
 {

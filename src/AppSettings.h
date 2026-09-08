@@ -38,6 +38,7 @@ public:
     [[nodiscard]] bool notificationsEnabled() const;
     [[nodiscard]] bool reconnectEnabled() const;
     [[nodiscard]] bool startMinimized() const;
+    [[nodiscard]] bool startTrayOnly(bool openSettings, bool forceShow) const;
     [[nodiscard]] bool closeToTray() const;
     [[nodiscard]] QString autoConnectTarget() const;
     [[nodiscard]] QString pinnedServersText() const;
