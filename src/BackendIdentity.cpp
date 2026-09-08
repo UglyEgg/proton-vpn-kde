@@ -256,7 +256,7 @@ void ProtonVpnKde::discoverBackendService(
     auto *watcher = new QDBusPendingCallWatcher(bus.asyncCall(query, 5000), context);
     QObject::connect(watcher, &QDBusPendingCallWatcher::finished, context,
         [bus, wellKnownName, activate, context, completed = std::move(completed)]
-        (QDBusPendingCallWatcher *finished) {
+        (QDBusPendingCallWatcher *finished) mutable {
             const QDBusPendingReply<bool> reply = *finished;
             finished->deleteLater();
             if (reply.isError() || reply.value() || !activate) {

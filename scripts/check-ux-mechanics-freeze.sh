@@ -195,7 +195,7 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "2cb8a6f4e82344401f2d9d6801b70d56231582360c1c51115fd048ec80b0e6a0" \
+    "a66803087cfc508dd4f2062cfd559ab553ade6bc7b7c6e94beea867daf5ce5b1" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
