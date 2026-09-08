@@ -107,15 +107,17 @@ connections and suspend recovery still require maintainer UAT. The exact
 package versions, build evidence and remaining gates are in the
 [package checkpoint](SECURITY-AUDIT-2026-08-30.md#package-and-local-install-checkpoint--2026-09-08).
 
-The subsequent `0.13.0-0.2` presentation candidate from `620a87c` is now
-installed with maintainer approval and passes root-side payload verification.
+The preceding `0.13.0-0.2` presentation candidate from `620a87c` was
+installed with maintainer approval and passed root-side payload verification.
 It fixes route/form layout and theme icon-name fallback without changing that
 Core/keyring stack. All three client services remained stopped after the
 upgrade. Its [visual checkpoint](SECURITY-AUDIT-2026-08-30.md#visual-uat-corrections--2026-09-08)
 keeps package verification separate from pending live visual acceptance.
 
 The follow-up `0.13.0-0.3` layout candidate from `58b3d83` passes local
-client RPM/SRPM validation but is not yet installed. Its window size is
+client RPM/SRPM validation and is now installed with maintainer approval.
+Root-side payload verification passes, and all three client services remain
+stopped. Installed visual acceptance is still pending. Its window size is
 app-controlled and limited to the active monitor's work area; long
 pages scroll rather than relying on manual resizing or maximizing. This
 presentation change does not raise the Qt/KDE or Proton runtime requirements.

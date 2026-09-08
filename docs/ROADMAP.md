@@ -80,15 +80,16 @@ client candidate: integrated split-route graphics, a contained report form,
 and an unambiguous task-manager icon name. All 42 native targets and the new
 sanitized layout fixture pass. See the [visual UAT checkpoint](SECURITY-AUDIT-2026-08-30.md#visual-uat-corrections--2026-09-08).
 Its client RPM/SRPM pass their mandatory tests and artifact/source checks.
-The approved `0.2` client upgrade is installed and root-side verification
-passes; the host icon resolver selects the correct installed artwork.
-The next local client candidate, `0.13.0-0.3`, implements the approved
+The approved `0.2` client upgrade passed root-side verification; the host
+icon resolver selected the correct installed artwork.
+The current local client candidate, `0.13.0-0.3`, implements the approved
 horizontal layouts: endpoint-local facts, a smooth arrow-free split route,
 and app-owned, content-fitted window sizing with no manual resize/maximize.
 All 42 native targets, the sanitized layout fixture and presentation checks
 pass. The client RPM/SRPM from `58b3d83` also pass their mandatory tests and
-artifact/source checks. Next: installation approval and focused visual
-acceptance, including KWin resize controls and monitor changes. The existing
+artifact/source checks. The approved `0.3` client upgrade is installed and
+passes root-side verification. Next: focused visual acceptance, including
+KWin resize controls and monitor changes. The existing
 Core/keyring packages are unchanged. This does not replace the remaining
 release gates.
 

@@ -271,10 +271,18 @@ The `0.13.0-0.3.fc44` client RPM/SRPM were built from
 **41/41 archive-eligible CTest targets pass**, and all 439 backend cases pass
 with the five opt-in Core cases skipped. Artifact policy and exact
 source/spec/commit checks pass. These are unsigned local-host UAT packages,
-not clean-buildroot or repeated-binary-reproducibility evidence. Installation
-approval and installed KWin/monitor/visual acceptance remain pending; the
-installed version remains `0.13.0-0.2`. No Core/keyring rebuild, installation,
-tag, signing, push or public release occurred in this follow-up.
+not clean-buildroot or repeated-binary-reproducibility evidence.
+
+With maintainer approval, the `0.13.0-0.3.fc44` client was installed through
+KDE/PolicyKit after all three client services were confirmed stopped.
+Root-side `rpm -V` passes without differences, and the installed source marker
+matches `58b3d83dbd27d11cce3d332ef3412929661d823f`. The agent, backend and
+Control Center remain stopped. Existing network connections are unchanged;
+no VPN connection was requested. The `0.2` client RPM is retained for
+rollback. Core/keyring packages were not rebuilt or changed, and no tag,
+signing, push or public release occurred. Installed KWin/monitor/visual
+acceptance remains pending and is separate from package verification and
+release approval.
 
 ### Historical a2b3d5e review checkpoint
 
