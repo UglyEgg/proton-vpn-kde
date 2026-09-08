@@ -199,11 +199,11 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "c81eea0bd4b86f701798fd2ba2a79210723967bf6d2ce274b1f4cf9ff907bb03" \
+    "b79197cfccad1fa0ad049db72608eb768415ab1697784df65ca8fd52e23bf4f3" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "d0faee6bb9471b3dbf957f225e08a0f942ca9c005010a6e62b92c492de009de0" \
+    "1d55cb74ea8bbb047b0e05a5059670729c406bd6f179e589828aaeda36784ff2" \
     "QML presentation" qml
 
 assert_diff_hash \

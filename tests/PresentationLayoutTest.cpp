@@ -135,6 +135,8 @@ void PresentationLayoutTest::startupControlsPreservePreferencesAndFit()
     target->setProperty("text", QStringLiteral(" us "));
     QVERIFY(QMetaObject::invokeMethod(target, "editingFinished"));
     QCOMPARE(settings.autoConnectTarget(), QStringLiteral("US"));
+    settings.setAutoConnectTarget(QStringLiteral("DE"));
+    QTRY_COMPARE(target->property("text").toString(), QStringLiteral("DE"));
     QVERIFY(!settings.autostart()->enabled()); // Opening/settings selection is not consent.
     QVERIFY(!QFileInfo::exists(configHome.filePath("autostart/proton-vpn-kde.desktop")));
     QTest::qWait(100);

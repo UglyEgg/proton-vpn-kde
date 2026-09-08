@@ -112,7 +112,8 @@ SectionCard {
             placeholderText: qsTr("Country code or server ID, e.g. US or CH#101")
             onEditingFinished: {
                 section.appSettings.autoConnectTarget = text
-                text = section.appSettings.autoConnectTarget
+                text = Qt.binding(() => section.appSettings.autoConnectTarget === "FASTEST"
+                                  ? "" : section.appSettings.autoConnectTarget)
                 section.choosingCustomTarget = false
             }
         }
