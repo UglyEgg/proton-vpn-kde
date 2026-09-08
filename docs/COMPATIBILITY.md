@@ -114,8 +114,9 @@ Core/keyring stack. All three client services remained stopped after the
 upgrade. Its [visual checkpoint](SECURITY-AUDIT-2026-08-30.md#visual-uat-corrections--2026-09-08)
 keeps package verification separate from pending live visual acceptance.
 
-The follow-up `0.13.0-0.3` layout candidate is not yet installed. Its window
-size is app-controlled and limited to the active monitor's work area; long
+The follow-up `0.13.0-0.3` layout candidate from `58b3d83` passes local
+client RPM/SRPM validation but is not yet installed. Its window size is
+app-controlled and limited to the active monitor's work area; long
 pages scroll rather than relying on manual resizing or maximizing. This
 presentation change does not raise the Qt/KDE or Proton runtime requirements.
 

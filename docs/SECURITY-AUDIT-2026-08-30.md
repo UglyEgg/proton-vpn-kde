@@ -263,10 +263,18 @@ checks reject layout warnings; the offscreen harness admits only Qt's exact
 unsupported-size-hints notice, not application diagnostics. The eight-image
 visual matrix passes, and additional light/dark content-sized captures were
 inspected (764×524 full route, 764×643 split route on the offscreen monitor).
-Presentation drift seals pass with backend/Core seals unchanged. Package
-validation and installed KWin/monitor/visual acceptance remain pending; the
-installed version remains `0.13.0-0.2`. These are bounded regression checks,
-not a new independent release-review battery.
+Presentation drift seals pass with backend/Core seals unchanged. These are
+bounded regression checks, not a new independent release-review battery.
+
+The `0.13.0-0.3.fc44` client RPM/SRPM were built from
+`58b3d83dbd27d11cce3d332ef3412929661d823f` with mandatory checks enabled:
+**41/41 archive-eligible CTest targets pass**, and all 439 backend cases pass
+with the five opt-in Core cases skipped. Artifact policy and exact
+source/spec/commit checks pass. These are unsigned local-host UAT packages,
+not clean-buildroot or repeated-binary-reproducibility evidence. Installation
+approval and installed KWin/monitor/visual acceptance remain pending; the
+installed version remains `0.13.0-0.2`. No Core/keyring rebuild, installation,
+tag, signing, push or public release occurred in this follow-up.
 
 ### Historical a2b3d5e review checkpoint
 
