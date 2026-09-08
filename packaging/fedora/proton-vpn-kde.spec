@@ -39,6 +39,7 @@ BuildRequires:  python3-mypy
 BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
 BuildRequires:  qt6-linguist
+BuildRequires:  ripgrep
 
 Requires:       kf6-kirigami
 Requires:       kf6-kglobalaccel

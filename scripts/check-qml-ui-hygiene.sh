@@ -7,6 +7,12 @@ set -euo pipefail
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 qml_dir="$project_dir/qml"
 
+if ! rg -q '^BuildRequires:[[:space:]]+ripgrep[[:space:]]*$' \
+        "$project_dir/packaging/fedora/proton-vpn-kde.spec"; then
+    echo "RPM %check requires ripgrep for the QML hygiene gate" >&2
+    exit 1
+fi
+
 if rg -n 'font\.(pixelSize|pointSize)\s*:' "$qml_dir"; then
     echo "Use theme fonts and heading levels instead of fixed font sizes" >&2
     exit 1
