@@ -34,7 +34,9 @@ void VpnController::loadSettings()
     }
     const quint64 requestGeneration = m_settingsRequest.beginRead();
     m_settings->setBusy(true);
-    m_settings->setMessage({});
+    if (!m_settingsRequest.writeUnconfirmed()) {
+        m_settings->setMessage({});
+    }
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
         QString::fromLatin1(BackendDbus::objectPath),
@@ -136,7 +138,9 @@ void VpnController::loadSplitTunneling()
     }
     const quint64 requestGeneration = m_splitTunnelingRequest.beginRead();
     m_splitTunneling->setBusy(true);
-    m_splitTunneling->setMessage(QString{});
+    if (!m_splitTunnelingRequest.writeUnconfirmed()) {
+        m_splitTunneling->setMessage({});
+    }
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
         QString::fromLatin1(BackendDbus::objectPath),
@@ -330,7 +334,9 @@ void VpnController::loadCustomDns()
     }
     const quint64 requestGeneration = m_customDnsRequest.beginRead();
     m_customDns->setBusy(true);
-    m_customDns->setMessage(QString{});
+    if (!m_customDnsRequest.writeUnconfirmed()) {
+        m_customDns->setMessage({});
+    }
     QDBusMessage message = QDBusMessage::createMethodCall(
         m_backendDestination,
         QString::fromLatin1(BackendDbus::objectPath),
@@ -514,7 +520,9 @@ void VpnController::handleSettingsReply(
     if (!applied) {
         m_settings->setMessage(errorMessage);
     } else {
-        m_settings->setMessage({});
+        m_settings->setMessage(m_settingsRequest.writeUnconfirmed()
+            ? tr("Current settings refreshed. The earlier change could not be confirmed; review the values before retrying.")
+            : QString{});
     }
 }
 
@@ -568,7 +576,9 @@ void VpnController::handleSplitTunnelingReply(
     if (!applied) {
         m_splitTunneling->setMessage(errorMessage);
     } else {
-        m_splitTunneling->setMessage({});
+        m_splitTunneling->setMessage(m_splitTunnelingRequest.writeUnconfirmed()
+            ? tr("Current settings refreshed. The earlier change could not be confirmed; review the values before retrying.")
+            : QString{});
     }
 }
 
@@ -626,7 +636,9 @@ void VpnController::handleCustomDnsReply(
         m_customDns->setMessage(errorMessage);
         return;
     }
-    m_customDns->setMessage({});
+    m_customDns->setMessage(m_customDnsRequest.writeUnconfirmed()
+            ? tr("Current settings refreshed. The earlier change could not be confirmed; review the values before retrying.")
+            : QString{});
     if (changedWhileConnected) {
         m_customDns->setRestartRequired(true);
     }

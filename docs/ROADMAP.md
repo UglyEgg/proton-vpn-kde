@@ -55,7 +55,7 @@ One coordinated design should
 replace repeated symptom patches; implementation should still use small,
 dependency-ordered commits with focused proofs.
 
-#### Review checkpoint — stopped 2026-09-08
+#### Review checkpoint — bounded error-class correction 2026-09-08
 
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.
@@ -72,9 +72,14 @@ Optional cleanup is recorded separately from required corrections.
 
 The bounded Error-Class re-check found that the ambiguous-completion correction
 can mistake an unchanged connected tunnel for a successful server switch.
-RC-02 remains open despite 431 backend tests and 40/40 normal/sanitized native
+RC-02 remained open despite 431 backend tests and 40/40 normal/sanitized native
 targets passing. The matrix missed same-state failed replacement. Implementation
-has stopped at the maintainer's request; no automatic scan/repair cycle follows.
+stopped at the maintainer's request. The maintainer then authorized a bounded
+class correction: observation and idle retirement must never manufacture a
+request acknowledgement. The contract and sibling-surface inventory are in
+[architecture](ARCHITECTURE.md#request-result-evidence-contract). Native/QML,
+settings and capture tests now target that class; no new review loop or Core
+change is implied.
 Performance and Cognitive Load correction checks passed. Security reported no
 concrete required correction within its stated source scope; this is not a
 new full seven-reviewer release approval.
@@ -84,9 +89,10 @@ The refactor retains the approved fresh-process account boundary, public Core
 capability policy, independent cleanup admission, and absolute foreground,
 cleanup and shutdown deadlines. No new Core patch or wire protocol is involved.
 
-Before resuming, agree one bounded completion contract and scenario matrix for
-RC-02, with an explicit stop condition for further findings. No Core rewrite is
-part of this roadmap. Before UAT, close the remaining source decision and
+Finish this fixed-scope contract matrix and verification. If it requires a wider
+protocol change or reveals unrelated defects, stop and report them rather than
+beginning another repair cycle. No Core rewrite is part of this roadmap.
+Before UAT, close the remaining source decision and
 complete independent approval and the exact-candidate package battery.
 The full security scan had partial coverage, explicitly recorded in the
 assessment; no-finding is not full approval. Installed acceptance, true 1.5x

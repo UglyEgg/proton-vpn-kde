@@ -53,6 +53,7 @@ void VpnSettingsModelTest::requestStateRetainsUnknownWritesUntilReadback()
     request.complete(oldRead, true, false);
     QVERIFY(request.busy());
     request.complete(write, false, true);
+    QVERIFY(request.writeUnconfirmed());
     QVERIFY(request.needsRead());
     QVERIFY(request.canRead());
     const auto failedRead = request.beginRead();
@@ -64,7 +65,12 @@ void VpnSettingsModelTest::requestStateRetainsUnknownWritesUntilReadback()
     QVERIFY(request.busy());
     request.complete(readback, true, false);
     QVERIFY(!request.busy());
+    QVERIFY(request.writeUnconfirmed());
+    const auto laterRead = request.beginRead();
+    request.complete(laterRead, true, false);
+    QVERIFY(request.writeUnconfirmed());
     const auto rejectedWrite = request.beginWrite();
+    QVERIFY(!request.writeUnconfirmed());
     request.complete(rejectedWrite, false, false);
     QVERIFY(!request.busy());
 }

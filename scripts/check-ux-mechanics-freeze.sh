@@ -156,7 +156,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "eceb4a5872ad5d75efe4396f73043f5d1e189bd9e1448e081b46781b88832aea" \
+    "629b711cf364b54c1b967082084233fa7c5f8c9b6ad0f97339c38c06171ced6d" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
@@ -190,11 +190,11 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "4eaab798e69f25fa6deedd39885fd0442e1745ec5d3d708809bbcc1b644e2bef" \
+    "8aff70037cec1368ff61e02f1964c52d1653e1004b6712ab7e025bd6b66454f3" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "3aa851dc2bcb63d775296f1f7f9ed766e1d4c9f0416e7619762ea1e0445014c0" \
+    "121587e88016645cecff970892412783c38615374871b08f6e422fc63a6141da" \
     "QML presentation" qml
 
 echo "0.13 change boundary matches baseline $baseline_commit plus recorded candidate deltas (not review approval)"

@@ -176,8 +176,13 @@ void VpnController::applySnapshot(const QString &snapshotJson,
     if (!m_packetCaptureOperationPending
         && m_packetCaptureExpectedActive.has_value()
         && m_packetCaptureActive == *m_packetCaptureExpectedActive) {
+        const bool stopped = !*m_packetCaptureExpectedActive;
         m_packetCaptureExpectedActive.reset();
-        m_packetCaptureError.clear();
+        // Inactive confirms the cleanup postcondition. Active includes Core's
+        // reserved/unconfirmed capture obligation, not a Start acknowledgement.
+        if (stopped) {
+            m_packetCaptureError.clear();
+        }
     }
     if (!m_packetCaptureOperationPending && !m_busy
         && !m_packetCaptureActive
@@ -244,10 +249,11 @@ void VpnController::applySnapshot(const QString &snapshotJson,
         if (completed.generation == m_foregroundOperationGeneration
             && completed.connectionGeneration == m_connectionOperationGeneration
             && !completed.connectionTarget.isEmpty()) {
-            const bool reachedTarget = m_state == completed.connectionTarget;
+            // Idle retires our wait; it cannot recover a missing method reply.
+            // In particular, Connected may still be the pre-switch tunnel.
             emit connectionOperationFinished(
                 completed.connectionGeneration, completed.connectionTarget,
-                reachedTarget, reachedTarget ? QString{} : m_message);
+                false, tr("The request result could not be confirmed. Review the current connection before trying again."));
         }
     }
     if (m_foregroundReconciliation && m_message.isEmpty()) {

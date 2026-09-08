@@ -9,6 +9,7 @@ namespace ProtonVpnKde
 {
 // One operation owns its reply and subsequent reconciliation obligation.
 // A busy snapshot is progress, never a terminal completion receipt.
+// Settlement releases the Agent's lease; it does not assert request success.
 class OperationCompletion
 {
 public:

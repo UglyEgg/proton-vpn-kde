@@ -126,6 +126,7 @@ public:
     int snapshotNoReplyFailures = 0;
     QString connectionState = QStringLiteral("disconnected");
     QString authStateOverride;
+    QString statusMessage;
     QString lastCountry;
     QString lastGroupKind;
     QString lastGroupName;
@@ -147,6 +148,15 @@ public:
         ready = sessionReady;
         loggedIn = sessionLoggedIn;
         emit SnapshotChanged(GetSnapshot());
+    }
+
+    void holdConnectionReply()
+    {
+        if (delayedCapabilityOperationCount > 0) {
+            --delayedCapabilityOperationCount;
+            setDelayedReply(true);
+            delayedCapabilityMessages.append(message());
+        }
     }
 
 signals:
@@ -216,6 +226,7 @@ public slots:
                 connectionState, loggedIn, ready).toUtf8());
         QJsonObject snapshot = document.object();
         snapshot.insert(QStringLiteral("busy"), operationBusy);
+        snapshot.insert(QStringLiteral("message"), statusMessage);
         if (!authStateOverride.isEmpty()) {
             snapshot.insert(QStringLiteral("authState"), authStateOverride);
         }
@@ -278,12 +289,15 @@ public slots:
     {
         ++capabilityCalls;
         lastCapabilities = features;
-        if (delayedCapabilityOperationCount > 0) {
-            --delayedCapabilityOperationCount;
-            setDelayedReply(true);
-            delayedCapabilityMessages.append(message());
-        }
+        holdConnectionReply();
     }
+
+    void ConnectFastest() { holdConnectionReply(); }
+    void ConnectCountry(const QString &) { holdConnectionReply(); }
+    void ConnectCountryWithFeatures(const QString &, const QStringList &) { holdConnectionReply(); }
+    void ConnectGroup(const QString &, const QString &, const QString &) { holdConnectionReply(); }
+    void ConnectGroupWithFeatures(const QString &, const QString &, const QString &, const QStringList &) { holdConnectionReply(); }
+    void ConnectServer(const QString &) { holdConnectionReply(); }
 
     QString GetPendingNpsSurvey() const
     {
@@ -566,6 +580,8 @@ private slots:
     void settingsSignalsDoNotCompleteRequests();
     void foregroundTimeoutWaitsForFreshIdleRead_data();
     void foregroundTimeoutWaitsForFreshIdleRead();
+    void captureStateDoesNotAcknowledgeStart_data();
+    void captureStateDoesNotAcknowledgeStart();
     void searchCoalescesToLatestQuery();
     void stopsRetryingAnUnresponsiveSameOwner();
     void queuesInitialBrowserLoadUntilBackendIsReady();
@@ -1495,35 +1511,73 @@ void GroupedNavigationTest::settingsSignalsDoNotCompleteRequests()
     QVERIFY(m_backendBus->send(m_backend.delayedSettingsMessages.at(1)
         .createReply(QVariantList{payload})));
     QTRY_VERIFY(!model->property("busy").toBool());
+    QVERIFY(model->property("message").toString().contains(QStringLiteral("could not be confirmed")));
+    emit m_backend.SettingsChanged(m_backend.GetSettings());
+    emit m_backend.SplitTunnelingChanged(m_backend.GetSplitTunneling());
+    emit m_backend.CustomDnsChanged(m_backend.GetCustomDns());
+    QTest::qWait(30);
+    QVERIFY(model->property("message").toString().contains(QStringLiteral("could not be confirmed")));
+    m_backend.delaySettings = false;
+    controller.loadSettings();
+    controller.loadSplitTunneling();
+    controller.loadCustomDns();
+    QTRY_VERIFY(!controller.settings()->busy());
+    QTRY_VERIFY(!controller.splitTunneling()->busy());
+    QTRY_VERIFY(!controller.customDns()->busy());
+    QVERIFY(model->property("message").toString().contains(QStringLiteral("could not be confirmed")));
     update();
     QTRY_COMPARE(m_backend.delayedSettingsUpdateMessages.size(), 2);
     QVERIFY(m_backendBus->send(m_backend.delayedSettingsUpdateMessages.at(1)
         .createReply(QVariantList{payload})));
     QTRY_VERIFY(!model->property("busy").toBool());
+    QVERIFY(model->property("message").toString().isEmpty());
 }
 
 void GroupedNavigationTest::foregroundTimeoutWaitsForFreshIdleRead_data()
 {
-    QTest::addColumn<bool>("disconnecting");
-    QTest::newRow("connect") << false;
-    QTest::newRow("disconnect") << true;
+    QTest::addColumn<QString>("route");
+    QTest::addColumn<QString>("initialState");
+    QTest::addColumn<QString>("finalState");
+    QTest::addColumn<bool>("hasDiagnostic");
+    const QStringList routes{QStringLiteral("fastest"), QStringLiteral("features"),
+        QStringLiteral("country"), QStringLiteral("country-features"),
+        QStringLiteral("group"), QStringLiteral("group-features"),
+        QStringLiteral("server"), QStringLiteral("disconnect")};
+    for (const auto &route : routes) {
+        const QStringList startingStates{QStringLiteral("connected"),
+            route == QStringLiteral("disconnect") ? QStringLiteral("error")
+                                                   : QStringLiteral("disconnected")};
+        for (const auto &initialState : startingStates) {
+            for (const auto &finalState : {QStringLiteral("connected"), QStringLiteral("disconnected")}) {
+                for (const bool diagnostic : {false, true}) {
+                    const QString name = route + u'-' + initialState + u'-' + finalState
+                        + (diagnostic ? QStringLiteral("-diagnostic") : QStringLiteral("-silent"));
+                    QTest::newRow(qPrintable(name)) << route << initialState << finalState << diagnostic;
+                }
+            }
+        }
+    }
 }
 
 void GroupedNavigationTest::foregroundTimeoutWaitsForFreshIdleRead()
 {
-    QFETCH(bool, disconnecting);
+    QFETCH(QString, route);
+    QFETCH(QString, initialState);
+    QFETCH(QString, finalState);
+    QFETCH(bool, hasDiagnostic);
+    const bool disconnecting = route == QStringLiteral("disconnect");
     const auto cleanup = qScopeGuard([this] {
         m_backend.delayDisconnect = false;
         m_backend.delaySnapshot = false;
         m_backend.operationBusy = false;
+        m_backend.statusMessage.clear();
         m_backend.connectionState = QStringLiteral("disconnected");
         m_backend.delayedDisconnectMessage = {};
         m_backend.delayedSnapshotMessages.clear();
         m_backend.delayedCapabilityOperationCount = 0;
         m_backend.delayedCapabilityMessages.clear();
     });
-    m_backend.connectionState = disconnecting ? QStringLiteral("connected")
-                                              : QStringLiteral("disconnected");
+    m_backend.connectionState = initialState;
     m_backend.publishSession(true, true);
     VpnController controller(nullptr, false);
     QSignalSpy finished(&controller, &VpnController::connectionOperationFinished);
@@ -1535,7 +1589,22 @@ void GroupedNavigationTest::foregroundTimeoutWaitsForFreshIdleRead()
         controller.disconnect();
         QTRY_COMPARE(m_backend.delayedDisconnectMessage.type(), QDBusMessage::MethodCallMessage);
     } else {
-        controller.connectFastestWithFeatures({QStringLiteral("p2p")});
+        if (route == QStringLiteral("fastest")) {
+            controller.connectFastestWithFeatures({});
+        } else if (route == QStringLiteral("features")) {
+            controller.connectFastestWithFeatures({QStringLiteral("p2p")});
+        } else if (route == QStringLiteral("country")) {
+            controller.connectCountry(QStringLiteral("CH"));
+        } else if (route == QStringLiteral("country-features")) {
+            controller.connectCountryWithFeatures(QStringLiteral("CH"), {QStringLiteral("p2p")});
+        } else if (route == QStringLiteral("group")) {
+            controller.connectGroup(QStringLiteral("CH"), QStringLiteral("location"), QStringLiteral("Zurich"));
+        } else if (route == QStringLiteral("group-features")) {
+            controller.connectGroupWithFeatures(QStringLiteral("CH"), QStringLiteral("location"),
+                QStringLiteral("Zurich"), {QStringLiteral("p2p")});
+        } else {
+            controller.connectServer(QStringLiteral("CH#1"));
+        }
         QTRY_COMPARE(m_backend.delayedCapabilityMessages.size(), 1);
     }
     m_backend.delaySnapshot = true;
@@ -1562,15 +1631,61 @@ void GroupedNavigationTest::foregroundTimeoutWaitsForFreshIdleRead()
     QVERIFY(controller.busy());
     QCOMPARE(finished.count(), 0);
     m_backend.operationBusy = false;
-    m_backend.connectionState = disconnecting ? QStringLiteral("disconnected")
-                                              : QStringLiteral("connected");
+    m_backend.connectionState = finalState;
+    m_backend.statusMessage = hasDiagnostic ? QStringLiteral("Target lookup failed") : QString{};
     m_backend.publishSession(true, true);
     QTRY_VERIFY(!controller.busy());
     QTRY_COMPARE(finished.count(), 1);
-    QVERIFY(finished.at(0).at(2).toBool());
+    QVERIFY(!finished.at(0).at(2).toBool());
+    QVERIFY(finished.at(0).at(3).toString().contains(QStringLiteral("could not be confirmed")));
     m_backend.publishSession(true, true);
     QTest::qWait(30);
     QCOMPARE(finished.count(), 1);
+}
+
+void GroupedNavigationTest::captureStateDoesNotAcknowledgeStart_data()
+{
+    QTest::addColumn<bool>("timedOut");
+    QTest::newRow("failed") << false;
+    QTest::newRow("unconfirmed") << true;
+}
+
+void GroupedNavigationTest::captureStateDoesNotAcknowledgeStart()
+{
+    QFETCH(bool, timedOut);
+    const auto cleanup = qScopeGuard([this] {
+        m_backend.connectionState = QStringLiteral("disconnected");
+        m_backend.operationBusy = false;
+        m_backend.packetCaptureActive = false;
+        m_backend.delayPacketCaptureStart = false;
+        m_backend.delayedPacketCaptureStartMessage = {};
+    });
+    m_backend.connectionState = QStringLiteral("connected");
+    m_backend.publishSession(true, true);
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY(controller.ready());
+    m_backend.delayPacketCaptureStart = true;
+    controller.startPacketCapture(QStringLiteral("/tmp"));
+    QTRY_COMPARE(m_backend.delayedPacketCaptureStartMessage.type(), QDBusMessage::MethodCallMessage);
+    const auto start = m_backend.delayedPacketCaptureStartMessage;
+    m_backend.delayedPacketCaptureStartMessage = {};
+    // Active is a retained cleanup obligation, including an unconfirmed Start;
+    // it is not evidence that this request began writing a capture successfully.
+    m_backend.packetCaptureActive = true;
+    m_backend.operationBusy = true;
+    m_backend.publishSession(true, true);
+    QVERIFY(m_backendBus->send(start.createErrorReply(
+        timedOut ? QDBusError::NoReply : QDBusError::Failed,
+        QStringLiteral("capture start did not acknowledge"))));
+    QTRY_VERIFY(!controller.packetCaptureError().isEmpty());
+    m_backend.operationBusy = false;
+    m_backend.publishSession(true, true);
+    QTest::qWait(50);
+    QVERIFY(!controller.packetCaptureError().isEmpty());
+    QVERIFY(controller.packetCaptureActive());
+    controller.stopPacketCapture();
+    QTRY_VERIFY(!controller.packetCaptureActive());
+    QTRY_VERIFY(controller.packetCaptureError().isEmpty());
 }
 
 void GroupedNavigationTest::searchCoalescesToLatestQuery()

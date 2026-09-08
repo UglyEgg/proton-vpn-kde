@@ -11,9 +11,7 @@ Kirigami.InlineMessage {
     property bool awaitingResult: false
     property double operationId: 0
     property string expectedState
-    property string startingState
     property string completedMessage
-    property string sourceMessage
     readonly property bool messageActive: completedMessage.length > 0
 
     objectName: "connectionActionFeedback"
@@ -24,56 +22,34 @@ Kirigami.InlineMessage {
 
     function clearCompletedMessage() {
         completedMessage = ""
-        sourceMessage = ""
     }
 
     function beginForOperation(id, state) {
         operationId = id
         expectedState = state
-        startingState = controller.state
         awaitingResult = true
         clearCompletedMessage()
     }
 
-    function expectedStateReached() {
-        return controller.state === expectedState
-               && startingState !== expectedState
-    }
-
     function reconcileSnapshot() {
-        if (!controller.loggedIn) {
+        // State is presentation, not a receipt for this request. Only retire
+        // local feedback when identity/availability is lost or a stronger
+        // connection diagnostic takes over; a matching state proves no result.
+        if (!controller.loggedIn || !controller.backendAvailable
+                || !controller.ready || controller.state === "error"
+                || controller.state === "unresponsive") {
             awaitingResult = false
             clearCompletedMessage()
-            return
-        }
-        if (messageActive
-                && (expectedStateReached()
-                    || controller.state === "error"
-                    || controller.state === "unresponsive"
-                    || controller.message !== sourceMessage)) {
-            clearCompletedMessage()
-        }
-        if (!awaitingResult) {
-            return
-        }
-        if (expectedStateReached()
-                || !controller.backendAvailable
-                || !controller.ready
-                || ((controller.state === "error"
-                     || controller.state === "unresponsive")
-                    && controller.state !== startingState)) {
-            awaitingResult = false
         }
     }
 
-    function completeOperation(id, targetState, success, resultMessage) {
+    function completeOperation(id, targetState, acknowledged, resultMessage) {
         if (!awaitingResult || id !== operationId
                 || targetState !== expectedState) {
             return
         }
         awaitingResult = false
-        if (success
-                || expectedStateReached()
+        if (acknowledged
                 || !controller.backendAvailable
                 || !controller.ready
                 || controller.state === "error"
@@ -85,7 +61,6 @@ Kirigami.InlineMessage {
             return
         }
         completedMessage = displayMessage
-        sourceMessage = controller.message
     }
 
     Connections {
@@ -97,8 +72,8 @@ Kirigami.InlineMessage {
             root.beginForOperation(operationId, targetState)
         }
         function onConnectionOperationFinished(operationId, targetState,
-                                               success, message) {
-            root.completeOperation(operationId, targetState, success, message)
+                                               acknowledged, message) {
+            root.completeOperation(operationId, targetState, acknowledged, message)
         }
     }
 }

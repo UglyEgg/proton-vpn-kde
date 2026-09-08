@@ -128,7 +128,7 @@ signals:
                                     const QString &targetState);
     void connectionOperationFinished(quint64 operationId,
                                      const QString &targetState,
-                                     bool success,
+                                     bool acknowledged,
                                      const QString &message);
 };
 
@@ -157,6 +157,8 @@ private slots:
     void recoveryPreservesAuthoritativeMessage();
     void applicationRecoveryIsPersistentAndActionable();
     void connectionActionFeedbackTracksOwnedResult();
+    void connectionFeedbackCannotInferAcknowledgement_data();
+    void connectionFeedbackCannotInferAcknowledgement();
     void runnerActionsUseCurrentIntentPermission_data();
     void runnerActionsUseCurrentIntentPermission();
     void serverEmptyStateExplainsActiveFilters_data();
@@ -585,6 +587,74 @@ void SignInPresentationTest::connectionActionFeedbackTracksOwnedResult()
     emit controller.snapshotChanged();
     QCoreApplication::processEvents();
     QVERIFY(!feedback->property("awaitingResult").toBool());
+    QVERIFY(!feedback->property("messageActive").toBool());
+}
+
+void SignInPresentationTest::connectionFeedbackCannotInferAcknowledgement_data()
+{
+    QTest::addColumn<QString>("initialState");
+    QTest::addColumn<QString>("finalState");
+    QTest::addColumn<QString>("target");
+    QTest::addColumn<bool>("acknowledged");
+    QTest::addColumn<bool>("replyFirst");
+    for (const auto &initial : {QStringLiteral("connected"), QStringLiteral("disconnected")}) {
+        for (const auto &final : {QStringLiteral("connected"), QStringLiteral("disconnected"), QStringLiteral("error")}) {
+            for (const auto &target : {QStringLiteral("connected"), QStringLiteral("disconnected")}) {
+                for (const bool acknowledged : {false, true}) {
+                    for (const bool replyFirst : {false, true}) {
+                        const QString name = initial + u'-' + final + u'-' + target
+                            + (acknowledged ? QStringLiteral("-ack") : QStringLiteral("-unknown"))
+                            + (replyFirst ? QStringLiteral("-reply-first") : QStringLiteral("-state-first"));
+                        QTest::newRow(qPrintable(name)) << initial << final << target << acknowledged << replyFirst;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void SignInPresentationTest::connectionFeedbackCannotInferAcknowledgement()
+{
+    QFETCH(QString, initialState);
+    QFETCH(QString, finalState);
+    QFETCH(QString, target);
+    QFETCH(bool, acknowledged);
+    QFETCH(bool, replyFirst);
+    FakeVpnController controller;
+    controller.loggedIn = true;
+    controller.state = initialState;
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(QStringLiteral(
+        PROTON_VPN_KDE_SOURCE_DIR "/qml/ConnectionActionFeedback.qml")));
+    QScopedPointer<QObject> feedback(component.createWithInitialProperties({
+        {QStringLiteral("controller"), QVariant::fromValue(static_cast<QObject *>(&controller))}}));
+    QVERIFY2(feedback, qPrintable(component.errorString()));
+    const QString warning = QStringLiteral("The request result could not be confirmed");
+    emit controller.connectionOperationStarted(1, target);
+    const auto finish = [&] {
+        emit controller.connectionOperationFinished(1, target, acknowledged,
+                                                    acknowledged ? QString{} : warning);
+    };
+    if (replyFirst) {
+        finish();
+    }
+    controller.state = finalState;
+    emit controller.snapshotChanged();
+    if (!replyFirst) {
+        finish();
+    }
+    QCoreApplication::processEvents();
+    const bool warningVisible = !acknowledged && finalState != QStringLiteral("error");
+    QCOMPARE(feedback->property("messageActive").toBool(), warningVisible);
+    if (warningVisible) {
+        QCOMPARE(feedback->property("completedMessage").toString(), warning);
+        controller.message = QStringLiteral("An unrelated operation updated the status");
+        emit controller.snapshotChanged();
+        QCoreApplication::processEvents();
+        QVERIFY(feedback->property("messageActive").toBool());
+    }
+    emit controller.connectionOperationStarted(2, target);
+    QCoreApplication::processEvents();
     QVERIFY(!feedback->property("messageActive").toBool());
 }
 

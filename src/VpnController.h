@@ -230,9 +230,12 @@ signals:
     void locationsChanged();
     void connectionOperationStarted(quint64 operationId,
                                     const QString &targetState);
+    // acknowledged means a normal method reply, not an observed tunnel state.
+    // false carries either a request failure or explicit unconfirmed guidance.
+    // No snapshot may manufacture an acknowledgement for a missing reply.
     void connectionOperationFinished(quint64 operationId,
                                      const QString &targetState,
-                                     bool success,
+                                     bool acknowledged,
                                      const QString &message);
     void npsSurveyChanged();
     void npsSurveySubmissionFinished(bool success, const QString &message);

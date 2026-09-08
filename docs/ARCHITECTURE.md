@@ -222,11 +222,42 @@ not that receipt. A busy read preserves ownership; a later current-owner idle
 signal can settle it exactly once. Ordinary signal-before-successful-reply
 ordering still permits a successor; stale replies cannot settle that successor.
 
+### Request-result evidence contract
+
+**Observation, retirement and acknowledgement are separate facts.** A snapshot
+describes current state; idle can release an owned wait; only the current
+request's normal method reply acknowledges that request. A normal Connect reply
+is not a claim that the tunnel is already established. Conversely a failure is
+not proof that every side effect was rolled back. Missing acknowledgement stays
+unconfirmed, even when a later state happens to match the requested target.
+
+| Boundary | Permitted evidence and behavior |
+| --- | --- |
+| All seven native Connect routes and Disconnect | The shared reply handlers alone acknowledge a normal reply. After timeout, fresh read plus idle releases ownership with explicit unconfirmed guidance, never synthetic success. An existing or newly observed connected tunnel cannot prove a particular switch succeeded. |
+| QML connection feedback | Present the generation-owned acknowledgement/failure/unconfirmed message. No second completion decision from connection state or unrelated status text. Owner/account loss and stronger connection diagnostics can retire that local feedback. |
+| VPN, split-tunneling and DNS settings | A valid mutation reply acknowledges that write. Serialized readback refreshes values and releases the write gate; it does not acknowledge the earlier write. Preserve its unconfirmed marker through later ordinary reads until an explicit new write or owner/account reset. |
+| Capture | Active includes reserved and unconfirmed capture obligations, so it cannot acknowledge Start or erase its failure. Confirmed inactive is a cleanup postcondition and may retire Stop guidance. Core's writer and durable supervisor are unchanged. |
+| Agent lease and disconnect-and-quit | These answer lifetime/postcondition questions, not historical request success. Current authorized, healthy, ready, idle state can release a lease; idle-disconnected can satisfy quit's absence requirement. Their existing ownership checks remain. |
+| Backend auth, settings, retry and capture owners | Preserve provider results/exceptions and explicit account/retirement evidence. Existing public Down barriers and process handoffs are not replaced by a state-only test. No Core changes. |
+| Registration, support, NPS and package switching | Results come from their own authorized method reply/provider result or command exit; refreshes project current state. No idle-to-success conversion was found in these callers; their separate controls remain. |
+
+The error-class regressions cross eight connection method routes, starting
+connected versus disconnected/error, both settled connection states, and absent
+versus present diagnostics (64 native rows). They retain the stale-read → busy
+read → idle ordering. A separate 48-row QML matrix crosses initial/final state,
+requested target, acknowledgement and reply/snapshot order. Three settings
+families and both failed/unconfirmed capture Starts have sibling tests. These
+are contract tests, not a guarantee against every future implementation error.
+
+### Settings, browsing and lifecycle ownership
+
 Each settings family has one request generation and a small typed request
 state. Applying settings data changes values only, not busy state or request
 messages. An ambiguous write requires serialized readback; failed readback
 keeps writes blocked. An explicit read or later idle snapshot can retry the
 read, never the write. Account or backend replacement invalidates the request.
+Successful readback leaves the earlier write's result unconfirmed; the model
+shows current values and explicit guidance without automatically repeating it.
 
 Browsing and settings reads share eight backend admission slots. Rejection is
 immediate when full, including readers waiting for the settings lock. A

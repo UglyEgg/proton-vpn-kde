@@ -9,7 +9,9 @@ All notable user-visible changes are recorded here. The project follows
   authentication/settings work through cancellation, bound complete foreground
   transactions, keep Disconnect and capture Stop independently available, and
   require fresh-process account replacement when Core cannot prove that old
-  background work has retired. Preserve Proton Core and networking behavior.
+  background work has retired. Keep unconfirmed request results distinct from
+  refreshed connection/settings state, including server switches and capture
+  starts. Preserve Proton Core and networking behavior.
 - Begin the 0.13.0 presentation-led cycle with a documented progressive-
   disclosure model grounded in native Qt 6, Kirigami, and system theming.
 - Freeze backend, networking, service, integration, and Proton-overlay mechanics

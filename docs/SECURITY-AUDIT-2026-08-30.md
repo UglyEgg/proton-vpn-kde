@@ -21,8 +21,8 @@ asynchronous state-ownership corrections where the new presentation exposed a
 real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
-**Current source decision: stopped with RC-02 still open; not UAT- or
-release-ready.** All seven isolated reviewers completed the same frozen
+**Current source decision: bounded RC-02 error-class correction under
+verification; not UAT- or release-ready.** All seven isolated reviewers completed the same frozen
 `a2b3d5e945dc46d92838a9979f0b25805b86e801` candidate before remediation.
 Five distinct P2 runtime issues and one stale negative-test fixture were
 consolidated below. Cognitive Load/Code Maintainability and Subtractive passed
@@ -107,7 +107,7 @@ lists engineering defects, not demonstrated security vulnerabilities.
 | Item | Finding and affected invariant | Correction status |
 | --- | --- | --- |
 | RC-01, P2 | Settings signals could clear request ownership; old replies lacked a request generation. | Candidate corrected across VPN, split tunneling and DNS. Data-only parsing, typed request state and retained unknown-write readback have three-family private-bus and model tests. |
-| RC-02, P2 | GUI timeout could publish failure and reopen Connect before provider completion. Hostile, Entropy and Error-Class reported the same defect. | Partially corrected, still open on `7d4d030`: ownership is retained, but an unchanged connected tunnel can be mistaken for successful completion of a failed server switch. See the stopped correction checkpoint below. |
+| RC-02, P2 | Observed state/retirement was confused with request acknowledgement. | Open at `7d4d030`; a bounded candidate now removes synthetic acknowledgement and duplicate QML settlement, retains unconfirmed settings results through readback, and preserves failed/unconfirmed capture-Start guidance. Verification and final review remain distinct below. |
 | RC-03, P2 | Early logout journal/settings failure retained an internal fence without publishing recovery. | Candidate publishes the fence for replace, directory-sync and early settings failures; tests preserve partial handoff records and reject replacement credentials. |
 | RC-04, P2 | Unrelated operation messages could replace degraded-background recovery guidance. | Candidate derives stable guidance from degraded state while preserving stronger diagnostics; backend and presentation tests cover message changes. |
 | RC-05, P2 | Repeated searches could accumulate accepted reads behind a blocked provider; debounce and stale filtering were not admission bounds. | Candidate adds eight shared browsing/settings slots and latest-query native coalescing. Tests cover saturation, cancellation-resistant reads and queued settings withdrawal. Not a measured ordinary-session leak. |
@@ -151,7 +151,29 @@ archive reproducibility; and 39/40 native targets normally and under sanitizers
 independent 1.5x text validation. These are development results, not
 exact-correction package, live-UAT or soak evidence.
 
-### Correction checkpoint — stopped at `7d4d030`
+### Error-class correction — resumed by maintainer on 2026-09-08
+
+Scope is the shared request-result evidence contract in
+[architecture](ARCHITECTURE.md#request-result-evidence-contract), not another
+repository-wide discovery/repair cycle. The maintainer requested correction of
+the class after the explicit stop at `7d4d030`. No new protocol, Core rewrite,
+live reproduction, installation or security-scan round is part of this work.
+
+Before production edits, the new tests reproduced one same-state switch false
+acknowledgement, all three settings readbacks losing unconfirmed guidance, both
+capture-Start diagnostic losses, and 16 QML state/order feedback failures.
+These are sibling manifestations of the same evidence-confusion class, not
+new security vulnerabilities. The implementation removes state-derived request
+acknowledgement instead of guessing success from a server name or message.
+
+The native timeout matrix covers all seven Connect methods plus Disconnect,
+two admitted starting states per route, both settled states and diagnostic
+presence. QML tests independently vary state, target, acknowledgement and
+event order. Existing ownership, cancellation, identity, cleanup and backend
+conformance tests remain required. Passing this bounded check does not inherit
+the earlier independent review approval or certify the entire codebase.
+
+### Historical correction checkpoint — stopped at `7d4d030`
 
 The grouped correction commit is
 `7d4d030ea92aa22a186826b0d338732075f61e53`. It passes 431 backend tests on
