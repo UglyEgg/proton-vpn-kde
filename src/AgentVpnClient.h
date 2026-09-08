@@ -14,6 +14,7 @@
 
 class QDBusPendingCallWatcher;
 class QDBusServiceWatcher;
+class QTimer;
 
 class AgentVpnClient final : public VpnConnectionController,
                              protected QDBusContext
@@ -65,6 +66,7 @@ private:
     void connectBackendSignals();
     void disconnectBackendSignals();
     void authorizeClient();
+    void scheduleRecoveryRead();
     void requestSnapshot(bool allowActivation = false,
                          quint64 operationGeneration = 0);
     void applySnapshot(const QString &snapshotJson);
@@ -81,6 +83,11 @@ private:
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
+    QTimer *m_recoveryRetryTimer = nullptr;
+    int m_recoveryRetryCount = 0;
+    bool m_authorizationRejected = false;
+    bool m_discoveryPending = false;
+    bool m_identityPending = false;
     bool m_backendAvailable = false;
     QString m_backendDestination;
     bool m_authorizationPending = false;
@@ -101,7 +108,7 @@ private:
     quint64 m_reconnectionRequestGeneration = 0;
     int m_killSwitch = 0;
     int m_forwardedPort = 0;
-    QString m_state = QStringLiteral("disconnected");
+    QString m_state = QStringLiteral("unavailable");
     QString m_authState = QStringLiteral("signed_out");
     QString m_serverName;
     QString m_message;

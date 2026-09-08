@@ -13,7 +13,6 @@
 
 #include <QAbstractItemModel>
 #include <QDBusConnection>
-#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
@@ -103,16 +102,7 @@ VpnController::VpnController(QObject *parent, bool discoverApplications)
     connect(m_serviceWatcher, &QDBusServiceWatcher::serviceUnregistered,
             this, &VpnController::onServiceUnregistered);
 
-    auto *interface = QDBusConnection::sessionBus().interface();
-    if (interface && interface->isServiceRegistered(
-            QString::fromLatin1(BackendDbus::serviceName))) {
-        onServiceRegistered(QString::fromLatin1(BackendDbus::serviceName));
-    } else if (interface) {
-        // Activation itself carries no application data. No Backend1 method is
-        // called until the resulting unique owner has been authenticated.
-        static_cast<void>(interface->startService(
-            QString::fromLatin1(BackendDbus::serviceName)));
-    }
+    registerClient();
 }
 
 VpnController::~VpnController()

@@ -338,6 +338,8 @@ private:
     LocationFilterProxyModel *m_applicationFilterModel = nullptr;
     bool m_backendAvailable = false;
     QString m_backendDestination;
+    bool m_backendDiscoveryPending = false;
+    bool m_backendIdentityPending = false;
     quint64 m_backendGeneration = 0;
     quint64 m_sessionGeneration = 0;
     bool m_snapshotRefreshPending = false;

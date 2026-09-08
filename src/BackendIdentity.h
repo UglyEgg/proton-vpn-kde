@@ -6,8 +6,10 @@
 #include <QByteArray>
 #include <QString>
 #include <QStringList>
+#include <functional>
 
 class QDBusConnection;
+class QObject;
 
 namespace ProtonVpnKde
 {
@@ -21,6 +23,10 @@ struct BackendIdentityResult
 [[nodiscard]] bool isRootOwnedImmutableFile(const QString &path);
 [[nodiscard]] bool areRootOwnedImmutableFiles(const QStringList &paths);
 [[nodiscard]] bool isBackendEnvironmentSafe(const QByteArray &environment);
-[[nodiscard]] BackendIdentityResult
-verifyBackendIdentity(const QDBusConnection &bus, const QString &wellKnownName);
+void verifyBackendIdentity(const QDBusConnection &bus, const QString &wellKnownName,
+                           QObject *context,
+                           std::function<void(BackendIdentityResult)> completed);
+void discoverBackendService(const QDBusConnection &bus, const QString &wellKnownName,
+                            bool activate, QObject *context,
+                            std::function<void(bool)> completed);
 }

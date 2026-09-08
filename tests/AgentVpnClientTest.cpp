@@ -12,6 +12,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QtTest>
+#include <QTimer>
 #include <memory>
 
 namespace
@@ -26,6 +27,8 @@ class AgentBackend final : public QObject, protected QDBusContext
 
 public:
     int authorizationCalls = 0;
+    int authorizationFailures = 0;
+    bool rejectAuthorization = false;
     int registrationCalls = 0;
     int unregistrationCalls = 0;
     int reconnectCalls = 0;
@@ -71,7 +74,17 @@ public:
     }
 
 public slots:
-    void AuthorizeClient(const QString &) { ++authorizationCalls; }
+    void AuthorizeClient(const QString &)
+    {
+        ++authorizationCalls;
+        if (rejectAuthorization) {
+            sendErrorReply(QStringLiteral("quest.entropy.PlasmaVPN.Error.Unauthorized"),
+                           QStringLiteral("Not authorized"));
+        } else if (authorizationFailures > 0) {
+            --authorizationFailures;
+            sendErrorReply(QDBusError::NoReply, QStringLiteral("Try a read again"));
+        }
+    }
     void RegisterClient(const QString &)
     {
         ++registrationCalls;
@@ -182,6 +195,9 @@ private slots:
     void autoConnectDoesNotSurviveAnExistingTransition_data();
     void autoConnectDoesNotSurviveAnExistingTransition();
     void observesLeaseFreeAndUsesTransientActionLeases();
+    void authorizationRecoversOnlyTransientFailures_data();
+    void authorizationRecoversOnlyTransientFailures();
+    void lateIdentityCannotReviveLostOwner();
 
 private:
     AgentBackend m_backend;
@@ -371,7 +387,8 @@ void AgentVpnClientTest::observesLeaseFreeAndUsesTransientActionLeases()
 
     m_backendBus->unregisterService(QString::fromLatin1(kBackendService));
     QTRY_VERIFY_WITH_TIMEOUT(!client.backendAvailable(), 2000);
-    QCOMPARE(client.state(), QStringLiteral("disconnected"));
+    QCOMPARE(client.state(), QStringLiteral("unavailable"));
+    QVERIFY(m_backendBus->registerService(QString::fromLatin1(kBackendService)));
 }
 
 void AgentVpnClientTest::reconcilesCompletionUnknownOperationBeforeReleasingLease()
@@ -782,9 +799,65 @@ void AgentVpnClientTest::failedSnapshotCannotAuthorizeAnotherConnection()
     client.activatePrimaryAction();
     QCOMPARE(m_backend.fastestCalls, 1);
 
-    emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
-    QTRY_VERIFY_WITH_TIMEOUT(client.canConnect(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    QVERIFY(client.canConnect());
     QVERIFY(client.canDisconnect());
+    QCOMPARE(m_backend.fastestCalls, 1); // Read recovery never replays a mutation.
+}
+
+void AgentVpnClientTest::authorizationRecoversOnlyTransientFailures_data()
+{
+    QTest::addColumn<int>("failures");
+    QTest::addColumn<bool>("denied");
+    QTest::newRow("one-transient") << 1 << false;
+    QTest::newRow("retry-limit") << 99 << false;
+    QTest::newRow("permanent-denial") << 0 << true;
+}
+
+void AgentVpnClientTest::authorizationRecoversOnlyTransientFailures()
+{
+    QFETCH(int, failures);
+    QFETCH(bool, denied);
+    m_backend.resetCounters();
+    m_backend.authorizationFailures = failures;
+    m_backend.rejectAuthorization = denied;
+    {
+        AgentVpnClient client;
+        if (failures == 1) {
+            QTimer::singleShot(100, &client, [this] {
+                // Public state signals do not prove client authorization.
+                emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
+            });
+            QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+            QCOMPARE(m_backend.authorizationCalls, 2);
+        } else {
+            QTest::qWait(2300);
+            QVERIFY(!client.backendAvailable());
+            QCOMPARE(m_backend.authorizationCalls, denied ? 1 : 4);
+        }
+        QCOMPARE(m_backend.fastestCalls, 0);
+    }
+    m_backend.authorizationFailures = 0;
+    m_backend.rejectAuthorization = false;
+}
+
+void AgentVpnClientTest::lateIdentityCannotReviveLostOwner()
+{
+    AgentVpnClient client;
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    m_backend.state = QStringLiteral("connected");
+    emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
+    QTRY_COMPARE(client.state(), QStringLiteral("connected"));
+    QVERIFY(QMetaObject::invokeMethod(&client, "onServiceRegistered", Qt::DirectConnection,
+                                     Q_ARG(QString, QString::fromLatin1(kBackendService))));
+    QVERIFY(QMetaObject::invokeMethod(&client, "onServiceUnregistered", Qt::DirectConnection,
+                                     Q_ARG(QString, QString::fromLatin1(kBackendService))));
+    QTest::qWait(100);
+    QVERIFY(!client.backendAvailable());
+    QVERIFY(!client.ready());
+    QCOMPARE(client.state(), QStringLiteral("unavailable"));
+    QCOMPARE(m_backend.state, QStringLiteral("connected"));
+    m_backend.state = QStringLiteral("disconnected");
 }
 
 void AgentVpnClientTest::autoConnectDoesNotSurviveAnExistingTransition_data()

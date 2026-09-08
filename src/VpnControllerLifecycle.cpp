@@ -12,7 +12,6 @@
 #include "VpnSettingsModel.h"
 
 #include <QDBusConnection>
-#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
@@ -137,32 +136,40 @@ void VpnController::onServiceRegistered(const QString &)
     m_packetCaptureStopRequested = false;
     ++m_locationRequestGeneration;
     m_locationsBusy = false;
-    const auto identity = ProtonVpnKde::verifyBackendIdentity(
-        QDBusConnection::sessionBus(), QString::fromLatin1(BackendDbus::serviceName));
-    if (!identity.trusted) {
-        disconnectBackendSignals();
-        m_backendDestination.clear();
-        ++m_backendGeneration;
-        setBackendAvailable(false);
-        m_state = QStringLiteral("unavailable");
-        m_message = tr("The VPN backend could not be authenticated");
-        emit snapshotChanged();
-        return;
-    }
     disconnectBackendSignals();
-    m_backendDestination = identity.uniqueOwner;
+    m_backendDestination.clear();
     ++m_backendGeneration;
+    m_backendDiscoveryPending = false;
+    m_backendIdentityPending = true;
     m_snapshotRefreshRetryTimer->stop();
     m_snapshotRefreshRetryCount = 0;
-    connectBackendSignals();
     setBackendAvailable(false);
     m_clientRegistration.serviceChanged();
     m_clientRegistrationRetryTimer->stop();
-    registerClient();
+    const quint64 generation = m_backendGeneration;
+    ProtonVpnKde::verifyBackendIdentity(
+        QDBusConnection::sessionBus(), QString::fromLatin1(BackendDbus::serviceName), this,
+        [this, generation](const ProtonVpnKde::BackendIdentityResult &identity) {
+            if (generation != m_backendGeneration) {
+                return;
+            }
+            m_backendIdentityPending = false;
+            if (!identity.trusted) {
+                m_state = QStringLiteral("unavailable");
+                m_message = tr("The VPN backend could not be authenticated");
+                emit snapshotChanged();
+                return;
+            }
+            m_backendDestination = identity.uniqueOwner;
+            connectBackendSignals();
+            registerClient();
+        });
 }
 
 void VpnController::onServiceUnregistered(const QString &)
 {
+    m_backendDiscoveryPending = false;
+    m_backendIdentityPending = false;
     m_backendRestartPending = false;
     disconnectBackendSignals();
     m_backendDestination.clear();
@@ -269,12 +276,24 @@ void VpnController::registerClient()
         return;
     }
     if (m_backendDestination.isEmpty()) {
-        auto *interface = QDBusConnection::sessionBus().interface();
-        if (!interface
-            || !interface->startService(
-                    QString::fromLatin1(BackendDbus::serviceName)).isValid()) {
-            scheduleClientRegistrationRetry();
+        if (m_backendDiscoveryPending || m_backendIdentityPending) {
+            return;
         }
+        m_backendDiscoveryPending = true;
+        const quint64 generation = m_backendGeneration;
+        ProtonVpnKde::discoverBackendService(QDBusConnection::sessionBus(),
+            QString::fromLatin1(BackendDbus::serviceName), true, this,
+            [this, generation](bool present) {
+                if (generation != m_backendGeneration) {
+                    return;
+                }
+                m_backendDiscoveryPending = false;
+                if (present) {
+                    onServiceRegistered({});
+                } else {
+                    scheduleClientRegistrationRetry();
+                }
+            });
         return;
     }
     const auto generation = m_clientRegistration.begin();

@@ -422,7 +422,10 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     proton_vpn_kde_enable_backend_identity(backend-identity-tests)
-    add_test(NAME backend-identity-tests COMMAND backend-identity-tests)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME backend-identity-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:backend-identity-tests>)
+    endif()
 
     qt_add_executable(agent-vpn-client-tests
         tests/AgentVpnClientTest.cpp
@@ -581,6 +584,24 @@ if(BUILD_TESTING)
         )
     else()
     add_test(NAME app-settings-tests COMMAND app-settings-tests)
+    endif()
+
+    qt_add_executable(notification-integration-tests
+        tests/NotificationIntegrationTest.cpp
+        src/NotificationIntegration.cpp
+        src/NotificationIntegration.h
+        src/AppSettings.cpp
+        src/AppSettings.h
+        src/VpnConnectionController.h
+    )
+    target_include_directories(notification-integration-tests PRIVATE src)
+    target_link_libraries(notification-integration-tests PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Test KF6::ConfigCore KF6::Notifications)
+    target_compile_options(notification-integration-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME notification-integration-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:notification-integration-tests>)
     endif()
 
     qt_add_executable(app-icon-tests

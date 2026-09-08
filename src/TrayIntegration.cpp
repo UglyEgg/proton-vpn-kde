@@ -199,7 +199,8 @@ void TrayIntegration::showDisconnectTimeout()
 
 void TrayIntegration::updateState()
 {
-    const QString state = m_controller->state();
+    const bool observed = m_controller->backendAvailable() && m_controller->ready();
+    const QString state = observed ? m_controller->state() : tr("connection state unavailable");
     const QString server = m_controller->serverName();
     const bool connected = state == QStringLiteral("connected");
     const auto capability = m_controller->connectionCapabilities();

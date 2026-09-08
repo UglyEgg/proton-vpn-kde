@@ -507,7 +507,10 @@ Kirigami.ApplicationWindow {
                 if (!mainDialogs.runnerActionVisible
                         || vpnController.state !== "disconnected") {
                     stop()
-                    console.error("diagnostics-smoke: KRunner request bypassed confirmation")
+                    console.error("diagnostics-smoke: KRunner confirmation invariant failed",
+                                  mainDialogs.runnerActionVisible, vpnController.state,
+                                  vpnController.backendAvailable, vpnController.ready,
+                                  vpnController.message)
                     Qt.exit(2)
                     return
                 }
