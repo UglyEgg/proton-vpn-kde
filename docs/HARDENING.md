@@ -303,8 +303,12 @@ removed when the check completes rather than accumulating unique-name
 tombstones for the backend lifetime.
 
 The ingress policy covers every supported exported-call representation and
-rejects unexpected descriptors even on standard-interface calls at the backend
-object. The shared export boundary applies the generated method classification
+discharges unexpected descriptor ownership before object routing, including
+ignored signals and scalar replies without consuming their normal dispatch.
+Closed descriptors are detached from the message to prevent double cleanup.
+The guard is installed before bus connection, allows secret adoption only after
+export, and remains active in non-adopting mode through shutdown/disconnect.
+The shared export boundary applies the generated method classification
 again before any protected operation body runs. This second check covers
 revocation while an asynchronous call is queued and closes its secret descriptor
 if authorization is lost before the method adopts it. Request identity defaults

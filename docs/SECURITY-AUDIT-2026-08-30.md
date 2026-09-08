@@ -21,15 +21,13 @@ asynchronous state-ownership corrections where the new presentation exposed a
 real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
-**Current source decision: bounded RC-02 error-class correction implemented
-and regression-verified at `1a2366e`; final independent approval and UAT remain
-pending.** This is not release approval. All seven isolated reviewers
-completed the same frozen
-`a2b3d5e945dc46d92838a9979f0b25805b86e801` candidate before remediation.
-Five distinct P2 runtime issues and one stale negative-test fixture were
-consolidated below. Cognitive Load/Code Maintainability and Subtractive passed
-without required changes. The standard security scan found no validated
-reportable vulnerability in its covered scope, but coverage was partial.
+**Current source decision: the seven-isolated-reviewer battery at `4d6b5f2`
+required seven P2 corrections and one P3 correction. The bounded patch series
+through `bbcf1ab` implements all eight; final verification is in progress.**
+The current R1–R8 register below supersedes earlier candidate decisions. This
+is not release approval. No P1 was substantiated in this bounded review, but
+partial security coverage cannot exclude undiscovered defects. Subtractive and
+Cognitive Load/Code Maintainability required no changes.
 
 The refactor uses hash-checked actual Core **5.6.10** with external I/O replaced
 for conformance tests. The older 5.5.6 static API check is not evidence of a
@@ -99,6 +97,48 @@ attestation, certification, or warranty of security.
   tool-generated form and are not release signatures.
 
 ## Current 0.13.0 error-class review
+
+### Current bounded seven-review correction register — 2026-09-08
+
+Reviewed baseline: `4d6b5f28615f2e4b1543b292879bd1e6b8a42a88`. Each of the seven
+perspectives used a separate fresh-context reviewer. The maintainer authorized
+one bounded correction series, not a new discovery/refactoring cycle.
+
+| ID | Finding | Implemented correction and regression evidence |
+| --- | --- | --- |
+| R1, P2 / medium security | Incoming descriptors could lose ownership on ignored bus routes. | `83adae0`: connection-wide cleanup is installed before connecting, permits adoption only after export, and remains through disconnect. Disposable descriptor tests cover ignored calls/signals/replies, all protected consumers and aliases, revocation, shutdown and repeated cleanup. |
+| R2, P2 | Backend loss fabricated a disconnected tunnel and notifications. | `bbcf1ab`: unavailable observation is explicit; notification baselines reset across gaps, and tray status does not claim a known connection. A surviving simulated tunnel remains connected while the observer becomes unavailable. |
+| R3, P2 | Transient authorization/snapshot failures stranded the resident agent. | `bbcf1ab`: three owner-scoped retries at 250/500/1000 ms; healthy observations cancel read retries, not outstanding authorization. Permanent rejection stays closed. Tests cover retry exhaustion, unsolicited signals, quiet-owner recovery and no mutation replay. |
+| R4, P2 | A failed secondary read reclassified a committed settings write as rejected. | `f2fcc3b`: DNS and split-tunneling saves publish/return their confirmed result; secondary refresh failure is separate guidance. Tests cover both families, primary rejection and account expiry during refresh. |
+| R5, P2 | Application-autostart guidance bypassed tray-only preferences via `--show`. | `770525a`: both settings surfaces specify the preference-respecting command without `--show`. Startup tests preserve explicit launcher/settings requests and all tray/preference combinations. No autostart is enabled automatically. |
+| R6, P2 | Synchronous activation/identity RPCs blocked frontend event processing. | `bbcf1ab`: asynchronous discovery and verification retain every identity check and reject stale generations. Private-bus tests cover an already-running unactivatable owner, delayed metadata with a heartbeat, deadline, destroyed context and late owner completion. |
+| R7, P2 | RPM mandatory checks used undeclared ripgrep. | `5169bb9`: explicit BuildRequires plus a guard against its removal. Spec query and QML hygiene gate pass; a clean buildroot remains a package-validation gate. |
+| R8, P3 | A blocked route probe could retain its child after cancellation. | `d87c7c5`: three-second probe deadline, bounded terminate/kill escalation and owned cleanup. Tests cover timeout, cancellation during spawn/wait and an ignored terminate. |
+
+R1 security scan `cc22793f-68ac-4017-ad09-b7b74e048ec5` is sealed separately:
+**67/326 paths fully security-reviewed, 259 not fully reviewed in that scan**.
+Earlier scans' coverage must not be silently combined with this revision.
+Its impact was bounded local availability, not demonstrated secret disclosure,
+privilege escalation or tunnel-protection bypass. Validation used harmless
+ownership fixtures, not a live exhaustion or exploitation workload.
+
+The security-fix procedure used a fresh boundary investigator and one fresh
+candidate reviewer. That reviewer identified the remaining pre-connect interval;
+the parent confirmed it, closed it and added lifecycle-order regression checks.
+The original scan and review outputs remain historical evidence, not rewritten
+as an independent approval of the final patch.
+
+Targeted Python/native/private-bus/UI regressions pass. Complete native,
+sanitizer, Clang-Tidy and candidate-seal gates are being rerun. No new full scan,
+Core/networking change, installed-client operation or GitHub operation is part
+of this series. Exact packages, installed UAT, final independent approval and
+soak remain separate release gates. Optional subtractive/maintainability ideas
+are deferred; they are not additional required fixes.
+
+### Historical a2b3d5e review checkpoint
+
+The following RC/VAL register records the preceding cycle. It is not the
+current R1–R8 status register above.
 
 ### Seven-perspective review — 2026-09-08
 

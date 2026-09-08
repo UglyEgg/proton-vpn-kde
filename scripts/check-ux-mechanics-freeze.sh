@@ -111,6 +111,9 @@ while IFS= read -r path; do
         packaging/fedora/core-compatibility.json|\
         packaging/fedora/proton-vpn-kde.spec|\
         src/AgentVpnClient.cpp|src/AgentVpnClient.h|src/TrayIntegration.cpp|\
+        src/BackendIdentity.cpp|src/BackendIdentity.h|\
+        src/NotificationIntegration.cpp|src/NotificationIntegration.h|\
+        src/AppSettings.cpp|src/AppSettings.h|kcm/ui/main.qml|\
         src/BackendCallPolicy.h|src/BackgroundQuitCoordinator.cpp|\
         src/ConnectionAction.h|src/OperationCompletion.h|src/ShortcutIntegration.cpp|\
         src/SettingsRequestState.h|src/VpnSettingsModel.cpp|\
@@ -123,6 +126,8 @@ while IFS= read -r path; do
         src/VpnControllerSettings.cpp|src/VpnControllerSnapshot.cpp|\
         src/main.cpp|\
         tests/AgentVpnClientTest.cpp|tests/GroupedNavigationTest.cpp|\
+        tests/BackendIdentityTest.cpp|tests/NotificationIntegrationTest.cpp|\
+        tests/AppSettingsTest.cpp|\
         tests/BackendCallPolicyTest.cpp|tests/BackgroundQuitCoordinatorTest.cpp|\
         tests/ConnectionActionTest.cpp|\
         tests/VpnSettingsModelTest.cpp|tests/SplitTunnelingModelTest.cpp|\
@@ -156,14 +161,14 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "629b711cf364b54c1b967082084233fa7c5f8c9b6ad0f97339c38c06171ced6d" \
+    "4bcaec1a96bce60968d834fc7a4585178c6867c1665b5d78a277fefc288fddff" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "994f228f1c938f396957ce7f523c4250d78480a6e0d18e46f625c500ff116487" \
+    "3f68e8c8f33d5b01744d8a8c2c537f620160ec3ea04c2ff3884ddf64e5efb71f" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
@@ -184,17 +189,17 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "d3fd94c768320df4542c3536194e79a81f2003a4fdf938152eb29ceac1be4eef" \
+    "042608e551463594cbe19a3d107588dce74ba1162083b0a05f0324cdcc92fbc7" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "8aff70037cec1368ff61e02f1964c52d1653e1004b6712ab7e025bd6b66454f3" \
+    "2cb8a6f4e82344401f2d9d6801b70d56231582360c1c51115fd048ec80b0e6a0" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "121587e88016645cecff970892412783c38615374871b08f6e422fc63a6141da" \
+    "835f1f305c2dd296d43dfca4919acfcbcd75439201a677198faadf0b3198fb37" \
     "QML presentation" qml
 
 echo "0.13 change boundary matches baseline $baseline_commit plus recorded candidate deltas (not review approval)"

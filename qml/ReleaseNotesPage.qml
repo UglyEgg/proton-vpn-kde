@@ -109,6 +109,16 @@ Kirigami.ScrollablePage {
                     qsTr("Resident tray and shortcut operations ignore delayed connection replies after a newer action has taken ownership.")
                 ]
             }
+
+            ReleaseNoteGroup {
+                heading: qsTr("More reliable startup and feedback")
+                headingLevel: 4
+                notes: [
+                    qsTr("Backend startup keeps the interface responsive; tray controls retry temporary state-reading failures."),
+                    qsTr("Losing contact with the backend no longer claims that the VPN disconnected."),
+                    qsTr("Successful DNS and split-tunneling saves stay confirmed if a related settings refresh fails.")
+                ]
+            }
         }
 
         Controls.Button {

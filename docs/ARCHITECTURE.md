@@ -124,6 +124,20 @@ the same generated native-loader and runtime search overrides before backend or
 Core imports. These checks are defense-in-depth within the documented same-user
 threat boundary, not OS-backed process attestation.
 
+Native discovery first reads name ownership and activates only an absent
+service. Those RPCs are asynchronous, each with a five-second deadline;
+identity verification has one five-second total deadline. UID/PID, systemd
+metadata, immutable installed files, launcher/environment and final unique-owner
+continuity checks remain mandatory. Context-owned callbacks and frontend
+generations prevent late verification from reviving a lost owner.
+
+The resident agent retries transient authorization/state reads at most three
+times per recovery episode (250/500/1000 ms). It never replays an ambiguous
+mutation or retries explicit authorization rejection. A public snapshot does
+not establish authorization. Losing the backend means observation is unavailable,
+not that NetworkManager disconnected; notifications establish a fresh baseline
+after recovery instead of inventing a tunnel transition.
+
 The full authentication design is documented in
 [Authentication](AUTHENTICATION.md); deployment identity and systemd tradeoffs
 are documented in [Hardening](HARDENING.md).
@@ -606,6 +620,12 @@ one completion-order lock, recheck their account epoch after waiting and after
 Core returns, and are drained before adapter teardown. Pure reads return their
 requested snapshot without emitting mutation notifications; only a successful
 explicit update publishes the corresponding change signals.
+
+DNS and split-tunneling saves acknowledge the confirmed primary result before
+the separate scalar-settings refresh can fail. A refresh error produces a
+fixed warning, not a rejected-write result or stale replacement list. Epoch
+checks prevent secondary projections or warnings from reviving an expired
+account. Transport timeouts still require read reconciliation, not write replay.
 
 The Connection Inspector is a dynamically created Control Center page, not a
 resident service. It renders bounded, read-only connection, settings, and

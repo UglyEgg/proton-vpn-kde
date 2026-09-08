@@ -8,6 +8,14 @@ load QML, server or application models, the protected authentication transport,
 or Proton's Python core. It observes without a resident client lease and uses
 one only transiently while an explicit connection action is starting.
 
+Backend discovery, activation and identity RPCs do not block the frontend event
+loop. Verification uses a single five-second deadline; a private-bus heartbeat
+regression covers delayed metadata and owner destruction. Route probes have a
+three-second execution deadline and two half-second cleanup stages. These are
+bounded-latency/resource-ownership corrections, not a newly measured memory
+reduction; the historical measurements below have not been refreshed for this
+patch series.
+
 On the Fedora 44 Plasma development session, the disconnected agent settled at
 58,412 KiB RSS and 11,124 KiB proportional set size; systemd attributed about
 8.1 MiB to its private cgroup footprint. The same binary on an isolated

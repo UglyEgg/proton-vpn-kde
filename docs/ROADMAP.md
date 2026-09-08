@@ -57,6 +57,15 @@ dependency-ordered commits with focused proofs.
 
 #### Review checkpoint — bounded error-class correction 2026-09-08
 
+Latest checkpoint: the separate seven-review battery at `4d6b5f2` found seven
+P2 issues and one P3. The maintainer-authorized bounded series through `bbcf1ab`
+implements R1–R8 with regression cases; full verification is in progress.
+The [current correction register](SECURITY-AUDIT-2026-08-30.md#current-bounded-seven-review-correction-register--2026-09-08)
+separates these results from the older checkpoints retained below. Do not reopen
+optional cleanup or begin another automatic scan/repair loop. After the bounded
+gates, freeze the candidate for package validation and focused installed UAT;
+final independent release approval and soak remain required.
+
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.
 Results and the consolidated correction register are in the

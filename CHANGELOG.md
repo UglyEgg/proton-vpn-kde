@@ -5,6 +5,13 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Keep backend discovery responsive, retry transient tray-state reads without
+  replaying connection changes, and show unavailable observation instead of
+  claiming a disconnected tunnel. Preserve successful DNS/split-tunneling saves
+  if a secondary refresh fails, close unadopted D-Bus descriptors throughout
+  service lifetime, and bound route-probe child cleanup. Clarify tray-only
+  startup commands and declare the RPM check dependency on ripgrep.
+
 - Consolidate asynchronous operation ownership and recovery: retain accepted
   authentication/settings work through cancellation, bound complete foreground
   transactions, keep Disconnect and capture Stop independently available, and
