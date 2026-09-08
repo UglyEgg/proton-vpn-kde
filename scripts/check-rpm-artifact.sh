@@ -78,6 +78,7 @@ required_paths=(
     /usr/share/dbus-1/services/quest.entropy.PlasmaVPN.Backend.service
     /usr/share/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service
     /usr/share/icons/hicolor/scalable/apps/plasma-vpn.svg
+    /usr/share/icons/hicolor/scalable/apps/quest.entropy.PlasmaVPN.svg
     /usr/share/doc/proton-vpn-kde/docs/images/overview.png
     /usr/share/doc/proton-vpn-kde/SOURCE_COMMIT
 )
@@ -181,6 +182,8 @@ grep -Fqx "$expected_unset_environment" \
 grep -Fqx 'ExecStart=/usr/bin/proton-vpn-kde --show' \
     "$extract_dir/usr/lib/systemd/user/proton-vpn-kde-control-center.service"
 grep -Fqx 'Exec=/usr/bin/proton-vpn-kde --show' \
+    "$extract_dir/usr/share/applications/proton-vpn-kde.desktop"
+grep -Fqx 'Icon=quest.entropy.PlasmaVPN' \
     "$extract_dir/usr/share/applications/proton-vpn-kde.desktop"
 grep -Fqx 'SystemdService=proton-vpn-kde-control-center.service' \
     "$extract_dir/usr/share/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service"

@@ -163,6 +163,15 @@ if [[ "$page_name" == *"-connected" ]]; then
     page_name="${page_name%-connected}"
 fi
 
+if [[ "$page_name" == "overview-split" ]]; then
+    gdbus call --session \
+        --dest quest.entropy.PlasmaVPN.Backend \
+        --object-path /quest/entropy/PlasmaVPN/Backend \
+        --method quest.entropy.PlasmaVPN.Backend1.UpdateSplitTunneling \
+        '{"enabled":true}' >/dev/null
+    page_name="overview"
+fi
+
 env \
     GTK_USE_PORTAL=0 \
     QT_QPA_PLATFORM=offscreen \

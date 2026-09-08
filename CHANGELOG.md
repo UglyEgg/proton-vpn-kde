@@ -5,6 +5,12 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Show split tunneling as a forked connection route with an outside-VPN
+  internet branch and contextual restart guidance. Keep the reporting preview's
+  fields, warnings and wrapping actions inside their card at compact and
+  large-text sizes. Use a unique desktop icon name so themes such as Papirus
+  cannot substitute their generic Plasma icon.
+
 - Keep backend discovery responsive, retry transient tray-state reads without
   replaying connection changes, and show unavailable observation instead of
   claiming a disconnected tunnel. Preserve successful DNS/split-tunneling saves

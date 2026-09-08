@@ -109,6 +109,8 @@ Kirigami.ApplicationWindow {
     function openOverviewDestination(destination) {
         if (destination === "settings") {
             root.pushOverviewPage(settingsPageComponent, "settings")
+        } else if (destination === "split-tunneling") {
+            root.pushSplitTunneling()
         } else if (destination === "locations") {
             root.pushOverviewPage(locationsPageComponent, "locations")
         } else if (destination === "account") {

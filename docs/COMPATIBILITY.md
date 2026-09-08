@@ -107,6 +107,11 @@ connections and suspend recovery still require maintainer UAT. The exact
 package versions, build evidence and remaining gates are in the
 [package checkpoint](SECURITY-AUDIT-2026-08-30.md#package-and-local-install-checkpoint--2026-09-08).
 
+The subsequent `0.13.0-0.2` presentation candidate fixes route/form layout and
+theme icon-name fallback without changing that runtime stack. Its [visual
+checkpoint](SECURITY-AUDIT-2026-08-30.md#visual-uat-corrections--2026-09-08)
+keeps source validation separate from installation and live acceptance.
+
 ## Last accepted live-UAT stack
 
 On 2026-08-31 the accepted `0.12.0` runtime revision `d2e7a74` used the following

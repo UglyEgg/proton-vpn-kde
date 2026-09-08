@@ -75,6 +75,14 @@ payload verification. The [package checkpoint](SECURITY-AUDIT-2026-08-30.md#pack
 records the exact evidence and remaining clean-environment and live-UAT gates.
 This installation is for local acceptance, not release approval or soak entry.
 
+Visual feedback from that installation is addressed in the `0.13.0-0.2`
+client candidate: integrated split-route graphics, a contained report form,
+and an unambiguous task-manager icon name. All 42 native targets and the new
+sanitized layout fixture pass. See the [visual UAT checkpoint](SECURITY-AUDIT-2026-08-30.md#visual-uat-corrections--2026-09-08).
+Next: validate its client RPM/SRPM and obtain approval for installed visual
+acceptance; the existing Core/keyring packages are unchanged. This does not
+replace the remaining release gates.
+
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.
 Results and the consolidated correction register are in the

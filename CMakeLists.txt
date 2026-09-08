@@ -877,6 +877,19 @@ if(BUILD_TESTING)
             "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QPA_PLATFORMTHEME=generic;QT_ACCESSIBILITY=0"
         TIMEOUT 15
     )
+    qt_add_executable(presentation-layout-tests tests/PresentationLayoutTest.cpp)
+    target_link_libraries(presentation-layout-tests PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test Qt6::Widgets)
+    target_compile_definitions(presentation-layout-tests PRIVATE
+        PROTON_VPN_KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    qt_add_resources(presentation-layout-tests "layout-test-icon"
+        PREFIX "/" FILES data/plasma-vpn.svg)
+    add_test(NAME presentation-layout-tests COMMAND presentation-layout-tests)
+    set_tests_properties(presentation-layout-tests PROPERTIES
+        ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QPA_PLATFORMTHEME=generic;QT_ACCESSIBILITY=0"
+        TIMEOUT 20)
+
     add_test(
         NAME qml-ui-hygiene
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-qml-ui-hygiene.sh
@@ -1166,6 +1179,11 @@ install(
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
 )
 install(FILES data/proton-vpn-kde.notifyrc DESTINATION ${CMAKE_INSTALL_DATADIR}/knotifications6)
+# A unique icon name prevents themes from falling back from "plasma-vpn"
+# to their unrelated "plasma" icon before consulting hicolor.
+install(FILES data/plasma-vpn.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME quest.entropy.PlasmaVPN.svg)
 install(
     FILES ${PROTON_VPN_KDE_QM_FILES}
     DESTINATION ${CMAKE_INSTALL_DATADIR}/proton-vpn-kde/translations

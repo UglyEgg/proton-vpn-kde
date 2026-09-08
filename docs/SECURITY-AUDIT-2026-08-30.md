@@ -35,7 +35,8 @@ Cognitive Load/Code Maintainability required no changes.
 The refactor uses hash-checked actual Core **5.6.10** with external I/O replaced
 for conformance tests. The older 5.5.6 static API check is not evidence of a
 current runtime defect. No live VPN, credential prompt, installed package,
-GitHub operation or publication was exercised during this review cycle.
+GitHub operation or publication was exercised during the source-review cycle;
+subsequent package installation and visual UAT work are recorded separately below.
 
 **Version `0.13.0` remains explicitly not release-ready until all seven isolated
 reviewers pass one exact remediated
@@ -60,8 +61,8 @@ do not substitute for live acceptance or soak gates.
 
 The public `0.11.3` source passed Mypy, Ruff, Clang-Tidy across all 34
 production translation units, and the complete native test suite under address,
-leak, and undefined-behavior sanitizers. The most recent installed Fedora
-package, `0.11.2-29.fc44`, contains the 0.11.3 hotfix code and passed host-level
+leak, and undefined-behavior sanitizers. At that historical checkpoint, Fedora
+package `0.11.2-29.fc44` contained the 0.11.3 hotfix code and passed host-level
 RPM verification, normal Plasma D-Bus activation, KeePassXC session restoration,
 VPN connection and disconnection, and deliberate backend restart while the
 NetworkManager tunnel remained connected. Earlier `0.11.2-24.fc44` acceptance
@@ -207,6 +208,31 @@ and settings UAT, connection/suspend/capture lifecycle acceptance, final
 independent release approval, and the required one-week immutable-candidate
 soak. Installation alone starts neither release approval nor the soak clock.
 No tag, push, public release or signing operation occurred.
+
+### Visual UAT corrections — 2026-09-08
+
+Maintainer screenshots exposed three presentation defects after the `0.1`
+installation: a split-tunneling banner disconnected from the route graphic,
+report fields overflowing their card, and a generic Plasma task-manager icon.
+The `0.13.0-0.2` candidate draws the split route with a clickable Internet
+branch, bounds and wraps the inactive reporting form, and gives the desktop
+icon a unique name. The installed Papirus theme resolved `plasma-vpn` to its
+unrelated `plasma` icon; a staged unique-name lookup resolved the correct SVG.
+Backend, Core, network behavior and disabled reporting policy are unchanged.
+
+All **42 native test targets pass**. The new presentation fixture passes
+separately under address/leak/undefined-behavior sanitizers; the complete
+sanitizer-suite result above belongs to the earlier source candidate. Compact,
+reported-width, wide, 1.5x text and RTL report cases remain within their card
+and cannot submit. Connected/disconnected split-route cases verify visibility
+and navigation. Light/dark rendered fixtures were inspected. Static checks
+and the explicit mechanics-boundary seal pass. These are bounded regression
+results, not another independent seven-review approval.
+
+The updated client package and installed visual acceptance are separate gates.
+The `0.1` package checkpoint above remains the installed baseline until an
+approved `0.2` upgrade is recorded. Neither overlay needs a change for these
+presentation corrections.
 
 ### Historical a2b3d5e review checkpoint
 

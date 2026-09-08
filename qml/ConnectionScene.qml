@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
+import QtQuick.Shapes
 import org.kde.kirigami as Kirigami
 
 Kirigami.AbstractCard {
@@ -33,6 +34,8 @@ Kirigami.AbstractCard {
     property bool p2p: false
     property bool streaming: false
     property bool smartRouting: false
+    property bool splitTunneling: false
+    readonly property bool splitRouteVisible: root.connected && root.splitTunneling
     readonly property bool routeVisible: routeDiagram.visible
     readonly property bool connectionFactsVisible: connectionFacts.visible
     readonly property bool homeNavigationVisible:
@@ -50,15 +53,18 @@ Kirigami.AbstractCard {
     component RouteNode: Controls.Button {
         id: node
 
-        property string iconName
+        property bool cloudSymbol: false
         property string symbol
         property string heading
         property string detail
         property color accentColor: Kirigami.Theme.textColor
+        readonly property real routeCenterY:
+            contentItem.y + nodeSymbol.y + nodeSymbol.height / 2
 
         flat: true
         Layout.preferredWidth: Kirigami.Units.gridUnit * 8
         Layout.maximumWidth: Kirigami.Units.gridUnit * 11
+        Layout.minimumWidth: 0
         Accessible.name: node.heading
         Accessible.description: node.detail
 
@@ -66,6 +72,7 @@ Kirigami.AbstractCard {
             spacing: Kirigami.Units.smallSpacing
 
             Rectangle {
+                id: nodeSymbol
                 Layout.alignment: Qt.AlignHCenter
                 implicitWidth: Kirigami.Units.iconSizes.huge
                 implicitHeight: implicitWidth
@@ -74,13 +81,22 @@ Kirigami.AbstractCard {
                 border.width: 2
                 border.color: node.accentColor
 
-                Kirigami.Icon {
+                Shape {
                     anchors.centerIn: parent
-                    visible: node.symbol.length === 0
-                    source: node.iconName
-                    color: node.accentColor
-                    implicitWidth: Kirigami.Units.iconSizes.large
-                    implicitHeight: implicitWidth
+                    visible: node.cloudSymbol
+                    // Logical vector coordinates; scale with native icon sizes.
+                    width: 32
+                    height: 32
+                    scale: Kirigami.Units.iconSizes.large / width
+                    Accessible.ignored: true
+                    ShapePath {
+                        strokeWidth: 2
+                        strokeColor: node.accentColor
+                        fillColor: "transparent"
+                        PathSvg {
+                            path: "M9 25h15a6 6 0 0 0 1-11.9 9 9 0 0 0-17.3-1.8A7 7 0 0 0 9 25Z"
+                        }
+                    }
                 }
 
                 Controls.Label {
@@ -98,7 +114,7 @@ Kirigami.AbstractCard {
                 level: 4
                 text: node.heading
                 horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
+                wrapMode: Text.WordWrap
             }
 
             Controls.Label {
@@ -241,21 +257,28 @@ Kirigami.AbstractCard {
             }
         }
 
-        RowLayout {
+        GridLayout {
             id: routeDiagram
 
             objectName: "connectionRouteDiagram"
+            columns: 3
             Layout.fillWidth: true
             Layout.maximumWidth: Kirigami.Units.gridUnit * 32
             Layout.alignment: Qt.AlignHCenter
-            spacing: Kirigami.Units.smallSpacing
-            Accessible.name: root.connected
+            columnSpacing: Kirigami.Units.smallSpacing
+            rowSpacing: Kirigami.Units.largeSpacing
+            Accessible.name: root.splitRouteVisible
+                ? qsTr("Split route: VPN traffic goes to %1; other traffic goes to the internet outside the VPN").arg(root.destinationName)
+                : root.connected
                 ? qsTr("Encrypted route from this device to %1").arg(root.destinationName)
                 : qsTr("VPN route is inactive")
 
             RouteNode {
                 id: deviceNode
 
+                Layout.row: 0
+                Layout.column: 0
+                Layout.rowSpan: root.splitRouteVisible ? 2 : 1
                 symbol: qsTr("You")
                 heading: qsTr("This device")
                 detail: qsTr("Protection settings")
@@ -266,24 +289,60 @@ Kirigami.AbstractCard {
             }
 
             Item {
+                id: routeLines
+
+                Layout.row: 0
+                Layout.column: 1
+                Layout.rowSpan: root.splitRouteVisible ? 2 : 1
                 Layout.fillWidth: true
+                Layout.fillHeight: true
                 Layout.minimumWidth: Kirigami.Units.gridUnit * 5
                 Layout.preferredHeight: Kirigami.Units.gridUnit * 5
+                readonly property real deviceY:
+                    deviceNode.y + deviceNode.routeCenterY - y
+                readonly property real vpnY:
+                    destinationNode.y + destinationNode.routeCenterY - y
+                readonly property real internetY:
+                    internetNode.y + internetNode.routeCenterY - y
+                readonly property real forkX: width * 0.25
+                readonly property real bendX: width * 0.55
+                readonly property color vpnColor: root.connected
+                    ? Kirigami.Theme.positiveTextColor
+                    : Kirigami.Theme.disabledTextColor
 
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: 2
-                    color: root.connected
-                        ? Kirigami.Theme.positiveTextColor
-                        : Kirigami.Theme.disabledTextColor
+                Shape {
+                    anchors.fill: parent
+                    Accessible.ignored: true
+
+                    ShapePath {
+                        strokeWidth: 2
+                        strokeColor: routeLines.vpnColor
+                        fillColor: "transparent"
+                        startX: 0
+                        startY: routeLines.deviceY
+                        PathLine { x: routeLines.forkX; y: routeLines.deviceY }
+                        PathLine { x: routeLines.bendX; y: routeLines.vpnY }
+                        PathLine { x: routeLines.width; y: routeLines.vpnY }
+                    }
+
+                    ShapePath {
+                        strokeWidth: 2
+                        strokeStyle: ShapePath.DashLine
+                        strokeColor: root.splitRouteVisible
+                            ? Kirigami.Theme.neutralTextColor : "transparent"
+                        fillColor: "transparent"
+                        startX: routeLines.forkX
+                        startY: routeLines.deviceY
+                        PathLine { x: routeLines.bendX; y: routeLines.internetY }
+                        PathLine { x: routeLines.width; y: routeLines.internetY }
+                    }
                 }
 
                 Controls.ToolButton {
                     id: tunnelStateBadge
 
-                    anchors.centerIn: parent
+                    x: parent.width * 0.75 - width / 2
+                    y: routeLines.vpnY - height / 2
                     width: Kirigami.Units.iconSizes.medium
                            + Kirigami.Units.largeSpacing
                     height: width
@@ -322,9 +381,12 @@ Kirigami.AbstractCard {
                 }
 
                 Controls.Label {
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.horizontalCenter: tunnelStateBadge.horizontalCenter
                     anchors.top: tunnelStateBadge.bottom
                     anchors.topMargin: Kirigami.Units.smallSpacing
+                    width: parent.width * 0.5
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
                     text: root.connected ? qsTr("Encrypted tunnel")
                                          : qsTr("VPN inactive")
                     color: root.connected ? Kirigami.Theme.linkColor
@@ -335,6 +397,8 @@ Kirigami.AbstractCard {
             RouteNode {
                 id: destinationNode
 
+                Layout.row: 0
+                Layout.column: 2
                 symbol: root.connected ? root.destinationFlag : qsTr("VPN")
                 heading: root.connected ? root.destinationName
                                         : qsTr("VPN server")
@@ -344,6 +408,23 @@ Kirigami.AbstractCard {
                     ? Kirigami.Theme.positiveTextColor
                     : Kirigami.Theme.disabledTextColor
                 onClicked: root.navigateRequested("locations")
+            }
+
+            RouteNode {
+                id: internetNode
+
+                objectName: "splitInternetRoute"
+                Layout.row: 1
+                Layout.column: 2
+                visible: root.splitRouteVisible
+                cloudSymbol: true
+                heading: qsTr("Internet")
+                detail: qsTr("Outside VPN")
+                accentColor: Kirigami.Theme.neutralTextColor
+                Accessible.description: qsTr("Open split-tunneling rules. Restart affected apps after changing rules.")
+                onClicked: root.navigateRequested("split-tunneling")
+                Controls.ToolTip.visible: hovered || activeFocus
+                Controls.ToolTip.text: qsTr("Split tunneling follows your app and IP rules. Restart affected apps after changing rules.")
             }
         }
 

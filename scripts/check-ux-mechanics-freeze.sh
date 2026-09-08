@@ -128,6 +128,7 @@ while IFS= read -r path; do
         tests/AgentVpnClientTest.cpp|tests/GroupedNavigationTest.cpp|\
         tests/BackendIdentityTest.cpp|tests/NotificationIntegrationTest.cpp|\
         tests/AppSettingsTest.cpp|\
+        tests/PresentationLayoutTest.cpp|\
         tests/BackendCallPolicyTest.cpp|tests/BackgroundQuitCoordinatorTest.cpp|\
         tests/ConnectionActionTest.cpp|\
         tests/VpnSettingsModelTest.cpp|tests/SplitTunnelingModelTest.cpp|\
@@ -135,6 +136,7 @@ while IFS= read -r path; do
         tests/SignInPresentationTest.cpp)
             # Exact candidate deltas are checked below; this is not approval.
             ;;
+        data/proton-vpn-kde.desktop.in|\
         scripts/auth-dbus-client.py|scripts/capture-qml-page.sh|\
         scripts/check-qml-ui-hygiene.sh|scripts/check-qml-visual-matrix.sh|\
         scripts/check-compatibility-metadata.py|\
@@ -161,7 +163,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "4bcaec1a96bce60968d834fc7a4585178c6867c1665b5d78a277fefc288fddff" \
+    "535e15a747506cef3cfb58dd99885ef83ebd70e0b28ccfb590728a80187b9b3b" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
@@ -179,7 +181,7 @@ assert_diff_hash \
     scripts/check-compatibility-metadata.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
 assert_diff_hash \
-    "3cf652676ae9f7eefc062c61a28c663942fbdf58d6a57707d8eb94c598021bff" \
+    "bc8919bb31d33cf967c48472656f217a0d7de017f4fb0c20ed1ff0aeb2095c97" \
     "finite process-stop packaging" \
     data/proton-vpn-kde-backend.service.in \
     scripts/check-rpm-artifact.sh scripts/smoke-staged-install.sh
@@ -189,17 +191,21 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "042608e551463594cbe19a3d107588dce74ba1162083b0a05f0324cdcc92fbc7" \
+    "fb531c87dceb36697850d2b7a5ab858bfe54ca47f6f9894ac50a17c8cea8ed2a" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "a66803087cfc508dd4f2062cfd559ab553ade6bc7b7c6e94beea867daf5ce5b1" \
+    "8c468b6b5973b173f6cf26ad26c936028d2bf6749a9551fbb70f54dbf572c327" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "835f1f305c2dd296d43dfca4919acfcbcd75439201a677198faadf0b3198fb37" \
+    "282b70d5f5c15bd76fcd716dae50f1f9774827d8a93b88c40ce00f7dc68a63d9" \
     "QML presentation" qml
+
+assert_diff_hash \
+    "5bfd83782480c0976b1b3cfe6ea8dd84d099329137b1b0f46c80acb4dde2f48a" \
+    "unambiguous desktop icon" data/proton-vpn-kde.desktop.in
 
 echo "0.13 change boundary matches baseline $baseline_commit plus recorded candidate deltas (not review approval)"

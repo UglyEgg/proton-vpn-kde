@@ -14,6 +14,8 @@ Kirigami.ScrollablePage {
     property var vpnSettings: vpnController.settings
     property var splitSettings: vpnController.splitTunneling
     readonly property bool connected: vpnController.state === "connected"
+    readonly property bool splitRoute: page.connected
+        && page.splitSettings.loaded && page.splitSettings.enabled
     readonly property bool connectionFactsVisible:
         connectionScene.connectionFactsVisible
     readonly property bool graphicalRouteVisible: connectionScene.routeVisible
@@ -90,14 +92,6 @@ Kirigami.ScrollablePage {
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
-            visible: page.connected && page.splitSettings.loaded
-                     && page.splitSettings.enabled
-            type: Kirigami.MessageType.Information
-            text: qsTr("Split tunneling enabled. Remember to restart affected apps.")
-        }
-
-        Kirigami.InlineMessage {
-            Layout.fillWidth: true
             visible: vpnController.ready
                      && vpnController.coreVersion.length > 0
                      && !vpnController.coreMemoryOptimized
@@ -114,7 +108,9 @@ Kirigami.ScrollablePage {
             stateText: page.connected ? qsTr("Protected")
                                       : page.stateLabel(vpnController.state)
             summaryText: page.connected
-                         ? qsTr("Your traffic is using an encrypted VPN route")
+                         ? page.splitRoute
+                           ? qsTr("Your rules decide which traffic uses the VPN")
+                           : qsTr("Your traffic is using an encrypted VPN route")
                          : vpnController.loggedIn
                            ? qsTr("Connect to protect this device")
                            : qsTr("Sign in to connect with your Proton account")
@@ -143,6 +139,7 @@ Kirigami.ScrollablePage {
             p2p: vpnController.p2p
             streaming: vpnController.streaming
             smartRouting: vpnController.smartRouting
+            splitTunneling: page.splitRoute
             onPrimaryActionRequested: vpnController.activatePrimaryAction()
             onSignInRequested: applicationWindow().showSignIn()
             onNavigateRequested: destination => {

@@ -81,5 +81,9 @@ capture contrast-two-factor sign-in-two-factor 640 720 \
 capture reduced-motion overview-connected 900 560 \
     PROTON_KDE_CAPTURE_COLOR_SCHEME=BreezeLight \
     PROTON_KDE_CAPTURE_REDUCED_MOTION=1
+capture split-route-dark overview-split-connected 900 720 \
+    PROTON_KDE_CAPTURE_COLOR_SCHEME=BreezeDark
+capture split-route-compact overview-split-connected 480 720 \
+    PROTON_KDE_CAPTURE_COLOR_SCHEME=BreezeLight
 
 printf 'Visual matrix written to %s\n' "$output_dir"

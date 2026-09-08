@@ -75,6 +75,16 @@ Kirigami.ScrollablePage {
             }
 
             ReleaseNoteGroup {
+                heading: qsTr("Visual polish")
+                headingLevel: 4
+                notes: [
+                    qsTr("Split tunneling appears as an outside-VPN branch in the connection graphic, with rules and restart guidance a click away."),
+                    qsTr("The reporting preview keeps its fields and buttons inside their card, including at narrow widths and larger text sizes."),
+                    qsTr("A unique desktop icon name prevents generic Plasma icons in themes such as Papirus.")
+                ]
+            }
+
+            ReleaseNoteGroup {
                 heading: qsTr("A calmer interface foundation")
                 headingLevel: 4
                 notes: [

@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.13.0
-Release:        0.1%{?dist}
+Release:        0.2%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -123,6 +123,7 @@ desktop-file-validate \
 %{_datadir}/dbus-1/interfaces/quest.entropy.PlasmaVPN.Agent1.xml
 %{_datadir}/dbus-1/interfaces/quest.entropy.PlasmaVPN.ControlCenter1.xml
 %{_datadir}/icons/hicolor/scalable/apps/plasma-vpn.svg
+%{_datadir}/icons/hicolor/scalable/apps/quest.entropy.PlasmaVPN.svg
 %{_datadir}/icons/hicolor/scalable/apps/plasma-vpn-light.svg
 %{_datadir}/icons/hicolor/scalable/apps/plasma-vpn-dark.svg
 %{_datadir}/knotifications6/proton-vpn-kde.notifyrc
@@ -134,6 +135,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Tue Sep 08 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.2
+- Integrate split routing into the connection graphic and contain the report form.
+- Use an unambiguous desktop icon name across Plasma icon themes.
+- Add compact, large-text and RTL presentation regressions.
+
 * Thu Sep 03 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.1
 - Begin the presentation-only progressive Plasma interface cycle.
 - Add a CI gate that freezes the accepted 0.12.0 runtime mechanics.
