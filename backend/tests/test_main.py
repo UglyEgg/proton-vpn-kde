@@ -198,7 +198,8 @@ class BackendRetirementTests(unittest.IsolatedAsyncioTestCase):
         controller = BackendController(adapter)
         bus = SimpleNamespace(unexport=Mock(), remove_message_handler=Mock(),
                               release_name=AsyncMock(), disconnect=Mock())
-        authorizer = SimpleNamespace(message_handler=object(), uninstall=AsyncMock())
+        authorizer = SimpleNamespace(message_handler=object(), uninstall=AsyncMock(),
+                                     close_ingress=Mock())
         with (
             patch.object(controller, "close", wraps=controller.close) as close,
             patch.object(backend_main, "_run_cleanup_before_deadline", wraps=backend_main._run_cleanup_before_deadline) as cleanup,
@@ -359,6 +360,10 @@ class BackendRetirementTests(unittest.IsolatedAsyncioTestCase):
 
         class FakeAuthorizer:
             message_handler = object()
+            open_ingress = Mock()
+
+            def close_ingress(self):
+                pass
 
             async def install(self):
                 pass
@@ -431,6 +436,10 @@ class BackendPublicationTests(unittest.IsolatedAsyncioTestCase):
 
         class FakeAuthorizer:
             message_handler = object()
+            open_ingress = Mock()
+
+            def close_ingress(self):
+                events.append("close-ingress")
 
             async def install(self):
                 events.append("install-authorizer")
@@ -499,6 +508,12 @@ class BackendPublicationTests(unittest.IsolatedAsyncioTestCase):
         class FakeAuthorizer:
             message_handler = object()
 
+            def open_ingress(self):
+                events.append("open-ingress")
+
+            def close_ingress(self):
+                events.append("close-ingress")
+
             async def install(self):
                 events.append("install-authorizer")
 
@@ -532,6 +547,10 @@ class BackendPublicationTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(events.index("install-authorizer"), publication)
         self.assertLess(events.index("add-handler"), publication)
         self.assertLess(events.index("export"), publication)
+        self.assertLess(events.index("add-handler"), events.index("connect"))
+        self.assertLess(events.index("export"), events.index("open-ingress"))
+        self.assertLess(events.index("open-ingress"), publication)
+        self.assertNotIn("remove-handler", events)
 
     async def test_capture_recovery_cannot_be_cancelled_by_idle_startup(self):
         start_entered = asyncio.Event()
@@ -565,6 +584,10 @@ class BackendPublicationTests(unittest.IsolatedAsyncioTestCase):
 
         class FakeAuthorizer:
             message_handler = object()
+            open_ingress = Mock()
+
+            def close_ingress(self):
+                pass
 
             async def install(self):
                 pass

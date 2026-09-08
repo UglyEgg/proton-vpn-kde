@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import os
 import unittest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from dbus_fast import Message
 from dbus_fast.constants import MessageType
@@ -21,7 +21,7 @@ from proton_vpn_kde_backend.client_authorization import (
     UNAUTHORIZED_ERROR,
     process_environment_is_safe,
 )
-from proton_vpn_kde_backend.dbus_contract import CLASSIFIED_METHODS
+from proton_vpn_kde_backend.dbus_contract import CLASSIFIED_METHODS, SECRET_DESCRIPTOR_METHODS
 from proton_vpn_kde_backend.environment_contract import (
     UNSAFE_ENVIRONMENT_NAMES,
 )
@@ -37,9 +37,10 @@ def method_message(
     signature: str = "",
     body: list[object] | None = None,
     unix_fds: list[int] | None = None,
+    path: str = BACKEND_OBJECT_PATH,
 ) -> Message:
     return Message(
-        path=BACKEND_OBJECT_PATH,
+        path=path,
         interface=interface,
         member=member,
         message_type=MessageType.METHOD_CALL,
@@ -52,6 +53,55 @@ def method_message(
 
 
 class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
+    def test_non_consuming_routes_discharge_ownership_without_consuming_messages(self):
+        messages = [
+            method_message("Ping", path="/other"),
+            Message.new_signal("/other", "test.Events", "Changed"),
+            Message.new_method_return(method_message("GetSnapshot")),
+            Message.new_error(method_message("GetSnapshot"), "test.Error", "test"),
+        ]
+        authorizer = ClientAuthorizer(None, ())
+        for message in messages:
+            with self.subTest(message_type=message.message_type):
+                descriptor = create_test_fd("unadopted-message")
+                message.unix_fds = [descriptor]
+                original_body = message.body
+                with patch("os.close", wraps=os.close) as close:
+                    self.assertIsNone(authorizer.message_handler(message))
+                    self.assertIsNone(authorizer.message_handler(message))
+                    close.assert_called_once_with(descriptor)
+                self.assertEqual([], message.unix_fds)
+                self.assertIs(original_body, message.body)
+                with self.assertRaises(OSError):
+                    os.fstat(descriptor)
+
+    async def test_all_protected_descriptor_consumers_retain_ownership_until_adoption(self):
+        authorizer = ClientAuthorizer(None, (), enforce_identity=False)
+        for member in SECRET_DESCRIPTOR_METHODS:
+            for interface in (BACKEND_INTERFACE, None):
+                with self.subTest(member=member, interface=interface):
+                    descriptor = create_test_fd("adopted-message")
+                    try:
+                        message = method_message(member, interface=interface,
+                                                 signature="h", body=[0],
+                                                 unix_fds=[descriptor])
+                        self.assertIsNone(authorizer.message_handler(message))
+                        self.assertEqual([descriptor], message.unix_fds)
+                        os.fstat(descriptor)
+                    finally:
+                        os.close(descriptor)
+
+    def test_shutdown_closes_descriptors_even_for_previously_authorized_consumers(self):
+        authorizer = ClientAuthorizer(None, (), enforce_identity=False)
+        authorizer.message_handler(method_message("AuthorizeClient"))
+        authorizer.close_ingress()
+        descriptor = create_test_fd("shutdown-message")
+        message = method_message("Login", signature="h", body=[0], unix_fds=[descriptor])
+        self.assertEqual(UNAUTHORIZED_ERROR, authorizer.message_handler(message).error_name)
+        self.assertEqual([], message.unix_fds)
+        with self.assertRaises(OSError):
+            os.fstat(descriptor)
+
     def test_supported_representations_share_the_same_authorization_policy(self):
         for interface in (BACKEND_INTERFACE, None):
             with self.subTest(interface=interface):
@@ -249,6 +299,7 @@ class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         await authorizer.authorize(":1.40")
         revoked: list[str] = []
         authorizer.subscribe_revocation(revoked.append)
+        descriptor = create_test_fd("owner-loss")
 
         authorizer.message_handler(
             Message(
@@ -259,11 +310,14 @@ class ClientAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 sender="org.freedesktop.DBus",
                 signature="sss",
                 body=[":1.40", ":1.40", ""],
+                unix_fds=[descriptor],
             )
         )
 
         self.assertNotIn(":1.40", authorizer.authorized_senders)
         self.assertEqual([":1.40"], revoked)
+        with self.assertRaises(OSError):
+            os.fstat(descriptor)
 
     async def test_name_owner_loss_during_probe_cannot_authorize_stale_sender(self):
         probe_started = asyncio.Event()

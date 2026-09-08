@@ -121,15 +121,11 @@ async def _shutdown_published_service(
     try:
         # Close public ingress synchronously before waiting for any accepted
         # startup, lifetime, or controller work.
+        authorizer.close_ingress()
         try:
             bus.unexport(OBJECT_PATH, service)
         except BaseException as error:
             cleanup_error = error
-        try:
-            bus.remove_message_handler(authorizer.message_handler)
-        except BaseException as error:
-            if cleanup_error is None:
-                cleanup_error = error
         for task in (initialization_task, lifetime_task, stopped_task):
             if task is None:
                 continue
@@ -183,15 +179,11 @@ async def _shutdown_unowned_publication(
     """Undo a refused publication and always close its bus connection."""
     cleanup_error: BaseException | None = None
     try:
+        authorizer.close_ingress()
         try:
             bus.unexport(OBJECT_PATH, service)
         except BaseException as error:
             cleanup_error = error
-        try:
-            bus.remove_message_handler(authorizer.message_handler)
-        except BaseException as error:
-            if cleanup_error is None:
-                cleanup_error = error
         deadline = asyncio.get_running_loop().time() + RUN_SHUTDOWN_SECONDS
         authorizer_error = await _run_cleanup_before_deadline(
             authorizer.uninstall(), deadline
@@ -208,10 +200,22 @@ async def _shutdown_unowned_publication(
 
 
 async def run(demo: bool, demo_logged_out: bool = False) -> int:
-    bus = await MessageBus(
+    bus = MessageBus(
         bus_type=BusType.SESSION,
         negotiate_unix_fd=True,
-    ).connect()
+    )
+    authorizer = ClientAuthorizer(
+        bus,
+        TRUSTED_CLIENT_EXECUTABLES,
+        enforce_identity=not demo,
+    )
+    authorizer.close_ingress()
+    bus.add_message_handler(authorizer.message_handler)
+    try:
+        await bus.connect()
+    except BaseException:
+        bus.disconnect()
+        raise
     adapter = (
         DemoCoreAdapter(logged_in=not demo_logged_out) if demo else ProtonCoreAdapter()
     )
@@ -224,16 +228,11 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
         lambda name: name_has_owner(bus, name),
         idle_timeout=_idle_timeout_seconds(demo),
     )
-    authorizer = ClientAuthorizer(
-        bus,
-        TRUSTED_CLIENT_EXECUTABLES,
-        enforce_identity=not demo,
-    )
     service = VpnDbusService(controller, lifetime, authorizer)
     try:
         await authorizer.install()
-        bus.add_message_handler(authorizer.message_handler)
         bus.export(OBJECT_PATH, service)
+        authorizer.open_ingress()
         # Publish the well-known name only after the authorization ingress and
         # exported object are ready. Frontends react to NameOwnerChanged
         # immediately and must never observe a half-published service.

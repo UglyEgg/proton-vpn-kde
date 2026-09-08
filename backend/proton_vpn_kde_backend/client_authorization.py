@@ -96,6 +96,20 @@ class ClientAuthorizer:
         self._pending_authorizations: dict[str, int] = {}
         self._revoked_while_pending: set[str] = set()
         self._revocation_callbacks: list[Callable[[str], None]] = []
+        self._ingress_closed = False
+
+    def close_ingress(self) -> None:
+        """Stop adoption before unexporting, but retain bus-wide FD cleanup."""
+        self._ingress_closed = True
+
+    def open_ingress(self) -> None:
+        """Allow service adoption only once the exported consumers exist."""
+        self._ingress_closed = False
+
+    @staticmethod
+    def _discard_descriptors(message: Message) -> None:
+        descriptors, message.unix_fds = message.unix_fds, []
+        close_unix_fds(descriptors)
 
     @property
     def authorized_senders(self) -> frozenset[str]:
@@ -184,6 +198,14 @@ class ClientAuthorizer:
 
     def message_handler(self, message: Message) -> Message | bool | None:
         """Capture the real sender and enforce the complete method policy."""
+        # This connection's only descriptor consumers are protected methods
+        # on the exported object. Ignored messages and scalar RPC replies still
+        # need cleanup; leave them unhandled so normal bus dispatch continues.
+        if (
+            message.message_type is not MessageType.METHOD_CALL
+            or message.path != BACKEND_OBJECT_PATH
+        ):
+            self._discard_descriptors(message)
         if (
             message.message_type is MessageType.SIGNAL
             and message.sender == "org.freedesktop.DBus"
@@ -204,11 +226,14 @@ class ClientAuthorizer:
 
         sender = message.sender or ""
         _request_sender.set(sender)
+        if self._ingress_closed:
+            self._discard_descriptors(message)
+            return Message.new_error(message, UNAUTHORIZED_ERROR, UNAUTHORIZED_MESSAGE)
         # The dispatcher also accepts interface-less exported calls. Standard
         # interfaces remain available, but cannot adopt ancillary descriptors.
         if message.interface not in {None, BACKEND_INTERFACE}:
             if message.unix_fds:
-                close_unix_fds(message.unix_fds)
+                self._discard_descriptors(message)
                 return Message.new_error(
                     message, INVALID_ARGUMENTS_ERROR, INVALID_ARGUMENTS_MESSAGE
                 )
@@ -223,7 +248,7 @@ class ClientAuthorizer:
                 and len(message.unix_fds) == 1
             )
             if not valid_descriptor_call:
-                close_unix_fds(message.unix_fds)
+                self._discard_descriptors(message)
                 return Message.new_error(
                     message,
                     INVALID_SECRET_ERROR,
@@ -234,7 +259,7 @@ class ClientAuthorizer:
             # declared method signature. No ordinary method adopts them, so
             # reject and close them before dbus-fast dispatch can lose track
             # of their ownership.
-            close_unix_fds(message.unix_fds)
+            self._discard_descriptors(message)
             return Message.new_error(
                 message,
                 INVALID_ARGUMENTS_ERROR,
@@ -252,7 +277,7 @@ class ClientAuthorizer:
 
         # Unknown future exports are protected by default. The descriptors have
         # already crossed the process boundary, so rejection owns their cleanup.
-        close_unix_fds(message.unix_fds)
+        self._discard_descriptors(message)
         return Message.new_error(
             message,
             UNAUTHORIZED_ERROR,
