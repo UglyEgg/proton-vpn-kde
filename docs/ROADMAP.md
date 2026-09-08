@@ -78,22 +78,27 @@ stopped at the maintainer's request. The maintainer then authorized a bounded
 class correction: observation and idle retirement must never manufacture a
 request acknowledgement. The contract and sibling-surface inventory are in
 [architecture](ARCHITECTURE.md#request-result-evidence-contract). Native/QML,
-settings and capture tests now target that class; no new review loop or Core
-change is implied.
-Performance and Cognitive Load correction checks passed. Security reported no
-concrete required correction within its stated source scope; this is not a
-new full seven-reviewer release approval.
+settings and capture now follow that contract at `1a2366e`. Its 64-row native
+and 48-row QML matrices, all three settings families and failed/unconfirmed
+capture Starts pass. The full 40-target suite passes normally and under
+sanitizers; 431 backend tests including actual-Core 5.6.10 conformance, Mypy,
+35 production Clang-Tidy units and static/archive checks also pass. The bounded
+implementation and regression-verification task is complete; no new scan or
+Core change was needed.
+
+Performance and Cognitive Load correction checks passed on `7d4d030`.
+Security reported no concrete required correction within its stated source
+scope. Those earlier checks are not independent approval of `1a2366e`.
 
 The refactor retains the approved fresh-process account boundary, public Core
 5.6.10 completion evidence, owned background error handling, shared native
 capability policy, independent cleanup admission, and absolute foreground,
 cleanup and shutdown deadlines. No new Core patch or wire protocol is involved.
 
-Finish this fixed-scope contract matrix and verification. If it requires a wider
-protocol change or reveals unrelated defects, stop and report them rather than
-beginning another repair cycle. No Core rewrite is part of this roadmap.
-Before UAT, close the remaining source decision and
-complete independent approval and the exact-candidate package battery.
+Do not restart broad discovery or another repair cycle automatically. A new
+unrelated defect or wider protocol proposal requires a separate scope decision.
+No Core rewrite is part of this roadmap. Before UAT, complete independent final
+approval and the exact-candidate package battery.
 The full security scan had partial coverage, explicitly recorded in the
 assessment; no-finding is not full approval. Installed acceptance, true 1.5x
 text/keyboard/accessibility checks and the one-week soak remain separate

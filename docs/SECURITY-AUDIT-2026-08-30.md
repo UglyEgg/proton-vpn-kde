@@ -21,8 +21,10 @@ asynchronous state-ownership corrections where the new presentation exposed a
 real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
-**Current source decision: bounded RC-02 error-class correction under
-verification; not UAT- or release-ready.** All seven isolated reviewers completed the same frozen
+**Current source decision: bounded RC-02 error-class correction implemented
+and regression-verified at `1a2366e`; final independent approval and UAT remain
+pending.** This is not release approval. All seven isolated reviewers
+completed the same frozen
 `a2b3d5e945dc46d92838a9979f0b25805b86e801` candidate before remediation.
 Five distinct P2 runtime issues and one stale negative-test fixture were
 consolidated below. Cognitive Load/Code Maintainability and Subtractive passed
@@ -107,7 +109,7 @@ lists engineering defects, not demonstrated security vulnerabilities.
 | Item | Finding and affected invariant | Correction status |
 | --- | --- | --- |
 | RC-01, P2 | Settings signals could clear request ownership; old replies lacked a request generation. | Candidate corrected across VPN, split tunneling and DNS. Data-only parsing, typed request state and retained unknown-write readback have three-family private-bus and model tests. |
-| RC-02, P2 | Observed state/retirement was confused with request acknowledgement. | Open at `7d4d030`; a bounded candidate now removes synthetic acknowledgement and duplicate QML settlement, retains unconfirmed settings results through readback, and preserves failed/unconfirmed capture-Start guidance. Verification and final review remain distinct below. |
+| RC-02, P2 | Observed state/retirement was confused with request acknowledgement. | Corrected and regression-verified at `1a2366e`: no synthetic acknowledgement or duplicate QML settlement; unconfirmed settings results survive readback; failed/unconfirmed capture-Start guidance survives active snapshots. Final independent approval remains a separate gate. The failed earlier attempt is historical below. |
 | RC-03, P2 | Early logout journal/settings failure retained an internal fence without publishing recovery. | Candidate publishes the fence for replace, directory-sync and early settings failures; tests preserve partial handoff records and reject replacement credentials. |
 | RC-04, P2 | Unrelated operation messages could replace degraded-background recovery guidance. | Candidate derives stable guidance from degraded state while preserving stronger diagnostics; backend and presentation tests cover message changes. |
 | RC-05, P2 | Repeated searches could accumulate accepted reads behind a blocked provider; debounce and stale filtering were not admission bounds. | Candidate adds eight shared browsing/settings slots and latest-query native coalescing. Tests cover saturation, cancellation-resistant reads and queued settings withdrawal. Not a measured ordinary-session leak. |
@@ -158,6 +160,8 @@ Scope is the shared request-result evidence contract in
 repository-wide discovery/repair cycle. The maintainer requested correction of
 the class after the explicit stop at `7d4d030`. No new protocol, Core rewrite,
 live reproduction, installation or security-scan round is part of this work.
+The correction is committed at
+`1a2366e069ce137c8d5dd6225c6c14abc64650bd`.
 
 Before production edits, the new tests reproduced one same-state switch false
 acknowledgement, all three settings readbacks losing unconfirmed guidance, both
@@ -173,6 +177,24 @@ event order. Existing ownership, cancellation, identity, cleanup and backend
 conformance tests remain required. Passing this bounded check does not inherit
 the earlier independent review approval or certify the entire codebase.
 
+Correction verification at `1a2366e`: all six focused test targets pass,
+followed by **40/40 complete CTest targets normally and 40/40 under
+address/leak/undefined-behavior sanitizers**. The private-bus and QML matrices,
+settings-family readbacks, capture cleanup, ownership and stale-reply tests are
+included in those targets. Static analysis, generated-contract/provenance
+checks, documentation links, the candidate-drift gate and exact-commit source
+archive reproducibility also pass. No installed or live-VPN result is inferred
+from these tests.
+
+All **35 production C++ units pass Clang-Tidy**. The unchanged backend passes
+**431 tests with no skips**, including hash-pinned actual-Core 5.6.10
+conformance with external I/O replaced; Mypy passes for 31 source files and
+branch-aware coverage remains 86%. This closes implementation and regression
+verification of the inventoried evidence-confusion class, not every possible
+asynchronous defect. No new security or seven-perspective scan was launched.
+Independent final approval, exact-candidate packages, installed acceptance and
+soak remain pending; the bounded correction stops here.
+
 ### Historical correction checkpoint — stopped at `7d4d030`
 
 The grouped correction commit is
@@ -181,7 +203,8 @@ Python 3.14 with hash-pinned actual Core 5.6.10 conformance, the Python 3.11
 suite with eight documented skips, Mypy across 31 files, 86% branch-aware
 coverage, all 40 native targets normally and under address/leak/undefined-
 behavior sanitizers, 35 production Clang-Tidy units, static checks and
-exact-commit source archive reproducibility. These passes do not close RC-02.
+exact-commit source archive reproducibility. Those passes did not close RC-02
+at that revision.
 
 Independent bounded correction checks: HPC/Performance and Cognitive Load/
 Code Maintainability **pass**; Error-Class **changes required**. The security
@@ -196,29 +219,30 @@ roadmap, license and four PNGs; source/test inventory or asset identity is not
 an exhaustive review of those paths. The supplement's source-integration
 recommendation cannot override the separate open Error-Class defect.
 
-**Open RC-02 consequence:** `VpnControllerSnapshot.cpp:247-250` compares only
-the reconciled state with `connected`. A server switch is allowed while
+**RC-02 consequence at that stopped revision:** `VpnControllerSnapshot.cpp:247-250`
+compared only the reconciled state with `connected`. A server switch is allowed while
 already connected; target resolution or pre-connect configuration can fail
 without removing the old tunnel. An ambiguous method reply followed by fresh
-idle-but-still-connected state therefore emits success with an empty error.
-`ConnectionActionFeedback.qml` suppresses the failure warning. This is a
+idle-but-still-connected state therefore emitted success with an empty error.
+`ConnectionActionFeedback.qml` suppressed the failure warning. This was a
 source-confirmed UI correctness defect, not a demonstrated tunnel/protection
 failure. No live fault reproduction was attempted.
 
-**Why the correction missed it:** the new native timeout matrix starts Connect
-from disconnected and Disconnect from connected, then completes in the opposite
-state. It proves ownership retention, but not same-state failed replacement.
+**Why that correction missed it:** its native timeout matrix started Connect
+from disconnected and Disconnect from connected, then completed in the opposite
+state. It proved ownership retention, but not same-state failed replacement.
 State/retirement evidence and request success were still conflated. The test
-matrix needs initial state, requested intent, outcome and event ordering as
-separate dimensions before another implementation is approved. Most findings
+matrix needed initial state, requested intent, outcome and event ordering as
+separate dimensions; the resumed correction above adds them. Most findings
 in this batch are community-layer ownership/projection defects, not evidence
 that Proton's Python implementation caused them. Core's incomplete public
 refresher-join contract remains a separate documented dependency limitation.
 
 On the maintainer's 2026-09-08 stop instruction, no further repair or scan
 round was started. Existing checks were closed out and the finding recorded.
-The code remains on the local feature branch; no install, push, package release
-or soak acceptance is claimed. A new bounded plan requires maintainer direction.
+The maintainer subsequently authorized the bounded error-class correction
+recorded above. The code remains on the local feature branch; no install, push,
+package release or soak acceptance is claimed.
 
 ### Historical refactor checkpoint — baseline `7d1f1b3`
 
