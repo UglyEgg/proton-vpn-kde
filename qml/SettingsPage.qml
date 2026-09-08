@@ -241,6 +241,11 @@ Kirigami.ScrollablePage {
             ColumnLayout {
                 spacing: Kirigami.Units.largeSpacing
 
+                StartupSettingsSection {
+                    appSettings: page.integrationSettings
+                    pageWidth: page.width
+                }
+
                 PlasmaIntegrationSettingsSection {
                     appSettings: page.integrationSettings
                     pageWidth: page.width

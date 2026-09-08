@@ -19,144 +19,116 @@ Kirigami.ScrollablePage {
         onAccepted: page.settings.setPacketCaptureDirectoryUrl(selectedFolder)
     }
 
-    Kirigami.FormLayout {
-        wideMode: page.width >= Kirigami.Units.gridUnit * 28
+    ColumnLayout {
+        spacing: Kirigami.Units.largeSpacing
 
-        Kirigami.InlineMessage {
-            Layout.fillWidth: true
-            visible: true
-            type: Kirigami.MessageType.Information
-            text: qsTr("Plasma integration settings are saved immediately. Account and tunnel settings remain in the authenticated Proton VPN client so their live safety constraints stay authoritative.")
+        StartupSettingsSection {
+            appSettings: page.settings
+            pageWidth: page.width
         }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Startup and connection")
-        }
+        Kirigami.FormLayout {
+            wideMode: page.width >= Kirigami.Units.gridUnit * 28
 
-        Controls.TextField {
-            Kirigami.FormData.label: qsTr("Auto connect:")
-            Layout.fillWidth: true
-            text: page.settings.autoConnectTarget
-            placeholderText: qsTr("Off, FASTEST, US, or CH#101")
-            onEditingFinished: {
-                page.settings.autoConnectTarget = text
-                text = page.settings.autoConnectTarget
+            Kirigami.InlineMessage {
+                Layout.fillWidth: true
+                visible: true
+                type: Kirigami.MessageType.Information
+                text: qsTr("Plasma integration settings are saved immediately. Account and tunnel settings remain in the authenticated Proton VPN client so their live safety constraints stay authoritative.")
             }
-        }
 
-        Controls.Switch {
-            Kirigami.FormData.label: qsTr("Recovery:")
-            text: qsTr("Reconnect dropped VPN tunnels")
-            checked: page.settings.reconnectEnabled
-            onToggled: page.settings.reconnectEnabled = checked
-        }
-
-        Controls.Switch {
-            Kirigami.FormData.label: qsTr("Startup:")
-            text: qsTr("Open only the Plasma tray controls at startup")
-            checked: page.settings.startMinimized
-            onToggled: page.settings.startMinimized = checked
-        }
-
-        Controls.Switch {
-            Kirigami.FormData.label: qsTr("Window:")
-            text: qsTr("Keep Plasma tray controls available after closing")
-            checked: page.settings.closeToTray
-            onToggled: page.settings.closeToTray = checked
-        }
-
-        Controls.Label {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            visible: page.settings.startMinimized
-            text: qsTr("For tray-only login, configure the startup command ‘proton-vpn-kde’ without ‘--show’ in Plasma. Adding the application launcher to Autostart always opens the Control Center instead.")
-        }
-
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Plasma integration")
-        }
-
-        Controls.Switch {
-            Kirigami.FormData.label: qsTr("Notifications:")
-            text: qsTr("Show connection notifications")
-            checked: page.settings.notificationsEnabled
-            onToggled: page.settings.notificationsEnabled = checked
-        }
-
-        Controls.ComboBox {
-            Kirigami.FormData.label: qsTr("Interface icon:")
-            Layout.fillWidth: true
-            model: [
-                { "label": qsTr("Color"), "value": "color" },
-                { "label": qsTr("Light symbol"), "value": "light" },
-                { "label": qsTr("Dark symbol"), "value": "dark" }
-            ]
-            textRole: "label"
-            valueRole: "value"
-            currentIndex: page.settings.iconStyle === "light" ? 1
-                          : page.settings.iconStyle === "dark" ? 2 : 0
-            Accessible.name: qsTr("Interface icon style")
-            onActivated: page.settings.iconStyle = currentValue
-        }
-
-        Controls.TextField {
-            Kirigami.FormData.label: qsTr("Tray favorites:")
-            Layout.fillWidth: true
-            text: page.settings.pinnedServersText
-            placeholderText: qsTr("US, CH, CH#101")
-            onEditingFinished: {
-                page.settings.pinnedServersText = text
-                text = page.settings.pinnedServersText
+            Controls.Label {
+                Kirigami.FormData.isSection: true
+                text: qsTr("Plasma integration")
             }
-        }
 
-        Controls.Button {
-            Kirigami.FormData.label: qsTr("Shortcuts:")
-            text: qsTr("Configure Global Shortcuts…")
-            icon.name: "configure-shortcuts"
-            onClicked: kcm.openGlobalShortcuts()
-        }
+            Controls.Switch {
+                Kirigami.FormData.label: qsTr("Recovery:")
+                text: qsTr("Reconnect dropped VPN tunnels")
+                checked: page.settings.reconnectEnabled
+                onToggled: page.settings.reconnectEnabled = checked
+            }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Troubleshooting")
-        }
+            Controls.Switch {
+                Kirigami.FormData.label: qsTr("Notifications:")
+                text: qsTr("Show connection notifications")
+                checked: page.settings.notificationsEnabled
+                onToggled: page.settings.notificationsEnabled = checked
+            }
 
-        RowLayout {
-            Kirigami.FormData.label: qsTr("Packet captures:")
-            Layout.fillWidth: true
+            Controls.ComboBox {
+                Kirigami.FormData.label: qsTr("Interface icon:")
+                Layout.fillWidth: true
+                model: [
+                    { "label": qsTr("Color"), "value": "color" },
+                    { "label": qsTr("Light symbol"), "value": "light" },
+                    { "label": qsTr("Dark symbol"), "value": "dark" }
+                ]
+                textRole: "label"
+                valueRole: "value"
+                currentIndex: page.settings.iconStyle === "light" ? 1
+                              : page.settings.iconStyle === "dark" ? 2 : 0
+                Accessible.name: qsTr("Interface icon style")
+                onActivated: page.settings.iconStyle = currentValue
+            }
 
             Controls.TextField {
+                Kirigami.FormData.label: qsTr("Tray favorites:")
                 Layout.fillWidth: true
-                readOnly: true
-                text: page.settings.packetCaptureDirectory
+                text: page.settings.pinnedServersText
+                placeholderText: qsTr("US, CH, CH#101")
+                onEditingFinished: {
+                    page.settings.pinnedServersText = text
+                    text = page.settings.pinnedServersText
+                }
             }
 
             Controls.Button {
-                text: qsTr("Choose…")
-                icon.name: "document-open-folder"
-                onClicked: packetCaptureFolderDialog.open()
+                Kirigami.FormData.label: qsTr("Shortcuts:")
+                text: qsTr("Configure Global Shortcuts…")
+                icon.name: "configure-shortcuts"
+                onClicked: kcm.openGlobalShortcuts()
             }
-        }
 
-        Controls.Label {
-            Kirigami.FormData.isSection: true
-            text: qsTr("Proton VPN settings")
-        }
+            Controls.Label {
+                Kirigami.FormData.isSection: true
+                text: qsTr("Troubleshooting")
+            }
 
-        Controls.Button {
-            text: qsTr("Open full VPN settings…")
-            icon.name: "settings-configure"
-            onClicked: kcm.openFullSettings()
-        }
+            RowLayout {
+                Kirigami.FormData.label: qsTr("Packet captures:")
+                Layout.fillWidth: true
 
-        Controls.Label {
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 24
-            wrapMode: Text.WordWrap
-            text: qsTr("Protocol, kill switch, NetShield, DNS, split tunneling, port forwarding, and account-dependent features open in the client because availability can change with the active connection and Proton plan.")
-            color: Kirigami.Theme.disabledTextColor
+                Controls.TextField {
+                    Layout.fillWidth: true
+                    readOnly: true
+                    text: page.settings.packetCaptureDirectory
+                }
+
+                Controls.Button {
+                    text: qsTr("Choose…")
+                    icon.name: "document-open-folder"
+                    onClicked: packetCaptureFolderDialog.open()
+                }
+            }
+
+            Controls.Label {
+                Kirigami.FormData.isSection: true
+                text: qsTr("Proton VPN settings")
+            }
+
+            Controls.Button {
+                text: qsTr("Open full VPN settings…")
+                icon.name: "settings-configure"
+                onClicked: kcm.openFullSettings()
+            }
+
+            Controls.Label {
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+                wrapMode: Text.WordWrap
+                text: qsTr("Protocol, kill switch, NetShield, DNS, split tunneling, port forwarding, and account-dependent features open in the client because availability can change with the active connection and Proton plan.")
+                color: Kirigami.Theme.disabledTextColor
+            }
         }
     }
 }

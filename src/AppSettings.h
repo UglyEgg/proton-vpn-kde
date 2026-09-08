@@ -10,10 +10,13 @@
 #include <QUrl>
 #include <QVector>
 
+#include "AutostartSettings.h"
+
 class AppSettings final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool notificationsEnabled READ notificationsEnabled WRITE setNotificationsEnabled NOTIFY notificationsEnabledChanged)
+    Q_PROPERTY(AutostartSettings *autostart READ autostart CONSTANT)
     Q_PROPERTY(bool reconnectEnabled READ reconnectEnabled WRITE setReconnectEnabled NOTIFY reconnectEnabledChanged)
     Q_PROPERTY(bool startMinimized READ startMinimized WRITE setStartMinimized NOTIFY startMinimizedChanged)
     Q_PROPERTY(bool closeToTray READ closeToTray WRITE setCloseToTray NOTIFY closeToTrayChanged)
@@ -34,6 +37,7 @@ public:
     };
 
     explicit AppSettings(QObject *parent = nullptr);
+    AutostartSettings *autostart();
 
     [[nodiscard]] bool notificationsEnabled() const;
     [[nodiscard]] bool reconnectEnabled() const;
@@ -102,6 +106,7 @@ private:
     static QStringList normalizeFastestFeatures(const QStringList &features);
 
     KSharedConfig::Ptr m_config;
+    AutostartSettings *m_autostart = nullptr;
     KConfigWatcher::Ptr m_configWatcher;
     bool m_notificationsEnabled = true;
     bool m_reconnectEnabled = true;

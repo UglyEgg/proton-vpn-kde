@@ -3,6 +3,10 @@
 
 #include "AppSettings.h"
 
+#include <KConfigGroup>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -14,7 +18,120 @@ class AppSettingsTest final : public QObject
 private slots:
     void persistsKConfigPreferences();
     void startupCommandHonorsPreferencesWithoutHidingExplicitLaunches();
+    void managesOnlyExplicitlyEnabledLoginEntry();
+    void preservesForeignLoginEntries_data();
+    void preservesForeignLoginEntries();
+    void reportsLoginEntryWriteFailure();
+    void doesNotClaimLockedLoginEntryWasSaved();
 };
+
+void AppSettingsTest::managesOnlyExplicitlyEnabledLoginEntry()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
+    const QString path = configHome.filePath(QStringLiteral("autostart/proton-vpn-kde.desktop"));
+    AppSettings settings;
+    QVERIFY(settings.findChildren<AutostartSettings *>().isEmpty());
+    auto *startup = settings.autostart();
+    QCOMPARE(settings.autostart(), startup);
+    QVERIFY(!startup->enabled());
+    startup->setEnabled(false);
+    QVERIFY(!QFileInfo::exists(path));
+    startup->setEnabled(true);
+    QVERIFY2(startup->enabled(), qPrintable(startup->errorMessage()));
+    KConfig file(path, KConfig::SimpleConfig);
+    KConfigGroup entry(&file, QStringLiteral("Desktop Entry"));
+    QCOMPARE(entry.readEntry("Exec", QString()),
+             QStringLiteral("\"" PROTON_VPN_KDE_CONTROL_CENTER_EXECUTABLE_PATH "\""));
+    QCOMPARE(entry.readEntry("TryExec", QString()),
+             QStringLiteral(PROTON_VPN_KDE_CONTROL_CENTER_EXECUTABLE_PATH));
+    QCOMPARE(entry.readEntry("OnlyShowIn", QString()), QStringLiteral("KDE;"));
+    QVERIFY(entry.readEntry("X-PlasmaVPN-Managed", false));
+    QVERIFY(!entry.readEntry("Hidden", true));
+
+    // Plasma's Autostart UI remains authoritative when this page is reopened.
+    entry.writeEntry("Hidden", true);
+    QVERIFY(file.sync());
+    startup->refresh();
+    QVERIFY(!startup->enabled());
+    startup->setEnabled(true);
+    QVERIFY(startup->enabled());
+    startup->setEnabled(false);
+    QVERIFY(!startup->enabled());
+    QVERIFY(QFileInfo::exists(path)); // Reversible Hidden=true, not deletion.
+    file.reparseConfiguration();
+    QVERIFY(entry.readEntry("Hidden", false));
+    QCOMPARE(QDir(configHome.filePath("autostart")).entryList(QDir::Files).size(), 1);
+}
+
+void AppSettingsTest::preservesForeignLoginEntries_data()
+{
+    QTest::addColumn<bool>("symlink");
+    QTest::newRow("custom-desktop-file") << false;
+    QTest::newRow("launcher-symlink") << true;
+}
+
+void AppSettingsTest::preservesForeignLoginEntries()
+{
+    QFETCH(bool, symlink);
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
+    QVERIFY(QDir().mkpath(configHome.filePath("autostart")));
+    const QString path = configHome.filePath("autostart/proton-vpn-kde.desktop");
+    const QString originalPath = symlink ? configHome.filePath("launcher.desktop") : path;
+    const QByteArray original("[Desktop Entry]\nType=Application\nExec=custom-launcher --show\n");
+    QFile originalFile(originalPath);
+    QVERIFY(originalFile.open(QIODevice::WriteOnly));
+    QCOMPARE(originalFile.write(original), original.size());
+    originalFile.close();
+    if (symlink) {
+        QVERIFY(QFile::link(originalPath, path));
+    }
+    AutostartSettings settings;
+    QVERIFY(!settings.configurable());
+    QVERIFY(!settings.errorMessage().isEmpty());
+    settings.setEnabled(true);
+    settings.setEnabled(false);
+    QCOMPARE(QFileInfo(path).isSymbolicLink(), symlink);
+    QVERIFY(originalFile.open(QIODevice::ReadOnly));
+    QCOMPARE(originalFile.readAll(), original);
+}
+
+void AppSettingsTest::reportsLoginEntryWriteFailure()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
+    QFile obstacle(configHome.filePath("autostart"));
+    QVERIFY(obstacle.open(QIODevice::WriteOnly));
+    obstacle.close();
+    AutostartSettings settings;
+    settings.setEnabled(true);
+    QVERIFY(!settings.enabled());
+    QVERIFY(!settings.errorMessage().isEmpty());
+    QVERIFY(QFileInfo(obstacle).isFile());
+}
+
+void AppSettingsTest::doesNotClaimLockedLoginEntryWasSaved()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
+    QVERIFY(QDir().mkpath(configHome.filePath("autostart")));
+    QFile entry(configHome.filePath("autostart/proton-vpn-kde.desktop"));
+    const QByteArray original("[Desktop Entry][$i]\nX-PlasmaVPN-Managed=true\nHidden=true\n");
+    QVERIFY(entry.open(QIODevice::WriteOnly));
+    QCOMPARE(entry.write(original), original.size());
+    entry.close();
+    AutostartSettings settings;
+    settings.setEnabled(true);
+    QVERIFY(!settings.enabled());
+    QVERIFY(!settings.errorMessage().isEmpty());
+    QVERIFY(entry.open(QIODevice::ReadOnly));
+    QCOMPARE(entry.readAll(), original);
+}
 
 void AppSettingsTest::startupCommandHonorsPreferencesWithoutHidingExplicitLaunches()
 {

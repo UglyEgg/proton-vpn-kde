@@ -11,6 +11,8 @@ kcmutils_add_qml_kcm(kcm_proton_vpn_kde
         ProtonVpnKcm.h
         ../src/AppSettings.cpp
         ../src/AppSettings.h
+        ../src/AutostartSettings.cpp
+        ../src/AutostartSettings.h
         ../src/InstalledExecutablePaths.cpp
         ../src/InstalledExecutablePaths.h
         ../src/TranslationLoader.cpp
@@ -18,6 +20,12 @@ kcmutils_add_qml_kcm(kcm_proton_vpn_kde
 )
 
 set(BUILD_SHARED_LIBS "${_proton_saved_build_shared_libs}")
+
+# The same startup controls are used by the client and System Settings.
+qt_add_resources(kcm_proton_vpn_kde "startup-settings-ui"
+    PREFIX "/kcm/kcm_proton_vpn_kde"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/../qml"
+    FILES ../qml/StartupSettingsSection.qml ../qml/SectionCard.qml)
 
 set_target_properties(kcm_proton_vpn_kde PROPERTIES PREFIX "")
 target_include_directories(kcm_proton_vpn_kde PRIVATE ../src)

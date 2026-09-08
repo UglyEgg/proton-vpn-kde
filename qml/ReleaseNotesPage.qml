@@ -78,6 +78,8 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Visual polish")
                 headingLevel: 4
                 notes: [
+                    qsTr("Startup settings now group opt-in login launch, window or tray-only startup, and auto-connect. The same controls appear in KDE System Settings."),
+                    qsTr("The dashed split route uses smoother curve rendering, including at fractional display scaling."),
                     qsTr("The window fits its layout automatically, expanding for split tunneling and shrinking without it. Manual resizing and maximizing are disabled."),
                     qsTr("Device and VPN stay aligned, with server details beside the VPN and a smooth, arrow-free route to the outside internet."),
                     qsTr("Split tunneling appears as an outside-VPN branch in the connection graphic, with rules and restart guidance a click away."),

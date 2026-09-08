@@ -29,6 +29,13 @@ AppSettings::AppSettings(QObject *parent)
 }
 
 bool AppSettings::notificationsEnabled() const { return m_notificationsEnabled; }
+AutostartSettings *AppSettings::autostart()
+{
+    if (!m_autostart) {
+        m_autostart = new AutostartSettings(this);
+    }
+    return m_autostart;
+}
 bool AppSettings::reconnectEnabled() const { return m_reconnectEnabled; }
 bool AppSettings::startMinimized() const { return m_startMinimized; }
 bool AppSettings::startTrayOnly(bool openSettings, bool forceShow) const

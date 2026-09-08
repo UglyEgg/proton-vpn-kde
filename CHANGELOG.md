@@ -5,6 +5,11 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Consolidate login launch, window/tray startup, and auto-connect into one
+  Startup section shared with KDE System Settings. Login launch is opt-in;
+  existing custom autostart entries are preserved. Keep the split-route dashes
+  smooth at fractional scaling with Qt's curve renderer.
+
 - Keep the device and VPN aligned horizontally, with connection facts beside
   the VPN endpoint and a smooth, arrow-free split route below it. The app owns
   its window dimensions: Connection fits its content, expanding for split

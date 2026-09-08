@@ -1,5 +1,29 @@
 # Performance
 
+## Bounded 0.13.0 observation — 2026-09-08
+
+Before the startup-controls follow-up, the installed `58b3d83` client was
+observed connected with the Control Center closed for ten minutes (21 samples).
+Combined agent/backend PSS plus SwapPss ranged from 130.8 to 133.8 MiB. Their
+cgroups consumed 0.537 CPU-seconds, averaging 0.089% of one core, including one
+brief background-work interval. Agent private writable memory plus swap was
+constant at 7,800 KiB; the backend decreased from 114,660 to 113,408 KiB.
+Thread and descriptor counts stayed constant. Falling RSS during paging was
+not counted as an allocation reduction.
+
+Two isolated, same-process Inspector probes each opened and closed the page
+20 times with two-second settling intervals and normal page teardown. A staged
+diagnostic main used the matching native objects, private D-Bus/demo backend,
+and offscreen software rendering. Both retained 7,284 KiB of private writable
+memory after warm-up; the final five closes varied by 128 KiB. Owned-page and
+window-descendant counts returned to baseline after every close. After ten
+seconds idle, one explicit diagnostic GC reclaimed a further 1,024 KiB.
+Clean file-page sharing varied between runs, so writable memory plus swap was
+used for retention rather than attributing every PSS/private-clean change to
+the heap. This supports bounded caching in the exercised path, not a claim
+that every reconnect, refresh, GPU path, or longer session is leak-free. These
+are pre-follow-up observations, not new package acceptance measurements.
+
 ## Resident Plasma agent
 
 The system tray, global shortcuts, notifications, favorites, and auto-connect

@@ -326,6 +326,8 @@ Kirigami.AbstractCard {
                     : Kirigami.Theme.disabledTextColor
 
                 Shape {
+                    objectName: "connectionRouteShape"
+                    preferredRendererType: Shape.CurveRenderer
                     x: routeLines.startX
                     width: routeLines.pathWidth
                     height: parent.height

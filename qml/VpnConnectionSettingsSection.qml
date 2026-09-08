@@ -41,24 +41,6 @@ SectionCard {
             color: Kirigami.Theme.disabledTextColor
         }
 
-        Controls.TextField {
-            Kirigami.FormData.label: qsTr("Auto connect:")
-            Layout.fillWidth: true
-            text: appSettings.autoConnectTarget
-            placeholderText: qsTr("Off, FASTEST, US, or CH#101")
-            onEditingFinished: {
-                appSettings.autoConnectTarget = text
-                text = appSettings.autoConnectTarget
-            }
-        }
-
-        Controls.Label {
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
-            wrapMode: Text.WordWrap
-            text: qsTr("Connect to the fastest server, a country, or an exact server when the app starts.")
-            color: Kirigami.Theme.disabledTextColor
-        }
-
         Controls.ComboBox {
             Kirigami.FormData.label: qsTr("Kill switch:")
             Layout.fillWidth: true

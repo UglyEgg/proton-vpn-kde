@@ -93,6 +93,14 @@ KWin resize controls and monitor changes. The existing
 Core/keyring packages are unchanged. This does not replace the remaining
 release gates.
 
+The maintainer-authorized next local change adds smooth dashed-curve rendering
+and one shared Startup section for optional login launch, window/tray startup,
+and existing auto-connect targets. It does not change Proton Core, networking,
+or authentication. The installed `0.3` package remains the current installed
+candidate until a replacement is packaged and approved. Startup registration
+and real login/session-restoration acceptance remain opt-in live-UAT gates;
+automated fixtures use disposable configuration and never enable host startup.
+
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.
 Results and the consolidated correction register are in the

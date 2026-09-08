@@ -163,6 +163,8 @@ qt_add_executable(proton-vpn-kde
     src/ClientRegistrationState.h
     src/AppSettings.cpp
     src/AppSettings.h
+    src/AutostartSettings.cpp
+    src/AutostartSettings.h
     src/CustomDnsModel.cpp
     src/CustomDnsModel.h
     src/ConnectionAction.h
@@ -206,6 +208,8 @@ qt_add_executable(proton-vpn-kde-agent
     src/AppIcon.h
     src/AppSettings.cpp
     src/AppSettings.h
+    src/AutostartSettings.cpp
+    src/AutostartSettings.h
     src/BackgroundQuitCoordinator.cpp
     src/BackgroundQuitCoordinator.h
     src/BackendCallPolicy.h
@@ -279,6 +283,7 @@ qt_add_qml_module(proton-vpn-kde
         qml/ServerBrowserFeedback.qml
         qml/ServersPage.qml
         qml/SettingsPage.qml
+        qml/StartupSettingsSection.qml
         qml/SignInPage.qml
         qml/SplitTunnelingSettingsSection.qml
         qml/SplitTunnelingPage.qml
@@ -567,8 +572,11 @@ if(BUILD_TESTING)
         tests/AppSettingsTest.cpp
         src/AppSettings.cpp
         src/AppSettings.h
+        src/AutostartSettings.cpp
+        src/AutostartSettings.h
     )
     target_include_directories(app-settings-tests PRIVATE src)
+    proton_vpn_kde_enable_installed_executable_paths(app-settings-tests)
     target_link_libraries(app-settings-tests PRIVATE
         Qt6::Core
         Qt6::Test
@@ -593,9 +601,12 @@ if(BUILD_TESTING)
         src/NotificationIntegration.h
         src/AppSettings.cpp
         src/AppSettings.h
+        src/AutostartSettings.cpp
+        src/AutostartSettings.h
         src/VpnConnectionController.h
     )
     target_include_directories(notification-integration-tests PRIVATE src)
+    proton_vpn_kde_enable_installed_executable_paths(notification-integration-tests)
     target_link_libraries(notification-integration-tests PRIVATE
         Qt6::Core Qt6::Gui Qt6::Test KF6::ConfigCore KF6::Notifications)
     target_compile_options(notification-integration-tests PRIVATE
@@ -878,9 +889,14 @@ if(BUILD_TESTING)
             "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QPA_PLATFORMTHEME=generic;QT_ACCESSIBILITY=0"
         TIMEOUT 15
     )
-    qt_add_executable(presentation-layout-tests tests/PresentationLayoutTest.cpp)
+    qt_add_executable(presentation-layout-tests
+        tests/PresentationLayoutTest.cpp
+        src/AppSettings.cpp src/AppSettings.h
+        src/AutostartSettings.cpp src/AutostartSettings.h)
+    target_include_directories(presentation-layout-tests PRIVATE src)
+    proton_vpn_kde_enable_installed_executable_paths(presentation-layout-tests)
     target_link_libraries(presentation-layout-tests PRIVATE
-        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test Qt6::Widgets)
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test Qt6::Widgets KF6::ConfigCore)
     target_compile_definitions(presentation-layout-tests PRIVATE
         PROTON_VPN_KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     qt_add_resources(presentation-layout-tests "layout-test-icon"

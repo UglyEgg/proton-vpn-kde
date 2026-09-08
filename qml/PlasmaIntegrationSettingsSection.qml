@@ -59,20 +59,6 @@ SectionCard {
             color: Kirigami.Theme.disabledTextColor
         }
 
-        Controls.Switch {
-            Kirigami.FormData.label: qsTr("Window:")
-            text: qsTr("Keep Plasma tray controls available after closing")
-            checked: appSettings.closeToTray
-            onToggled: appSettings.closeToTray = checked
-        }
-
-        Controls.Switch {
-            Kirigami.FormData.label: qsTr("Startup:")
-            text: qsTr("Open only the Plasma tray controls at startup")
-            checked: appSettings.startMinimized
-            onToggled: appSettings.startMinimized = checked
-        }
-
         Controls.TextField {
             Kirigami.FormData.label: qsTr("Pinned countries and servers:")
             Layout.fillWidth: true
@@ -99,11 +85,5 @@ SectionCard {
             color: Kirigami.Theme.disabledTextColor
         }
 
-        Kirigami.InlineMessage {
-            Layout.fillWidth: true
-            visible: appSettings.startMinimized
-            type: Kirigami.MessageType.Information
-            text: qsTr("For tray-only login, configure the startup command ‘proton-vpn-kde’ without ‘--show’ in Plasma. Adding the application launcher to Autostart always opens the Control Center instead. The full Control Center is not kept in memory in tray-only mode.")
-        }
     }
 }

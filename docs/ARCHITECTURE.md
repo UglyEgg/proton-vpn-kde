@@ -771,6 +771,24 @@ targets, icon style, and capture storage. Live Proton settings are not
 duplicated into a second controller. KConfig change notifications synchronize
 the KCM, agent, and Control Center.
 
+Both settings surfaces reuse `StartupSettingsSection.qml`. Window/tray and
+auto-connect choices retain the existing KConfig and connection paths; `FASTEST`
+still applies the configured capability requirements. Automatic connection does
+not bypass saved-session or Secret Service requirements. Selecting tray-only
+also enables the tray controls it needs; turning those controls off selects
+window startup. Explicit application-launcher `--show` requests remain visible.
+
+Login launch is separately opt-in. A lazily created `AutostartSettings` object
+manages `$XDG_CONFIG_HOME/autostart/proton-vpn-kde.desktop` (normally under
+`~/.config`), using the configured installed executable without `--show` or a
+shell. It writes a KDE-only, marked desktop entry with `TryExec`; disabling
+sets `Hidden=true`. Existing unmarked files and symlinks are not overwritten.
+The file is re-read when the settings section is shown and before a write;
+errors remain visible rather than reporting a successful save. This is an
+ordinary same-user preference, not a security boundary against that user.
+Installation and merely opening settings never enable login launch. The tray
+agent does not construct this helper, poll autostart files, or add a watcher.
+
 ## Safety rules
 
 - Demo mode is the default path for automated and visual tests and cannot

@@ -9,8 +9,11 @@
 #include <QQuickWindow>
 #include <QScopeGuard>
 #include <QScopedPointer>
+#include <QTemporaryDir>
 #include <QSignalSpy>
 #include <QtTest>
+
+#include "AppSettings.h"
 
 class ReportPreviewController final : public QObject
 {
@@ -40,6 +43,8 @@ private Q_SLOTS:
     void splitRouteIsConditionalAndNavigable_data();
     void splitRouteIsConditionalAndNavigable();
     void windowSizeIsOwnedByContent();
+    void startupControlsPreservePreferencesAndFit_data();
+    void startupControlsPreservePreferencesAndFit();
 
 private:
     void capture(QQuickWindow *window);
@@ -54,6 +59,99 @@ void PresentationLayoutTest::capture(QQuickWindow *window)
             + QStringLiteral(".png");
         QVERIFY(window->grabWindow().save(QDir(directory).filePath(name)));
     }
+}
+
+void PresentationLayoutTest::startupControlsPreservePreferencesAndFit_data()
+{
+    QTest::addColumn<int>("viewportWidth");
+    QTest::addColumn<qreal>("fontScale");
+    QTest::addColumn<bool>("rtl");
+    QTest::newRow("compact") << 440 << 1.0 << false;
+    QTest::newRow("wide") << 800 << 1.0 << false;
+    QTest::newRow("large-text") << 640 << 1.5 << false;
+    QTest::newRow("rtl") << 440 << 1.0 << true;
+}
+
+void PresentationLayoutTest::startupControlsPreservePreferencesAndFit()
+{
+    QFETCH(int, viewportWidth);
+    QFETCH(qreal, fontScale);
+    QFETCH(bool, rtl);
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    const QByteArray oldConfig = qgetenv("XDG_CONFIG_HOME");
+    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
+    const auto originalFont = QGuiApplication::font();
+    const auto originalDirection = QGuiApplication::layoutDirection();
+    const auto restore = qScopeGuard([&] {
+        qputenv("XDG_CONFIG_HOME", oldConfig);
+        QGuiApplication::setFont(originalFont);
+        QGuiApplication::setLayoutDirection(originalDirection);
+    });
+    auto font = originalFont;
+    font.setPointSizeF(font.pointSizeF() * fontScale);
+    QGuiApplication::setFont(font);
+    QGuiApplication::setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    AppSettings settings;
+    settings.setCloseToTray(false);
+    settings.setAutoConnectTarget(QStringLiteral("CH#101"));
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty(QStringLiteral("settingsFixture"), &settings);
+    engine.rootContext()->setContextProperty(QStringLiteral("viewportWidth"), viewportWidth);
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQuick
+        import QtQuick.Controls
+        import QtQuick.Layouts
+        ApplicationWindow {
+            width: viewportWidth; height: 1100; visible: true
+            ColumnLayout {
+                width: parent.width
+                StartupSettingsSection {
+                    appSettings: settingsFixture
+                    pageWidth: viewportWidth
+                }
+            }
+        }
+    )", QUrl::fromLocalFile(QStringLiteral(PROTON_VPN_KDE_SOURCE_DIR "/qml/LayoutFixture.qml")));
+    QScopedPointer<QObject> root(component.create());
+    QVERIFY2(root, qPrintable(component.errorString()));
+    auto *window = qobject_cast<QQuickWindow *>(root.data());
+    auto *card = root->findChild<QQuickItem *>(QStringLiteral("startupSettingsSection"));
+    auto *presentation = root->findChild<QObject *>(QStringLiteral("startupPresentation"));
+    auto *autoConnect = root->findChild<QObject *>(QStringLiteral("startupAutoConnect"));
+    auto *target = root->findChild<QObject *>(QStringLiteral("startupCustomTarget"));
+    QVERIFY(window && card && presentation && autoConnect && target);
+    QCOMPARE(autoConnect->property("currentIndex").toInt(), 2);
+    QCOMPARE(target->property("text").toString(), QStringLiteral("CH#101"));
+    QVERIFY(QMetaObject::invokeMethod(presentation, "activated", Q_ARG(int, 1)));
+    QVERIFY(settings.closeToTray());
+    QVERIFY(settings.startTrayOnly(false, false));
+    QVERIFY(!settings.startTrayOnly(false, true));
+    QVERIFY(QMetaObject::invokeMethod(autoConnect, "activated", Q_ARG(int, 1)));
+    QCOMPARE(settings.autoConnectTarget(), QStringLiteral("FASTEST"));
+    QVERIFY(QMetaObject::invokeMethod(autoConnect, "activated", Q_ARG(int, 2)));
+    QVERIFY(settings.autoConnectTarget().isEmpty());
+    target->setProperty("text", QStringLiteral(" us "));
+    QVERIFY(QMetaObject::invokeMethod(target, "editingFinished"));
+    QCOMPARE(settings.autoConnectTarget(), QStringLiteral("US"));
+    QVERIFY(!settings.autostart()->enabled()); // Opening/settings selection is not consent.
+    QVERIFY(!QFileInfo::exists(configHome.filePath("autostart/proton-vpn-kde.desktop")));
+    QTest::qWait(100);
+    capture(window);
+    const QRectF bounds(0, 0, card->width(), card->height());
+    for (const auto &name : {"startAtLoginSwitch", "startupPresentation",
+                             "keepTrayControlsSwitch", "startupAutoConnect", "startupCustomTarget"}) {
+        auto *item = root->findChild<QQuickItem *>(QString::fromLatin1(name));
+        QVERIFY(item);
+        QVERIFY2(bounds.adjusted(-1, -1, 1, 1).contains(item->mapRectToItem(
+            card, QRectF(0, 0, item->width(), item->height()))), name);
+    }
+    QVERIFY(QMetaObject::invokeMethod(presentation, "activated", Q_ARG(int, 0)));
+    QVERIFY(!settings.startTrayOnly(false, false));
+    QVERIFY(settings.closeToTray()); // Showing the window does not disable its tray.
+    QVERIFY(QMetaObject::invokeMethod(autoConnect, "activated", Q_ARG(int, 0)));
+    QVERIFY(settings.autoConnectTarget().isEmpty());
 }
 
 void PresentationLayoutTest::reportStaysInsideCard_data()
@@ -199,9 +297,19 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
     auto *scene = root->findChild<QQuickItem *>(QStringLiteral("scene"));
     auto *cloud = root->findChild<QQuickItem *>(QStringLiteral("splitInternetRoute"));
     QVERIFY(window && scene && cloud);
+    auto *routeShape = root->findChild<QObject *>(QStringLiteral("connectionRouteShape"));
+    QVERIFY(routeShape);
+    const auto renderer = routeShape->metaObject()->enumerator(
+        routeShape->metaObject()->indexOfEnumerator("RendererType"));
+    QCOMPARE(routeShape->property("preferredRendererType").toInt(),
+             renderer.keyToValue("CurveRenderer"));
     QTRY_VERIFY(scene->height() > 0);
     QTest::qWait(50);
     QCOMPARE(cloud->isVisible(), connected && splitEnabled);
+    if (qEnvironmentVariableIntValue("PLASMA_VPN_EXPECT_CURVE_RENDERER") == 1) {
+        QCOMPARE(routeShape->property("rendererType").toInt(),
+                 renderer.keyToValue("CurveRenderer"));
+    }
     QCOMPARE(scene->property("splitRouteVisible").toBool(), connected && splitEnabled);
     if (cloud->isVisible()) {
         const QRectF cloudBounds = cloud->mapRectToItem(

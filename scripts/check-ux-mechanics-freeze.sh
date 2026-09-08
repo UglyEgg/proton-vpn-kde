@@ -71,7 +71,7 @@ while IFS= read -r path; do
         packaging/fedora/README.md|packaging/fedora/api-core-overlay/README.md|\
         qml/*)
             ;;
-        CMakeLists.txt|backend/pyproject.toml|\
+        CMakeLists.txt|kcm/CMakeLists.txt|backend/pyproject.toml|\
         backend/proton_vpn_kde_backend/__init__.py|\
         backend/proton_vpn_kde_backend/__main__.py|\
         backend/proton_vpn_kde_backend/adapters.py|\
@@ -114,6 +114,7 @@ while IFS= read -r path; do
         src/BackendIdentity.cpp|src/BackendIdentity.h|\
         src/NotificationIntegration.cpp|src/NotificationIntegration.h|\
         src/AppSettings.cpp|src/AppSettings.h|kcm/ui/main.qml|\
+        src/AutostartSettings.cpp|src/AutostartSettings.h|\
         src/BackendCallPolicy.h|src/BackgroundQuitCoordinator.cpp|\
         src/ConnectionAction.h|src/OperationCompletion.h|src/ShortcutIntegration.cpp|\
         src/SettingsRequestState.h|src/VpnSettingsModel.cpp|\
@@ -128,6 +129,7 @@ while IFS= read -r path; do
         tests/AgentVpnClientTest.cpp|tests/GroupedNavigationTest.cpp|\
         tests/BackendIdentityTest.cpp|tests/NotificationIntegrationTest.cpp|\
         tests/AppSettingsTest.cpp|\
+        tests/ProtonVpnKcmTest.cpp|\
         tests/PresentationLayoutTest.cpp|\
         tests/BackendCallPolicyTest.cpp|tests/BackgroundQuitCoordinatorTest.cpp|\
         tests/ConnectionActionTest.cpp|\
@@ -163,7 +165,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "ae8396cf7a96602a05363a6e3aa5c567dc22a646f18825ed528d5c652565e7d7" \
+    "de082b5b70f5499b3d4742a1120a721da864c8761a5c4b4d58d9cc13bcda93c3" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
@@ -197,11 +199,11 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "8bb71fd9dd2b603ded23a3a55666b7dc55b2cde7c158339c72152b430242aa73" \
+    "c81eea0bd4b86f701798fd2ba2a79210723967bf6d2ce274b1f4cf9ff907bb03" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "0d088e9d7c8cd1cbfe10e87ec148f73d8db14a9a64e7aff9af57ece76c1f0064" \
+    "d0faee6bb9471b3dbf957f225e08a0f942ca9c005010a6e62b92c492de009de0" \
     "QML presentation" qml
 
 assert_diff_hash \
