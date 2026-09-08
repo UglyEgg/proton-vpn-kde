@@ -10,6 +10,7 @@ fixture_dir="$fixture_root/repository"
 feedback_fixture_dir="$fixture_root/feedback-repository"
 busy_fixture_dir="$fixture_root/busy-repository"
 controller_fixture_dir="$fixture_root/controller-repository"
+rpm_fixture_dir="$fixture_root/rpm-repository"
 trap 'rm -rf -- "$fixture_root"' EXIT
 
 git clone --quiet --no-hardlinks "$project_dir" "$fixture_dir"
@@ -110,3 +111,18 @@ if ! rg -q 'Backend failures must preserve diagnostics' "$busy_output"; then
 fi
 
 echo "The UI hygiene gate rejects browser actions without capability checks"
+
+git clone --quiet --no-hardlinks "$project_dir" "$rpm_fixture_dir"
+sed -i '/^BuildRequires:[[:space:]]*ripgrep[[:space:]]*$/d' \
+    "$rpm_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
+rpm_output="$fixture_root/rpm-output"
+if "$rpm_fixture_dir/scripts/check-qml-ui-hygiene.sh" >"$rpm_output" 2>&1; then
+    echo "The QML gate accepted an undeclared RPM test dependency" >&2
+    exit 1
+fi
+if ! rg -q 'RPM %check requires ripgrep' "$rpm_output"; then
+    echo "The RPM dependency fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$rpm_output" >&2
+    exit 1
+fi
+echo "The QML gate rejects an undeclared RPM test dependency"
