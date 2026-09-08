@@ -21,11 +21,12 @@ All notable user-visible changes are recorded here. The project follows
   starts. Preserve Proton Core and networking behavior.
 - Begin the 0.13.0 presentation-led cycle with a documented progressive-
   disclosure model grounded in native Qt 6, Kirigami, and system theming.
-- Freeze backend, networking, service, integration, and Proton-overlay mechanics
-  against the accepted 0.12.0 revision in CI. Admit only exact-reviewed,
-  presentation-facing native-controller state, and seal the complete reviewed
-  QML delta as well, with a negative fixture proving that changed connection
-  arguments are rejected.
+- Track backend, networking, service, integration, and Proton-overlay mechanics
+  against the accepted 0.12.0 revision in CI. Admit explicitly authorized
+  presentation and lifecycle corrections, and seal the complete candidate
+  delta, with negative fixtures proving that changed connection arguments and
+  undeclared RPM test dependencies are rejected. A matching seal is drift
+  detection, not independent review approval.
 - Replace the in-app release-note walls of text with scannable grouped bullets
   and keep older release history collapsed until requested.
 - Make Connection the graphical application home: its route links directly to

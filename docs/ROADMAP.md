@@ -58,8 +58,10 @@ dependency-ordered commits with focused proofs.
 #### Review checkpoint — bounded error-class correction 2026-09-08
 
 Latest checkpoint: the separate seven-review battery at `4d6b5f2` found seven
-P2 issues and one P3. The maintainer-authorized bounded series through `bbcf1ab`
-implements R1–R8 with regression cases; full verification is in progress.
+P2 issues and one P3. The maintainer-authorized bounded series through `5a34639`
+implements R1–R8 with regression cases. All 41 normal/sanitized test targets,
+439 backend tests, 35 Clang-Tidy production files and static/candidate gates
+pass; explicit environment and package-validation gaps remain in the register.
 The [current correction register](SECURITY-AUDIT-2026-08-30.md#current-bounded-seven-review-correction-register--2026-09-08)
 separates these results from the older checkpoints retained below. Do not reopen
 optional cleanup or begin another automatic scan/repair loop. After the bounded

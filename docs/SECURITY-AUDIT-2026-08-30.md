@@ -2,11 +2,13 @@
 
 ## Current assessment posture
 
-The public `0.11.3` baseline has no open finding from the assessments recorded
-in this document. The original review found seven issues: one high, four
-medium, and two low severity. All seven were corrected, their original failure
-modes no longer reproduce in focused tests, and the 2026-08-31 `0.11.3`
-re-review found no new reportable issue.
+The original `0.11.3` assessment closed its seven recorded issues: one high,
+four medium and two low severity. Their original failure modes no longer
+reproduced in focused tests, and the 2026-08-31 re-review found no new
+reportable issue. That historical result is not a claim about findings from
+later assessments. The current R1–R8 review and correction concern the
+unreleased branch; applicability to older public releases was not assessed in
+this bounded series.
 
 The accepted `0.12.0` mechanics add event-driven backend lifetime and an
 on-demand Connection Inspector. Their pre-final isolated reviews and standard
@@ -23,7 +25,8 @@ NetworkManager behavior, or the authentication protocol.
 
 **Current source decision: the seven-isolated-reviewer battery at `4d6b5f2`
 required seven P2 corrections and one P3 correction. The bounded patch series
-through `bbcf1ab` implements all eight; final verification is in progress.**
+through `5a34639` implements all eight and passes the bounded verification
+gates. Independent final release approval and installed UAT remain pending.**
 The current R1–R8 register below supersedes earlier candidate decisions. This
 is not release approval. No P1 was substantiated in this bounded review, but
 partial security coverage cannot exclude undiscovered defects. Subtractive and
@@ -128,12 +131,36 @@ the parent confirmed it, closed it and added lifecycle-order regression checks.
 The original scan and review outputs remain historical evidence, not rewritten
 as an independent approval of the final patch.
 
-Targeted Python/native/private-bus/UI regressions pass. Complete native,
-sanitizer, Clang-Tidy and candidate-seal gates are being rerun. No new full scan,
-Core/networking change, installed-client operation or GitHub operation is part
-of this series. Exact packages, installed UAT, final independent approval and
-soak remain separate release gates. Optional subtractive/maintainability ideas
-are deferred; they are not additional required fixes.
+Verification of the source candidate `5a346394a8529edc6f7b6df100d4e07f335a333a`:
+
+- **41/41 CTest targets pass normally and under address/leak/undefined-behavior
+  sanitizers**, including private-bus, QML, staged-install and negative
+  candidate-seal fixtures.
+- **439 Python 3.14 tests pass without skips**, including the hash-pinned actual
+  Core 5.6.10 conformance fixture. Mypy passes for 31 files; branch-aware
+  coverage is 86%. Python 3.11.15 with minimum dbus-fast 2.20.0 passes the same
+  suite with eight documented compatibility/opt-in skips.
+- **35 production C++ files pass Clang-Tidy**. Ruff, ShellCheck, contract and
+  translation provenance, documentation links, candidate seals, RPM dependency
+  rejection and exact-commit source archive reproducibility pass.
+
+The native aggregate's backend job does not enable the five opt-in Core cases;
+the separate no-skip Python run above covers them. One positive root-ownership
+test skips because the sandbox remaps host ownership. A packaged systemd trust
+check on the real host therefore remains an installed-validation gate, not an
+inferred pass. No fresh RPM/SRPM build or clean package buildroot was exercised.
+
+The first validation pass exposed a supported manually started service without
+an activation file; discovery now queries ownership before requesting activation.
+The corresponding private-bus test and affected UI smoke tests pass. One
+Clang-Tidy callback-copy diagnostic was corrected and the entire gate rerun.
+The committed candidate-seal negative fixture also passes. These were bounded
+patch-validation corrections, not another repository-wide discovery cycle.
+
+No new full scan, Core/networking change, installed-client operation or GitHub
+operation was part of this series. Exact packages, installed UAT, final
+independent approval and soak remain separate release gates. Optional
+subtractive/maintainability ideas are deferred, not additional required fixes.
 
 ### Historical a2b3d5e review checkpoint
 
