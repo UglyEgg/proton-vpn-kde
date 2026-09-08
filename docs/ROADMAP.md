@@ -68,6 +68,13 @@ optional cleanup or begin another automatic scan/repair loop. After the bounded
 gates, freeze the candidate for package validation and focused installed UAT;
 final independent release approval and soak remain required.
 
+The package candidate `9f26ba2` has now passed two byte-identical local client
+builds, the six-artifact content checks and an isolated upgrade check. The
+three binary RPMs were installed with maintainer approval and passed root-side
+payload verification. The [package checkpoint](SECURITY-AUDIT-2026-08-30.md#package-and-local-install-checkpoint--2026-09-08)
+records the exact evidence and remaining clean-environment and live-UAT gates.
+This installation is for local acceptance, not release approval or soak entry.
+
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.
 Results and the consolidated correction register are in the
@@ -108,12 +115,13 @@ cleanup and shutdown deadlines. No new Core patch or wire protocol is involved.
 
 Do not restart broad discovery or another repair cycle automatically. A new
 unrelated defect or wider protocol proposal requires a separate scope decision.
-No Core rewrite is part of this roadmap. Before UAT, complete independent final
-approval and the exact-candidate package battery.
+No Core rewrite is part of this roadmap. Local UAT now targets the installed
+package candidate above. Before release, complete independent final approval
+and the remaining exact-candidate clean-environment package battery.
 The full security scan had partial coverage, explicitly recorded in the
 assessment; no-finding is not full approval. Installed acceptance, true 1.5x
 text/keyboard/accessibility checks and the one-week soak remain separate
-gates. No installation or publication has occurred in this cycle.
+gates. Local installation has occurred; no publication has occurred in this cycle.
 
 #### 1. Freeze discovery and specify the contract
 

@@ -146,9 +146,9 @@ Verification of the source candidate `5a346394a8529edc6f7b6df100d4e07f335a333a`:
 
 The native aggregate's backend job does not enable the five opt-in Core cases;
 the separate no-skip Python run above covers them. One positive root-ownership
-test skips because the sandbox remaps host ownership. A packaged systemd trust
-check on the real host therefore remains an installed-validation gate, not an
-inferred pass. No fresh RPM/SRPM build or clean package buildroot was exercised.
+test skips because the sandbox remaps host ownership. At that source checkpoint,
+real-host ownership, fresh RPM/SRPM builds and a clean package buildroot had not
+been verified. Subsequent package and host checks are recorded separately below.
 
 The first validation pass exposed a supported manually started service without
 an activation file; discovery now queries ownership before requesting activation.
@@ -158,9 +158,55 @@ The committed candidate-seal negative fixture also passes. These were bounded
 patch-validation corrections, not another repository-wide discovery cycle.
 
 No new full scan, Core/networking change, installed-client operation or GitHub
-operation was part of this series. Exact packages, installed UAT, final
-independent approval and soak remain separate release gates. Optional
+operation was part of this series. Package validation, installed UAT, final
+independent approval and soak are separate gates. Optional
 subtractive/maintainability ideas are deferred, not additional required fixes.
+
+### Package and local-install checkpoint — 2026-09-08
+
+The immutable package source is
+`9f26ba2cdf3b07e2850a799f2777496a7775b328`. Its changes after the source
+candidate above are documentation-only. No runtime correction was added during
+packaging.
+
+- All six binary/source artifacts were built and content-verified: client
+  `0.13.0-0.1.fc44`, keyring `0.2.3-8.plasmavpn1.fc44`, and API Core
+  `5.6.10-10.plasmavpn1.fc44`. The artifact manifest binds their SHA-256
+  digests to that exact commit. These are unsigned local UAT artifacts.
+- Two fresh client builds under the same normalized build path produced
+  byte-identical RPM, SRPM, debuginfo and debugsource outputs. Both mandatory
+  `%check` runs passed all 40 archive-eligible CTest targets and the 439-case
+  Python suite with five opt-in Core cases skipped. The history-dependent
+  candidate-seal test is intentionally checkout-only; it and the five Core
+  cases passed in the source verification above.
+- The keyring's 29 tests passed. API Core passed signed-input, exact-payload,
+  behavior and source-content verification. Native executables and KDE plugins
+  retained PIE/shared-object layout, full RELRO, immediate binding and a
+  non-executable stack. Direct support and crash submission remain disabled.
+- The extracted client RPM passed a private-bus demo with disposable settings
+  and activation disabled. The three-package upgrade passed dependency and
+  conflict checks using a copied host RPM inventory. Only the sandbox's
+  misleading disk-space check was excluded from that dry run; the subsequent
+  real-host install performed the normal check.
+
+With maintainer approval, the three binary RPMs were installed locally.
+Root-side `rpm -V` passed without differences for all three packages. The
+installed source marker matches the commit above, the executable reports
+`0.13.0`, and the resident agent restarted on the installed binary. The
+backend and Control Center remained stopped; the existing unrelated connection
+was unchanged. The previous client RPM was retained for rollback.
+
+The native identity test was also repeated on a private bus outside sandbox
+UID remapping: **12 passed, zero failures or skips**, including the actual
+root-owned Fedora systemd drop-in. This closes the ownership-fixture gap,
+but does not prove live backend authentication or session restoration.
+
+**Still pending:** clean-environment Fedora validation (these were local-host
+builds), live sign-in/Secret Service and backend-identity acceptance, navigation
+and settings UAT, connection/suspend/capture lifecycle acceptance, final
+independent release approval, and the required one-week immutable-candidate
+soak. Installation alone starts neither release approval nor the soak clock.
+No tag, push, public release or signing operation occurred.
 
 ### Historical a2b3d5e review checkpoint
 

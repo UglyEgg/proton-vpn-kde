@@ -97,7 +97,17 @@ client therefore does not advertise FIDO2 on that version. Authenticator and
 recovery codes remain available. A future Core must explicitly guarantee
 cancellable multi-key selection before the security-key action is enabled.
 
-## Last verified installed stack
+## Current local candidate — acceptance pending
+
+On 2026-09-08, client `0.13.0-0.1.fc44` from `9f26ba2` and its paired
+keyring/API-Core packages were installed locally and passed root-side payload
+verification. The resident agent restarted successfully. This is not a new
+live compatibility baseline: backend authentication, Secret Service restoration,
+connections and suspend recovery still require maintainer UAT. The exact
+package versions, build evidence and remaining gates are in the
+[package checkpoint](SECURITY-AUDIT-2026-08-30.md#package-and-local-install-checkpoint--2026-09-08).
+
+## Last accepted live-UAT stack
 
 On 2026-08-31 the accepted `0.12.0` runtime revision `d2e7a74` used the following
 stack. The keyring and client packages were installed together while an existing
@@ -121,8 +131,8 @@ Downstream package release suffixes are not part of the runtime compatibility
 contract.
 
 Earlier `0.11.3` package, reconnect, and suspend/resume evidence remains recorded
-in the security assessment. It is historical evidence rather than the current
-installed compatibility baseline.
+in the security assessment. It is historical evidence, not acceptance evidence
+for the current `0.13.0` candidate.
 
 ## Compatibility policy
 
