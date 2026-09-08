@@ -55,7 +55,7 @@ One coordinated design should
 replace repeated symptom patches; implementation should still use small,
 dependency-ordered commits with focused proofs.
 
-#### Review checkpoint — 2026-09-08
+#### Review checkpoint — stopped 2026-09-08
 
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.
@@ -63,20 +63,31 @@ Results and the consolidated correction register are in the
 [security and engineering assessment](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review).
 This is a completed development review cycle, not final release approval.
 
-Five runtime corrections and one stale negative-test fixture are being
-closed as one bounded follow-up: settings request ownership, ambiguous GUI
+Five runtime corrections and one stale negative-test fixture were grouped
+in local commit `7d4d030`: settings request ownership, ambiguous GUI
 completion, early sign-out recovery publication, persistent degraded-update
 guidance, and bounded account reads/latest-query coalescing. Cognitive Load
 and Subtractive reviews found no reason for another broad structural refactor.
 Optional cleanup is recorded separately from required corrections.
+
+The bounded Error-Class re-check found that the ambiguous-completion correction
+can mistake an unchanged connected tunnel for a successful server switch.
+RC-02 remains open despite 431 backend tests and 40/40 normal/sanitized native
+targets passing. The matrix missed same-state failed replacement. Implementation
+has stopped at the maintainer's request; no automatic scan/repair cycle follows.
+Performance and Cognitive Load correction checks passed. Security reported no
+concrete required correction within its stated source scope; this is not a
+new full seven-reviewer release approval.
 
 The refactor retains the approved fresh-process account boundary, public Core
 5.6.10 completion evidence, owned background error handling, shared native
 capability policy, independent cleanup admission, and absolute foreground,
 cleanup and shutdown deadlines. No new Core patch or wire protocol is involved.
 
-Before UAT, finish independent verification of the correction commit and the
-exact-candidate source, sanitizer, static-analysis and package battery.
+Before resuming, agree one bounded completion contract and scenario matrix for
+RC-02, with an explicit stop condition for further findings. No Core rewrite is
+part of this roadmap. Before UAT, close the remaining source decision and
+complete independent approval and the exact-candidate package battery.
 The full security scan had partial coverage, explicitly recorded in the
 assessment; no-finding is not full approval. Installed acceptance, true 1.5x
 text/keyboard/accessibility checks and the one-week soak remain separate

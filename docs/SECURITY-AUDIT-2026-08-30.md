@@ -21,7 +21,7 @@ asynchronous state-ownership corrections where the new presentation exposed a
 real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
-**Current source decision: review corrections under verification; not
+**Current source decision: stopped with RC-02 still open; not UAT- or
 release-ready.** All seven isolated reviewers completed the same frozen
 `a2b3d5e945dc46d92838a9979f0b25805b86e801` candidate before remediation.
 Five distinct P2 runtime issues and one stale negative-test fixture were
@@ -107,11 +107,11 @@ lists engineering defects, not demonstrated security vulnerabilities.
 | Item | Finding and affected invariant | Correction status |
 | --- | --- | --- |
 | RC-01, P2 | Settings signals could clear request ownership; old replies lacked a request generation. | Candidate corrected across VPN, split tunneling and DNS. Data-only parsing, typed request state and retained unknown-write readback have three-family private-bus and model tests. |
-| RC-02, P2 | GUI timeout could publish failure and reopen Connect before provider completion. Hostile, Entropy and Error-Class reported the same defect. | Candidate retains unresolved ownership until post-timeout read plus idle state; Connect/Disconnect tests cover stale reads, still-busy reads and exactly-once settlement. |
+| RC-02, P2 | GUI timeout could publish failure and reopen Connect before provider completion. Hostile, Entropy and Error-Class reported the same defect. | Partially corrected, still open on `7d4d030`: ownership is retained, but an unchanged connected tunnel can be mistaken for successful completion of a failed server switch. See the stopped correction checkpoint below. |
 | RC-03, P2 | Early logout journal/settings failure retained an internal fence without publishing recovery. | Candidate publishes the fence for replace, directory-sync and early settings failures; tests preserve partial handoff records and reject replacement credentials. |
 | RC-04, P2 | Unrelated operation messages could replace degraded-background recovery guidance. | Candidate derives stable guidance from degraded state while preserving stronger diagnostics; backend and presentation tests cover message changes. |
 | RC-05, P2 | Repeated searches could accumulate accepted reads behind a blocked provider; debounce and stale filtering were not admission bounds. | Candidate adds eight shared browsing/settings slots and latest-query native coalescing. Tests cover saturation, cancellation-resistant reads and queued settings withdrawal. Not a measured ordinary-session leak. |
-| VAL-01 | The negative mechanics fixture searched for a retired blanket-busy expression. Exact committed tests were 39/40, not the earlier dirty-tree 40/40 claim. | Fixture now removes the shared capability check and asserts that its mutation occurred; exact committed rerun is required. |
+| VAL-01 | The negative mechanics fixture searched for a retired blanket-busy expression. Exact committed tests were 39/40, not the earlier dirty-tree 40/40 claim. | Corrected: the fixture verifies its capability-check mutation, and exact `7d4d030` passes 40/40 targets normally and under sanitizers. |
 
 Dispositions on that commit: **Hostile, Entropy, Error-Class and HPC/Performance:
 changes required; Subtractive and Cognitive Load/Code Maintainability: pass;
@@ -150,6 +150,53 @@ archive reproducibility; and 39/40 native targets normally and under sanitizers
 (VAL-01 only). Six demo layouts were inspected, but device scaling is not
 independent 1.5x text validation. These are development results, not
 exact-correction package, live-UAT or soak evidence.
+
+### Correction checkpoint — stopped at `7d4d030`
+
+The grouped correction commit is
+`7d4d030ea92aa22a186826b0d338732075f61e53`. It passes 431 backend tests on
+Python 3.14 with hash-pinned actual Core 5.6.10 conformance, the Python 3.11
+suite with eight documented skips, Mypy across 31 files, 86% branch-aware
+coverage, all 40 native targets normally and under address/leak/undefined-
+behavior sanitizers, 35 production Clang-Tidy units, static checks and
+exact-commit source archive reproducibility. These passes do not close RC-02.
+
+Independent bounded correction checks: HPC/Performance and Cognitive Load/
+Code Maintainability **pass**; Error-Class **changes required**. The security
+supplement reported no concrete required repair in the correction and reviewed
+75 previously deferred paths fully, with nine remaining limited-scope. This
+supplements, rather than rewrites, the canonical partial scan. It is not a
+second complete seven-perspective approval or an independent certification.
+Including the new request-state header, cumulative full/security-inspected
+coverage is 316/326 paths, with the historical assessment excluded. Limited
+coverage remains in the two large controller/adapter test files, changelog,
+roadmap, license and four PNGs; source/test inventory or asset identity is not
+an exhaustive review of those paths. The supplement's source-integration
+recommendation cannot override the separate open Error-Class defect.
+
+**Open RC-02 consequence:** `VpnControllerSnapshot.cpp:247-250` compares only
+the reconciled state with `connected`. A server switch is allowed while
+already connected; target resolution or pre-connect configuration can fail
+without removing the old tunnel. An ambiguous method reply followed by fresh
+idle-but-still-connected state therefore emits success with an empty error.
+`ConnectionActionFeedback.qml` suppresses the failure warning. This is a
+source-confirmed UI correctness defect, not a demonstrated tunnel/protection
+failure. No live fault reproduction was attempted.
+
+**Why the correction missed it:** the new native timeout matrix starts Connect
+from disconnected and Disconnect from connected, then completes in the opposite
+state. It proves ownership retention, but not same-state failed replacement.
+State/retirement evidence and request success were still conflated. The test
+matrix needs initial state, requested intent, outcome and event ordering as
+separate dimensions before another implementation is approved. Most findings
+in this batch are community-layer ownership/projection defects, not evidence
+that Proton's Python implementation caused them. Core's incomplete public
+refresher-join contract remains a separate documented dependency limitation.
+
+On the maintainer's 2026-09-08 stop instruction, no further repair or scan
+round was started. Existing checks were closed out and the finding recorded.
+The code remains on the local feature branch; no install, push, package release
+or soak acceptance is claimed. A new bounded plan requires maintainer direction.
 
 ### Historical refactor checkpoint — baseline `7d1f1b3`
 
@@ -289,7 +336,7 @@ accepted; the checkpoint above records candidate remediations without rewriting
 the original evidence. Static findings describe reachable source paths; they do not assert
 that every reported live incident had that cause.
 
-| ID / priority | Current defect and consequence | Source evidence at reviewed commit |
+| ID / priority | Historical defect and consequence | Source evidence at reviewed commit |
 | --- | --- | --- |
 | EC-01 / P1 | Transitional cleanup skips directly observed Disconnected, although Core can still own a queued target. Disable recovery, close, signed-out cleanup, and expiry can return before that target is retired. This is the remaining PV-013-036 gap. | [adapters.py](../backend/proton_vpn_kde_backend/adapters.py), lines 1341–1343 and callers at 1760, 1792, 1980, 2410. Installed Core `vpnconnector.py:477,499–504` and `connection/states.py:174–187`. |
 | EC-02 / P2 | `await_owned` can replace already-recorded caller cancellation with a later child exception, bypassing cancellation-specific reconciliation. A provider-free asyncio check returned ValueError while the owner still had a cancellation request; external connection consequences were not exercised. | [async_utils.py](../backend/proton_vpn_kde_backend/async_utils.py), lines 31–51; connection and FIDO consumers in `adapters.py:1188–1201,1605–1622`. |

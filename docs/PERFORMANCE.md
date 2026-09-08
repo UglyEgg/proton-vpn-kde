@@ -73,11 +73,12 @@ query. Event-controlled tests cover repeated cancellation, saturation,
 withdrawal before provider entry, and delayed query replies.
 
 The reviewed `a2b3d5e` demo snapshot measured combined PSS of 72,275 KiB
-(about 70.6 MiB). The Inspector probe retained 480 KiB PSS / 552 KiB private
-after the first cycle and 794 KiB PSS / 632 KiB private after the second,
-relative to the cold sample. These are short isolated demo observations,
-not real-Core measurements or proof of bounded long-run growth. They precede
-the review corrections and do not replace exact-package acceptance.
+(about 70.6 MiB). On correction `7d4d030`, one Inspector probe retained
+556 KiB PSS/private memory after the first close and an additional 840 KiB
+after the second close: 1,396 KiB above the cold sample in total. These are
+short isolated demo observations, not real-Core measurements, evidence of a
+leak, or proof of bounded long-run growth. They do not replace exact-package
+acceptance or supersede the separate historical 0.12.0 measurements.
 
 The native global-search benchmark uses Proton's existing local server cache.
 It does not contact Proton, connect a VPN, or read credentials.
