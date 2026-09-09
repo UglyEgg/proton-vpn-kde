@@ -40,7 +40,7 @@ event promotes it. This is a provider-semantics oracle, not a combined
 adapter/provider conformance test. The 2026-09-07
 [error-class review](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review)
 found an intermediate state missing from the adapter's fake-driven regression.
-The working-tree refactor adds an opt-in combined adapter/Core conformance
+The adapter includes an opt-in combined adapter/Core conformance
 harness for the unmodified, SHA-256-checked 5.6.10 connector, state, scheduler
 and refresher callback-forwarding modules:
 
@@ -99,28 +99,39 @@ cancellable multi-key selection before the security-key action is enabled.
 
 ## Current local candidate — acceptance pending
 
-On 2026-09-08, client `0.13.0-0.1.fc44` from `9f26ba2` and its paired
-keyring/API-Core packages were installed locally and passed root-side payload
-verification. The resident agent restarted successfully. This is not a new
-live compatibility baseline: backend authentication, Secret Service restoration,
-connections and suspend recovery still require maintainer UAT. The exact
-package versions, build evidence and remaining gates are in the
-[package checkpoint](SECURITY-AUDIT-2026-08-30.md#package-and-local-install-checkpoint--2026-09-08).
+The latest recorded installation is the maintainer-approved
+`0.13.0-0.4.fc44` client from
+`16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`, installed on 2026-09-08. Its
+client RPM/SRPM passed mandatory tests and exact artifact/source checks;
+root-side payload verification and the installed source marker matched.
 
-The preceding `0.13.0-0.2` presentation candidate from `620a87c` was
-installed with maintainer approval and passed root-side payload verification.
-It fixes route/form layout and theme icon-name fallback without changing that
-Core/keyring stack. All three client services remained stopped after the
-upgrade. Its [visual checkpoint](SECURITY-AUDIT-2026-08-30.md#visual-uat-corrections--2026-09-08)
-keeps package verification separate from pending live visual acceptance.
+| Component | Installed package at that checkpoint |
+| --- | --- |
+| Plasma client | 0.13.0-0.4.fc44 |
+| Proton VPN API Core overlay | 5.6.10-10.plasmavpn1.fc44 |
+| Proton keyring overlay | 0.2.3-8.plasmavpn1.fc44 |
 
-The follow-up `0.13.0-0.3` layout candidate from `58b3d83` passes local
-client RPM/SRPM validation and is now installed with maintainer approval.
-Root-side payload verification passes, and all three client services remain
-stopped. Installed visual acceptance is still pending. Its window size is
-app-controlled and limited to the active monitor's work area; long
-pages scroll rather than relying on manual resizing or maximizing. This
-presentation change does not raise the Qt/KDE or Proton runtime requirements.
+The client-only upgrade did not change either overlay or the existing network
+connections. All three client services were stopped after the transaction and
+successful session-service reload; this describes the installation checkpoint,
+not a continuously monitored runtime state. The
+[installation record](SECURITY-AUDIT-2026-08-30.md#startup-and-polish-local-install--2026-09-08)
+contains the test evidence and remaining acceptance gates. Earlier local
+package iterations are historical records in that assessment, not additional
+supported baselines.
+
+The window is app-sized within the active monitor's work area; long pages
+scroll instead of relying on manual resizing or maximizing. The shared Startup
+section adds opt-in login launch, window/tray presentation and existing
+auto-connect choices. Package installation does not enable login launch, and
+automatic connection still requires an authenticated session and available
+Secret Service. Same-day upgrades invalidate older embedded System Settings
+QML through commit-derived resource timestamps. These changes do not raise the
+Qt/KDE or Proton runtime requirements.
+
+This local candidate is not a new accepted live compatibility baseline.
+Exact-candidate authentication, Secret Service restoration, connection and
+suspend recovery, Startup/login, and visual acceptance remain release gates.
 
 ## Last accepted live-UAT stack
 

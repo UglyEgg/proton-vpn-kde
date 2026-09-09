@@ -34,7 +34,7 @@ cancelled and joined under one 30-second deadline. The provider connection
 coroutine remains shielded while Proton Core 5.6.10 waits on executor-backed
 NetworkManager work, then a compensating disconnect completes before ownership
 is released on the handled cancellation path. Core 5.6.10 retains a queued
-replacement when Down arrives in Disconnecting. The working-tree candidate
+replacement when Down arrives in Disconnecting. The adapter
 crosses the public Down event barrier even from an observed Disconnected state
 and records the resulting state inside the task returning through that barrier.
 It repeats the barrier after subsequent state transitions instead of treating
@@ -43,10 +43,11 @@ tests use the exact installed Core 5.6.10 event/state implementation with fake
 I/O; they cover unfinished Disconnected tasks, queued promotion invalidating
 the captured connection, and preservation of an established tunnel during
 transitional cleanup. The shared cancellation helper also retains provider
-failure separately from caller cancellation. These are candidate corrections
-in the current
+failure separately from caller cancellation. These implemented corrections
+are tracked in the current
 [error-class review](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review),
-not final package or installed acceptance. On detected retirement failure,
+which separates source and package evidence from pending final release and
+installed acceptance. On detected retirement failure,
 including an obsolete Core connection identity, or deadline exhaustion, the
 backend logs a critical condition and exits nonzero. That
 bounds local process lifetime; supervised replacement is not confirmation that

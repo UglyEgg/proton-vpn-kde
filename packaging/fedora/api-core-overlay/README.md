@@ -66,3 +66,66 @@ The direct `NetworkManager-openvpn-gnome` dependency is deliberately retained
 because it belongs to Proton's current Core package contract. Removing it may
 be reasonable, but requires separate OpenVPN runtime evidence and is not part
 of this overlay.
+
+## Patch scope and upstream handoff
+
+These are downstream changes for the pinned Fedora payload, not evidence of
+Proton review, acceptance or endorsement. The manifest's historical
+`upstreamCommit` and `upstreamPatchSha256` fields identify the maintainer's
+source-format commits and exported patches. They do not mean those commits
+were merged by Proton. The first three exports originated from a local
+`v5.5.15` checkout; the installed-path adaptations are separately hash-checked
+and behavior-tested against the pinned **5.6.10** RPM. The original source
+commits include tests, while the four payload patches here change runtime
+files only. Those originals are not bundled in this client repository, so the
+identifiers alone are not a portable upstream submission.
+
+| Payload patch | Scope and dependency | Existing isolated behavior evidence |
+| --- | --- | --- |
+| [0001](patches/0001-share-repeated-server-endpoint-strings.patch) | Share equal immutable server/endpoint strings after decoding; preserve model types and values. Source origin: `b007cc956541e5d7c2aa25dbf0ab04b628b90d27`. | Distinct equal strings become shared in fresh logical/physical records. |
+| [0002](patches/0002-share-server-strings-during-cache-decoding.patch) | Reuse the sharing policy during cache decoding with a per-load hook factory; builds on 0001. Source origin: `88887e4223aed45b18d2dd7554565278c4dda9c0`. | Cached country and endpoint strings share identity after loading. |
+| [0003](patches/0003-avoid-deprecated-fido2-capability-query.patch) | Read current session capability properties without the deprecated API wrapper; independent of string sharing. Source origin: `f39782e411d629694eab174b4b04adc86765d7d8`. | All four capability combinations retain their results, with deprecated-property access forced to fail. |
+| [0004](patches/0004-keep-protun-private-key-ephemeral.patch) | Change Protun secret ownership in its existing unsaved profile; a separate interoperability/security decision, not a representation-only optimization. Locally authored payload patch. | Constructed settings retain the supplied secret with the system-owned flag; the mocked NetworkManager add call remains explicitly unsaved. |
+
+The checks above are in `_verify_behavior` in
+[`rebuild_overlay.py`](rebuild_overlay.py). The separate
+[`tests/test_rebuild_overlay.py`](tests/test_rebuild_overlay.py) covers the
+rebuild mechanism, provenance checks and allowed payload changes, not the
+complete upstream unit suite. The queued-connection oracle in the verifier
+documents unmodified Core behavior consumed by the community adapter; it is
+not another Core fix proposed by these patches. Neither these fixtures nor
+aggregate client RSS measurements establish patch-specific performance gains
+or live Protun cleanup across every desktop.
+
+After the Plasma release, prepare source-level contributions separately:
+
+1. Recheck current Proton source and contribution rules. Drop changes already
+   implemented upstream; do not mechanically rebase from an old API floor or
+   the Fedora installed paths. Keep original author/provenance records and
+   reconcile notices on newly introduced test files with their actual
+   authorship. Do not imply copyright assignment or Proton authorship merely
+   by exporting a patch.
+2. Present string sharing as one dependency-ordered series, diagnostic cleanup
+   independently, and Protun secret ownership as a separate proposal. Do not
+   bundle the Plasma GUI, RPM bytecode, packaging paths or provider-lifecycle
+   workarounds into these submissions.
+3. Port the focused tests to Proton's current source tree. For sharing, cover
+   value/serialization equivalence, non-string and absent fields, fresh and
+   cached lists, unchanged plain `CacheHandler` callers, and per-load pool
+   lifetime. Preserve the FIDO2 truth-table/deprecation regression. For Protun,
+   retain flag/unsaved-profile tests and supply separate connect, reconnect,
+   disconnect and suspend-cleanup evidence, including the root-only volatile
+   storage caveat and compatibility with Proton's existing desktop clients.
+4. Measure the memory patches alone against the same unmodified Core baseline,
+   interpreter and sanitized corpus: steady and peak memory, decode time,
+   repeated cache loads and retained growth. Report methodology and limits;
+   the [client performance record](../../../docs/PERFORMANCE.md) is contextual
+   evidence, not a substitute for that comparison.
+5. Disclose material AI assistance and verify that the maintainer can accept
+   the upstream contribution terms. Propose changes only with separate
+   maintainer authorization, then retire an overlay only after a released
+   upstream package passes the corresponding compatibility gates.
+
+Patch 0003 does **not** fix cancellable multi-key selection or re-enable FIDO2
+in the Plasma client. That is a distinct, unimplemented upstream opportunity
+tracked in the [roadmap](../../../docs/ROADMAP.md#upstream-opportunities).

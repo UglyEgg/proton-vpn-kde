@@ -35,7 +35,7 @@ Proton's official core.
 | Port forwarding | Show/copy active port and notify when it changes in the background | Native clipboard action and Plasma notification | Complete |
 | Custom DNS | Enable and edit IPv4/IPv6 servers with NetShield conflict handling | Native validated editor; both settings remain unchanged until the user explicitly resolves the conflict | Complete |
 | Split tunneling | Include/exclude modes, applications, and IP ranges | Native KService application chooser plus validated IPv4/IPv6 CIDR rules | Complete |
-| Auto-connect | Off, fastest, country, or exact server at application start | Same target syntax persisted through KConfig | Complete |
+| Auto-connect | Off, fastest, country, or exact server at application start | Same target syntax persisted through KConfig; shared Startup controls apply saved fastest-server capabilities independently of window/tray presentation, without bypassing authentication | Complete |
 | Tray preferences | Start minimized and pinned targets | Lean native status-notifier agent, tray-only startup, pinned countries, state/city groups, and exact servers, plus an on-demand Control Center | Superset |
 | Troubleshooting capture | Choose folder and start/stop capture for supported protocols | Native folder chooser, consent warning, and official protocol capture implementation | Complete |
 | Issue reporting | Submit support form with optional logs | Reviewed proof of concept retained behind a default-off build capability; community-client reports go to the project tracker | Deliberately disabled |
@@ -48,6 +48,12 @@ Proton's official core.
 
 ## Deliberate differences
 
+- The client and System Settings share a Startup section for opt-in KDE login
+  launch, window/tray startup, and auto-connect. Installation never enables
+  login launch. Existing custom autostart entries are preserved, and explicit
+  launcher requests still open the window. This native integration is covered
+  by isolated tests; actual login/session-restoration acceptance remains a
+  release gate in the [compatibility record](COMPATIBILITY.md#current-local-candidate--acceptance-pending).
 - The Plasma client has no direct GTK, PyGObject, Gio, GNOME Keyring, or GLib
   main-loop dependency. Qt/Kirigami, KConfig, KNotification, KService, KRunner,
   and Plasma's status-notifier APIs own desktop integration. Proton's current

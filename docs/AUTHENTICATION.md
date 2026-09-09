@@ -101,12 +101,20 @@ human-verification tokens, or raw API responses.
 
 Expected authentication failures are converted to fixed messages. Unexpected
 exception text is not returned to the UI because third-party exceptions can
-embed request details. A failed offline logout keeps the session signed in,
-restores the previous kill-switch value through Proton's official settings
-save path, and re-enables session services. A rollback failure is surfaced as
-a distinct fail-safe error. A confirmed successful logout first quiesces any
-automatic reconnect worker, disconnects, and asks Proton SSO to remove the
-persisted session.
+embed request details. Interrupted logout is reconciled against Core's account
+state; an exception alone does not prove that the session remains signed in.
+Unless logout is confirmed, the adapter attempts to restore a changed
+kill-switch preference through Core's settings API. Unconfirmed protection or
+account state produces explicit recovery guidance, not a claim of restored
+protection or a successful sign-out.
+
+An accepted account transition retains its backend-restart requirement even
+when logout fails. Compensation does not restart refreshers or reopen
+same-process login. The successful path first stops automatic reconnection,
+crosses the stable-disconnect barrier, and asks Proton SSO to remove the
+persisted session. Replacement login then requires outgoing-process death and
+fresh-process cleanup through the non-secret handoff described in the
+[account-transition contract](ARCHITECTURE.md#ownership-consolidation-checkpoint).
 
 Automated coverage includes backend-owner substitution rejection, sender-bound
 authorization, per-operation key isolation, encrypted descriptor creation,

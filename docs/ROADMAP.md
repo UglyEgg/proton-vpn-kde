@@ -1,7 +1,8 @@
 # Roadmap
 
-This roadmap contains planned work only. Completed user-visible changes belong
-in the [changelog](../CHANGELOG.md), and closed security findings remain in the
+This roadmap records remaining work and dated verification checkpoints.
+Completed user-visible changes belong in the [changelog](../CHANGELOG.md),
+and detailed review evidence and closed findings remain in the
 [security assessment](SECURITY-AUDIT-2026-08-30.md).
 
 Every item must preserve the project boundary: Proton's official Core owns VPN
@@ -57,7 +58,7 @@ dependency-ordered commits with focused proofs.
 
 #### Review checkpoint — bounded error-class correction 2026-09-08
 
-Latest checkpoint: the separate seven-review battery at `4d6b5f2` found seven
+Latest isolated review: the separate seven-review battery at `4d6b5f2` found seven
 P2 issues and one P3. The maintainer-authorized bounded series through `5a34639`
 implements R1–R8 with regression cases. All 41 normal/sanitized test targets,
 439 backend tests, 35 Clang-Tidy production files and static/candidate gates
@@ -87,13 +88,12 @@ horizontal layouts: endpoint-local facts, a smooth arrow-free split route,
 and app-owned, content-fitted window sizing with no manual resize/maximize.
 All 42 native targets, the sanitized layout fixture and presentation checks
 pass. The client RPM/SRPM from `58b3d83` also pass their mandatory tests and
-artifact/source checks. The approved `0.3` client upgrade is installed and
-passes root-side verification. Next: focused visual acceptance, including
-KWin resize controls and monitor changes. The existing
-Core/keyring packages are unchanged. This does not replace the remaining
-release gates.
+artifact/source checks. The approved `0.3` client upgrade was installed and
+passed root-side verification before the follow-ups below. KWin resize controls
+and monitor changes remain part of final installed acceptance. That upgrade
+did not change the Core/keyring packages or replace the remaining release gates.
 
-The maintainer-authorized next local change adds smooth dashed-curve rendering
+The next maintainer-authorized follow-up added smooth dashed-curve rendering
 and one shared Startup section for optional login launch, window/tray startup,
 and existing auto-connect targets. It does not change Proton Core, networking,
 or authentication. At that source-only checkpoint, `0.3` remained the installed
@@ -128,13 +128,13 @@ distinguishes these checks from installed keyboard/screen-reader, KWin and
 monitor-change acceptance. That source checkpoint did not include a new
 independent review battery, package, installation or release approval.
 
-The latest installed local candidate is **`0.13.0-0.4.fc44`**, built from
+The latest recorded local installation is **`0.13.0-0.4.fc44`**, built from
 `16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`. It includes the Startup controls,
 presentation polish and a same-day-upgrade QML cache correction caught by the
 mandatory package checks. All 41 archive-eligible CTest targets, Python
 analysis and RPM/source-content checks pass. The approved client-only upgrade
-passes root-side payload verification; all three services remain stopped,
-and the Core/keyring packages and existing network connections are unchanged.
+passed root-side payload verification; all three services were stopped at that
+checkpoint, with Core/keyring packages and existing network connections unchanged.
 The [installation checkpoint](SECURITY-AUDIT-2026-08-30.md#startup-and-polish-local-install--2026-09-08)
 separates this unsigned local-UAT build from final review, live acceptance,
 reproducibility and release gates. No push, tag or publication occurred.
@@ -381,12 +381,22 @@ must remain complete without the widget.
 
 ## Upstream opportunities
 
-Provider-neutral Secret Service compatibility, small Core API hygiene fixes,
-and terminology improvements should be proposed separately to the Proton
-repository that owns each behavior. Each patch must stand on its own, include
-focused tests, and avoid depending on this Plasma frontend.
+After the Plasma public release, prepare the existing API Core changes for
+upstream consideration: the dependency-ordered string-sharing series,
+independent deprecated-FIDO2-query cleanup, and a separate Protun
+secret-ownership proposal. The [overlay handoff checklist](../packaging/fedora/api-core-overlay/README.md#patch-scope-and-upstream-handoff)
+records their provenance, current test evidence, source-format conversion,
+attribution review, and remaining baseline/performance and desktop-compatibility
+checks. Recorded local source commits are not claims of Proton acceptance.
+Do not add speculative Core refactoring to those proposals.
 
-The first Core proposal should pass the public FIDO2 cancellation event through
-multi-key selection and expose an explicit capability only after selection,
-assertion, and PIN workers all quiesce on cancellation. The Plasma client can
-then re-enable its existing security-key flow without carrying a Core patch.
+Provider-neutral Secret Service compatibility belongs in Proton's keyring
+repository, independently of the Core series. Each submission should include
+focused tests, preserve its actual authorship, and avoid depending on this
+Plasma frontend. Publication or submission requires separate maintainer approval.
+
+A distinct future Core opportunity is to pass the public FIDO2 cancellation
+event through multi-key selection and expose an explicit capability only after
+selection, assertion, and PIN workers all quiesce on cancellation. That is not
+implemented by the existing capability-query cleanup. Only a verified upstream
+implementation would let the Plasma client re-enable its security-key flow.

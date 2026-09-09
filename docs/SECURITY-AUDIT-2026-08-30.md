@@ -2,6 +2,13 @@
 
 ## Current assessment posture
 
+Documentation alignment was checked on 2026-09-09; this is not a new security
+review. The latest recorded client installation is `0.13.0-0.4.fc44` from
+`16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`, with the exact package and
+verification evidence in the [local installation checkpoint](#startup-and-polish-local-install--2026-09-08).
+Later documentation changes do not extend that package's test evidence or
+replace the final release gates below.
+
 The original `0.11.3` assessment closed its seven recorded issues: one high,
 four medium and two low severity. Their original failure modes no longer
 reproduced in focused tests, and the 2026-08-31 re-review found no new

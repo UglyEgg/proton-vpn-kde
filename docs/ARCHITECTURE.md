@@ -287,7 +287,7 @@ or reopen account admission. The UI shows recovery instead of stale signed-in
 readiness. Degraded background updates likewise retain their own warning and
 recovery guidance independently of unrelated operation messages.
 
-The working tree now uses one task-bound reentrant ownership primitive,
+The adapter uses one task-bound reentrant ownership primitive,
 `TaskScope`, for the separate authentication and connection domains. Only the
 actual owning task or an explicitly delegated child can reenter; copying an
 asyncio context is not authority. Delegation expires with that acquisition.
@@ -738,7 +738,7 @@ tasks; its normal Disconnected notification comes later. A public Down also
 captures connection identity before acquiring Core's event lock, so one round
 trip alone is not a proven universal barrier.
 
-The working-tree fix crosses public Down even from directly observed
+The adapter crosses public Down even from directly observed
 Disconnected. It captures the terminal state inside the task returning from
 Down, not later in its waiter; every subsequent state change requires another
 public barrier. A stale connection identity is unconfirmed, not silently retried
