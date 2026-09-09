@@ -82,7 +82,7 @@ sanitized layout fixture pass. See the [visual UAT checkpoint](SECURITY-AUDIT-20
 Its client RPM/SRPM pass their mandatory tests and artifact/source checks.
 The approved `0.2` client upgrade passed root-side verification; the host
 icon resolver selected the correct installed artwork.
-The current local client candidate, `0.13.0-0.3`, implements the approved
+The preceding local client candidate, `0.13.0-0.3`, implements the approved
 horizontal layouts: endpoint-local facts, a smooth arrow-free split route,
 and app-owned, content-fitted window sizing with no manual resize/maximize.
 All 42 native targets, the sanitized layout fixture and presentation checks
@@ -96,8 +96,8 @@ release gates.
 The maintainer-authorized next local change adds smooth dashed-curve rendering
 and one shared Startup section for optional login launch, window/tray startup,
 and existing auto-connect targets. It does not change Proton Core, networking,
-or authentication. The installed `0.3` package remains the current installed
-candidate until a replacement is packaged and approved. Startup registration
+or authentication. At that source-only checkpoint, `0.3` remained the installed
+candidate pending replacement-package approval. Startup registration
 and real login/session-restoration acceptance remain opt-in live-UAT gates;
 automated fixtures use disposable configuration and never enable host startup.
 Runtime revision `443b7c1` passes all 42 normal test targets, the three affected
@@ -107,10 +107,10 @@ source-archive and documentation checks. The graphics fixture also passes all
 ten data cases through OpenGL at 150% display scaling, explicitly checking
 that Qt selects the curve renderer; it includes narrow, large-text and RTL
 startup layouts. These are development checks, not a new independent review
-battery or release approval. No replacement RPM or installation is included
-in this checkpoint.
+battery or release approval. No replacement RPM or installation was included
+in that source checkpoint.
 
-The subsequent bounded presentation-polish worktree, based on `6de873c`,
+The subsequent bounded presentation polish, committed at `470e592`,
 reduces current in-app notes to five highlights, makes startup explanations
 contextual, and restores normal text contrast to shared descriptions and
 Inspector labels. It keeps the existing positive protected-state color and
@@ -125,8 +125,19 @@ scope gate. Fourteen layout data cases also pass at 150% scaling through
 OpenGL, with actual curve-renderer selection asserted for the route.
 The [bounded polish checklist](VISUAL-SYSTEM.md#bounded-polish-acceptance)
 distinguishes these checks from installed keyboard/screen-reader, KWin and
-monitor-change acceptance. There is no new independent review battery,
-package, installation, publication or release approval in this checkpoint.
+monitor-change acceptance. That source checkpoint did not include a new
+independent review battery, package, installation or release approval.
+
+The latest installed local candidate is **`0.13.0-0.4.fc44`**, built from
+`16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`. It includes the Startup controls,
+presentation polish and a same-day-upgrade QML cache correction caught by the
+mandatory package checks. All 41 archive-eligible CTest targets, Python
+analysis and RPM/source-content checks pass. The approved client-only upgrade
+passes root-side payload verification; all three services remain stopped,
+and the Core/keyring packages and existing network connections are unchanged.
+The [installation checkpoint](SECURITY-AUDIT-2026-08-30.md#startup-and-polish-local-install--2026-09-08)
+separates this unsigned local-UAT build from final review, live acceptance,
+reproducibility and release gates. No push, tag or publication occurred.
 
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.

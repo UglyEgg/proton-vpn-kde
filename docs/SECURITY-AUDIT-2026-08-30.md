@@ -284,6 +284,42 @@ signing, push or public release occurred. Installed KWin/monitor/visual
 acceptance remains pending and is separate from package verification and
 release approval.
 
+### Startup and polish local install — 2026-09-08
+
+The current installed local client is **`0.13.0-0.4.fc44`**, superseding the
+`0.3` installation above. Its exact source is
+`16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`. It includes opt-in Startup controls,
+curve-rendered split-route graphics, contextual guidance, normal-contrast
+descriptions and compact release highlights. Proton Core, networking and
+authentication behavior are unchanged.
+
+The first packaging attempt was rejected by its mandatory KCM test: RPM's
+day-resolution resource timestamp allowed Qt to reuse older cached System
+Settings QML. The correction uses the normalized source-commit timestamp
+during compilation. A regression fails with the old timestamp and passes with
+the correction and QML caching enabled. The KCM fixture now isolates both
+configuration and cache before starting Qt; it neither clears the user's cache
+nor disables production caching. Focused normal and address/leak/undefined-
+behavior sanitizer tests pass. The fresh final RPM build passes all **41/41
+archive-eligible CTest targets**, Python analysis and its 439-test backend
+suite with five documented opt-in Core skips. Source static/candidate gates,
+including the Git-only negative scope test, and exact RPM/SRPM artifact,
+source/spec/commit checks also pass.
+
+The maintainer-approved KDE/PolicyKit client-only upgrade passed its transaction
+test and root-side `rpm -V` with no payload differences. The installed source
+marker matches the commit above. RPM session-hook bus warnings were followed
+by a successful user-session service reload; all three units are loaded, need
+no further reload, and remain stopped. No VPN connection was requested, and
+the existing network connections are unchanged. API Core remains
+`5.6.10-10.plasmavpn1.fc44`; keyring remains `0.2.3-8.plasmavpn1.fc44`.
+The previous `0.3` client RPM is retained for rollback.
+
+These are unsigned local-host acceptance packages, not clean-buildroot,
+repeated-binary-reproducibility or independent release-review evidence. Live
+Startup/login, keyboard/screen-reader, KWin/monitor and visual acceptance
+remain separate gates. No tag, signing, push or public release occurred.
+
 ### Historical a2b3d5e review checkpoint
 
 The following RC/VAL register records the preceding cycle. It is not the
