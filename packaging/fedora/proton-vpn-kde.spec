@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.13.0
-Release:        0.4%{?dist}
+Release:        0.5%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -139,6 +139,12 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.5
+- Consume startup auto-connect intent once and finish tray activation before exit.
+- Report rejected preference writes and retain the actual stored UI state.
+- Render confirmation data literally and repair offline benchmark fixtures.
+- Include focused regression coverage and the bounded review evidence.
+
 * Tue Sep 08 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.4
 - Add opt-in login launch and shared window/tray and auto-connect settings.
 - Smooth split-route graphics and improve text contrast and keyboard feedback.

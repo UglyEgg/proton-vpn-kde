@@ -5,8 +5,8 @@
 The bounded seven-isolated-reviewer release battery completed on 2026-09-09
 against frozen source `0912144793b8a149b8b2e2933bd8c78b71470214`.
 That review required five P2 corrections and one low-severity/P3 security
-correction in four work areas. **All six are implemented in the local working
-candidate based on that revision**, with the bounded verification recorded
+correction in four work areas. **All six are committed in
+`17791c7df59c6a2e3d5404999a2d1044dbb3023a`**, with the bounded verification recorded
 below. This is not an independently approved release commit or an installed
 fix. No P0 or P1 was substantiated. The original review had explicit coverage
 limits and was not an exhaustive security audit.
@@ -146,12 +146,14 @@ units were not newly re-audited. Static analysis, documentation links, release
 metadata and the explicitly updated candidate-delta seal pass. These seals
 record the authorized scope, not independent approval.
 
-No package was built or installed, no live VPN was operated, and no commit,
-push, tag, release or upstream submission was made during remediation. The
-existing source-archive reproducibility check still targets committed
-`0912144`, not this uncommitted correction. Freeze/commit the verified candidate
-before the exact-source package/reproducibility gate, independent release
-approval, installed acceptance and planned soak. Do not restart a broad
+No package was built or installed and no live VPN was operated during the
+remediation checks. Their source-archive check targeted the earlier `0912144`,
+not the then-uncommitted correction. The verified correction was subsequently
+signed and committed as `17791c7df59c6a2e3d5404999a2d1044dbb3023a`.
+The next local package revision is `0.13.0-0.5.fc44`; exact-source package
+verification, independent release approval, installed acceptance and the
+planned soak remain separate gates. No push, tag, release or upstream
+submission is authorized by this checkpoint. Do not restart a broad
 discovery/refactor loop automatically.
 
 ### Frozen release-candidate review — 2026-09-09

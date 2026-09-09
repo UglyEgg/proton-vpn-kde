@@ -50,7 +50,7 @@ The implementation constraints are:
 The seven isolated reviewers completed one bounded review of
 `0912144793b8a149b8b2e2933bd8c78b71470214`. It required five P2 corrections and
 one low-severity/P3 security correction. **All six are now implemented and
-verified in the local working candidate; release approval remains pending.**
+verified in signed commit `17791c7`; release approval remains pending.**
 No P0/P1 was substantiated; security coverage is explicitly partial. The
 [current finding register](SECURITY-AUDIT-2026-08-30.md#frozen-release-candidate-review--2026-09-09)
 contains the evidence, priorities and regression requirements.
@@ -73,10 +73,11 @@ The fixes add no Core or networking changes. Do not automatically repeat broad
 discovery and repair.
 
 The corrected source passes 42 normal and sanitized native targets, 440
-Python/Core cases, affected-unit Clang-Tidy and static/mechanics checks. Commit
-the verified candidate before claiming exact-source archive/package results;
-the archive check still exercises the prior committed revision. These checks
-do not substitute for independent
+Python/Core cases, affected-unit Clang-Tidy and static/mechanics checks. The
+corrections are committed as `17791c7`, and `0.13.0-0.5.fc44` identifies the
+next local package candidate. Its exact-source archive/package evidence must
+be recorded separately from the earlier dirty-tree checks. These checks do
+not substitute for independent
 approval of the corrected commit, the exact six-artifact package battery in a
 clean buildroot, installed acceptance, or the planned one-week immutable-runtime
 soak. Version 0.13.0 remains unreleased. The dated checkpoints below retain
