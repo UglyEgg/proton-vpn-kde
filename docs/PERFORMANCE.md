@@ -2,8 +2,8 @@
 
 ## Corrected offline benchmark — 2026-09-09
 
-**Current status:** RC6 is corrected in the local working candidate based on
-`0912144`. Both benchmark passes use a shared offline authenticated fixture,
+**Current status:** RC6 is corrected in signed commit `17791c7`, packaged
+locally from `705c4b2`. Both benchmark passes use a shared offline authenticated fixture,
 not a real account session. A synthetic-cache regression explicitly prohibits
 initialization, login and socket creation and checks both passes. Production
 authentication checks and the search implementation are unchanged.

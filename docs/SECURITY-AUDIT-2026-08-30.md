@@ -11,6 +11,14 @@ below. This is not an independently approved release commit or an installed
 fix. No P0 or P1 was substantiated. The original review had explicit coverage
 limits and was not an exhaustive security audit.
 
+**Current package gate: blocked on test isolation.** Signed package source
+`705c4b2bde2320b74e23c07d05bc614b5f24ba5e` produces a locally passing
+`0.13.0-0.5.fc44` RPM/SRPM, but its clean-container build did not pass `%check`.
+The [package checkpoint](#rc-package-validation-checkpoint--2026-09-09)
+separates this validation defect from the six corrected findings. It is not
+evidence of a new VPN runtime vulnerability, and it must not be omitted from
+release readiness. No new runtime patch was made during packaging.
+
 The latest recorded client installation is `0.13.0-0.4.fc44` from
 `16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`, with the exact package and
 verification evidence in the [local installation checkpoint](#startup-and-polish-local-install--2026-09-08).
@@ -114,6 +122,74 @@ attestation, certification, or warranty of security.
   tool-generated form and are not release signatures.
 
 ## Current 0.13.0 error-class review
+
+### RC package validation checkpoint — 2026-09-09
+
+The six corrections are signed in `17791c7df59c6a2e3d5404999a2d1044dbb3023a`.
+The separate metadata commit `705c4b2bde2320b74e23c07d05bc614b5f24ba5e`
+identifies the exact source of the following `0.13.0-0.5.fc44` artifacts.
+Both signatures were verified against the configured maintainer key.
+
+Completed evidence:
+
+- The exact-commit source archives reproduce. Static analysis, documentation
+  links, release metadata, the candidate-delta seal and its checkout-only
+  negative fixtures pass after committing; these are no longer dirty-tree
+  archive claims.
+- A fresh Fedora workstation build passes mandatory `%check`: Mypy for 31
+  files, all 440 Python/Core cases without skips and all 41 archive-eligible
+  CTest targets. The 42nd checkout target requires Git history and passes
+  separately. The client RPM/SRPM pass identity, payload, dependency,
+  community-reporting gates, digest and exact source/spec/commit checks.
+- The packaged executables retain PIE; both executables and KDE plugins retain
+  full RELRO, immediate binding and non-executable stacks. This is binary
+  inspection, not a new repository security scan.
+- A fresh rootless Fedora 44 container rebuilds both unchanged overlays.
+  Keyring passes 29 tests and its binary/source policies. API Core passes
+  signed-vendor-input, manifest, allowed-payload, behavior and SRPM-content
+  verification. The container uses the same pinned 5.6.10 overlay for the
+  optional actual-Core tests, not the 5.5.6 legacy lint target.
+
+| Local workstation artifact | SHA-256 |
+| --- | --- |
+| `proton-vpn-kde-0.13.0-0.5.fc44.x86_64.rpm` | `7459c8e2a6451fd50e5336be4a4241bd11d7291b2f0911eacb8ddee8303cc00b` |
+| `proton-vpn-kde-0.13.0-0.5.fc44.src.rpm` | `465d9461bbec19500fb76f9edd2399e06a1c1f22fc925dae05896fc2dab05be1` |
+
+These are unsigned local artifacts, **not a release-approved package set**.
+
+#### PKG-01: tests inherit desktop conditions — open validation blocker
+
+The clean unprivileged builder exposed two instances of the same class:
+
+| Evidence | Cause and effect |
+| --- | --- |
+| Actual-Core conformance fails in `setUpClass` with `KeyError: XDG_RUNTIME_DIR`. | The imported Core settings module constructs its execution environment before the fixture's per-test temporary runtime directory exists. A desktop session supplies that variable and hides the assumption. |
+| The adapter suite stalls in `test_cancellation_resistant_retry_forces_fresh_backend`. | The fake adapter still constructs the default real route probe. With `/usr/bin/ip` absent in the build container, it returns false; the test's zero retry delay repeats indefinitely while an unbounded fixture wait expects connection entry. The client declares the tool as a runtime requirement, but this unit fixture should not depend on a real installed tool or route. |
+
+The stalled Python runner was explicitly terminated; `%check` failed, and no
+client RPM was emitted by the clean build. A separate, 50-second-bounded
+diagnostic supplied a disposable runtime directory before imports and injected
+a fake successful route condition only into adapter unit fixtures. All 440
+cases then passed in 9.374 seconds without changing tracked source or installing
+iproute. That diagnostic supports the cause above; it is **not** a corrected
+regression suite or a passing package gate. The dedicated route-probe tests
+retain their own subprocess fakes.
+
+The bounded follow-up is to make those fixture inputs explicit, isolate the
+remaining desktop/session probes used by adapter unit tests, and put deadlines
+on fixture waits so a missing prerequisite fails rather than spins. Keep
+production reconnection, Core and network behavior unchanged. No source fix
+for PKG-01 is claimed, and no broad scan/refactor cycle was started.
+
+The planned second clean client build, byte-for-byte RPM comparison and
+combined clean-container installation/payload verification were **not reached**.
+The dependency overlays were installed only inside the disposable builder for
+the actual-Core oracle; that is not client acceptance. Logs, exact inputs and
+both environment inventories are retained outside Git. The workstation's
+installed client remains `0.13.0-0.4.fc44`; no host package install, live VPN
+operation, push, tag, publication or upstream submission occurred. Final
+independent approval, packaged UAT and the one-week immutable-candidate soak
+remain open.
 
 ### Bounded RC1–RC6 remediation — 2026-09-09
 

@@ -74,14 +74,28 @@ discovery and repair.
 
 The corrected source passes 42 normal and sanitized native targets, 440
 Python/Core cases, affected-unit Clang-Tidy and static/mechanics checks. The
-corrections are committed as `17791c7`, and `0.13.0-0.5.fc44` identifies the
-next local package candidate. Its exact-source archive/package evidence must
-be recorded separately from the earlier dirty-tree checks. These checks do
-not substitute for independent
+corrections are committed as `17791c7`. Package source `705c4b2` produces the
+local `0.13.0-0.5.fc44` RPM/SRPM with all 41 archive-eligible native targets and
+440 Python/Core cases passing. Exact-source archives, the checkout-only
+negative gate and artifact policies pass. However, the clean-container build
+stopped at the test-isolation blocker recorded in the
+[package checkpoint](SECURITY-AUDIT-2026-08-30.md#rc-package-validation-checkpoint--2026-09-09).
+No repeat-binary reproducibility or combined clean-container transaction is
+claimed for this candidate. These checks do not substitute for independent
 approval of the corrected commit, the exact six-artifact package battery in a
 clean buildroot, installed acceptance, or the planned one-week immutable-runtime
 soak. Version 0.13.0 remains unreleased. The dated checkpoints below retain
 earlier evidence, not current approval.
+
+The next bounded decision is **test isolation, not another runtime refactor**:
+create disposable desktop directories before actual-Core imports, inject fake
+route/session conditions into adapter unit fixtures, and bound waits for
+fixture events. Keep dedicated route-probe tests separate. Then rerun the
+unchanged clean package gate. A one-off external diagnostic passed all 440
+cases with the missing runtime directory and fake route supplied, but the
+tracked fixtures have not been repaired and that diagnostic is not release
+evidence. Stop here for maintainer direction rather than initiating another
+discovery/repair cycle automatically.
 
 ### Ownership consolidation before further UX work
 
