@@ -97,7 +97,7 @@ client therefore does not advertise FIDO2 on that version. Authenticator and
 recovery codes remain available. A future Core must explicitly guarantee
 cancellable multi-key selection before the security-key action is enabled.
 
-## Current local candidate — acceptance pending
+## Current local candidate — maintainer UAT passed, release pending
 
 The latest recorded installation is the maintainer-approved
 `0.13.0-0.9.fc44` client from
@@ -110,6 +110,11 @@ root-side payload verification and the installed source marker matched.
 | Plasma client | 0.13.0-0.9.fc44 |
 | Proton VPN API Core overlay | 5.6.10-12.plasmavpn1.fc44 |
 | Proton keyring overlay | 0.2.3-8.plasmavpn1.fc44 |
+
+The maintainer accepted UAT for this installed pair on 2026-09-09, confirming
+expected operation and presentation after the recovery/disconnect/reconnect
+checks. This is local user acceptance, not independent review or proof of every
+fault-injection scenario.
 
 The upgrades changed the client and Core, leaving the keyring package unchanged.
 The [START-02 installation record](SECURITY-AUDIT-2026-08-30.md#start-02-inactive-leak-protection-device--2026-09-09)
@@ -143,9 +148,9 @@ Secret Service. Same-day upgrades invalidate older embedded System Settings
 QML through commit-derived resource timestamps. These changes do not raise the
 Qt/KDE or Proton runtime requirements.
 
-This local candidate is not a new accepted live compatibility baseline.
-Exact-candidate authentication, Secret Service restoration, connection and
-suspend recovery, Startup/login, and visual acceptance remain release gates.
+This UAT-accepted local candidate is not yet a released compatibility baseline.
+Outstanding controlled-failure checks, exact-candidate independent review,
+final package validation and the planned soak remain separate release gates.
 
 ## Last accepted live-UAT stack
 

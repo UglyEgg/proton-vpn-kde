@@ -163,9 +163,12 @@ in-app Connect then created fresh profiles and reconnected without a backend
 restart; the unrelated private VPN was unchanged. This is a Core-only package correction, not another
 native-client rebuild or final independent approval.
 
+The maintainer accepted UAT for the installed `0.9` / Core `12` pair on
+2026-09-09, confirming expected behavior and presentation. This records user
+acceptance; it does not substitute for unperformed controlled-failure tests.
+
 Still required: exact-candidate review, signed/reproducible package validation,
-remaining START-02 explicit-retry and desktop/tray acceptance,
-maintainer first-window/session acceptance and ordinary desktop/tray UAT, final independent
+the remaining START-02 unavailable-activation/explicit-retry check, final independent
 seven-perspective approval, and the planned one-week immutable-runtime soak.
 Version 0.13.0 remains unreleased.
 The dated checkpoints below retain earlier evidence, not current approval.

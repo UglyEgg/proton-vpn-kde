@@ -29,9 +29,13 @@ in the installed cold-launch probe: the exact registration call succeeds under
 the inherited Qt plugin-path condition. This verifies that boundary, not the
 entire saved-session/connection workflow.
 
+**Maintainer UAT: accepted on 2026-09-09 for installed client `0.9` / Core `12`.**
+The maintainer confirmed expected behavior and presentation. This is local
+acceptance, separate from independent review and controlled-failure evidence.
+
 **START-02 (P2 availability): installed failure containment, automatic recovery
-and normal disconnect/reconnect pass; remaining acceptance and independent review are
-open.** The maintainer authorized separate community
+and normal disconnect/reconnect pass; the remaining controlled-failure check
+and independent review are open.** The maintainer authorized separate community
 startup/retry handling and a narrow Core protection-profile activation patch.
 The working candidate passes the bounded source checks recorded in the
 [START-02 checkpoint](#start-02-inactive-leak-protection-device--2026-09-09).
@@ -45,8 +49,8 @@ profile, without duplicates or backend restarts. The maintainer confirmed
 recovery without clicking Retry or Connect. In-app Disconnect subsequently
 removed the Proton profiles and temporary test interface; a normal Connect
 created fresh profiles and reconnected. Both retained the signed-in session,
-zero backend restarts and unchanged unrelated private VPN. Explicit retry after unavailable
-activation, desktop/tray acceptance and the release gates below remain open.
+zero backend restarts and unchanged unrelated private VPN. Explicit retry after
+unavailable activation and the release gates below remain open.
 
 The original `0.11.3` assessment closed its seven recorded issues: one high,
 four medium and two low severity. Their original failure modes no longer
@@ -152,7 +156,8 @@ attestation, certification, or warranty of security.
 ### START-01: direct native launch — 2026-09-09
 
 **Status: source/package verified and installed in `0.8`; the installed
-first-launch registration regression passes. Full maintainer UAT is pending.**
+first-launch registration regression passes. Subsequent maintainer UAT passed
+on the `0.9` / Core `12` pair recorded in the current posture.**
 No independent re-review or release approval is claimed for this correction.
 
 After installation at 11:33 CDT, the first Control Center launched through
@@ -246,8 +251,8 @@ performed. This correction does not start a broad discovery/refactor cycle.
 
 **Status: installed `0.9` / Core `12` verify automatic retained-device recovery
 and normal disconnect/reconnect; client failure containment also passed the earlier
-Core `11` test. Remaining explicit-retry/desktop acceptance and independent
-review are open. P2 availability, not a demonstrated credential exposure or
+Core `11` test. Maintainer UAT passed; the remaining explicit-retry fault test
+and independent review are open. P2 availability, not a demonstrated credential exposure or
 authorization bypass.** This is separate from START-01's native registration
 failure and was not covered by the earlier source-review battery.
 
@@ -344,8 +349,8 @@ a09402e5aacdf333c9fda530d553b25ce56e3e856b48ba0592a4cbca9db9d6c5  python3-proton
 ```
 
 Before closing START-02, review the exact candidate and finish unavailable
-activation with an explicit retry and desktop/tray reopening on the installed
-pair. First launch, retained-device recovery and normal disconnect/reconnect have the
+activation with an explicit retry on the installed pair. Maintainer UAT passed;
+first launch, retained-device recovery and normal disconnect/reconnect have the
 installed evidence below. Do not infer live NetworkManager behavior or
 leak-protection efficacy solely from the offline tests. Final release review,
 reproducible package checks and the planned soak remain separate gates.
@@ -432,8 +437,9 @@ reported ready/signed-in/connected, idle, no error or capture, with the same
 backend PID and zero restarts. Exactly one protection profile was present, and
 the unrelated private VPN remained unchanged. This verifies the observed
 automatic recovery, cleanup and normal reconnect paths; it does
-not claim packet-level leak testing, every activation failure, desktop/tray
-acceptance, independent review or release readiness.
+not claim packet-level leak testing, every activation failure, independent
+review or release readiness. The maintainer subsequently accepted UAT for the
+installed pair, confirming expected operation and presentation.
 
 ### Replacement package verification — 2026-09-09
 
