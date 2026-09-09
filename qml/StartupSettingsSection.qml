@@ -74,11 +74,12 @@ SectionCard {
         }
 
         Controls.Label {
+            objectName: "trayStartupHelp"
             Layout.fillWidth: true
             Layout.maximumWidth: Kirigami.Units.gridUnit * 26
+            visible: section.appSettings.startMinimized && section.appSettings.closeToTray
             wrapMode: Text.WordWrap
-            text: qsTr("Tray-only startup keeps the window out of memory and enables background controls. Opening Plasma VPN from the application launcher still shows its window.")
-            color: Kirigami.Theme.disabledTextColor
+            text: qsTr("Use the tray icon or application launcher to open the window.")
         }
 
         Controls.ComboBox {
@@ -110,6 +111,7 @@ SectionCard {
                          && section.appSettings.autoConnectTarget !== "FASTEST")
             text: section.appSettings.autoConnectTarget === "FASTEST" ? "" : section.appSettings.autoConnectTarget
             placeholderText: qsTr("Country code or server ID, e.g. US or CH#101")
+            Accessible.name: qsTr("Auto-connect country code or server ID")
             onEditingFinished: {
                 section.appSettings.autoConnectTarget = text
                 text = Qt.binding(() => section.appSettings.autoConnectTarget === "FASTEST"
@@ -119,11 +121,16 @@ SectionCard {
         }
 
         Controls.Label {
+            objectName: "autoConnectHelp"
             Layout.fillWidth: true
             Layout.maximumWidth: Kirigami.Units.gridUnit * 26
+            visible: section.choosingCustomTarget || section.appSettings.autoConnectTarget.length > 0
             wrapMode: Text.WordWrap
-            text: qsTr("Auto-connect works with the window open or tray-only. Fastest uses your capability requirements. Saved sign-in and secret-store access are still required. An empty target leaves auto-connect off.")
-            color: Kirigami.Theme.disabledTextColor
+            text: section.appSettings.autoConnectTarget === "FASTEST"
+                  ? qsTr("Uses your selected server capabilities. You must be signed in; your secret store may ask for approval.")
+                  : section.appSettings.autoConnectTarget.length > 0
+                    ? qsTr("You must be signed in; your secret store may ask for approval.")
+                    : qsTr("Enter a target to enable auto-connect.")
         }
     }
 }

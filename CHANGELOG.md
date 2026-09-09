@@ -5,6 +5,12 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Keep the current in-app release to five highlights, with earlier releases
+  collapsed and the published changelog a click away. Show startup help only
+  for relevant choices and keep connection guidance at normal text contrast.
+  Refresh the demo gallery and keep revision-specific verification evidence
+  in the assessment and roadmap rather than duplicating it in the README.
+
 - Consolidate login launch, window/tray startup, and auto-connect into one
   Startup section shared with KDE System Settings. Login launch is opt-in;
   existing custom autostart entries are preserved. Keep the split-route dashes

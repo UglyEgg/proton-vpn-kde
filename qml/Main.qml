@@ -528,9 +528,11 @@ ContentSizedWindow {
                     return
                 }
                 const connectedOverview = pageStack.currentItem
-                if (!connectedOverview.connectionFactsVisible) {
+                if (!connectedOverview.connectionFactsVisible
+                        || !Qt.colorEqual(connectedOverview.stateColor("connected"),
+                                          Kirigami.Theme.positiveTextColor)) {
                     stop()
-                    console.error("diagnostics-smoke: Overview connection facts did not appear")
+                    console.error("diagnostics-smoke: Overview connection facts or protection color incorrect")
                     Qt.exit(2)
                     return
                 }

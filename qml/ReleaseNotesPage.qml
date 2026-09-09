@@ -7,7 +7,13 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
 Kirigami.ScrollablePage {
+    id: page
+    objectName: "releaseNotesPage"
     title: qsTr("Release Notes")
+    readonly property real maximumContentWidth: Kirigami.Units.gridUnit * 34
+    leftPadding: Math.max(Kirigami.Units.largeSpacing,
+                          (width - maximumContentWidth) / 2)
+    rightPadding: leftPadding
 
     component ReleaseNoteGroup: ColumnLayout {
         id: group
@@ -65,7 +71,7 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("A presentation-led release that makes capability easier to discover while preserving Proton Core's VPN behavior.")
+            description: qsTr("A clearer Plasma experience, with Proton Core still handling your VPN.")
             iconName: "software-properties"
 
             Kirigami.Heading {
@@ -75,68 +81,31 @@ Kirigami.ScrollablePage {
             }
 
             ReleaseNoteGroup {
-                heading: qsTr("Visual polish")
+                objectName: "currentReleaseHighlights"
+                heading: qsTr("Highlights")
                 headingLevel: 4
                 notes: [
-                    qsTr("Startup settings now group opt-in login launch, window or tray-only startup, and auto-connect. The same controls appear in KDE System Settings."),
-                    qsTr("The dashed split route uses smoother curve rendering, including at fractional display scaling."),
-                    qsTr("The window fits its layout automatically, expanding for split tunneling and shrinking without it. Manual resizing and maximizing are disabled."),
-                    qsTr("Device and VPN stay aligned, with server details beside the VPN and a smooth, arrow-free route to the outside internet."),
-                    qsTr("Split tunneling appears as an outside-VPN branch in the connection graphic, with rules and restart guidance a click away."),
-                    qsTr("The reporting preview keeps its fields and buttons inside their card, including at narrow widths and larger text sizes."),
-                    qsTr("A unique desktop icon name prevents generic Plasma icons in themes such as Papirus.")
+                    qsTr("A clearer connection view, with server details beside your destination and a curved outside-VPN route when split tunneling is on."),
+                    qsTr("The window fits the connection layout. Settings, server browsing, and account details open from the places you already use."),
+                    qsTr("Choose whether Plasma VPN starts at login, opens a window or stays in the tray, and connects automatically."),
+                    qsTr("Find suitable servers with combined capability filters, and get clearer guidance when sign-in or connection recovery needs attention."),
+                    qsTr("Native Plasma themes, smoother route graphics, and better layouts for larger text.")
                 ]
             }
 
-            ReleaseNoteGroup {
-                heading: qsTr("A calmer interface foundation")
-                headingLevel: 4
-                notes: [
-                    qsTr("Complexity now follows a progressive-disclosure model: essential state and the primary action come first, with relevant depth available in context."),
-                    qsTr("The interface remains native Qt 6 and Kirigami, following the active Plasma color scheme, typography, spacing, icons, scaling, direction, contrast, and motion preferences."),
-                    qsTr("Connection is now the application home: its device and destination open settings and server browsing, while identity opens Account."),
-                    qsTr("An upper-right gear keeps diagnostics and project information close, while native Back navigation replaces the permanent sidebar."),
-                    qsTr("Overview visualizes this device, its encrypted tunnel, and the VPN destination while keeping one obvious connection action."),
-                    qsTr("Exact server, protocol, Secure Core entry, and forwarded-port facts now appear as compact icon-led controls on Connection; selecting them opens the relevant settings, Inspector, or copy action."),
-                    qsTr("Server discovery now leads with one graphical fastest-suitable action, keeps selected requirements visible, and uses native icon-led checkboxes before country and exact-server browsing."),
-                    qsTr("Settings now groups controls into icon-led Connection, Protection, Plasma, and Diagnostics intents and preserves the selected intent after a setting is saved."),
-                    qsTr("Sign-in now presents exactly one active step at a time, including credentials, two-factor, security-key, and recovery states; a delayed Secret Service prompt appears as contextual help instead of an assumed cause."),
-                    qsTr("Backend startup, account-recovery, and connection failures keep their specific guidance visible throughout the relevant signed-in flow, including connected server changes, KRunner, tray, and global-shortcut requests."),
-                    qsTr("Server browsing does not issue a second connection while one is active. List and load-refresh failures remain distinct from valid empty results, and empty exact-server lists explain which search or capability filters produced them."),
-                    qsTr("Snapshot failures pause Proton-dependent changes and offer refresh or safe service recovery. Packet-capture Stop remains available, and closing waits for an accepted capture start to be stopped."),
-                    qsTr("Server-browser replies and survey submissions now belong to the account session that created them; feedback is shown as sent only after backend acceptance."),
-                    qsTr("Help, reporting availability, release history, attribution, and licensing now live in one secondary information destination instead of competing in the home menu."),
-                    qsTr("Release notes are grouped into short, scannable changes, while earlier history stays collapsed until requested.")
-                ]
-            }
-
-            ReleaseNoteGroup {
-                heading: qsTr("Safer asynchronous recovery")
-                headingLevel: 4
-                notes: [
-                    qsTr("Automatic reconnect now finishes cancellation cleanup before disconnect, sign-out, or backend shutdown continues, and a late retry cannot reverse a completed manual disconnect."),
-                    qsTr("Disconnect, sign-out, session expiry, disabled recovery, and shutdown now retire blocked server selection, Core's NetworkManager worker, and any queued replacement connection before reporting completion."),
-                    qsTr("Packet-capture Stop and application shutdown retain cleanup ownership even when the original Start request times out."),
-                    qsTr("Settings reads no longer rewrite Core's whole settings object; community builds keep unsupported crash reporting off and persist that policy only during an explicit settings change."),
-                    qsTr("Survey cache writes remain responsive without outliving their account session, and delayed disconnect or reconnection-preference replies cannot overwrite newer guidance."),
-                    qsTr("Security-key sign-in appears only when Proton Core guarantees safe cancellation through multi-key selection, and cancellation also covers a PIN prompt that has not started waiting yet."),
-                    qsTr("Resident tray and shortcut operations ignore delayed connection replies after a newer action has taken ownership.")
-                ]
-            }
-
-            ReleaseNoteGroup {
-                heading: qsTr("More reliable startup and feedback")
-                headingLevel: 4
-                notes: [
-                    qsTr("Backend startup keeps the interface responsive; tray controls retry temporary state-reading failures."),
-                    qsTr("Losing contact with the backend no longer claims that the VPN disconnected."),
-                    qsTr("Successful DNS and split-tunneling saves stay confirmed if a related settings refresh fails.")
-                ]
+            Controls.Button {
+                Layout.alignment: Qt.AlignLeft
+                text: qsTr("Full changelog (online)")
+                icon.name: "internet-web-browser"
+                Accessible.description: qsTr("Open the published source changelog in your browser")
+                onClicked: Qt.openUrlExternally(
+                    "https://github.com/UglyEgg/proton-vpn-kde/blob/main/CHANGELOG.md")
             }
         }
 
         Controls.Button {
             id: previousReleasesToggle
+            objectName: "previousReleasesToggle"
 
             Layout.alignment: Qt.AlignLeft
             checkable: true
@@ -148,6 +117,7 @@ Kirigami.ScrollablePage {
         }
 
         SectionCard {
+            objectName: "previousReleaseHistory"
             visible: previousReleasesToggle.checked
             title: qsTr("Previous releases")
             description: qsTr("Earlier user-facing changes. The complete engineering history remains in CHANGELOG.md.")

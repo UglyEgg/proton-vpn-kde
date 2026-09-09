@@ -28,11 +28,15 @@ It is not a new VPN implementation. Proton's installed Core continues to own pro
 
 ## See it
 
-| Connected overview | Server browser | Connection Inspector | Native settings |
-| :---: | :---: | :---: | :---: |
-| [![Connected overview](docs/images/overview.png)](docs/images/overview.png) | [![Capability-aware server browser](docs/images/locations.png)](docs/images/locations.png) | [![Read-only Connection Inspector](docs/images/inspector.png)](docs/images/inspector.png) | [![Native Plasma settings](docs/images/settings.png)](docs/images/settings.png) |
+| Connected | Split tunneling |
+| :---: | :---: |
+| [<img src="docs/images/overview.png" width="360" alt="Connected route with details beside the VPN server">](docs/images/overview.png) | [<img src="docs/images/overview-split.png" width="360" alt="Split route with a separate outside-VPN internet branch">](docs/images/overview-split.png) |
 
-The screenshots use the deterministic demo backend. The connection is simulated; no Proton account, NetworkManager state, or real VPN tunnel was used.
+| Server browser | Connection Inspector | Native settings |
+| :---: | :---: | :---: |
+| [![Capability-aware server browser](docs/images/locations.png)](docs/images/locations.png) | [![Read-only Connection Inspector](docs/images/inspector.png)](docs/images/inspector.png) | [![Native Plasma settings](docs/images/settings.png)](docs/images/settings.png) |
+
+These previews show the unreleased 0.13.0 interface in light and dark Plasma themes. They use the deterministic demo backend: the connection is simulated, with no Proton account, NetworkManager changes, or real VPN tunnel.
 
 ## Why this exists
 
@@ -76,16 +80,13 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 ## Engineering posture
 
-| Evidence | Current status |
-| --- | --- |
-| Automated verification | The unreleased 0.13.0 source passes 40/40 checkout CTest tests and 39/39 tests from a clean source archive, including 318 backend tests, plus Python 3.11/minimum-dependency, a static legacy Core 5.5.6 API-floor check, and current Core 5.6.10 API, overlay, and queued-connection state-machine gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and 84% measured backend branch coverage |
-| Integration verification | Deterministic light, dark, compact, 1.5x, RTL, contrast-stress, and reduced-motion QML captures; D-Bus activation; staged installation; KRunner; and System Settings |
-| Package verification | A pre-final 0.13.0 candidate produced byte-identical client RPM/SRPM rebuilds; both pinned overlay pairs passed artifact policy and the combined transaction test. The remediated final commit must repeat those gates before publication |
-| Security assessment | Public 0.11.3 has all seven historical findings closed. The 2026-09-07 error-class review of unreleased 0.13.0 found seven correctness defects and a provider-completion proof gap; client-side lifecycle consolidation is planned. Existing test passes are not release approval |
-| Disconnected demo footprint | Pre-final alternating like-for-like Release measurements indicated a small reduction from the accepted 0.12.0 presentation baseline; final exact-commit retention and soak evidence remain release gates |
-| Server search | 0.205–5.667 ms measured median across representative queries against an 18,138-server cache |
+The client has regression tests for asynchronous recovery and desktop integration, isolated demo captures for layout checks, and static-analysis and sanitizer gates. Fedora release checks cover binary/source package contents and reproducible builds.
 
-These are scoped engineering measurements, not certification. The project has completed a maintainer-directed, AI-assisted security assessment, but it has not received an independent security audit or penetration test. Read the [security assessment](docs/SECURITY-AUDIT-2026-08-30.md) and [performance methodology](docs/PERFORMANCE.md) for the evidence and limits.
+The unreleased 0.13.0 branch includes the bounded lifecycle corrections and subsequent interface polish. It remains a development candidate: final independent review, exact-candidate package validation, installed acceptance, and local soak are still required. Passing a source check is not release approval.
+
+Revision-specific results and remaining gates live in the [review and correction record](docs/SECURITY-AUDIT-2026-08-30.md#current-bounded-seven-review-correction-register--2026-09-08) and [current development checkpoint](docs/ROADMAP.md#review-checkpoint--bounded-error-class-correction-2026-09-08). Memory, CPU, and retention measurements are recorded with their scope and limitations in [Performance](docs/PERFORMANCE.md).
+
+These are engineering checks, not certification. The project has received maintainer-directed, AI-assisted review; it has not received an independent third-party security audit or penetration test.
 
 ## Current status
 

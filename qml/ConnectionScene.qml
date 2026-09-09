@@ -68,6 +68,8 @@ Kirigami.AbstractCard {
         Layout.minimumWidth: 0
         Accessible.name: node.heading
         Accessible.description: node.detail
+        Controls.ToolTip.visible: hovered || activeFocus
+        Controls.ToolTip.text: node.detail
 
         contentItem: ColumnLayout {
             spacing: Kirigami.Units.smallSpacing
@@ -85,6 +87,7 @@ Kirigami.AbstractCard {
                 Shape {
                     anchors.centerIn: parent
                     visible: node.cloudSymbol
+                    preferredRendererType: Shape.CurveRenderer
                     // Logical vector coordinates; scale with native icon sizes.
                     width: 32
                     height: 32
@@ -133,6 +136,8 @@ Kirigami.AbstractCard {
         closable: false
         interactive: true
         Accessible.description: qsTr("Open connection inspector")
+        Controls.ToolTip.visible: hovered || activeFocus
+        Controls.ToolTip.text: qsTr("%1 · Open connection inspector").arg(text)
         onClicked: root.navigateRequested("inspector")
     }
 
@@ -254,7 +259,6 @@ Kirigami.AbstractCard {
             Controls.Label {
                 Layout.fillWidth: true
                 text: root.summaryText
-                color: Kirigami.Theme.disabledTextColor
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
             }
@@ -391,9 +395,9 @@ Kirigami.AbstractCard {
                                ? Kirigami.Theme.alternateBackgroundColor
                                : Kirigami.Theme.backgroundColor
                         border.width: tunnelStateBadge.activeFocus ? 2 : 1
-                        border.color: root.connected
-                            ? Kirigami.Theme.positiveTextColor
-                            : Kirigami.Theme.disabledTextColor
+                        border.color: tunnelStateBadge.activeFocus
+                            ? Kirigami.Theme.highlightColor
+                            : routeLines.vpnColor
                     }
 
                     contentItem: Kirigami.Icon {

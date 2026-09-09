@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <QDir>
+#include <QJSValue>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
@@ -45,6 +46,8 @@ private Q_SLOTS:
     void windowSizeIsOwnedByContent();
     void startupControlsPreservePreferencesAndFit_data();
     void startupControlsPreservePreferencesAndFit();
+    void releaseNotesAreBriefAndNavigable_data();
+    void releaseNotesAreBriefAndNavigable();
 
 private:
     void capture(QQuickWindow *window);
@@ -121,17 +124,24 @@ void PresentationLayoutTest::startupControlsPreservePreferencesAndFit()
     auto *presentation = root->findChild<QObject *>(QStringLiteral("startupPresentation"));
     auto *autoConnect = root->findChild<QObject *>(QStringLiteral("startupAutoConnect"));
     auto *target = root->findChild<QObject *>(QStringLiteral("startupCustomTarget"));
+    auto *trayHelp = root->findChild<QQuickItem *>(QStringLiteral("trayStartupHelp"));
+    auto *connectHelp = root->findChild<QQuickItem *>(QStringLiteral("autoConnectHelp"));
     QVERIFY(window && card && presentation && autoConnect && target);
+    QVERIFY(trayHelp && connectHelp);
+    QVERIFY(!trayHelp->isVisible());
+    QVERIFY(connectHelp->isVisible());
     QCOMPARE(autoConnect->property("currentIndex").toInt(), 2);
     QCOMPARE(target->property("text").toString(), QStringLiteral("CH#101"));
     QVERIFY(QMetaObject::invokeMethod(presentation, "activated", Q_ARG(int, 1)));
     QVERIFY(settings.closeToTray());
     QVERIFY(settings.startTrayOnly(false, false));
+    QVERIFY(trayHelp->isVisible());
     QVERIFY(!settings.startTrayOnly(false, true));
     QVERIFY(QMetaObject::invokeMethod(autoConnect, "activated", Q_ARG(int, 1)));
     QCOMPARE(settings.autoConnectTarget(), QStringLiteral("FASTEST"));
     QVERIFY(QMetaObject::invokeMethod(autoConnect, "activated", Q_ARG(int, 2)));
     QVERIFY(settings.autoConnectTarget().isEmpty());
+    QVERIFY(connectHelp->isVisible()); // Explain why a blank custom target is off.
     target->setProperty("text", QStringLiteral(" us "));
     QVERIFY(QMetaObject::invokeMethod(target, "editingFinished"));
     QCOMPARE(settings.autoConnectTarget(), QStringLiteral("US"));
@@ -152,8 +162,68 @@ void PresentationLayoutTest::startupControlsPreservePreferencesAndFit()
     QVERIFY(QMetaObject::invokeMethod(presentation, "activated", Q_ARG(int, 0)));
     QVERIFY(!settings.startTrayOnly(false, false));
     QVERIFY(settings.closeToTray()); // Showing the window does not disable its tray.
+    QVERIFY(!trayHelp->isVisible());
     QVERIFY(QMetaObject::invokeMethod(autoConnect, "activated", Q_ARG(int, 0)));
     QVERIFY(settings.autoConnectTarget().isEmpty());
+    QVERIFY(!connectHelp->isVisible());
+}
+
+void PresentationLayoutTest::releaseNotesAreBriefAndNavigable_data()
+{
+    startupControlsPreservePreferencesAndFit_data();
+}
+
+void PresentationLayoutTest::releaseNotesAreBriefAndNavigable()
+{
+    QFETCH(int, viewportWidth);
+    QFETCH(qreal, fontScale);
+    QFETCH(bool, rtl);
+    const auto originalFont = QGuiApplication::font();
+    const auto originalDirection = QGuiApplication::layoutDirection();
+    const auto restore = qScopeGuard([&] {
+        QGuiApplication::setFont(originalFont);
+        QGuiApplication::setLayoutDirection(originalDirection);
+    });
+    auto font = originalFont;
+    font.setPointSizeF(font.pointSizeF() * fontScale);
+    QGuiApplication::setFont(font);
+    QGuiApplication::setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty(QStringLiteral("viewportWidth"), viewportWidth);
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQuick
+        import QtQuick.Controls
+        ApplicationWindow {
+            width: viewportWidth; height: 1000; visible: true
+            ReleaseNotesPage { anchors.fill: parent }
+        }
+    )", QUrl::fromLocalFile(QStringLiteral(PROTON_VPN_KDE_SOURCE_DIR "/qml/LayoutFixture.qml")));
+    QScopedPointer<QObject> root(component.create());
+    QVERIFY2(root, qPrintable(component.errorString()));
+    auto *window = qobject_cast<QQuickWindow *>(root.data());
+    auto *highlights = root->findChild<QQuickItem *>(QStringLiteral("currentReleaseHighlights"));
+    auto *history = root->findChild<QQuickItem *>(QStringLiteral("previousReleaseHistory"));
+    auto *toggle = root->findChild<QQuickItem *>(QStringLiteral("previousReleasesToggle"));
+    QVERIFY(window && highlights && history && toggle);
+    // Test the rendered model, not a source-text count. Technical history lives
+    // in the changelog; adding detail must not silently grow the default view.
+    const auto notes = highlights->property("notes").value<QJSValue>().toVariant().toList();
+    QVERIFY(notes.size() >= 3 && notes.size() <= 5);
+    QVERIFY(!history->isVisible());
+    QTest::qWait(100);
+    const QRectF viewport(0, 0, window->width(), window->height());
+    QVERIFY(viewport.contains(highlights->mapRectToScene(
+        QRectF(0, 0, highlights->width(), highlights->height()))));
+    capture(window);
+    toggle->forceActiveFocus(Qt::TabFocusReason);
+    QVERIFY(toggle->hasActiveFocus());
+    QTest::keyClick(window, Qt::Key_Space);
+    QTRY_VERIFY(history->isVisible());
+    QTest::keyClick(window, Qt::Key_Space);
+    QTRY_VERIFY(!history->isVisible());
+    QTest::keyClick(window, Qt::Key_Tab);
+    QVERIFY(!toggle->hasActiveFocus());
 }
 
 void PresentationLayoutTest::reportStaysInsideCard_data()
@@ -278,18 +348,25 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
     component.setData(R"(
         import QtQuick
         import QtQuick.Controls
+        import org.kde.kirigami as Kirigami
         ApplicationWindow {
             width: viewportWidth; height: 720; visible: true
             ConnectionScene {
                 objectName: "scene"
                 width: parent.width
                 connected: testConnected; splitTunneling: testSplit
+                connectionState: testConnected ? "connected" : "disconnected"
                 stateText: testConnected ? "Protected" : "Not connected"
+                stateColor: testConnected ? Kirigami.Theme.positiveTextColor
+                                          : Kirigami.Theme.neutralTextColor
+                summaryText: testConnected && testSplit
+                    ? "Your rules decide which traffic uses the VPN" : ""
                 loggedIn: true; ready: true; accountName: "demo-user"
                 destinationName: "Illinois"; destinationFlag: "US"
                 serverName: "US-IL#1018"; protocolName: "Smart"
                 p2p: true; streaming: true
                 primaryText: testConnected ? "Disconnect" : "Connect"
+                primaryEnabled: true
             }
         }
     )", QUrl::fromLocalFile(QStringLiteral(PROTON_VPN_KDE_SOURCE_DIR "/qml/LayoutFixture.qml")));
@@ -329,6 +406,21 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
     auto *diagram = root->findChild<QQuickItem *>(QStringLiteral("connectionRouteDiagram"));
     auto *facts = root->findChild<QQuickItem *>(QStringLiteral("connectionFacts"));
     QVERIFY(device && vpn && group && diagram && facts);
+    if (connected) {
+        QCOMPARE(scene->property("stateColor").value<QColor>(),
+                 vpn->property("accentColor").value<QColor>());
+        QVERIFY(scene->property("stateColor").value<QColor>()
+                != cloud->property("accentColor").value<QColor>());
+    }
+    // Exercise native keyboard activation and focus traversal, not just the
+    // clicked signal used by the geometry/endpoint-fact checks below.
+    QSignalSpy keyboardNavigation(scene, SIGNAL(navigateRequested(QString)));
+    device->forceActiveFocus(Qt::TabFocusReason);
+    QTest::keyClick(window, Qt::Key_Space);
+    QCOMPARE(keyboardNavigation.size(), 1);
+    QCOMPARE(keyboardNavigation.at(0).at(0).toString(), QStringLiteral("settings"));
+    QTest::keyClick(window, Qt::Key_Tab);
+    QVERIFY(!device->hasActiveFocus());
     const auto nodeCenter = [diagram](QQuickItem *node) {
         return node->mapToItem(diagram, QPointF(node->width() / 2,
             node->property("routeCenterY").toReal()));

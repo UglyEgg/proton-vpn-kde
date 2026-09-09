@@ -18,6 +18,15 @@ if rg -n 'font\.(pixelSize|pointSize)\s*:' "$qml_dir"; then
     exit 1
 fi
 
+# Descriptions and label/value facts describe available information, not
+# disabled controls. Inherit the theme's normal text contrast for these.
+if rg -n 'Kirigami.Theme.disabledTextColor' \
+        "$qml_dir/PageHeader.qml" "$qml_dir/SectionCard.qml" \
+        "$qml_dir/DetailRow.qml"; then
+    echo "Shared informational text must not use disabled-control styling" >&2
+    exit 1
+fi
+
 if rg -n "color\\s*:\\s*(['\"]#|Qt\\.(rgba|hsla)\\()" "$qml_dir"; then
     echo "Use Kirigami semantic colors instead of literal colors" >&2
     exit 1

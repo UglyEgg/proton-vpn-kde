@@ -110,6 +110,24 @@ startup layouts. These are development checks, not a new independent review
 battery or release approval. No replacement RPM or installation is included
 in this checkpoint.
 
+The subsequent bounded presentation-polish worktree, based on `6de873c`,
+reduces current in-app notes to five highlights, makes startup explanations
+contextual, and restores normal text contrast to shared descriptions and
+Inspector labels. It keeps the existing positive protected-state color and
+attention-colored bypass branch, correcting a misleading neutral default in
+the isolated layout fixture. Native focus/tooltip feedback and the demo
+gallery are refreshed; the README links to dated evidence instead of
+duplicating test counts. No backend or Proton networking code changes.
+
+This follow-up passes all 42 CTest targets, the three targeted
+settings/presentation/KCM sanitizer targets, static checks and the mechanics
+scope gate. Fourteen layout data cases also pass at 150% scaling through
+OpenGL, with actual curve-renderer selection asserted for the route.
+The [bounded polish checklist](VISUAL-SYSTEM.md#bounded-polish-acceptance)
+distinguishes these checks from installed keyboard/screen-reader, KWin and
+monitor-change acceptance. There is no new independent review battery,
+package, installation, publication or release approval in this checkpoint.
+
 The coordinated lifecycle refactor is committed at `a2b3d5e`. All seven
 isolated perspectives have completed review of that same frozen revision.
 Results and the consolidated correction register are in the

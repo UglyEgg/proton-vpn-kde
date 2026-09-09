@@ -34,6 +34,13 @@ server, protocol, Secure Core entry, and forwarded-port facts remain compact,
 icon-led, and visible on the surface only when relevant. Selecting one opens the
 appropriate settings, copy action, or richer on-demand Inspector.
 
+An established VPN keeps its protection emblem and route in the positive theme
+color, including during split tunneling. Only the outside-VPN branch uses the
+neutral/attention color. A dashed path and the explicit “Outside VPN” label
+carry the distinction without relying on color. The status summary remains
+readable body text, not disabled text. Review fixtures must use the same state
+colors as the real Overview, rather than the component's neutral default.
+
 Server discovery follows the same visual grammar without forcing list data
 into decorative cards. A single icon-led fastest-suitable surface states the
 current capability requirements and owns the primary connect action. Native
@@ -119,6 +126,23 @@ The shared Plasma setting updates the Control Center and resident tray agent
 immediately; the application-menu entry retains the color mark so it stays
 recognizable under any global color scheme.
 
+## Editorial and maintenance rules
+
+Keep the current in-app release to three to five user-facing highlights;
+technical details belong in the changelog and previous versions remain
+collapsed. Setting explanations should appear beside the choice that needs
+them. Keep actionable protection and authentication guidance visible; omit
+implementation details such as process allocation from ordinary settings.
+Use normal text contrast for instructions, reserving disabled styling for
+unavailable controls rather than treating important guidance as unavailable.
+
+Shared components should express an actual common interaction or ownership
+boundary. Prefer existing Qt/KDE facilities and targeted regression cases to
+new abstractions, duplicated state, or file splitting for a line-count target.
+The README describes the product and links to dated evidence; it is not a
+second live test-results ledger. Demo screenshots must be labeled with their
+development version and refreshed when the visible design changes.
+
 ## Verification
 
 `qml-diagnostics-smoke` opens every primary and nested page and rejects
@@ -133,10 +157,11 @@ bypass Plasma's reduced-motion preference. One application-wide
 connection-operation identifier and finishes only for the matching identifier;
 individual pages and buttons do not infer or duplicate that ownership.
 
-`scripts/check-qml-visual-matrix.sh` retains a six-image release-review set:
+`scripts/check-qml-visual-matrix.sh` retains an eight-image release-review set:
 wide light Connection, compact dark server discovery, scaled Settings, RTL
 Help & information, a contrast-stress two-factor prompt, and reduced-motion
-Connection. The contrast-stress palette is deliberately synthetic because
+Connection, plus dark and compact split-route views. The contrast-stress
+palette is deliberately synthetic because
 Plasma does not guarantee that a named high-contrast scheme is installed; it
 uses the KDE platform theme with black backgrounds, white text, bright semantic
 status colors, and explicit focus and hover colors. The matrix validates every
@@ -176,3 +201,31 @@ two-factor challenge. `PROTON_KDE_CAPTURE_HIGH_CONTRAST=1` applies the
 synthetic contrast-stress palette, while
 `PROTON_KDE_CAPTURE_REDUCED_MOTION=1` sets Plasma's animation-duration factor
 to zero. Capture mode cannot create or alter a real VPN connection.
+
+Captures default to Qt's offscreen/software path. For curve-renderer review,
+use an isolated X server with `QT_QPA_PLATFORM=xcb`, an explicitly empty
+`QT_QUICK_BACKEND`, and `QSG_RHI_BACKEND=opengl`. The layout fixture can
+require the actual curve renderer with `PLASMA_VPN_EXPECT_CURVE_RENDERER=1`;
+requesting a renderer alone does not prove it was selected.
+
+### Bounded polish acceptance
+
+The 2026-09-08 presentation follow-up uses the existing gates, not a new
+architecture or security-review cycle:
+
+- `presentation-layout-tests`: compact, large-text and RTL startup/release
+  layouts; contextual help; keyboard activation and focus traversal; three
+  to five default release highlights with keyboard-expandable history.
+- The same fixture checks the positive protected-route color against the VPN
+  endpoint and distinguishes the attention-colored split branch. The normal
+  app smoke also checks Overview's connected-state color mapping.
+- `qml-ui-hygiene`: shared page descriptions and label/value facts do not use
+  disabled text, and hover help remains available to keyboard focus.
+- The visual matrix covers light, dark, fractional scale, RTL, synthetic
+  contrast and reduced motion; the GPU fixture separately verifies curve
+  renderer selection. README images are demo captures, not live VPN evidence.
+
+These checks do not establish screen-reader usability or certify arbitrary
+third-party themes. Installed keyboard/screen-reader review, KWin sizing and
+monitor changes remain manual acceptance tasks. Packaging and release approval
+are separate gates.

@@ -174,8 +174,8 @@ fi
 
 env \
     GTK_USE_PORTAL=0 \
-    QT_QPA_PLATFORM=offscreen \
-    QT_QUICK_BACKEND=software \
+    QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}" \
+    QT_QUICK_BACKEND="${QT_QUICK_BACKEND-software}" \
     QT_QPA_PLATFORMTHEME="$capture_platform_theme" \
     QT_ACCESSIBILITY=0 \
     QT_NO_XDG_DESKTOP_PORTAL=1 \

@@ -42,7 +42,6 @@ ColumnLayout {
                 Layout.fillWidth: true
                 visible: root.description.length > 0
                 text: root.description
-                color: Kirigami.Theme.disabledTextColor
                 wrapMode: Text.WordWrap
             }
         }
