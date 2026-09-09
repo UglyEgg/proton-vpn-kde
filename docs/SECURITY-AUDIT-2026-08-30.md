@@ -11,15 +11,16 @@ below. This is not an independently approved release commit or an installed
 fix. No P0 or P1 was substantiated. The original review had explicit coverage
 limits and was not an exhaustive security audit.
 
-**Current package gate: test isolation corrected; clean rebuild pending.** Signed package source
-`705c4b2bde2320b74e23c07d05bc614b5f24ba5e` produces a locally passing
-`0.13.0-0.5.fc44` RPM/SRPM, but its clean-container build did not pass `%check`.
-The [package checkpoint](#rc-package-validation-checkpoint--2026-09-09)
-separates this validation defect from the six corrected findings. It is not
-evidence of a new VPN runtime vulnerability. The authorized
-[test-only correction](#pkg-01-test-isolation-correction--2026-09-09) passes
-source checks without desktop variables; the replacement `0.13.0-0.7` clean
-package battery remains required. No new runtime patch was made during packaging.
+**Current package gate: passed; PKG-01 is closed for package validation.**
+Signed source `4eebc3f385e5e6082ce594a0e4fb3e5cacbaaffc` produces the
+`0.13.0-0.7.fc44` candidate with all 442 Python/Core cases and 41 native targets
+passing in each of two isolated Fedora builds. The client RPM outputs are
+byte-identical, and the combined container-only installation verifies cleanly. The
+[replacement package checkpoint](#replacement-package-verification--2026-09-09)
+separates its evidence from the failed `0.5` and `0.6` attempts. The authorized
+[test-only correction](#pkg-01-test-isolation-correction--2026-09-09) changes no
+production or overlay source; the validation defect was not evidence of a new
+VPN runtime vulnerability.
 
 The latest recorded client installation is `0.13.0-0.4.fc44` from
 `16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`, with the exact package and
@@ -125,6 +126,66 @@ attestation, certification, or warranty of security.
 
 ## Current 0.13.0 error-class review
 
+### Replacement package verification — 2026-09-09
+
+The replacement local candidate is `0.13.0-0.7.fc44`, built from signed source
+`4eebc3f385e5e6082ce594a0e4fb3e5cacbaaffc`. Its signature was verified against
+the configured maintainer key. Builds use a disposable rootless Fedora 44
+container, an unprivileged builder, two compilation workers and bounded
+resources. The host session bus and credentials are not mounted; the client
+was not installed in the container before its build tests ran.
+
+Completed evidence:
+
+- The exact-commit source archive reproduces. Static analysis, documentation
+  links and the checkout-only negative scope fixtures pass after committing.
+- A preflight with all four desktop directory variables removed passes all
+  442 Python/Core cases, Mypy for 31 files and 86% branch-aware coverage. The
+  actual-Core oracle remains hash-checked 5.6.10. The earlier `f667277`
+  no-iproute preflight is separate evidence; installing the declared theme
+  dependencies subsequently brought iproute into this builder.
+- Both client builds pass mandatory `%check`: all 442 Python/Core cases
+  without skips and all 41 archive-eligible native targets, including both
+  translation tests and eight visual captures. The Git-dependent negative
+  scope target is verified separately from the source archive.
+- Both unchanged overlays are freshly built. Keyring passes 29 tests and its
+  binary/source policies; API Core passes signed-vendor-input, manifest,
+  allowed-payload, behavior and source-package checks.
+- The two builds use separate RPM output trees and the same normalized
+  build/source/temporary paths. All four client outputs (binary, source,
+  debuginfo and debugsource RPMs) are byte-for-byte identical. This does not
+  claim path-independent reproducibility or a second build of each overlay.
+- Client identity, dependencies, disabled community-reporting gates, digests,
+  installed translation paths and exact source/spec/commit policies pass.
+  The exact three binary RPMs install together inside the container; payload
+  verification reports no differences for the client or either overlay.
+- Both packaged executables retain PIE. They and both KDE plugins retain full
+  RELRO, immediate binding and non-executable stacks. This is binary inspection,
+  not a new repository security scan.
+
+| Local candidate artifact | SHA-256 |
+| --- | --- |
+| `proton-vpn-kde-0.13.0-0.7.fc44.x86_64.rpm` | `946954bc7df1845527c65432b2128ec13557c825056e04e3ea3871b758e9cb1a` |
+| `proton-vpn-kde-0.13.0-0.7.fc44.src.rpm` | `4e6d6523ddce2a52b8b38895967121082d46519798e75bd0c3b29cedc6fe3bcb` |
+| `python3-proton-keyring-linux-0.2.3-8.plasmavpn1.fc44.noarch.rpm` | `a2cb2e17721ebf08f011ef0fe15ad4b23885718884f2423bf38528c8af251e28` |
+| `python3-proton-keyring-linux-0.2.3-8.plasmavpn1.fc44.src.rpm` | `b542260e0db0a6892994a185f417ef8f2870ad68374b9f2855732ddd3db7aa11` |
+| `python3-proton-vpn-api-core-5.6.10-10.plasmavpn1.fc44.x86_64.rpm` | `ffae57fb1a1da3d156c8f6aa751775f482dc67c6cc3eb12b6f84fddf0df74d31` |
+| `python3-proton-vpn-api-core-5.6.10-10.plasmavpn1.fc44.src.rpm` | `6a9b36c106b4a42406160defbc2c451a16f6d20ca8085177b21d52d396cdfac6` |
+
+The six-artifact manifest binds those hashes to source `4eebc3f`; its SHA-256
+is `82ddfb42baaa7211b7e62ccda9f28dd61764b216b0b5638765edaa8375bc99d6`.
+Logs, pinned inputs and environment inventories are retained with the local
+artifacts and manifest outside Git. The API Core SRPM retains the documented
+pinned-vendor-RPM reconstruction boundary;
+it is not a claim to contain Proton's complete upstream source tree.
+
+These results close the clean-builder test-isolation blocker. They do not
+retroactively pass the failed `0.5` or `0.6` builds. The artifacts remain
+unsigned local candidates, not release-approved packages or host acceptance.
+Final independent approval, host UAT and the one-week immutable-candidate soak
+remain open. No host installation, VPN operation, GitHub operation, push, tag,
+publication or upstream submission occurred in this package-only follow-up.
+
 ### PKG-01 test isolation correction — 2026-09-09
 
 The maintainer authorized this test-only follow-up after the failed clean
@@ -171,10 +232,13 @@ two expose remaining instances of the same ambient-input class:
 
 `0.13.0-0.7.fc44` identifies these test-target/build-input corrections.
 Production Python, native source, QML and both overlay payloads remain
-unchanged. Exact clean package/reproducibility verification is pending; the
-earlier failed attempts remain evidence rather than being relabeled as passes.
+unchanged. The replacement package checkpoint above records the new evidence;
+the earlier failed attempts remain historical evidence rather than being
+relabeled as passes.
 
 ### RC package validation checkpoint — 2026-09-09
+
+**Historical `0.5` attempt; superseded by the replacement checkpoint above.**
 
 The six corrections are signed in `17791c7df59c6a2e3d5404999a2d1044dbb3023a`.
 The separate metadata commit `705c4b2bde2320b74e23c07d05bc614b5f24ba5e`

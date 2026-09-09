@@ -72,20 +72,12 @@ follow-ups stay separate in the register; they do not expand this series.
 The fixes add no Core or networking changes. Do not automatically repeat broad
 discovery and repair.
 
-The corrected source passes 42 normal and sanitized native targets, 440
-Python/Core cases, affected-unit Clang-Tidy and static/mechanics checks. The
-corrections are committed as `17791c7`. Package source `705c4b2` produces the
-local `0.13.0-0.5.fc44` RPM/SRPM with all 41 archive-eligible native targets and
-440 Python/Core cases passing. Exact-source archives, the checkout-only
-negative gate and artifact policies pass. However, the clean-container build
-stopped at the test-isolation blocker recorded in the
-[package checkpoint](SECURITY-AUDIT-2026-08-30.md#rc-package-validation-checkpoint--2026-09-09).
-No repeat-binary reproducibility or combined clean-container transaction is
-claimed for this candidate. These checks do not substitute for independent
-approval of the corrected commit, the exact six-artifact package battery in a
-clean buildroot, installed acceptance, or the planned one-week immutable-runtime
-soak. Version 0.13.0 remains unreleased. The dated checkpoints below retain
-earlier evidence, not current approval.
+The runtime correction `17791c7` passes 42 normal and sanitized native targets,
+440 Python/Core cases, affected-unit Clang-Tidy and static/mechanics checks.
+Its first local package (`705c4b2`, `0.13.0-0.5.fc44`) passed workstation
+checks but exposed test-isolation assumptions in a clean container. That
+[failed package checkpoint](SECURITY-AUDIT-2026-08-30.md#rc-package-validation-checkpoint--2026-09-09)
+is retained as historical evidence, not a current blocker or a passing build.
 
 The authorized **test-isolation correction, not a runtime refactor**, now
 owns desktop directories before actual-Core imports and inside the offline
@@ -99,9 +91,22 @@ Python candidate `f667277` passes all 442 cases in the clean container too.
 Collecting all native results exposed two more ambient inputs: an installed
 translation catalog and undeclared visual-theme data. Test-target catalog
 paths/fallbacks and the Breeze/platform-theme build dependencies are now
-explicit. The replacement candidate is `0.13.0-0.7.fc44`; its clean build and
-repeat-artifact verification remain pending. No production or overlay source
-changed, and no broad discovery/repair cycle was started.
+explicit. No production or overlay source changed, and no broad
+discovery/repair cycle was started.
+
+**PKG-01 is closed for package validation.** Signed source `4eebc3f` produces
+the replacement `0.13.0-0.7.fc44` candidate. Two clean Fedora builds each pass
+442 Python/Core cases and all 41 archive-eligible native targets; all four
+client RPM outputs are byte-identical. Both overlay RPM/SRPM pairs pass their
+policies, and the combined container-only installation passes payload and
+native-hardening verification. Exact source and six-artifact hashes are in the
+[replacement package checkpoint](SECURITY-AUDIT-2026-08-30.md#replacement-package-verification--2026-09-09).
+
+Still required: final independent seven-perspective approval, host installation
+with focused acceptance, and the planned one-week immutable-runtime soak.
+The installed client remains `0.13.0-0.4.fc44`; no host package or VPN state was
+changed during this package-only follow-up. Version 0.13.0 remains unreleased.
+The dated checkpoints below retain earlier evidence, not current approval.
 
 ### Ownership consolidation before further UX work
 

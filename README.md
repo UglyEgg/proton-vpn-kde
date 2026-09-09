@@ -82,7 +82,7 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 The client has regression tests for asynchronous recovery and desktop integration, isolated demo captures for layout checks, and static-analysis and sanitizer gates. Fedora release checks cover binary/source package contents and reproducible builds.
 
-The unreleased 0.13.0 branch includes the bounded lifecycle corrections and subsequent interface polish. Corrections from its latest seven-perspective review are implemented and locally verified. The clean-builder test-isolation correction also passes source checks; replacement-package validation, independent release approval, installed acceptance, and local soak remain required. Passing a source check is not release approval.
+The unreleased 0.13.0 branch includes the bounded lifecycle corrections and subsequent interface polish. Corrections from its latest seven-perspective review are implemented and locally verified. The replacement candidate passes clean Fedora package tests, reproducibility checks, and isolated installation verification. Independent release approval, installed acceptance, and local soak remain required; passing package checks is not release approval.
 
 Revision-specific results and remaining gates live in the [review and correction record](docs/SECURITY-AUDIT-2026-08-30.md#bounded-rc1rc6-remediation--2026-09-09) and [current development checkpoint](docs/ROADMAP.md#frozen-release-candidate-checkpoint--2026-09-09). Memory, CPU, and retention measurements are recorded with their scope and limitations in [Performance](docs/PERFORMANCE.md).
 
