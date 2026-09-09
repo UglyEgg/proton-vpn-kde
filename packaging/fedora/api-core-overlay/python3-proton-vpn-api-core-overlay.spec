@@ -7,7 +7,7 @@
 
 Name:           python3-proton-vpn-api-core
 Version:        5.6.10
-Release:        11.plasmavpn1%{?dist}
+Release:        12.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
@@ -145,6 +145,10 @@ fi
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-12.plasmavpn1
+- Normalize the comparison copy to match NetworkManager's stored protection profiles
+- Cover normalized-profile reuse without relaxing settings checks or changing requests
+
 * Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-11.plasmavpn1
 - Reuse matching protection profiles and explicitly activate them through NetworkManager
 - Bound cancellation and cover manual-disconnect recovery with offline regression tests

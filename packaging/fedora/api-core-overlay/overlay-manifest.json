@@ -19,7 +19,7 @@
   },
   "overlay": {
     "packageName": "python3-proton-vpn-api-core",
-    "nevra": "python3-proton-vpn-api-core-5.6.10-11.plasmavpn1.fc44.x86_64",
+    "nevra": "python3-proton-vpn-api-core-5.6.10-12.plasmavpn1.fc44.x86_64",
     "downstreamVendor": "Plasma VPN contributors",
     "capability": "proton-vpn-api-core-plasma-protun-secret = 1",
     "capabilityPatch": "0004-keep-protun-private-key-ephemeral.patch",
@@ -54,7 +54,7 @@
       },
       {
         "file": "0005-explicitly-activate-protection-profiles.patch",
-        "sha256": "261180f0fc607d6df3e15ee815660c10e1fdbd1cd05065e494a6d38db8977c64",
+        "sha256": "c85103ebcde258ede876527659eabce2773cac3f37e6c54b1b002f4e2ac243f8",
         "provenance": "local",
         "rationale": "Reuse validated protection profiles and explicitly activate them after manual device disconnect"
       }
@@ -206,17 +206,17 @@
       {
         "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/nmclient.py",
         "vendorSha256": "0a7235bd5e11d0433b060a2f311d0398af2099d6636ddc682108c3ddf6d73e84",
-        "overlaySha256": "1f5c06d2086b29314931e040ff7c04daaf31654553d41332f504b3ad43d9e69f"
+        "overlaySha256": "d73f867bf007c15ca664448e2bd2bf6054c19f192df7650e13c9e15e1a461866"
       },
       {
         "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.pyc",
         "vendorSha256": "b1663ec75651d55d51206e2879edcdc0bbe89fa5f75c235eadc6745279953e99",
-        "overlaySha256": "60f818f33f672bcdccc6e3a9f7a57847c42ce3575ca755317eb7e2934c066624"
+        "overlaySha256": "58b5647e236eabeacc367496b79aa1535a07d26b8702abb4358448f647cb2686"
       },
       {
         "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.opt-1.pyc",
         "vendorSha256": "b1663ec75651d55d51206e2879edcdc0bbe89fa5f75c235eadc6745279953e99",
-        "overlaySha256": "60f818f33f672bcdccc6e3a9f7a57847c42ce3575ca755317eb7e2934c066624"
+        "overlaySha256": "58b5647e236eabeacc367496b79aa1535a07d26b8702abb4358448f647cb2686"
       }
     ]
   }

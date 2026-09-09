@@ -197,7 +197,7 @@ assert_diff_hash \
 # START-02 explicitly authorizes this separate Core activation overlay. The
 # exact-delta seal records scope, not independent review or installed acceptance.
 assert_diff_hash \
-    "f90981f8abb3ed84958fd1fdc99c27341bb32cf132aeaa47312eaab9b3363b41" \
+    "2f9d280d76b8560c46dbe455854ac053855bbb67c1e9cf68148b8c3994e1eb97" \
     "protection activation overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \

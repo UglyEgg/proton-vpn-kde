@@ -11,33 +11,37 @@ below. Later package/install checkpoints do not make this an independently
 approved release commit. No P0 or P1 was substantiated. The original review had explicit coverage
 limits and was not an exhaustive security audit.
 
-**Package gate for `0.8`: passed; PKG-01 remains closed for package validation.**
-Signed source `1db0dd460d6edeb6f60b832c56af447ed3a8e7e8` produces the
-`0.13.0-0.8.fc44` candidate with all 442 Python/Core cases and 42 package-eligible
+**Package gate for `0.9`: passed; PKG-01 remains closed for package validation.**
+Signed source `f6e12d0f04a729f9d032fbbc2f6aed2b7afa2160` produces the
+`0.13.0-0.9.fc44` candidate with all 448 Python/Core cases and 42 package-eligible
 CTest targets passing in each of two isolated Fedora builds. All four client
 RPM outputs are byte-identical. Full container installation, source provenance,
 payload verification and native hardening pass. The
-[START-01 checkpoint](#start-01-direct-native-launch--2026-09-09) records the
-new package evidence; the earlier
+[START-02 checkpoint](#start-02-inactive-leak-protection-device--2026-09-09) records
+the new package and installed evidence; the earlier
 [replacement package checkpoint](#replacement-package-verification--2026-09-09)
 retains the `0.7` evidence separately from failed `0.5` and `0.6` attempts.
 
-The latest client installation is `0.13.0-0.8.fc44` from `1db0dd4`, with
-root-side payload/source verification complete on 2026-09-09 and Core/keyring
-unchanged. START-01's first-launch authorization failure no longer reproduces
+The latest client installation is `0.13.0-0.9.fc44` from `f6e12d0`, with
+root-side payload/source verification complete on 2026-09-09 and Core overlay
+revision `11` installed; keyring is unchanged. START-01's first-launch authorization failure no longer reproduces
 in the installed cold-launch probe: the exact registration call succeeds under
 the inherited Qt plugin-path condition. This verifies that boundary, not the
 entire saved-session/connection workflow.
 
-**START-02 (P2 availability): corrections implemented; independent review and
-installed UAT remain open.** The maintainer authorized separate community
+**START-02 (P2 availability): client failure containment passes installed UAT;
+the Core normalization correction awaits installed acceptance and independent
+review.** The maintainer authorized separate community
 startup/retry handling and a narrow Core protection-profile activation patch.
 The working candidate passes the bounded source checks recorded in the
 [START-02 checkpoint](#start-02-inactive-leak-protection-device--2026-09-09).
-The installed client remains `0.8`, with Core/keyring unchanged: operational
-recovery restored the session and tunnel, followed by a clean in-app disconnect.
-No START-02 candidate package has been installed. Maintainer visual acceptance
-and ordinary desktop/tray reopening also remain pending.
+Installed `0.9` restores the saved session and connects, and its retained-profile
+failure stays signed-in/not-ready without automatic restarts. Core revision
+`11` rejected a matching profile because the stored form was normalized; the
+new revision `12` corrects that comparison and passes 14 regression cases and
+RPM/SRPM checks. The existing tunnel was restored operationally. Revision `12`
+is not yet installed, and the original device-autoconnect variant remains an
+explicit live acceptance item.
 
 The original `0.11.3` assessment closed its seven recorded issues: one high,
 four medium and two low severity. Their original failure modes no longer
@@ -235,9 +239,9 @@ performed. This correction does not start a broad discovery/refactor cycle.
 
 ### START-02: inactive leak-protection device — 2026-09-09
 
-**Status: corrections and bounded regression coverage implemented in the
-working candidate; installation, live acceptance and independent review are
-pending. P2 availability, not a demonstrated credential exposure or
+**Status: client containment verified in installed `0.9`; Core revision `12`
+normalization correction built and regression-tested, awaiting installation,
+live acceptance and independent review. P2 availability, not a demonstrated credential exposure or
 authorization bypass.** This is separate from START-01's native registration
 failure and was not covered by the earlier source-review battery.
 
@@ -324,22 +328,67 @@ Bounded verification of this working candidate:
   patches; Requires, Obsoletes, Conflicts and scriptlets remain unchanged.
   The new activation patch accounts for one source and two bytecode files.
 
-Core candidate SHA-256 values (unsigned, uninstalled build artifacts):
+Initial Core revision `11` SHA-256 values (historical build evidence; its
+installed test below exposed a normalization mismatch):
 
 ```text
 a09402e5aacdf333c9fda530d553b25ce56e3e856b48ba0592a4cbca9db9d6c5  python3-proton-vpn-api-core-5.6.10-11.plasmavpn1.fc44.x86_64.rpm
 1a368bd66161d2c7ddceb81c2b1c799624dbcc617ef539a3a98228195f30d737  python3-proton-vpn-api-core-5.6.10-11.plasmavpn1.fc44.src.rpm
 ```
 
-The client package revision is staged as `0.13.0-0.9.fc44`; it has not been
-built from a signed release-candidate commit or installed. The new Core pair
-is also uninstalled and is not independently approved. Before closing START-02,
+Before closing START-02,
 review the exact candidate and verify first launch after upgrade, retained
 inactive-profile recovery after manual device disconnect, unavailable
 activation with an explicit retry, normal connect/disconnect, and desktop/tray
 reopening on the installed pair. Do not infer live NetworkManager behavior or
 leak-protection efficacy solely from the offline tests. Final release review,
 reproducible package checks and the planned soak remain separate gates.
+
+#### Installed `0.9` / Core `11` UAT and normalization correction
+
+Signed source `f6e12d0f04a729f9d032fbbc2f6aed2b7afa2160` produced two clean
+Fedora builds, each passing 448 Python/Core cases with zero skips and all 42
+package-eligible CTest targets. All four client RPM outputs were byte-identical.
+Artifact/source checks, full container installation and native hardening passed.
+The maintainer-approved host transaction installed client `0.9` and Core `11`,
+with root-side payload verification and exact source-marker checks passing;
+keyring remained `0.2.3-8.plasmavpn1.fc44`.
+
+Cold startup restored the saved session, and the maintainer connected normally.
+The backend reported ready/signed-in/connected, idle, no capture and zero
+restarts. The controlled recovery test then stopped the client/backend while
+retaining the active tunnel, disconnected that VPN profile and its protection
+device, and relaunched. NetworkManager removed the dummy device in this run,
+so this is a retained-profile test, not yet proof of the original retained-device
+`AUTOCONNECT=no` variant. Both connection profiles remained available.
+
+The installed client correctly held `ready=false`, `loggedIn=true`,
+`authState=signed_in`, `errorCode=connector_initialization_failed` and a safe
+networking-startup message with `NRestarts=0`. No duplicate protection profile
+was created. Read-only comparison isolated the Core rejection: NetworkManager
+had added an empty default `proxy` settings group. The request was unnormalized;
+normalizing its clone made the complete comparison match, ignoring only the
+already-approved UUID/timestamp differences. The original offline fake had not
+modeled this storage boundary. Explicitly activating the original protection
+and VPN profiles and restarting the backend restored ready/signed-in/connected.
+The unrelated private VPN was unchanged throughout.
+
+Core revision `12` adds normalization to the comparison clone, not the stored
+profile or caller's request. Its updated fake models NetworkManager's normalized
+storage, and a dedicated regression fails against revision `11` and passes with
+the correction. All 14 activation cases, exact payload/bytecode checks and
+RPM/SRPM input checks pass in the isolated Fedora builder. The client binary
+is still the independently built `f6e12d0` artifact. Core `12` installation and
+live recovery validation remain pending.
+
+Unsigned candidate SHA-256 values:
+
+```text
+ae398a6d0a74328094d156c93bec72eb14d118e5b1db6ff1f8bd4fefcc089765  proton-vpn-kde-0.13.0-0.9.fc44.x86_64.rpm
+95ef155f8e61d41fb75ead1fe5dc303aaed375ef81133d3e24c754d079fbcadd  proton-vpn-kde-0.13.0-0.9.fc44.src.rpm
+8dca19459b8a85b3bf5b9b213b4e00e46b7c3cafd6a89c817d611a6845237902  python3-proton-vpn-api-core-5.6.10-12.plasmavpn1.fc44.x86_64.rpm
+87108c822319034b1d8a3a464c0bcf1449b2366b78d4a39a333eebb4a6c037bb  python3-proton-vpn-api-core-5.6.10-12.plasmavpn1.fc44.src.rpm
+```
 
 ### Replacement package verification — 2026-09-09
 

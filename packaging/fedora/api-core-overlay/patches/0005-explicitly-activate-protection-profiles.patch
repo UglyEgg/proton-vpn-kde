@@ -9,7 +9,7 @@
  from threading import Thread, Lock
  from typing import Optional, List
  
-@@ -139,76 +139,115 @@
+@@ -139,76 +139,118 @@
              self, connection: NM.Connection, save_to_disk: bool = False
      ) -> Future:
          """
@@ -159,6 +159,9 @@
 +                    if existing.get_id() != connection.get_id():
 +                        continue
 +                    expected = NM.SimpleConnection.new_clone(connection)
++                    # NetworkManager normalizes profiles before storing them.
++                    # Compare that form without changing the caller's request.
++                    expected.normalize()
 +                    expected.get_setting_connection().set_property(
 +                        NM.SETTING_CONNECTION_UUID, existing.get_uuid()
 +                    )

@@ -95,6 +95,10 @@ class FakeNetworkManager:
         return handler
 
     def get_connections(self):
+        # NM returns normalized profiles, including defaults absent from a
+        # caller's SimpleConnection. Apply the same boundary to seeded fixtures.
+        for connection in self.profiles:
+            connection.normalize()
         return self.profiles
 
     def get_active_connections(self):
@@ -103,6 +107,7 @@ class FakeNetworkManager:
     def add_connection_async(self, **kwargs):
         self.add_calls.append(kwargs)
         connection = NM.SimpleConnection.new_clone(kwargs["connection"])
+        connection.normalize()
         if self.add_error is None:
             self.profiles.append(connection)
             if self.autoconnect_on_add:
@@ -189,6 +194,20 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
                 active.change_state(NM.ActiveConnectionState.ACTIVATED)
                 self.assertIsNone(future.result(timeout=0.1))
                 self.assertFalse(active.handlers)
+
+    def test_networkmanager_normalized_profile_matches_without_changing_request(self):
+        existing = profile("c932e212-b538-4eab-bfe8-f93b45926d48")
+        self.assertTrue(existing.normalize()[0])
+        self.nm.profiles = [existing]
+        requested = profile()
+        original = requested.to_dbus(NM.ConnectionSerializationFlags.ALL)
+        future = self.client.add_connection_async(requested)
+        self.assertFalse(self.nm.add_calls)
+        self.assertEqual(1, len(self.nm.activate_calls))
+        self.assertIs(existing, self.nm.activate_calls[0]["connection"])
+        self.nm.active[0].change_state(NM.ActiveConnectionState.ACTIVATED)
+        self.assertIsNone(future.result(timeout=0.1))
+        self.assertEqual(original, requested.to_dbus(NM.ConnectionSerializationFlags.ALL))
 
     def test_activation_completed_before_reply_is_detected(self):
         self.nm.initial_state = NM.ActiveConnectionState.ACTIVATED

@@ -33,8 +33,12 @@ active connection, and releases asynchronous work and signal subscriptions on
 timeout. It preserves existing protection rules and permanent/unsaved behavior;
 it neither deletes pre-existing profiles nor tears down protection after an
 uncertain activation. This is an authorized networking-integration correction,
-not another memory optimization. It is included in overlay revision
-`5.6.10-11.plasmavpn1.fc44`; older overlay revisions do not contain it.
+not another memory optimization. Revision `5.6.10-12.plasmavpn1.fc44` also
+normalizes the comparison copy to match NetworkManager's stored settings.
+Revision `11` introduced explicit activation but could reject its own stored
+profile because normalization adds default settings such as the proxy group.
+The regression fixture now models that storage boundary. No profile settings
+are ignored beyond UUID/timestamp, and the caller's request is not mutated.
 
 `overlay-manifest.json` pins:
 

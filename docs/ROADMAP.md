@@ -142,10 +142,19 @@ holds ordinary failures for explicit retry, and preserves durable cleanup
 supervision. The Core overlay reuses validated profiles and explicitly activates
 them without changing protection rules or deleting uncertain profiles.
 
-The next client package is `0.13.0-0.9.fc44`; its signed-source build remains
-pending. The Core `5.6.10-11.plasmavpn1.fc44` RPM/SRPM pair has been built and
-verified in an isolated Fedora container. Neither candidate has been installed;
-the host remains on client `0.8` and Core overlay revision `10`.
+Signed client source `f6e12d0` now builds `0.13.0-0.9.fc44`: two clean builds
+each pass 448 Python/Core cases and 42 package-eligible CTest targets, and all
+four client artifacts are byte-identical. The client and Core revision `11`
+were installed and root-verified, with keyring unchanged. Saved-session startup
+and connection passed. Controlled retained-profile recovery verified the stable
+startup error/no-restart behavior but exposed an unmodeled NetworkManager
+normalization step in the Core comparison.
+
+Core revision `12` normalizes only the comparison copy and models normalized
+stored profiles in the regression fixture. All 14 cases and its isolated
+RPM/SRPM checks pass. The original connection was restored operationally;
+revision `12` installation and live recovery verification remain pending.
+This is a Core-only package correction, not another native-client rebuild.
 
 Still required: exact-candidate review, signed/reproducible package validation,
 START-02 installed recovery and retry verification,

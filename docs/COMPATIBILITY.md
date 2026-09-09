@@ -100,28 +100,29 @@ cancellable multi-key selection before the security-key action is enabled.
 ## Current local candidate — acceptance pending
 
 The latest recorded installation is the maintainer-approved
-`0.13.0-0.8.fc44` client from
-`1db0dd460d6edeb6f60b832c56af447ed3a8e7e8`, installed on 2026-09-09. Its
+`0.13.0-0.9.fc44` client from
+`f6e12d0f04a729f9d032fbbc2f6aed2b7afa2160`, installed on 2026-09-09. Its
 client RPM/SRPM passed two clean builds and exact artifact/source checks;
 root-side payload verification and the installed source marker matched.
 
 | Component | Installed package at that checkpoint |
 | --- | --- |
-| Plasma client | 0.13.0-0.8.fc44 |
-| Proton VPN API Core overlay | 5.6.10-10.plasmavpn1.fc44 |
+| Plasma client | 0.13.0-0.9.fc44 |
+| Proton VPN API Core overlay | 5.6.10-11.plasmavpn1.fc44 |
 | Proton keyring overlay | 0.2.3-8.plasmavpn1.fc44 |
 
-The client-only upgrade did not change either overlay. The
-[installation record](SECURITY-AUDIT-2026-08-30.md#start-01-direct-native-launch--2026-09-09)
-records successful native registration and the separate START-02 networking
-startup failure. Operational recovery restored the session and connection;
-the maintainer's subsequent in-client disconnect removed the tunnel and IPv6
-protection cleanly without backend restarts. These are dated checks, not a
-continuously monitored runtime state.
+The upgrade changed the client and Core, leaving the keyring package unchanged.
+The [START-02 installation record](SECURITY-AUDIT-2026-08-30.md#start-02-inactive-leak-protection-device--2026-09-09)
+records successful saved-session startup and connection. A retained-profile
+recovery test verified the client's stable error presentation and zero automatic
+restarts, but exposed Core revision `11` rejecting NetworkManager-normalized
+settings. Explicit activation restored the original profiles and connection.
+These are dated checks, not a continuously monitored runtime state.
 
-The next source candidate is client `0.13.0-0.9.fc44` with Core overlay
-`5.6.10-11.plasmavpn1.fc44`. It adds bounded startup failure presentation and
-explicit protection-profile activation; neither replacement is installed yet.
+Core overlay `5.6.10-12.plasmavpn1.fc44` corrects that comparison, with 14
+offline regression cases and a verified RPM/SRPM pair; its installation and
+live acceptance remain pending. The client binary is unchanged by this
+separate Core-only correction.
 The client-side correction remains usable with the older Core overlay, but
 automatic recovery from the specific inactive-device defect requires the new
 Core patch. Installed acceptance and release review remain separate gates.
