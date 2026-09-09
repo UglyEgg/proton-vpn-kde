@@ -71,7 +71,7 @@ while IFS= read -r path; do
         packaging/fedora/README.md|packaging/fedora/api-core-overlay/README.md|\
         qml/*)
             ;;
-        CMakeLists.txt|kcm/CMakeLists.txt|backend/pyproject.toml|\
+        CMakeLists.txt|.github/workflows/rpm.yml|kcm/CMakeLists.txt|backend/pyproject.toml|\
         backend/proton_vpn_kde_backend/__init__.py|\
         backend/proton_vpn_kde_backend/__main__.py|\
         backend/proton_vpn_kde_backend/adapters.py|\
@@ -169,7 +169,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "fc959b5d884b31e604d77bf806ad0df507b5dd8e76d4c2d3c83a4142eb69acad" \
+    "40fdcd9f011e5486bea6ba019691605c643d14ce203ffd84acde4ddab5912238" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
@@ -197,8 +197,11 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "618f0af234c3ea6c31b95b7706011e0ba05bc921f1c0e9832b800a9f3efee5ce" \
+    "a3653b346f8101af197e22d90d4e2eba4823d4aa215a4e42e70aebc82b3306c2" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
+assert_diff_hash \
+    "e97f135d1d57cac0e1970bf0b40b2c142268fe64f942fabdff829aa7d5a9c2af" \
+    "RPM test dependencies" .github/workflows/rpm.yml
 assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml

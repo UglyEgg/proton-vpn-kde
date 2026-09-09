@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.13.0
-Release:        0.6%{?dist}
+Release:        0.7%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -31,6 +31,8 @@ BuildRequires:  kf6-kstatusnotifieritem-devel
 %endif
 BuildRequires:  ninja-build
 BuildRequires:  openssl-devel
+BuildRequires:  plasma-breeze-common
+BuildRequires:  plasma-integration
 BuildRequires:  python3-coverage
 BuildRequires:  python3-cryptography >= 45.0.1
 BuildRequires:  python3-dbus-fast
@@ -139,6 +141,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.7
+- Point translation tests at build-owned catalogs and isolate fallback paths.
+- Declare the Breeze schemes and KDE platform theme used by visual fixtures.
+- Keep application translation paths, UI and networking unchanged.
+
 * Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.6
 - Isolate test desktop directories before Core imports and cache-path capture.
 - Use explicit fake route/session probes and bounded fixture waits in tests.

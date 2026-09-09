@@ -823,11 +823,19 @@ if(BUILD_TESTING)
     )
     target_include_directories(translation-loader-tests PRIVATE src)
     target_link_libraries(translation-loader-tests PRIVATE Qt6::Core Qt6::Test)
-    proton_vpn_kde_enable_translations(translation-loader-tests)
+    # Package builds give production targets their final installed path.
+    # This test must load this build's catalogs, never an installed client.
+    target_compile_definitions(translation-loader-tests PRIVATE
+        PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR="${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}"
+    )
+    add_dependencies(translation-loader-tests proton-vpn-kde-translations)
     target_compile_options(translation-loader-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME translation-loader-tests COMMAND translation-loader-tests)
+    set_tests_properties(translation-loader-tests PROPERTIES
+        ENVIRONMENT "XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/empty-translation-data;XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/empty-translation-data"
+    )
 
     set(PROTON_VPN_KDE_TEST_DATA_DIR
         "${CMAKE_CURRENT_BINARY_DIR}/installed-translation-test-data")
@@ -926,7 +934,7 @@ if(BUILD_TESTING)
         )
     endif()
     set_tests_properties(installed-translation-loader-tests PROPERTIES
-        ENVIRONMENT "XDG_DATA_DIRS=${PROTON_VPN_KDE_TEST_DATA_DIR}"
+        ENVIRONMENT "XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/empty-translation-data;XDG_DATA_DIRS=${PROTON_VPN_KDE_TEST_DATA_DIR}"
     )
 
     qt_add_executable(secret-transport-vector

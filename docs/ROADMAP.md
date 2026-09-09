@@ -95,9 +95,13 @@ desktop variables removed; the formerly unbounded wait fails in five seconds
 when its fake prerequisite is deliberately withheld. The
 [correction record](SECURITY-AUDIT-2026-08-30.md#pkg-01-test-isolation-correction--2026-09-09)
 keeps that evidence separate from package approval. The replacement local
-candidate is `0.13.0-0.6.fc44`; its clean build and repeat-artifact verification
-remain pending. No production or overlay source changed, and no broad
-discovery/repair cycle was started.
+Python candidate `f667277` passes all 442 cases in the clean container too.
+Collecting all native results exposed two more ambient inputs: an installed
+translation catalog and undeclared visual-theme data. Test-target catalog
+paths/fallbacks and the Breeze/platform-theme build dependencies are now
+explicit. The replacement candidate is `0.13.0-0.7.fc44`; its clean build and
+repeat-artifact verification remain pending. No production or overlay source
+changed, and no broad discovery/repair cycle was started.
 
 ### Ownership consolidation before further UX work
 

@@ -18,7 +18,7 @@ The [package checkpoint](#rc-package-validation-checkpoint--2026-09-09)
 separates this validation defect from the six corrected findings. It is not
 evidence of a new VPN runtime vulnerability. The authorized
 [test-only correction](#pkg-01-test-isolation-correction--2026-09-09) passes
-source checks without desktop variables; the replacement `0.13.0-0.6` clean
+source checks without desktop variables; the replacement `0.13.0-0.7` clean
 package battery remains required. No new runtime patch was made during packaging.
 
 The latest recorded client installation is `0.13.0-0.4.fc44` from
@@ -151,10 +151,28 @@ unavailable condition: the previously stalled case now reports the expected
 `TimeoutError` in 5.021 seconds. That negative result verifies failure
 containment; it is not counted as a passing ordinary test.
 
-Only three test files, the candidate-delta seal, documentation and Fedora
-candidate metadata change. Production Python, native code, QML and both
-overlay payloads are unchanged. `0.13.0-0.6.fc44` identifies the replacement
-package candidate; clean package/reproducibility verification is pending.
+That Python correction is signed at
+`f667277af4f91bd72a0e1180875b220f93720f62`. Its `0.13.0-0.6` build passes the
+clean no-desktop Python preflight (442 cases in 10.611 seconds), still without
+iproute, and repeats all 442 cases in mandatory `%check`. Both overlays also
+pass. All 41 native targets were collected before further action: 39 pass;
+two expose remaining instances of the same ambient-input class:
+
+- `translation-loader-tests` receives the production installed catalog path
+  from a shared CMake helper. It therefore passes on a host with an older
+  client installed but fails on a clean builder. The test target now names its
+  own build catalogs explicitly. Both translation tests also isolate their
+  fallback data directories; the production helper/loader are unchanged.
+- `qml-visual-matrix` requires Breeze color files absent from the builder.
+  The RPM BuildRequires and its CI dependency list now declare
+  `plasma-breeze-common` and the `plasma-integration` platform-theme plugin
+  selected by the capture fixture. No test is skipped or weakened, and these
+  additions are build requirements, not new client runtime dependencies.
+
+`0.13.0-0.7.fc44` identifies these test-target/build-input corrections.
+Production Python, native source, QML and both overlay payloads remain
+unchanged. Exact clean package/reproducibility verification is pending; the
+earlier failed attempts remain evidence rather than being relabeled as passes.
 
 ### RC package validation checkpoint — 2026-09-09
 

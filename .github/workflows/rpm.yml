@@ -35,6 +35,7 @@ jobs:
             cmake cpio curl dbus-daemon desktop-file-utils \
             extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
             NetworkManager-libnm \
+            plasma-breeze-common plasma-integration \
             pyproject-rpm-macros python3-cryptography python3-dbus-fast \
             python3-coverage python3-devel python3-distro python3-fido2 \
             python3-gobject python3-jinja2 python3-keyring python3-mypy \
