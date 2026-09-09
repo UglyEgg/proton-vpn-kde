@@ -57,6 +57,12 @@ if(BUILD_TESTING)
         PROTON_VPN_KCM_PLUGIN_DIR="$<TARGET_FILE_DIR:kcm_proton_vpn_kde>"
         PROTON_VPN_KCM_PLUGIN_NAME="$<TARGET_FILE_BASE_NAME:kcm_proton_vpn_kde>"
     )
+    if(EXISTS "${PROJECT_SOURCE_DIR}/.source-commit")
+        file(TIMESTAMP "${PROJECT_SOURCE_DIR}/.source-commit"
+            _proton_source_epoch "%s" UTC)
+        target_compile_definitions(proton-vpn-kcm-tests PRIVATE
+            PROTON_VPN_KCM_EXPECTED_RESOURCE_EPOCH=${_proton_source_epoch})
+    endif()
     add_dependencies(proton-vpn-kcm-tests kcm_proton_vpn_kde)
     add_test(NAME proton-vpn-kcm-tests COMMAND proton-vpn-kcm-tests)
     set_tests_properties(proton-vpn-kcm-tests PROPERTIES

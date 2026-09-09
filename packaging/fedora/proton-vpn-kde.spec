@@ -73,6 +73,10 @@ package may retain its own desktop integration dependencies.
 cp -p .source-commit SOURCE_COMMIT
 
 %build
+# RPM's changelog epoch has day precision. Give Qt resources the archive's
+# exact commit timestamp so same-day upgrades invalidate cached QML.
+# RCC gives SOURCE_DATE_EPOCH precedence over QT_RCC_SOURCE_DATE_OVERRIDE.
+export SOURCE_DATE_EPOCH="$(stat -c %Y .source-commit)"
 %cmake \
     -DBUILD_TESTING=ON \
     -DCMAKE_INSTALL_LIBEXECDIR=%{_libexecdir} \
@@ -139,6 +143,7 @@ desktop-file-validate \
 - Add opt-in login launch and shared window/tray and auto-connect settings.
 - Smooth split-route graphics and improve text contrast and keyboard feedback.
 - Simplify release highlights and refresh the project presentation.
+- Stamp Qt resources with the source commit epoch to invalidate stale QML caches.
 
 * Tue Sep 08 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.3
 - Fit the window to the layout; disable manual resizing and maximizing.

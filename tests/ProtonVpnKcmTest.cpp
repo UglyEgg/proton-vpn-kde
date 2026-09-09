@@ -5,9 +5,11 @@
 #include <KQuickConfigModule>
 #include <KQuickConfigModuleLoader>
 
-#include <QTest>
-#include <QTemporaryDir>
+#include <QGuiApplication>
 #include <QQuickItem>
+#include <QResource>
+#include <QTemporaryDir>
+#include <QTest>
 
 class ProtonVpnKcmTest final : public QObject
 {
@@ -19,9 +21,6 @@ private slots:
 
 void ProtonVpnKcmTest::loadsQmlConfigurationModule()
 {
-    QTemporaryDir configHome;
-    QVERIFY(configHome.isValid());
-    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
     const KPluginMetaData metadata = KPluginMetaData::findPluginById(
         QStringLiteral(PROTON_VPN_KCM_PLUGIN_DIR),
         QStringLiteral(PROTON_VPN_KCM_PLUGIN_NAME));
@@ -34,10 +33,30 @@ void ProtonVpnKcmTest::loadsQmlConfigurationModule()
     QVERIFY2(result.plugin->errorString().isEmpty(),
              qPrintable(result.plugin->errorString()));
     QVERIFY(result.plugin->supportsInstantApply());
+#ifdef PROTON_VPN_KCM_EXPECTED_RESOURCE_EPOCH
+    // Same-day RPM builds must not reuse the changelog's midnight timestamp:
+    // Qt can otherwise accept bytecode cached from an older embedded main.qml.
+    QCOMPARE(QResource(QStringLiteral(":/kcm/kcm_proton_vpn_kde/main.qml"))
+                 .lastModified().toSecsSinceEpoch(),
+             qint64(PROTON_VPN_KCM_EXPECTED_RESOURCE_EPOCH));
+#endif
     QVERIFY(result.plugin->mainUi()->findChild<QObject *>(QStringLiteral("startupSettingsSection")));
     QVERIFY(result.plugin->mainUi()->findChild<QObject *>(QStringLiteral("startAtLoginSwitch")));
 }
 
-QTEST_MAIN(ProtonVpnKcmTest)
+int main(int argc, char **argv)
+{
+    QTemporaryDir state;
+    if (!state.isValid()) {
+        return 1;
+    }
+    // Set these before Qt starts. Tests must neither consume nor populate the
+    // desktop user's configuration or QML cache, even when an old KCM is installed.
+    qputenv("XDG_CONFIG_HOME", state.filePath("config").toUtf8());
+    qputenv("XDG_CACHE_HOME", state.filePath("cache").toUtf8());
+    QGuiApplication application(argc, argv);
+    ProtonVpnKcmTest test;
+    return QTest::qExec(&test, argc, argv);
+}
 
 #include "ProtonVpnKcmTest.moc"

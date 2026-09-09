@@ -5,6 +5,9 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Invalidate cached System Settings QML after same-day package upgrades by
+  stamping embedded resources with the exact source commit time.
+
 - Keep the current in-app release to five highlights, with earlier releases
   collapsed and the published changelog a click away. Show startup help only
   for relevant choices and keep connection guidance at normal text contrast.

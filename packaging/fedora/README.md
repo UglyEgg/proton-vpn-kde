@@ -76,6 +76,12 @@ floor, and the full CTest suite in `%check`; it also disables direct Proton
 support-report and crash-report submission. A package is not releasable when
 `%check` is skipped or fails.
 
+Qt resource timestamps use the exact source commit epoch from the normalized
+`.source-commit` archive member, not the day-resolution RPM changelog epoch.
+This preserves repeatable resource metadata while invalidating older cached
+QML after same-day candidate upgrades. The KCM package test checks that
+embedded timestamp and uses disposable configuration and cache directories.
+
 Source CI additionally runs the complete backend suite under Python 3.11 with
 hash-pinned minimum direct dependencies and checks the adapter's consumed
 public API against Proton's exact SHA-256-pinned Fedora 44 Core 5.5.6 RPM. That
