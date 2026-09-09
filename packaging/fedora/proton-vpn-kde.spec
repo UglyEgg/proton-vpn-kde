@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.13.0
-Release:        0.5%{?dist}
+Release:        0.6%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -139,6 +139,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.6
+- Isolate test desktop directories before Core imports and cache-path capture.
+- Use explicit fake route/session probes and bounded fixture waits in tests.
+- Add cold-import regression coverage; application runtime sources are unchanged.
+
 * Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.5
 - Consume startup auto-connect intent once and finish tray activation before exit.
 - Report rejected preference writes and retain the actual stored UI state.

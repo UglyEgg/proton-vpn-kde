@@ -38,6 +38,7 @@ from proton_vpn_kde_backend.errors import (
     UserVisibleRuntimeError,
 )
 from proton_vpn_kde_backend.fido_interaction import FidoInteraction
+from proton_vpn_kde_backend.reconnector import AsyncReconnector, LogindSessionProbe
 
 
 def state_named(name: str):
@@ -104,15 +105,34 @@ class CoreMemoryOptimizationProbeTests(unittest.TestCase):
 class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self._runtime_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self._runtime_directory.cleanup)
         self._adapter_sequence = 0
         self._runtime_environment = patch.dict(
             os.environ, {"XDG_RUNTIME_DIR": self._runtime_directory.name}
         )
         self._runtime_environment.start()
+        self.addCleanup(self._runtime_environment.stop)
 
-    def tearDown(self):
-        self._runtime_environment.stop()
-        self._runtime_directory.cleanup()
+        # Exercise the real retry owner with explicit, desktop-independent inputs.
+        def make_reconnector(*args, **kwargs):
+            kwargs.setdefault("network_probe", AsyncMock(return_value=True))
+            kwargs.setdefault("session_probe", SimpleNamespace(
+                is_unlocked=AsyncMock(return_value=True), close=AsyncMock(),
+            ))
+            return AsyncReconnector(*args, **kwargs)
+
+        self.enterContext(patch(
+            "proton_vpn_kde_backend.adapters.AsyncReconnector", new=make_reconnector,
+        ))
+        # Fail even when production's readiness fallback catches the exception.
+        for target in (
+            patch("proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
+                  new_callable=AsyncMock, side_effect=AssertionError("Real route probe in unit test")),
+            patch.object(LogindSessionProbe, "_ensure_proxy", new_callable=AsyncMock,
+                         side_effect=AssertionError("Real session probe in unit test")),
+        ):
+            guard = self.enterContext(target)
+            self.addCleanup(guard.assert_not_awaited)
 
     def make_api(self, *, logged_in: bool = True):
         protocol = SimpleNamespace(
@@ -231,6 +251,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def start_cancellation_resistant_reconnect(self, adapter, connector):
         connect_started = asyncio.Event()
         release_connect = threading.Event()
+        self.addCleanup(release_connect.set)
 
         async def blocked_connect(*_args):
             connect_started.set()
@@ -265,7 +286,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         })()
         adapter._reconnector._delay_factory = lambda _attempt: 0
         adapter._reconnector.status_update(connector.current_state)
-        await connect_started.wait()
+        await asyncio.wait_for(connect_started.wait(), timeout=5)
         return release_connect
 
     async def test_startup_compatibility_uses_official_core_check(self):
@@ -466,7 +487,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 NpsSurveyResponse(score=10, comments="Serialized")
             )
         )
-        await submit_started.wait()
+        await asyncio.wait_for(submit_started.wait(), timeout=5)
         replacement_login = asyncio.create_task(
             adapter.login("replacement-user", "not-recorded")
         )
@@ -1187,7 +1208,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter._auth_state = "two_factor"
 
         fido_task = asyncio.create_task(adapter.begin_fido2())
-        await submit_started.wait()
+        await asyncio.wait_for(submit_started.wait(), timeout=5)
         await adapter.cancel_fido2()
         release_submit.set()
         await fido_task
@@ -1217,7 +1238,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter._auth_state = "two_factor"
 
         fido_task = asyncio.create_task(controller.begin_fido2())
-        await submit_started.wait()
+        await asyncio.wait_for(submit_started.wait(), timeout=5)
         interaction = adapter._fido_interaction
         self.assertIsNotNone(interaction)
         try:
@@ -1261,7 +1282,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         with patch.object(adapter, "_authenticate_fido2", delayed_child):
             fido_task = asyncio.create_task(adapter.begin_fido2())
-            await child_started.wait()
+            await asyncio.wait_for(child_started.wait(), timeout=5)
             fido_task.cancel()
             try:
                 await asyncio.sleep(0)
@@ -1377,7 +1398,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.initialize(snapshots.append)
 
         logout_task = asyncio.create_task(adapter.logout())
-        await first_save_started.wait()
+        await asyncio.wait_for(first_save_started.wait(), timeout=5)
         logout_task.cancel()
         await asyncio.sleep(0)
         self.assertFalse(compensation_started.is_set())
@@ -1422,7 +1443,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             0.01,
         ):
             logout_task = asyncio.create_task(adapter.logout())
-            await first_save_started.wait()
+            await asyncio.wait_for(first_save_started.wait(), timeout=5)
             logout_task.cancel()
             try:
                 await asyncio.sleep(0.03)
@@ -1500,7 +1521,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             0.01,
         ):
             logout_task = asyncio.create_task(adapter.logout())
-            await rollback_started.wait()
+            await asyncio.wait_for(rollback_started.wait(), timeout=5)
             try:
                 await asyncio.sleep(0.03)
                 self.assertFalse(logout_task.done())
@@ -1619,7 +1640,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         connector.current_state = state_named("Connected")
         connector.disconnect.side_effect = blocked_disconnect
         disconnect = asyncio.create_task(adapter.disconnect())
-        await disconnect_started.wait()
+        await asyncio.wait_for(disconnect_started.wait(), timeout=5)
         logout = asyncio.create_task(adapter.logout())
         await asyncio.sleep(0)
 
@@ -1655,7 +1676,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         connector.disconnect.side_effect = disconnect
         first = asyncio.create_task(adapter.disconnect())
-        await first_started.wait()
+        await asyncio.wait_for(first_started.wait(), timeout=5)
         second = asyncio.create_task(adapter.disconnect())
         await asyncio.sleep(0)
 
@@ -1884,7 +1905,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )()
         adapter._reconnector._delay_factory = lambda _attempt: 0
         adapter._reconnector.status_update(connector.current_state)
-        await connect_started.wait()
+        await asyncio.wait_for(connect_started.wait(), timeout=5)
 
         first_entered = asyncio.Event()
         second_entered = asyncio.Event()
@@ -1902,7 +1923,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
         self.assertFalse(first_entered.is_set())
         release_connect.set()
-        await compensation_started.wait()
+        await asyncio.wait_for(compensation_started.wait(), timeout=5)
         second = asyncio.create_task(owner(second_entered))
         await asyncio.sleep(0)
 
@@ -1912,8 +1933,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, connector.disconnect.await_count)
 
         release_compensation.set()
-        await first_entered.wait()
-        await second_entered.wait()
+        await asyncio.wait_for(first_entered.wait(), timeout=5)
+        await asyncio.wait_for(second_entered.wait(), timeout=5)
         release_owners.set()
         await asyncio.gather(first, second)
 
@@ -1937,7 +1958,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         connector.disconnect.side_effect = disconnect
         disconnect_task = asyncio.create_task(adapter.disconnect())
-        await disconnect_started.wait()
+        await asyncio.wait_for(disconnect_started.wait(), timeout=5)
         close_task = asyncio.create_task(adapter.close())
         await asyncio.sleep(0)
 
@@ -1961,7 +1982,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         logout_task = asyncio.create_task(adapter.logout())
-        await logout_started.wait()
+        await asyncio.wait_for(logout_started.wait(), timeout=5)
 
         preference_task = asyncio.create_task(
             adapter.set_reconnection_enabled(True)
@@ -1994,7 +2015,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.initialize(snapshots.append)
 
         logout_task = asyncio.create_task(adapter.logout())
-        await logout_started.wait()
+        await asyncio.wait_for(logout_started.wait(), timeout=5)
         logout_task.cancel()
         try:
             await asyncio.sleep(0)
@@ -2068,7 +2089,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
 
         stale_read = asyncio.create_task(adapter.get_settings())
-        await stale_read_started.wait()
+        await asyncio.wait_for(stale_read_started.wait(), timeout=5)
         await adapter.logout()
         with self.assertRaisesRegex(RuntimeError, "restart the backend"):
             await adapter.login("replacement-user", "not-recorded")
@@ -2108,7 +2129,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
 
         stale_read = asyncio.create_task(adapter.get_countries())
-        await server_read_started.wait()
+        await asyncio.wait_for(server_read_started.wait(), timeout=5)
         await adapter.logout()
         with self.assertRaisesRegex(RuntimeError, "restart the backend"):
             await adapter.login("replacement-user", "not-recorded")
@@ -2143,7 +2164,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
 
         stale_search = asyncio.create_task(adapter.search_locations("zurich"))
-        await stale_read_started.wait()
+        await asyncio.wait_for(stale_read_started.wait(), timeout=5)
         await adapter.logout()
         with self.assertRaisesRegex(RuntimeError, "restart the backend"):
             await adapter.login("replacement-user", "not-recorded")
@@ -2178,7 +2199,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         adapter._reconnector.disable = AsyncMock(side_effect=delayed_disable)
         expiring_read = asyncio.create_task(adapter.get_countries())
-        await cleanup_started.wait()
+        await asyncio.wait_for(cleanup_started.wait(), timeout=5)
         replacement_login = asyncio.create_task(
             adapter.login("replacement-user", "not-recorded")
         )
@@ -2254,7 +2275,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             update_task = asyncio.create_task(
                 adapter.update_settings({"moderateNat": True})
             )
-            await save_started.wait()
+            await asyncio.wait_for(save_started.wait(), timeout=5)
             update_task.cancel()
             try:
                 await asyncio.sleep(0.03)
@@ -2303,7 +2324,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter._reconnector.disable = AsyncMock(side_effect=blocked_cleanup)
 
         request = asyncio.create_task(adapter.get_countries())
-        await cleanup_started.wait()
+        await asyncio.wait_for(cleanup_started.wait(), timeout=5)
         request.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await request
@@ -2328,7 +2349,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api.refresher.disable.side_effect = blocked_cleanup
 
         request = asyncio.create_task(adapter.get_countries())
-        await cleanup_started.wait()
+        await asyncio.wait_for(cleanup_started.wait(), timeout=5)
         request.cancel()
         try:
             await asyncio.sleep(0)
@@ -2460,7 +2481,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
         connect = asyncio.create_task(adapter.connect_fastest())
-        await config_started.wait()
+        await asyncio.wait_for(config_started.wait(), timeout=5)
 
         expired_error = type("ProtonAPIAuthenticationNeeded", (Exception,), {})
         api.load_settings.side_effect = expired_error()
@@ -2542,7 +2563,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 connection = asyncio.create_task(connect_route(adapter))
-                await lookup_started.wait()
+                await asyncio.wait_for(lookup_started.wait(), timeout=5)
                 try:
                     await adapter.disconnect()
                     with self.assertRaises(asyncio.CancelledError):
@@ -2594,7 +2615,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 adapter = self.make_adapter(api)
                 await adapter.initialize(Mock())
                 connection = asyncio.create_task(adapter.connect_fastest())
-                await lookup_started.wait()
+                await asyncio.wait_for(lookup_started.wait(), timeout=5)
 
                 await transition(adapter)
 
@@ -2619,7 +2640,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await controller.start())
 
         connection = asyncio.create_task(controller.connect_fastest())
-        await lookup_started.wait()
+        await asyncio.wait_for(lookup_started.wait(), timeout=5)
         self.assertTrue(controller.snapshot.busy)
 
         await controller.disconnect()
@@ -2764,7 +2785,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                 adapter._connection_intent_generation,
             )
         )
-        await operation_started.wait()
+        await asyncio.wait_for(operation_started.wait(), timeout=5)
         attempt.cancel()
         release_operation.set()
 
@@ -2800,7 +2821,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         await adapter.initialize(Mock())
         connection = asyncio.create_task(adapter.connect_fastest())
-        await lookup_started.wait()
+        await asyncio.wait_for(lookup_started.wait(), timeout=5)
 
         try:
             with self.assertLogs(
@@ -2863,7 +2884,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         )()
         adapter._reconnector._delay_factory = lambda _attempt: 0
         adapter._reconnector.status_update(connector.current_state)
-        await retry_started.wait()
+        await asyncio.wait_for(retry_started.wait(), timeout=5)
         retry_task = adapter._reconnector._retry_task
         self.assertIsNotNone(retry_task)
 
@@ -3010,17 +3031,17 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                     if phase == "delay":
                         await asyncio.sleep(0)
                     else:
-                        await preflight_started.wait()
+                        await asyncio.wait_for(preflight_started.wait(), timeout=5)
 
                     manual = asyncio.create_task(connect_route(adapter))
                     try:
                         if phase != "delay":
-                            await preflight_cancelled.wait()
+                            await asyncio.wait_for(preflight_cancelled.wait(), timeout=5)
                             self.assertFalse(lookup_started.is_set())
                             self.assertEqual(0, connector.connect.await_count)
                             release_preflight.set()
 
-                        await lookup_started.wait()
+                        await asyncio.wait_for(lookup_started.wait(), timeout=5)
                         reconnector.status_update(connector.current_state)
                         self.assertIsNone(reconnector._retry_task)
                         self.assertEqual(0, connector.connect.await_count)
@@ -3064,7 +3085,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.initialize(Mock())
 
         older = asyncio.create_task(adapter.connect_fastest())
-        await older_lookup_started.wait()
+        await asyncio.wait_for(older_lookup_started.wait(), timeout=5)
         newer = asyncio.create_task(adapter.connect_server("CH#10"))
         await asyncio.wait_for(newer, timeout=1.0)
 
@@ -3286,7 +3307,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             close=AsyncMock(),
         )
         adapter._reconnector.status_update(connector.current_state)
-        await auto_started.wait()
+        await asyncio.wait_for(auto_started.wait(), timeout=5)
 
         manual = asyncio.create_task(adapter.connect_fastest())
         try:
@@ -3343,7 +3364,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         connect = asyncio.create_task(adapter.connect_fastest())
-        await connect_started.wait()
+        await asyncio.wait_for(connect_started.wait(), timeout=5)
         expiry = asyncio.create_task(adapter.get_settings())
         for _ in range(20):
             if not adapter._logged_in:
@@ -3526,7 +3547,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await controller.start())
 
         stale_read = asyncio.create_task(controller.get_settings_json())
-        await stale_read_started.wait()
+        await asyncio.wait_for(stale_read_started.wait(), timeout=5)
         await controller.logout()
         self.assertEqual(0, persisted_kill_switch)
 
@@ -3766,7 +3787,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             capture_start = asyncio.create_task(
                 adapter.start_packet_capture(capture_directory)
             )
-            await start_entered.wait()
+            await asyncio.wait_for(start_entered.wait(), timeout=5)
             expired_error = type(
                 "ProtonAPIAuthenticationNeeded", (Exception,), {}
             )
@@ -4333,7 +4354,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             0.01,
         ):
             update = asyncio.create_task(adapter.update_settings({"netShield": 2}))
-            await compensation_started.wait()
+            await asyncio.wait_for(compensation_started.wait(), timeout=5)
             try:
                 await asyncio.sleep(0.03)
                 update.cancel()
@@ -4380,7 +4401,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             0.01,
         ):
             update = asyncio.create_task(adapter.update_settings({"netShield": 2}))
-            await compensation_started.wait()
+            await asyncio.wait_for(compensation_started.wait(), timeout=5)
             try:
                 await asyncio.sleep(0.03)
                 self.assertFalse(update.done())
@@ -4413,7 +4434,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         update_task = asyncio.create_task(
             adapter.update_settings({"netShield": 2})
         )
-        await first_save_started.wait()
+        await asyncio.wait_for(first_save_started.wait(), timeout=5)
         update_task.cancel()
         await asyncio.sleep(0)
         self.assertEqual([], write_order)
@@ -4450,7 +4471,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         update_task = asyncio.create_task(
             adapter.update_settings({"killSwitch": 2})
         )
-        await save_started.wait()
+        await asyncio.wait_for(save_started.wait(), timeout=5)
         update_task.cancel()
         with patch(
             "proton_vpn_kde_backend.adapters.LOGOUT_RECOVERY_TIMEOUT_SECONDS",

@@ -176,7 +176,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "bb89a0e8d52fa0a7d34adfde107b7ce904d176dcb75056f15f25ce2bd448f2d4" \
+    "9eed191e8d44c37b4210c2501f8805ca297087db4325385fec0d9bdaa8bc201e" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
@@ -197,7 +197,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "1795428fc73ecd3ea6e7d75f168438885df57ee93e26d81c57aea6e21973ed7a" \
+    "618f0af234c3ea6c31b95b7706011e0ba05bc921f1c0e9832b800a9f3efee5ce" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \

@@ -87,15 +87,17 @@ clean buildroot, installed acceptance, or the planned one-week immutable-runtime
 soak. Version 0.13.0 remains unreleased. The dated checkpoints below retain
 earlier evidence, not current approval.
 
-The next bounded decision is **test isolation, not another runtime refactor**:
-create disposable desktop directories before actual-Core imports, inject fake
-route/session conditions into adapter unit fixtures, and bound waits for
-fixture events. Keep dedicated route-probe tests separate. Then rerun the
-unchanged clean package gate. A one-off external diagnostic passed all 440
-cases with the missing runtime directory and fake route supplied, but the
-tracked fixtures have not been repaired and that diagnostic is not release
-evidence. Stop here for maintainer direction rather than initiating another
-discovery/repair cycle automatically.
+The authorized **test-isolation correction, not a runtime refactor**, now
+owns desktop directories before actual-Core imports and inside the offline
+benchmark fixture. Adapter tests use fake route/session inputs, reject escaped
+real probes and bound fixture-event waits. All 442 Python/Core cases pass with
+desktop variables removed; the formerly unbounded wait fails in five seconds
+when its fake prerequisite is deliberately withheld. The
+[correction record](SECURITY-AUDIT-2026-08-30.md#pkg-01-test-isolation-correction--2026-09-09)
+keeps that evidence separate from package approval. The replacement local
+candidate is `0.13.0-0.6.fc44`; its clean build and repeat-artifact verification
+remain pending. No production or overlay source changed, and no broad
+discovery/repair cycle was started.
 
 ### Ownership consolidation before further UX work
 

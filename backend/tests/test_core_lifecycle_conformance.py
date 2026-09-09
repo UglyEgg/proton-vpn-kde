@@ -15,6 +15,7 @@ import importlib
 import inspect
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -34,6 +35,18 @@ class RetirementRejected(RuntimeError):
 class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
+        # Core constructs paths during import, before per-test setUp runs.
+        cls.environment_root = Path(cls.enterClassContext(tempfile.TemporaryDirectory()))
+        directories = {}
+        for name in ("XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"):
+            directory = cls.environment_root / name.lower()
+            directory.mkdir(mode=0o700)
+            directories[name] = str(directory)
+        cls.enterClassContext(patch.dict(os.environ, directories))
+        # PyXDG caches these two paths at import; discovery may import it first.
+        from xdg import BaseDirectory
+        cls.enterClassContext(patch.object(BaseDirectory, "xdg_config_home", directories["XDG_CONFIG_HOME"]))
+        cls.enterClassContext(patch.object(BaseDirectory, "xdg_cache_home", directories["XDG_CACHE_HOME"]))
         source = Path(os.environ["PLASMA_VPN_TEST_CORE_SITE_PACKAGES"]).resolve()
         # These provider modules are unchanged by our packaging overlays.
         expected = {
@@ -62,6 +75,34 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
                                  (cls.refresher, "proton/vpn/core/refresher/vpn_data_refresher.py")):
             if Path(inspect.getfile(module)).resolve() != source / relative:
                 raise AssertionError("The imported Core differs from the selected fixture")
+
+    def test_import_time_paths_are_disposable(self):
+        settings = importlib.import_module("proton.vpn.core.settings.settings")
+        from proton.utils.environment import VPNExecutionEnvironment
+        environment = VPNExecutionEnvironment()
+        for path in (settings.SETTINGS, environment._path_config,
+                     environment._path_cache, environment._path_runtime):
+            self.assertTrue(Path(path).is_relative_to(self.environment_root), path)
+        self.assertEqual(self.environment_root.stat().st_mode & 0o077, 0)
+
+    def test_cold_import_without_desktop_environment(self):
+        environment = dict(os.environ)
+        for name in ("XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"):
+            environment.pop(name, None)
+        program = (
+            "from xdg import BaseDirectory\n"  # Cache paths before fixture setup.
+            "import unittest\n"
+            "suite = unittest.defaultTestLoader.loadTestsFromName("
+            "'test_core_lifecycle_conformance.CoreLifecycleConformanceTests."
+            "test_import_time_paths_are_disposable')\n"
+            "result = unittest.TextTestRunner().run(suite)\n"
+            "raise SystemExit(not result.wasSuccessful())\n"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", program], cwd=Path(__file__).parent,
+            env=environment, capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
 
     def setUp(self):
         directory = tempfile.TemporaryDirectory()

@@ -11,13 +11,15 @@ below. This is not an independently approved release commit or an installed
 fix. No P0 or P1 was substantiated. The original review had explicit coverage
 limits and was not an exhaustive security audit.
 
-**Current package gate: blocked on test isolation.** Signed package source
+**Current package gate: test isolation corrected; clean rebuild pending.** Signed package source
 `705c4b2bde2320b74e23c07d05bc614b5f24ba5e` produces a locally passing
 `0.13.0-0.5.fc44` RPM/SRPM, but its clean-container build did not pass `%check`.
 The [package checkpoint](#rc-package-validation-checkpoint--2026-09-09)
 separates this validation defect from the six corrected findings. It is not
-evidence of a new VPN runtime vulnerability, and it must not be omitted from
-release readiness. No new runtime patch was made during packaging.
+evidence of a new VPN runtime vulnerability. The authorized
+[test-only correction](#pkg-01-test-isolation-correction--2026-09-09) passes
+source checks without desktop variables; the replacement `0.13.0-0.6` clean
+package battery remains required. No new runtime patch was made during packaging.
 
 The latest recorded client installation is `0.13.0-0.4.fc44` from
 `16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`, with the exact package and
@@ -123,6 +125,37 @@ attestation, certification, or warranty of security.
 
 ## Current 0.13.0 error-class review
 
+### PKG-01 test isolation correction — 2026-09-09
+
+The maintainer authorized this test-only follow-up after the failed clean
+build below. Actual-Core fixtures now own temporary config/cache/data/runtime
+directories before imports, including PyXDG's cached config/cache paths. A
+fresh-interpreter regression removes inherited desktop variables and imports
+PyXDG before setup, then verifies that Core's import-time paths remain inside
+the private fixture. The offline benchmark test owns a temporary runtime
+directory too; a whole-suite run without desktop variables exposed this third
+instance of the same missing-fixture-input class.
+
+Adapter unit tests retain the real reconnection implementation but inject
+explicit fake network/session readiness. Guards fail the case if a real route
+subprocess or logind proxy is attempted, including an exception swallowed by a
+production fallback. Dedicated route-probe tests retain their own subprocess
+fakes. Driver waits for fixture events now have five-second deadlines; nested
+fake operations that intentionally block or resist cancellation are preserved.
+Cleanup owns the executor-release latch even if fixture entry fails.
+
+With all four desktop directory variables removed, the complete source gate
+passes **442 Python/Core cases**, Mypy for 31 files and 86% branch-aware
+coverage. A bounded negative experiment replaces the fake route with an always
+unavailable condition: the previously stalled case now reports the expected
+`TimeoutError` in 5.021 seconds. That negative result verifies failure
+containment; it is not counted as a passing ordinary test.
+
+Only three test files, the candidate-delta seal, documentation and Fedora
+candidate metadata change. Production Python, native code, QML and both
+overlay payloads are unchanged. `0.13.0-0.6.fc44` identifies the replacement
+package candidate; clean package/reproducibility verification is pending.
+
 ### RC package validation checkpoint — 2026-09-09
 
 The six corrections are signed in `17791c7df59c6a2e3d5404999a2d1044dbb3023a`.
@@ -157,7 +190,7 @@ Completed evidence:
 
 These are unsigned local artifacts, **not a release-approved package set**.
 
-#### PKG-01: tests inherit desktop conditions — open validation blocker
+#### PKG-01: tests inherit desktop conditions — reproduced on 0.13.0-0.5
 
 The clean unprivileged builder exposed two instances of the same class:
 
@@ -175,11 +208,9 @@ iproute. That diagnostic supports the cause above; it is **not** a corrected
 regression suite or a passing package gate. The dedicated route-probe tests
 retain their own subprocess fakes.
 
-The bounded follow-up is to make those fixture inputs explicit, isolate the
-remaining desktop/session probes used by adapter unit tests, and put deadlines
-on fixture waits so a missing prerequisite fails rather than spins. Keep
-production reconnection, Core and network behavior unchanged. No source fix
-for PKG-01 is claimed, and no broad scan/refactor cycle was started.
+This checkpoint stopped before any fixture repair or broad scan/refactor
+cycle. The subsequently authorized test-only correction is recorded above;
+this failed build remains historical evidence and is not reclassified as a pass.
 
 The planned second clean client build, byte-for-byte RPM comparison and
 combined clean-container installation/payload verification were **not reached**.

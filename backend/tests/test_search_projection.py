@@ -98,7 +98,11 @@ class OfflineSearchBenchmarkTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(spec)
         self.assertIsNotNone(spec.loader)
         module = importlib.util.module_from_spec(spec)
-        with tempfile.TemporaryDirectory() as directory, patch.dict("sys.modules", modules):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict("sys.modules", modules),
+            patch.dict("os.environ", {"XDG_RUNTIME_DIR": directory}),
+        ):
             cache = Path(directory) / "serverlist.json"
             cache.write_text(json.dumps({"MaxTier": 2, "LogicalServers": [
                 {"Name": "CH#1", "ExitCountry": "CH", "City": "Zürich", "Load": 10},
