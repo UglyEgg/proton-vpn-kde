@@ -87,8 +87,8 @@ Kirigami.ScrollablePage {
                 notes: [
                     qsTr("A clearer connection view, with server details beside your destination and a curved outside-VPN route when split tunneling is on."),
                     qsTr("The window fits the connection layout. Settings, server browsing, and account details open from the places you already use."),
-                    qsTr("Choose login, window or tray startup and reliable auto-connect. KDE launcher settings no longer block first-launch sign-in."),
-                    qsTr("Find suitable servers with combined capability filters, and get clearer guidance when sign-in or connection recovery needs attention."),
+                    qsTr("Choose login, window or tray startup and reliable auto-connect. Recover from manually disconnected protection profiles with the updated Fedora Core overlay."),
+                    qsTr("Find suitable servers with combined capability filters. Startup errors no longer repeat secret-store prompts or look like rejected credentials."),
                     qsTr("Native Plasma themes, smoother route graphics, and better layouts for larger text.")
                 ]
             }

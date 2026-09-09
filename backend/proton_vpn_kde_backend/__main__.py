@@ -296,10 +296,11 @@ async def run(demo: bool, demo_logged_out: bool = False) -> int:
             return 0
         stopped_task.cancel()
         initialized = bool(initialization_task.result())
-        if not initialized:
-            # A non-zero process exit lets systemd's Restart=on-failure policy
-            # recover from transient Secret Service, Proton Core, or
-            # NetworkManager initialization failures.
+        if not initialized and controller.has_pending_startup_recovery():
+            # Durable capture/account cleanup still requires supervision.
+            # Ordinary startup failures instead retain the published error
+            # until an explicit retry or the last frontend lease expires;
+            # automatically restarting would repeat Secret Service prompts.
             return 1
         await stopped.wait()
         return 0

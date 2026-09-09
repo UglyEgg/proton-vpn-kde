@@ -263,7 +263,7 @@ void VpnController::applySnapshot(const QString &snapshotJson,
     if (m_loggedIn && !m_npsSurveyChecked) {
         loadPendingNpsSurvey();
     }
-    if (m_loggedIn && !m_busy) {
+    if (m_ready && m_loggedIn && !m_busy) {
         // Retrying a failed reconciliation is read-only. No settings write is
         // replayed, and the local write gate remains closed until it succeeds.
         if (m_settingsRequest.needsRead()) {
@@ -276,7 +276,7 @@ void VpnController::applySnapshot(const QString &snapshotJson,
             loadCustomDns();
         }
     }
-    if (m_loggedIn
+    if (m_ready && m_loggedIn
         && (!m_settings->loaded() || previousState != m_state)
         && !m_settings->busy()) {
         loadSettings();

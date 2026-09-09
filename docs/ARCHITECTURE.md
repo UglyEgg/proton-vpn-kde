@@ -22,6 +22,15 @@ Its architecture follows six invariants:
 
 ## Process model
 
+The Fedora Core package includes documented downstream patches; it is not an
+unmodified Proton binary. Alongside representation and Protun secret-ownership
+fixes, overlay revision `5.6.10-11.plasmavpn1.fc44` explicitly activates and
+reuses matching protection profiles after manual device disconnection. Core
+still owns the protection rules and connection state machine. The
+[overlay scope](../packaging/fedora/api-core-overlay/README.md) separates this
+authorized integration correction from the community frontend and records its
+tests and upstream status.
+
 ```text
 ┌───────────────────────────────────────┐
 │ proton-vpn-kde-agent                  │

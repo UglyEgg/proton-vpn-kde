@@ -79,6 +79,21 @@ credential lookup or storage.
 
 ## Persistence
 
+Saved-session restoration and connector readiness are separate results. A
+connector failure after a successful session probe retains that signed-in
+fact but keeps `ready=false`; credential submission and VPN operations remain
+unavailable. The UI shows a startup error with an explicit service retry, not
+another credential form or continuing progress animation. Only safe authored
+guidance and exception class names are published/logged.
+
+Ordinary initialization failure keeps the registered backend available to
+display that error without automatic process restarts or repeated Secret
+Service prompts. Explicit retry still starts a fresh process. With no frontend
+leases, the failed backend retires after the existing idle grace. Durable
+capture/account cleanup remains different: its recovery record preserves
+nonzero startup failure and supervised retries. No credentials are cached by
+the community client to bypass provider approval.
+
 Only Proton's SSO/session implementation persists the authenticated session.
 Its Linux keyring adapter uses the Freedesktop Secret Service API, so KeePassXC,
 KWallet, GNOME Keyring, or another implementation can own

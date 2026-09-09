@@ -7,7 +7,7 @@
 
 Name:           python3-proton-vpn-api-core
 Version:        5.6.10
-Release:        10.plasmavpn1%{?dist}
+Release:        11.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
@@ -16,10 +16,12 @@ Source0:        python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64.rpm
 Source1:        overlay-manifest.json
 Source2:        rebuild_overlay.py
 Source3:        protonvpn-fedora-44-public-key.asc
+Source4:        test_killswitch_activation.py
 Patch0:         0001-share-repeated-server-endpoint-strings.patch
 Patch1:         0002-share-server-strings-during-cache-decoding.patch
 Patch2:         0003-avoid-deprecated-fido2-capability-query.patch
 Patch3:         0004-keep-protun-private-key-ephemeral.patch
+Patch4:         0005-explicitly-activate-protection-profiles.patch
 
 BuildRequires:  cpio
 BuildRequires:  NetworkManager-libnm
@@ -100,6 +102,7 @@ exactly match the checked-in manifest.
     --baseline-root vendor-rootfs \
     --overlay-root overlay-rootfs
 %{python3} %{SOURCE2} verify-behavior --root overlay-rootfs
+%{python3} %{SOURCE4} --root overlay-rootfs
 
 %install
 mkdir -p %{buildroot}
@@ -142,6 +145,10 @@ fi
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-11.plasmavpn1
+- Reuse matching protection profiles and explicitly activate them through NetworkManager
+- Bound cancellation and cover manual-disconnect recovery with offline regression tests
+
 * Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 5.6.10-10.plasmavpn1
 - Identify the unofficial rebuild with its downstream community vendor.
 

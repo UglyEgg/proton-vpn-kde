@@ -190,7 +190,7 @@ class BackendLifetime:
             return False
         if not snapshot.ready:
             return (
-                snapshot.state == "starting"
+                snapshot.state in {"starting", "error"}
                 and not self._controller.has_pending_startup_recovery()
             )
         return (

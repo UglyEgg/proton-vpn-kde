@@ -26,14 +26,24 @@ NetworkManager secret agent. It does not change the key, protocol, server,
 routing, kill switch, split tunneling, account authentication, or native
 helper.
 
+The fifth patch explicitly activates NetworkManager protection profiles instead
+of relying on device autoconnect. It reuses profiles only when their settings
+match the requested protection (apart from UUID/timestamp), observes the actual
+active connection, and releases asynchronous work and signal subscriptions on
+timeout. It preserves existing protection rules and permanent/unsaved behavior;
+it neither deletes pre-existing profiles nor tears down protection after an
+uncertain activation. This is an authorized networking-integration correction,
+not another memory optimization. It is included in overlay revision
+`5.6.10-11.plasmavpn1.fc44`; older overlay revisions do not contain it.
+
 `overlay-manifest.json` pins:
 
 - the vendor NEVRA, source RPM name, complete-RPM SHA-256, header SHA-256,
   payload SHA-256, signing-key fingerprint, official key URL, and complete
   signing-key SHA-256;
-- all four runtime patch hashes and their provenance;
+- all five runtime patch hashes and their provenance;
 - every permitted changed installed path;
-- the before/after SHA-256 for five Python sources and their ten derived
+- the before/after SHA-256 for six Python sources and their twelve derived
   bytecode files.
 
 `rebuild_overlay.py` extracts the pinned RPM without installing it, applies
@@ -60,7 +70,8 @@ packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
 
 The resulting SRPM contains the signed vendor RPM, manifest, verifier, and
 patches. The binary RPM contains the same payload paths as Proton's RPM, with
-only the fifteen manifest-listed file hashes changed.
+only the eighteen manifest-listed file hashes changed. The SRPM also includes
+the offline protection-activation regression tests, which run in `%check`.
 
 The direct `NetworkManager-openvpn-gnome` dependency is deliberately retained
 because it belongs to Proton's current Core package contract. Removing it may
@@ -76,7 +87,7 @@ source-format commits and exported patches. They do not mean those commits
 were merged by Proton. The first three exports originated from a local
 `v5.5.15` checkout; the installed-path adaptations are separately hash-checked
 and behavior-tested against the pinned **5.6.10** RPM. The original source
-commits include tests, while the four payload patches here change runtime
+commits include tests, while the five payload patches here change runtime
 files only. Those originals are not bundled in this client repository, so the
 identifiers alone are not a portable upstream submission.
 
@@ -86,6 +97,7 @@ identifiers alone are not a portable upstream submission.
 | [0002](patches/0002-share-server-strings-during-cache-decoding.patch) | Reuse the sharing policy during cache decoding with a per-load hook factory; builds on 0001. Source origin: `88887e4223aed45b18d2dd7554565278c4dda9c0`. | Cached country and endpoint strings share identity after loading. |
 | [0003](patches/0003-avoid-deprecated-fido2-capability-query.patch) | Read current session capability properties without the deprecated API wrapper; independent of string sharing. Source origin: `f39782e411d629694eab174b4b04adc86765d7d8`. | All four capability combinations retain their results, with deprecated-property access forced to fail. |
 | [0004](patches/0004-keep-protun-private-key-ephemeral.patch) | Change Protun secret ownership in its existing unsaved profile; a separate interoperability/security decision, not a representation-only optimization. Locally authored payload patch. | Constructed settings retain the supplied secret with the system-owned flag; the mocked NetworkManager add call remains explicitly unsaved. |
+| [0005](patches/0005-explicitly-activate-protection-profiles.patch) | Reuse matching protection profiles and explicitly request/observe activation. Locally authored against the pinned 5.6.10 helper; separate from keyring and memory changes. | Real libnm settings with fake I/O cover inactive/active profiles, mismatches, duplicates, activation failure, autoconnect races, cancellation and late callbacks. The retained-inactive-profile regression fails against the unpatched vendor helper. |
 
 The checks above are in `_verify_behavior` in
 [`rebuild_overlay.py`](rebuild_overlay.py). The separate
@@ -97,6 +109,13 @@ not another Core fix proposed by these patches. Neither these fixtures nor
 aggregate client RSS measurements establish patch-specific performance gains
 or live Protun cleanup across every desktop.
 
+Patch 0005's portable tests are in
+[`tests/test_killswitch_activation.py`](tests/test_killswitch_activation.py).
+They load an explicitly selected helper with `--module` (source tree) or
+`--root` (extracted RPM), never construct a real NetworkManager client, and
+bound completion waits. They do not establish live protection behavior or
+replace installed connect/disconnect and manual-device-disconnect acceptance.
+
 After the Plasma release, prepare source-level contributions separately:
 
 1. Recheck current Proton source and contribution rules. Drop changes already
@@ -106,7 +125,8 @@ After the Plasma release, prepare source-level contributions separately:
    authorship. Do not imply copyright assignment or Proton authorship merely
    by exporting a patch.
 2. Present string sharing as one dependency-ordered series, diagnostic cleanup
-   independently, and Protun secret ownership as a separate proposal. Do not
+   independently, and Protun secret ownership and protection-profile activation
+   as separate proposals. Do not
    bundle the Plasma GUI, RPM bytecode, packaging paths or provider-lifecycle
    workarounds into these submissions.
 3. Port the focused tests to Proton's current source tree. For sharing, cover

@@ -18,6 +18,18 @@ class UserVisibleRuntimeError(UserVisibleError, RuntimeError):
     """A backend state error with a safe, actionable message."""
 
 
+class ConnectorStartupError(UserVisibleRuntimeError):
+    """Networking failed after Core finished probing the saved session."""
+
+    def __init__(self, *, logged_in: bool) -> None:
+        self.logged_in = logged_in
+        prefix = "Your saved Proton session was restored, but " if logged_in else ""
+        super().__init__(
+            prefix + "VPN networking could not initialize. "
+            "Check NetworkManager and retry the service."
+        )
+
+
 class CleanupAdmissionExpired(UserVisibleRuntimeError):
     """Cleanup did not cross its dispatch boundary before the deadline."""
 

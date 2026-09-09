@@ -19,7 +19,7 @@
   },
   "overlay": {
     "packageName": "python3-proton-vpn-api-core",
-    "nevra": "python3-proton-vpn-api-core-5.6.10-10.plasmavpn1.fc44.x86_64",
+    "nevra": "python3-proton-vpn-api-core-5.6.10-11.plasmavpn1.fc44.x86_64",
     "downstreamVendor": "Plasma VPN contributors",
     "capability": "proton-vpn-api-core-plasma-protun-secret = 1",
     "capabilityPatch": "0004-keep-protun-private-key-ephemeral.patch",
@@ -51,6 +51,12 @@
         "sha256": "95cf092c97d5cc2e5005efcd4e96a88227ad88f5b21985d86dea306efed14cad",
         "provenance": "local",
         "rationale": "Keep the supplied key in the unsaved Protun profile instead of requiring a desktop secret agent"
+      },
+      {
+        "file": "0005-explicitly-activate-protection-profiles.patch",
+        "sha256": "261180f0fc607d6df3e15ee815660c10e1fdbd1cd05065e494a6d38db8977c64",
+        "provenance": "local",
+        "rationale": "Reuse validated protection profiles and explicitly activate them after manual device disconnect"
       }
     ],
     "derivedBytecode": [
@@ -108,6 +114,17 @@
         "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/__pycache__/protun.cpython-314.opt-1.pyc",
         "optimization": 1,
         "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/__pycache__/protun.cpython-314.pyc"
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/nmclient.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.pyc",
+        "optimization": 0
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/nmclient.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.opt-1.pyc",
+        "optimization": 1,
+        "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.pyc"
       }
     ],
     "modifiedFiles": [
@@ -185,6 +202,21 @@
         "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/protocol/protun/__pycache__/protun.cpython-314.opt-1.pyc",
         "vendorSha256": "3f4121eaf9741a6b8c2072a77ba37bb1c74bb9dc963308073fc98cebbd1559bf",
         "overlaySha256": "7413b3d739d0061b2f2064d78562e6298d6e1be3ad584809d873a29185e767f0"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/nmclient.py",
+        "vendorSha256": "0a7235bd5e11d0433b060a2f311d0398af2099d6636ddc682108c3ddf6d73e84",
+        "overlaySha256": "1f5c06d2086b29314931e040ff7c04daaf31654553d41332f504b3ad43d9e69f"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.pyc",
+        "vendorSha256": "b1663ec75651d55d51206e2879edcdc0bbe89fa5f75c235eadc6745279953e99",
+        "overlaySha256": "60f818f33f672bcdccc6e3a9f7a57847c42ce3575ca755317eb7e2934c066624"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.opt-1.pyc",
+        "vendorSha256": "b1663ec75651d55d51206e2879edcdc0bbe89fa5f75c235eadc6745279953e99",
+        "overlaySha256": "60f818f33f672bcdccc6e3a9f7a57847c42ce3575ca755317eb7e2934c066624"
       }
     ]
   }

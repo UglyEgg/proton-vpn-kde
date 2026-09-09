@@ -100,25 +100,31 @@ cancellable multi-key selection before the security-key action is enabled.
 ## Current local candidate — acceptance pending
 
 The latest recorded installation is the maintainer-approved
-`0.13.0-0.4.fc44` client from
-`16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`, installed on 2026-09-08. Its
-client RPM/SRPM passed mandatory tests and exact artifact/source checks;
+`0.13.0-0.8.fc44` client from
+`1db0dd460d6edeb6f60b832c56af447ed3a8e7e8`, installed on 2026-09-09. Its
+client RPM/SRPM passed two clean builds and exact artifact/source checks;
 root-side payload verification and the installed source marker matched.
 
 | Component | Installed package at that checkpoint |
 | --- | --- |
-| Plasma client | 0.13.0-0.4.fc44 |
+| Plasma client | 0.13.0-0.8.fc44 |
 | Proton VPN API Core overlay | 5.6.10-10.plasmavpn1.fc44 |
 | Proton keyring overlay | 0.2.3-8.plasmavpn1.fc44 |
 
-The client-only upgrade did not change either overlay or the existing network
-connections. All three client services were stopped after the transaction and
-successful session-service reload; this describes the installation checkpoint,
-not a continuously monitored runtime state. The
-[installation record](SECURITY-AUDIT-2026-08-30.md#startup-and-polish-local-install--2026-09-08)
-contains the test evidence and remaining acceptance gates. Earlier local
-package iterations are historical records in that assessment, not additional
-supported baselines.
+The client-only upgrade did not change either overlay. The
+[installation record](SECURITY-AUDIT-2026-08-30.md#start-01-direct-native-launch--2026-09-09)
+records successful native registration and the separate START-02 networking
+startup failure. Operational recovery restored the session and connection;
+the maintainer's subsequent in-client disconnect removed the tunnel and IPv6
+protection cleanly without backend restarts. These are dated checks, not a
+continuously monitored runtime state.
+
+The next source candidate is client `0.13.0-0.9.fc44` with Core overlay
+`5.6.10-11.plasmavpn1.fc44`. It adds bounded startup failure presentation and
+explicit protection-profile activation; neither replacement is installed yet.
+The client-side correction remains usable with the older Core overlay, but
+automatic recovery from the specific inactive-device defect requires the new
+Core patch. Installed acceptance and release review remain separate gates.
 
 The window is app-sized within the active monitor's work area; long pages
 scroll instead of relying on manual resizing or maximizing. The shared Startup

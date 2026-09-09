@@ -60,6 +60,26 @@ class BackendLifetimeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(stopped.is_set())
 
+    async def test_startup_error_remains_visible_until_last_frontend_leaves(self):
+        lifetime, _, stopped, owners = self.make_lifetime(state="error", ready=False)
+        owners.add(":1.42")
+        await lifetime.register_client(":1.42")
+        task = asyncio.create_task(lifetime.run())
+        await asyncio.sleep(0.04)
+        self.assertFalse(stopped.is_set())
+        lifetime.unregister_client(":1.42")
+        await asyncio.wait_for(task, timeout=0.2)
+        self.assertTrue(stopped.is_set())
+
+    async def test_startup_error_cannot_abandon_durable_recovery(self):
+        lifetime, controller, stopped, _ = self.make_lifetime(state="error", ready=False)
+        controller.pending_startup_recovery = True
+        task = asyncio.create_task(lifetime.run())
+        await asyncio.sleep(0.04)
+        self.assertFalse(stopped.is_set())
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
     async def test_abandoned_startup_exits_after_idle_timeout(self):
         lifetime, _, stopped, _ = self.make_lifetime(state="starting", ready=False)
 

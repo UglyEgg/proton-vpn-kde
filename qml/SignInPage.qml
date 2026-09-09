@@ -8,7 +8,7 @@ import org.kde.kirigami as Kirigami
 
 Kirigami.ScrollablePage {
     id: page
-    title: qsTr("Sign in")
+    title: page.preparingSignIn ? qsTr("Starting Plasma VPN") : qsTr("Sign in")
     readonly property real maximumFormWidth: Kirigami.Units.gridUnit * 26
     leftPadding: Math.max(Kirigami.Units.largeSpacing,
                           (width - maximumFormWidth) / 2)
@@ -23,6 +23,8 @@ Kirigami.ScrollablePage {
     readonly property int securityKeyPinStep: 6
 
     readonly property bool preparingSignIn: !vpnController.ready
+    readonly property bool startupFailed: page.preparingSignIn
+                                          && vpnController.state === "error"
     readonly property bool terminalBackendFailure:
         page.preparingSignIn && !vpnController.backendRestartAllowed
     readonly property bool recoveryRequired: [
@@ -60,7 +62,7 @@ Kirigami.ScrollablePage {
         page.activeStep === page.credentialStep
     readonly property string activeStepIcon: {
         if (page.activeStep === page.preparingStep) {
-            return page.terminalBackendFailure ? "dialog-error"
+            return page.terminalBackendFailure || page.startupFailed ? "dialog-error"
                                                : "view-refresh"
         }
         if (page.activeStep === page.recoveryStep) {
@@ -82,9 +84,12 @@ Kirigami.ScrollablePage {
     }
     readonly property string activeStepHeading: {
         if (page.activeStep === page.preparingStep) {
+            if (page.startupFailed) {
+                return qsTr("VPN service could not start")
+            }
             return page.terminalBackendFailure
                    ? qsTr("Sign-in unavailable")
-                   : qsTr("Preparing sign-in")
+                   : qsTr("Starting Plasma VPN")
         }
         if (page.activeStep === page.recoveryStep) {
             if (vpnController.authState === "expired") {
@@ -117,7 +122,7 @@ Kirigami.ScrollablePage {
     }
     readonly property string activeStepDescription: {
         if (page.activeStep === page.preparingStep) {
-            if (page.terminalBackendFailure) {
+            if (page.terminalBackendFailure || page.startupFailed) {
                 return vpnController.message.length > 0
                        ? vpnController.message
                        : qsTr("The local client could not be authorized.")
@@ -181,6 +186,11 @@ Kirigami.ScrollablePage {
     }
 
     function updateBackendRetry() {
+        if (page.startupFailed && vpnController.backendRestartAllowed) {
+            backendRetryTimer.stop()
+            backendRetryVisible = true
+            return
+        }
         const waiting = page.preparingSignIn
                         && vpnController.backendRestartAllowed
         if (waiting) {
@@ -229,7 +239,7 @@ Kirigami.ScrollablePage {
         function onSnapshotChanged() {
             page.updateSecretStoreHint()
             page.updateBackendRetry()
-            if (vpnController.loggedIn
+            if (vpnController.ready && vpnController.loggedIn
                     && applicationWindow().pageStack.currentItem === page) {
                 applicationWindow().showOverview()
             } else if (page.previousAuthState !== vpnController.authState) {
@@ -309,6 +319,7 @@ Kirigami.ScrollablePage {
                      && page.activeStep !== page.securityKeyStep
                      && page.activeStep !== page.recoveryStep
                      && !page.terminalBackendFailure
+                     && !page.startupFailed
             type: vpnController.authState === "human_verification"
                   || vpnController.authState === "fido_error"
                   ? Kirigami.MessageType.Warning
@@ -328,6 +339,7 @@ Kirigami.ScrollablePage {
                 visible: running
                 running: parent.visible
                          && vpnController.backendRestartAllowed
+                         && !page.startupFailed
             }
 
             Controls.Button {

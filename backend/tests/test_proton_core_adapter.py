@@ -34,6 +34,7 @@ from proton_vpn_kde_backend.controller import (
     SupportReport,
 )
 from proton_vpn_kde_backend.errors import (
+    ConnectorStartupError,
     NpsCompletionUnknownError,
     UserVisibleRuntimeError,
 )
@@ -247,6 +248,27 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             Path(self._runtime_directory.name) / f"account-{self._adapter_sequence}.json",
         )
         return ProtonCoreAdapter(api, **kwargs)
+
+    async def test_connector_failure_is_not_a_credential_failure(self):
+        for logged_in in (False, True):
+            with self.subTest(logged_in=logged_in):
+                api, _ = self.make_api(logged_in=logged_in)
+                api.get_vpn_connector.side_effect = TimeoutError("credential=not-for-display")
+                adapter = self.make_adapter(api)
+                callback = Mock()
+                with self.assertRaises(ConnectorStartupError) as caught:
+                    await adapter.initialize(callback)
+                self.assertEqual(logged_in, caught.exception.logged_in)
+                self.assertNotIn("credential=", str(caught.exception))
+                self.assertIsInstance(caught.exception.__cause__, TimeoutError)
+                self.assertFalse(adapter._session_services_enabled)
+                callback.assert_not_called()
+
+    async def test_connector_startup_cancellation_is_not_classified_as_failure(self):
+        api, _ = self.make_api()
+        api.get_vpn_connector.side_effect = asyncio.CancelledError()
+        with self.assertRaises(asyncio.CancelledError):
+            await self.make_adapter(api).initialize(Mock())
 
     async def start_cancellation_resistant_reconnect(self, adapter, connector):
         connect_started = asyncio.Event()

@@ -209,6 +209,7 @@ class SignInPresentationTest final : public QObject
 private slots:
     void signingInPreservesAuthoritativeMessage();
     void completionUnknownStopsProgress();
+    void connectorStartupFailureIsNotSignIn();
     void terminalIdentityFailureIsNotStartup();
     void recoveryPreservesAuthoritativeMessage_data();
     void recoveryPreservesAuthoritativeMessage();
@@ -380,6 +381,32 @@ void SignInPresentationTest::terminalIdentityFailureIsNotStartup()
         QStringLiteral("backendPreparationProgress"));
     QVERIFY(progress);
     QVERIFY(!progress->property("running").toBool());
+}
+
+void SignInPresentationTest::connectorStartupFailureIsNotSignIn()
+{
+    FakeVpnController controller;
+    controller.ready = false;
+    controller.loggedIn = true;
+    controller.authState = QStringLiteral("signed_in");
+    controller.state = QStringLiteral("error");
+    controller.message = QStringLiteral("Saved session restored; networking could not initialize.");
+    QQmlEngine engine;
+    QScopedPointer<QObject> page(
+        createComponent(engine, controller, QStringLiteral("SignInPage.qml")));
+    QVERIFY2(page, qPrintable(m_componentErrors));
+    QCOMPARE(page->property("activeStepHeading").toString(),
+             QStringLiteral("VPN service could not start"));
+    QCOMPARE(page->property("activeStepDescription").toString(), controller.message);
+    QVERIFY(!page->property("credentialsVisible").toBool());
+    QVERIFY(page->property("backendRetryVisible").toBool());
+    auto *progress = page->findChild<QObject *>(QStringLiteral("backendPreparationProgress"));
+    QVERIFY(progress);
+    QVERIFY(!progress->property("running").toBool());
+    // No implicit retry, including when the same failure is republished.
+    emit controller.snapshotChanged();
+    QCoreApplication::processEvents();
+    QCOMPARE(controller.restartCalls, 0);
 }
 
 void SignInPresentationTest::recoveryPreservesAuthoritativeMessage_data()

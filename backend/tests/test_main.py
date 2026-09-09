@@ -501,6 +501,9 @@ class BackendPublicationTests(unittest.IsolatedAsyncioTestCase):
                 events.append("start")
                 return False
 
+            def has_pending_startup_recovery(self):
+                return True
+
         class FakeLifetime:
             async def run(self):
                 await backend_main.asyncio.Event().wait()
@@ -551,6 +554,52 @@ class BackendPublicationTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(events.index("export"), events.index("open-ingress"))
         self.assertLess(events.index("open-ingress"), publication)
         self.assertNotIn("remove-handler", events)
+
+    async def test_only_durable_recovery_restarts_a_failed_startup(self):
+        for recovery in (False, True):
+            with self.subTest(recovery=recovery):
+                started = asyncio.Event()
+                stopped = None
+                bus = Mock()
+                bus.connect = AsyncMock()
+                bus.request_name = AsyncMock(return_value=RequestNameReply.PRIMARY_OWNER)
+                bus.release_name = AsyncMock()
+                authorizer = Mock()
+                authorizer.install = AsyncMock()
+                authorizer.uninstall = AsyncMock()
+                controller = Mock()
+                controller.has_pending_startup_recovery.return_value = recovery
+
+                async def fail(start_event=started):
+                    start_event.set()
+                    return False
+
+                controller.start = AsyncMock(side_effect=fail)
+
+                def lifetime_factory(_controller, stop_event, *_args, **_kwargs):
+                    nonlocal stopped
+                    stopped = stop_event
+                    return SimpleNamespace(run=AsyncMock(side_effect=asyncio.Event().wait))
+
+                with (
+                    patch.object(backend_main, "MessageBus", return_value=bus),
+                    patch.object(backend_main, "DemoCoreAdapter", return_value=object()),
+                    patch.object(backend_main, "BackendController", return_value=controller),
+                    patch.object(backend_main, "BackendLifetime", side_effect=lifetime_factory),
+                    patch.object(backend_main, "ClientAuthorizer", return_value=authorizer),
+                    patch.object(backend_main, "VpnDbusService", return_value=object()),
+                ):
+                    task = asyncio.create_task(backend_main.run(demo=True))
+                    await asyncio.wait_for(started.wait(), 0.2)
+                    if not recovery:
+                        await asyncio.sleep(0.02)
+                        self.assertFalse(task.done())
+                        bus.unexport.assert_not_called()
+                        self.assertIsNotNone(stopped)
+                        stopped.set()
+                    self.assertEqual(int(recovery), await asyncio.wait_for(task, 0.2))
+                controller.start.assert_awaited_once()
+                controller.close.assert_not_called()
 
     async def test_capture_recovery_cannot_be_cancelled_by_idle_startup(self):
         start_entered = asyncio.Event()

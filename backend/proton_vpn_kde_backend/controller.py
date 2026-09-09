@@ -17,6 +17,7 @@ from .async_utils import await_owned
 
 from .errors import (
     CleanupAdmissionExpired,
+    ConnectorStartupError,
     UserVisibleError,
     UserVisibleRuntimeError,
     UserVisibleValueError,
@@ -263,15 +264,26 @@ class BackendController:
                 self._on_adapter_server_data,
             )
         except Exception as error:
-            logger.error("Backend initialization failed (%s)", type(error).__name__)
-            self._publish(
-                replace(
-                    self._snapshot,
-                    ready=False,
-                    state="error",
-                    message="Backend initialization failed",
-                )
+            logger.error(
+                "Backend initialization failed (%s; cause=%s)",
+                type(error).__name__,
+                type(error.__cause__).__name__ if error.__cause__ else "none",
             )
+            failed = replace(
+                self._snapshot,
+                ready=False,
+                state="error",
+                message="Backend initialization failed",
+            )
+            if isinstance(error, ConnectorStartupError):
+                failed = replace(
+                    failed,
+                    logged_in=error.logged_in,
+                    auth_state="signed_in" if error.logged_in else "signed_out",
+                    error_code="connector_initialization_failed",
+                    message=bounded_user_message(error, failed.message),
+                )
+            self._publish(failed)
             return False
         self._publish(snapshot)
         return True

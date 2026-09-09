@@ -5,6 +5,13 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Keep ordinary startup failures visible without automatically restarting the
+  backend and repeating Secret Service prompts. Distinguish a restored account
+  from failed VPN networking; retain supervised retries for unfinished cleanup.
+- In the Fedora Core overlay, explicitly activate and reuse matching protection
+  profiles after a manual NetworkManager device disconnect. Preserve the
+  existing protection settings and stop accumulating inactive profiles.
+
 - Fix first-launch authorization from KDE launchers that inherit plugin/search
   overrides. Clean and re-execute the native entry points before Qt starts;
   keep backend authorization and saved-session handling unchanged.

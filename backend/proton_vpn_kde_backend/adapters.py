@@ -22,6 +22,7 @@ from .task_scope import ScopeAdmissionExpired, TaskScope, create_owned_task
 from .demo_adapter import DemoCoreAdapter
 from .errors import (
     CleanupAdmissionExpired,
+    ConnectorStartupError,
     NpsCompletionUnknownError,
     SessionExpiredError,
     UserVisibleRuntimeError,
@@ -293,7 +294,12 @@ class ProtonCoreAdapter:
                     "local cleanup was pending"
                 ) from None
         else:
-            self._connector = await connector_request
+            try:
+                self._connector = await connector_request
+            except Exception as error:
+                # Session restoration already completed. Do not misrepresent
+                # a NetworkManager/connector failure as rejected credentials.
+                raise ConnectorStartupError(logged_in=self._logged_in) from error
         self._connector.register(self)
         # Packet capture is external to this process. Reacquire any durable
         # completion-unknown generation before backend-readiness publication.

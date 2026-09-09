@@ -102,8 +102,7 @@ policies, and the combined container-only installation passes payload and
 native-hardening verification. Exact source and six-artifact hashes are in the
 [replacement package checkpoint](SECURITY-AUDIT-2026-08-30.md#replacement-package-verification--2026-09-09).
 
-The host now has `0.13.0-0.7.fc44`, with root-side payload verification complete
-and Core/keyring unchanged. First-launch UAT exposed START-01: KRunner's
+The `0.13.0-0.7.fc44` first-launch UAT exposed START-01: KRunner's
 inherited Qt plugin path causes the GUI's authorization to fail, while the
 clean service path used on tray reopening succeeds. A controlled warm-backend
 reproduction confirmed that rejection without disconnecting the VPN.
@@ -118,8 +117,39 @@ Bounded source verification passes: 43 CTest targets, 442 Python/Core cases,
 41 normal/sanitized startup-probe cases, the real native-entry-point environment
 check, affected-unit Clang-Tidy, and static/metadata/scope checks.
 
-Still required: a frozen, validated replacement package,
-separately approved installation with first-launch acceptance, final independent
+Signed candidate `1db0dd4` now builds `0.13.0-0.8.fc44`. Two clean Fedora builds
+each pass 442 Python/Core cases and 42 package-eligible CTest targets; all four
+RPM outputs are byte-identical. The full container transaction and hardening
+checks pass. The authorized host upgrade is installed and root-verified with
+Core/keyring unchanged, and user-service definitions have been reloaded.
+The installed cold-launch registration check passes with the inherited Qt
+plugin-path canary. Subsequent UAT exposed a separate **START-02 availability
+blocker**: manually disconnecting the IPv6 protection device leaves
+NetworkManager autoconnect disabled, while Core startup adds another profile
+and times out. Backend restarts repeat Secret Service prompts. Explicitly
+reactivating the original profile recovered saved-session startup and the
+Proton connection with no source change; 23 backed-up inactive duplicates were
+removed, leaving active protection and unrelated connections unchanged.
+
+Operational recovery does not close START-02. The maintainer has now authorized
+both the community startup/retry correction and a narrow Core activation patch.
+Both are implemented in the working candidate. The
+[UAT checkpoint](SECURITY-AUDIT-2026-08-30.md#start-02-inactive-leak-protection-device--2026-09-09)
+records their boundaries and evidence: 448 Python/Core cases with zero skips,
+43 clean-build CTest targets, and 13 mandatory Core RPM activation cases pass.
+The client distinguishes restored credentials from failed networking startup,
+holds ordinary failures for explicit retry, and preserves durable cleanup
+supervision. The Core overlay reuses validated profiles and explicitly activates
+them without changing protection rules or deleting uncertain profiles.
+
+The next client package is `0.13.0-0.9.fc44`; its signed-source build remains
+pending. The Core `5.6.10-11.plasmavpn1.fc44` RPM/SRPM pair has been built and
+verified in an isolated Fedora container. Neither candidate has been installed;
+the host remains on client `0.8` and Core overlay revision `10`.
+
+Still required: exact-candidate review, signed/reproducible package validation,
+START-02 installed recovery and retry verification,
+maintainer first-window/session acceptance and ordinary desktop/tray UAT, final independent
 seven-perspective approval, and the planned one-week immutable-runtime soak.
 Version 0.13.0 remains unreleased.
 The dated checkpoints below retain earlier evidence, not current approval.

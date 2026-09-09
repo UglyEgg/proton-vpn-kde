@@ -109,6 +109,11 @@ while IFS= read -r path; do
         data/proton-vpn-kde-backend.service.in|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
         packaging/fedora/api-core-overlay/rebuild_overlay.py|\
+        packaging/fedora/api-core-overlay/build_overlay_rpm.sh|\
+        packaging/fedora/api-core-overlay/overlay-manifest.json|\
+        packaging/fedora/api-core-overlay/python3-proton-vpn-api-core-overlay.spec|\
+        packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch|\
+        packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py|\
         packaging/fedora/core-compatibility.json|\
         packaging/fedora/proton-vpn-kde.spec|\
         src/AgentVpnClient.cpp|src/AgentVpnClient.h|src/TrayIntegration.cpp|\
@@ -179,7 +184,7 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "9eed191e8d44c37b4210c2501f8805ca297087db4325385fec0d9bdaa8bc201e" \
+    "886f5c98294528323dd300120e766265b03a63cf7e97c958313fab6b97d1dc9f" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
@@ -189,6 +194,16 @@ assert_diff_hash \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
+# START-02 explicitly authorizes this separate Core activation overlay. The
+# exact-delta seal records scope, not independent review or installed acceptance.
+assert_diff_hash \
+    "f90981f8abb3ed84958fd1fdc99c27341bb32cf132aeaa47312eaab9b3363b41" \
+    "protection activation overlay" \
+    packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
+    packaging/fedora/api-core-overlay/overlay-manifest.json \
+    packaging/fedora/api-core-overlay/python3-proton-vpn-api-core-overlay.spec \
+    packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch \
+    packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py
 assert_diff_hash \
     "bc8919bb31d33cf967c48472656f217a0d7de017f4fb0c20ed1ff0aeb2095c97" \
     "finite process-stop packaging" \
@@ -200,7 +215,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "80e9a8dbfd7e324eef93ca1882e95d25596c9488aa381f3388b3b11186e65099" \
+    "f3162d807a00c9fe303440840fa26aba439b4974bc3853046025d5b8a8a2040d" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "e97f135d1d57cac0e1970bf0b40b2c142268fe64f942fabdff829aa7d5a9c2af" \
@@ -209,17 +224,19 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "c7fbb9402a6fb490b8ab4e3adadd973de31683366a55292740b44d9b7cd3cdc3" \
+    "f39a569a1785ca3109c6c97f0e538ed1e34cd881d7bce55bf862f1efec747ded" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "30d98e60634fe2d169a8f37f4d787e3cec2072b52d887479e1b29117c7f8f8ca" \
+    "f8f36ccb57f7250f0fdecf2bc7698065b05a5630afeaa3e43216d40234de0017" \
     "QML presentation" qml
 
 # RC1–RC6: explicitly authorized startup/persistence/presentation corrections
 # and offline measurement fixtures. These seals still do not grant approval.
 # START-01 additionally admits direct native startup normalization and its
 # kernel-environment regression probe; backend authorization stays unchanged.
+# START-02 preserves restored session state on connector failure and holds an
+# ordinary failed startup for explicit retry without dropping durable recovery.
 assert_diff_hash \
     "0b9bc3a05869509205d9dbfe761bf4e9eb9ccd1a423c07d9d41603e353c0cc12" \
     "native startup regression" scripts/check-native-startup.py \

@@ -19,7 +19,9 @@ from proton_vpn_kde_backend.controller import (
     split_tunneling_patch_from_json,
     validate_support_report,
 )
-from proton_vpn_kde_backend.errors import CleanupAdmissionExpired, UserVisibleRuntimeError
+from proton_vpn_kde_backend.errors import (
+    CleanupAdmissionExpired, ConnectorStartupError, UserVisibleRuntimeError,
+)
 
 
 class FailingDemoAdapter(DemoCoreAdapter):
@@ -667,6 +669,25 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(0, adapter.login_calls)
         self.assertFalse(controller.snapshot.busy)
+
+    async def test_connector_startup_failure_retains_only_confirmed_session_state(self):
+        for logged_in in (False, True):
+            with self.subTest(logged_in=logged_in):
+                adapter = DemoCoreAdapter()
+                adapter.initialize = AsyncMock(
+                    side_effect=ConnectorStartupError(logged_in=logged_in)
+                )
+                controller = BackendController(adapter)
+                with self.assertLogs("proton_vpn_kde_backend.controller", level="ERROR"):
+                    self.assertFalse(await controller.start())
+                self.assertFalse(controller.snapshot.ready)
+                self.assertEqual(logged_in, controller.snapshot.logged_in)
+                self.assertEqual("connector_initialization_failed", controller.snapshot.error_code)
+                self.assertIn("VPN networking could not initialize", controller.snapshot.message)
+                with self.assertRaisesRegex(RuntimeError, "backend is not ready"):
+                    await controller.connect_fastest()
+                with self.assertRaisesRegex(RuntimeError, "backend is not ready"):
+                    await controller.login("demo-user", "password")
 
     async def test_connect_and_disconnect_publish_state_transitions(self):
         await self.controller.connect_fastest()
