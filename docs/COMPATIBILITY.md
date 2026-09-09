@@ -108,21 +108,28 @@ root-side payload verification and the installed source marker matched.
 | Component | Installed package at that checkpoint |
 | --- | --- |
 | Plasma client | 0.13.0-0.9.fc44 |
-| Proton VPN API Core overlay | 5.6.10-11.plasmavpn1.fc44 |
+| Proton VPN API Core overlay | 5.6.10-12.plasmavpn1.fc44 |
 | Proton keyring overlay | 0.2.3-8.plasmavpn1.fc44 |
 
-The upgrade changed the client and Core, leaving the keyring package unchanged.
+The upgrades changed the client and Core, leaving the keyring package unchanged.
 The [START-02 installation record](SECURITY-AUDIT-2026-08-30.md#start-02-inactive-leak-protection-device--2026-09-09)
 records successful saved-session startup and connection. A retained-profile
 recovery test verified the client's stable error presentation and zero automatic
 restarts, but exposed Core revision `11` rejecting NetworkManager-normalized
-settings. Explicit activation restored the original profiles and connection.
-These are dated checks, not a continuously monitored runtime state.
+settings. That superseded revision was replaced by Core `12` below.
 
-Core overlay `5.6.10-12.plasmavpn1.fc44` corrects that comparison, with 14
-offline regression cases and a verified RPM/SRPM pair; its installation and
-live acceptance remain pending. The client binary is unchanged by this
-separate Core-only correction.
+Core overlay `5.6.10-12.plasmavpn1.fc44`, from signed source `5fa8279`,
+corrects that comparison. Its 14 offline regression cases, RPM/SRPM checks and
+root-side installed verification pass. Installed cold-start recovery also
+passes with a retained protection device whose `GENERAL.AUTOCONNECT` remains
+`no`: the original protection profile was reused and explicitly activated,
+without duplicate profiles or backend restarts. The maintainer confirmed
+recovery without clicking Retry or Connect. A subsequent in-app Disconnect
+removed the Proton profiles and test interface. A normal in-app Connect then
+created fresh profiles and reconnected, still without a backend restart and
+with the unrelated private VPN unchanged. These are dated acceptance checks, not
+continuous monitoring or an independent leak test. The client binary is
+unchanged by this separate Core-only correction.
 The client-side correction remains usable with the older Core overlay, but
 automatic recovery from the specific inactive-device defect requires the new
 Core patch. Installed acceptance and release review remain separate gates.

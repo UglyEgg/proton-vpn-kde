@@ -24,24 +24,29 @@ retains the `0.7` evidence separately from failed `0.5` and `0.6` attempts.
 
 The latest client installation is `0.13.0-0.9.fc44` from `f6e12d0`, with
 root-side payload/source verification complete on 2026-09-09 and Core overlay
-revision `11` installed; keyring is unchanged. START-01's first-launch authorization failure no longer reproduces
+revision `12` installed; keyring is unchanged. START-01's first-launch authorization failure no longer reproduces
 in the installed cold-launch probe: the exact registration call succeeds under
 the inherited Qt plugin-path condition. This verifies that boundary, not the
 entire saved-session/connection workflow.
 
-**START-02 (P2 availability): client failure containment passes installed UAT;
-the Core normalization correction awaits installed acceptance and independent
-review.** The maintainer authorized separate community
+**START-02 (P2 availability): installed failure containment, automatic recovery
+and normal disconnect/reconnect pass; remaining acceptance and independent review are
+open.** The maintainer authorized separate community
 startup/retry handling and a narrow Core protection-profile activation patch.
 The working candidate passes the bounded source checks recorded in the
 [START-02 checkpoint](#start-02-inactive-leak-protection-device--2026-09-09).
 Installed `0.9` restores the saved session and connects, and its retained-profile
 failure stays signed-in/not-ready without automatic restarts. Core revision
 `11` rejected a matching profile because the stored form was normalized; the
-new revision `12` corrects that comparison and passes 14 regression cases and
-RPM/SRPM checks. The existing tunnel was restored operationally. Revision `12`
-is not yet installed, and the original device-autoconnect variant remains an
-explicit live acceptance item.
+installed revision `12` corrects that comparison and passes 14 regression cases
+and RPM/SRPM checks. Cold-start recovery now passes with the retained device's
+autoconnect policy disabled: Core explicitly activated the original protection
+profile, without duplicates or backend restarts. The maintainer confirmed
+recovery without clicking Retry or Connect. In-app Disconnect subsequently
+removed the Proton profiles and temporary test interface; a normal Connect
+created fresh profiles and reconnected. Both retained the signed-in session,
+zero backend restarts and unchanged unrelated private VPN. Explicit retry after unavailable
+activation, desktop/tray acceptance and the release gates below remain open.
 
 The original `0.11.3` assessment closed its seven recorded issues: one high,
 four medium and two low severity. Their original failure modes no longer
@@ -239,9 +244,10 @@ performed. This correction does not start a broad discovery/refactor cycle.
 
 ### START-02: inactive leak-protection device — 2026-09-09
 
-**Status: client containment verified in installed `0.9`; Core revision `12`
-normalization correction built and regression-tested, awaiting installation,
-live acceptance and independent review. P2 availability, not a demonstrated credential exposure or
+**Status: installed `0.9` / Core `12` verify automatic retained-device recovery
+and normal disconnect/reconnect; client failure containment also passed the earlier
+Core `11` test. Remaining explicit-retry/desktop acceptance and independent
+review are open. P2 availability, not a demonstrated credential exposure or
 authorization bypass.** This is separate from START-01's native registration
 failure and was not covered by the earlier source-review battery.
 
@@ -304,7 +310,8 @@ The maintainer then authorized both corrections:
   unrelated or uncertain-completion profiles are never deleted. Protection
   configuration and Core state-machine policy are unchanged.
 
-Bounded verification of this working candidate:
+Initial bounded verification before installed testing (Core revision `11`;
+the subsequent normalization correction and final installed results follow):
 
 - 448 Python cases pass with zero skips against the hash-checked actual Core
   5.6.10 fixture; Mypy and Ruff pass.
@@ -336,11 +343,10 @@ a09402e5aacdf333c9fda530d553b25ce56e3e856b48ba0592a4cbca9db9d6c5  python3-proton
 1a368bd66161d2c7ddceb81c2b1c799624dbcc617ef539a3a98228195f30d737  python3-proton-vpn-api-core-5.6.10-11.plasmavpn1.fc44.src.rpm
 ```
 
-Before closing START-02,
-review the exact candidate and verify first launch after upgrade, retained
-inactive-profile recovery after manual device disconnect, unavailable
-activation with an explicit retry, normal connect/disconnect, and desktop/tray
-reopening on the installed pair. Do not infer live NetworkManager behavior or
+Before closing START-02, review the exact candidate and finish unavailable
+activation with an explicit retry and desktop/tray reopening on the installed
+pair. First launch, retained-device recovery and normal disconnect/reconnect have the
+installed evidence below. Do not infer live NetworkManager behavior or
 leak-protection efficacy solely from the offline tests. Final release review,
 reproducible package checks and the planned soak remain separate gates.
 
@@ -378,8 +384,8 @@ profile or caller's request. Its updated fake models NetworkManager's normalized
 storage, and a dedicated regression fails against revision `11` and passes with
 the correction. All 14 activation cases, exact payload/bytecode checks and
 RPM/SRPM input checks pass in the isolated Fedora builder. The client binary
-is still the independently built `f6e12d0` artifact. Core `12` installation and
-live recovery validation remain pending.
+is still the independently built `f6e12d0` artifact. The subsequent Core `12`
+installation and live recovery checkpoint follows the artifact identities.
 
 Unsigned candidate SHA-256 values:
 
@@ -389,6 +395,45 @@ ae398a6d0a74328094d156c93bec72eb14d118e5b1db6ff1f8bd4fefcc089765  proton-vpn-kde
 8dca19459b8a85b3bf5b9b213b4e00e46b7c3cafd6a89c817d611a6845237902  python3-proton-vpn-api-core-5.6.10-12.plasmavpn1.fc44.x86_64.rpm
 87108c822319034b1d8a3a464c0bcf1449b2366b78d4a39a333eebb4a6c037bb  python3-proton-vpn-api-core-5.6.10-12.plasmavpn1.fc44.src.rpm
 ```
+
+#### Installed `0.9` / Core `12` recovery acceptance
+
+Signed source `5fa8279598041250a4038c518314c479035be7ec` supplies the
+Core-only normalization correction. The maintainer-approved upgrade installed
+Core `5.6.10-12.plasmavpn1.fc44`, with root-side payload verification passing;
+the client remained the exact `f6e12d0` artifact and keyring remained revision
+`8`. The extracted Core `12` fixture also passed all 448 Python/Core cases with
+zero skips, Mypy across 31 files and the 86% measured coverage gate.
+
+To reproduce the retained-device variant explicitly, the test retained the
+original inactive protection/VPN profiles and created a temporary dummy device
+named `ipv6leakintrf0`. Before cold launch, NetworkManager reported that device
+as disconnected with `GENERAL.AUTOCONNECT=no`, while the saved protection
+profile still had `connection.autoconnect=yes`. No credentials were collected
+or modified.
+
+The installed client recovered to `ready=true`, `loggedIn=true`,
+`authState=signed_in`, `state=connected`, `busy=false` and no error, with capture
+inactive and `NRestarts=0`. NetworkManager recorded an explicit activation by
+the backend process, using the original protection profile UUID. The device
+became connected while its `GENERAL.AUTOCONNECT` remained `no`: recovery did
+not depend on resetting that policy or adding a duplicate protection profile.
+The maintainer independently confirmed that neither Retry nor Connect was
+clicked. The unrelated private VPN stayed active and unchanged.
+
+The maintainer then clicked Disconnect in Plasma VPN. The backend remained
+ready, signed in, idle and error-free, with the same PID and zero restarts.
+NetworkManager removed the Proton tunnel and protection profiles, and the
+temporary dummy interface was also absent. No privileged manual cleanup was
+needed. A subsequent ordinary Connect in Plasma VPN created fresh Proton VPN
+and protection profiles and a new protection device; its autoconnect policy was
+`yes`. The maintainer confirmed normal connection, and the snapshot again
+reported ready/signed-in/connected, idle, no error or capture, with the same
+backend PID and zero restarts. Exactly one protection profile was present, and
+the unrelated private VPN remained unchanged. This verifies the observed
+automatic recovery, cleanup and normal reconnect paths; it does
+not claim packet-level leak testing, every activation failure, desktop/tray
+acceptance, independent review or release readiness.
 
 ### Replacement package verification — 2026-09-09
 

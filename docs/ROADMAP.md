@@ -131,7 +131,7 @@ reactivating the original profile recovered saved-session startup and the
 Proton connection with no source change; 23 backed-up inactive duplicates were
 removed, leaving active protection and unrelated connections unchanged.
 
-Operational recovery does not close START-02. The maintainer has now authorized
+That initial operational recovery did not close START-02. The maintainer authorized
 both the community startup/retry correction and a narrow Core activation patch.
 Both are implemented in the working candidate. The
 [UAT checkpoint](SECURITY-AUDIT-2026-08-30.md#start-02-inactive-leak-protection-device--2026-09-09)
@@ -150,14 +150,21 @@ and connection passed. Controlled retained-profile recovery verified the stable
 startup error/no-restart behavior but exposed an unmodeled NetworkManager
 normalization step in the Core comparison.
 
-Core revision `12` normalizes only the comparison copy and models normalized
-stored profiles in the regression fixture. All 14 cases and its isolated
-RPM/SRPM checks pass. The original connection was restored operationally;
-revision `12` installation and live recovery verification remain pending.
-This is a Core-only package correction, not another native-client rebuild.
+Core revision `12`, from signed source `5fa8279`, normalizes only the comparison
+copy and models normalized stored profiles in the regression fixture. All 14
+cases and its isolated RPM/SRPM checks pass, as do 448 Python/Core cases with
+zero skips against that fixture. It is now installed and root-verified.
+Cold-start recovery passed with a retained device whose autoconnect policy was
+disabled: the original protection profile was explicitly activated, without
+duplicates or backend restarts. The maintainer confirmed automatic recovery
+without Retry or Connect. In-app Disconnect removed the Proton profiles and
+temporary test interface and left the backend ready and signed in. A normal
+in-app Connect then created fresh profiles and reconnected without a backend
+restart; the unrelated private VPN was unchanged. This is a Core-only package correction, not another
+native-client rebuild or final independent approval.
 
 Still required: exact-candidate review, signed/reproducible package validation,
-START-02 installed recovery and retry verification,
+remaining START-02 explicit-retry and desktop/tray acceptance,
 maintainer first-window/session acceptance and ordinary desktop/tray UAT, final independent
 seven-perspective approval, and the planned one-week immutable-runtime soak.
 Version 0.13.0 remains unreleased.
