@@ -38,7 +38,10 @@ SectionCard {
             Kirigami.FormData.label: qsTr("Notifications:")
             text: qsTr("Show connection notifications")
             checked: appSettings.notificationsEnabled
-            onToggled: appSettings.notificationsEnabled = checked
+            onToggled: {
+                appSettings.notificationsEnabled = checked
+                checked = Qt.binding(() => appSettings.notificationsEnabled)
+            }
         }
 
         Controls.ComboBox {
@@ -49,7 +52,10 @@ SectionCard {
             valueRole: "value"
             currentIndex: section.iconStyleIndex(appSettings.iconStyle)
             Accessible.name: qsTr("Interface icon style")
-            onActivated: appSettings.iconStyle = currentValue
+            onActivated: {
+                appSettings.iconStyle = currentValue
+                currentIndex = Qt.binding(() => section.iconStyleIndex(appSettings.iconStyle))
+            }
         }
 
         Controls.Label {
@@ -66,7 +72,7 @@ SectionCard {
             placeholderText: qsTr("US, CH#101, NL#42")
             onEditingFinished: {
                 appSettings.pinnedServersText = text
-                text = appSettings.pinnedServersText
+                text = Qt.binding(() => appSettings.pinnedServersText)
             }
         }
 

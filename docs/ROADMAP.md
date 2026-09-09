@@ -45,6 +45,43 @@ The implementation constraints are:
   mechanics gate compares against `ec27fdc` and seals admitted deltas; that
   checksum is drift detection, not proof of correctness or reviewer approval.
 
+### Frozen release-candidate checkpoint — 2026-09-09
+
+The seven isolated reviewers completed one bounded review of
+`0912144793b8a149b8b2e2933bd8c78b71470214`. It required five P2 corrections and
+one low-severity/P3 security correction. **All six are now implemented and
+verified in the local working candidate; release approval remains pending.**
+No P0/P1 was substantiated; security coverage is explicitly partial. The
+[current finding register](SECURITY-AUDIT-2026-08-30.md#frozen-release-candidate-review--2026-09-09)
+contains the evidence, priorities and regression requirements.
+
+The maintainer-authorized bounded series implements four work areas:
+
+1. Own startup intent once, defer auto-connect until admissible, prevent later
+   preference changes from reviving it, and wait for tray activation/fallback.
+2. Publish local preference changes only after persistence is confirmed.
+3. Render public action-confirmation data as literal text, without image loads.
+4. Repair both offline search-benchmark fixtures without relaxing production
+   authentication, then refresh the measurement evidence.
+
+The review itself was read-only; the subsequent correction and verification
+are recorded in the [remediation checkpoint](SECURITY-AUDIT-2026-08-30.md#bounded-rc1rc6-remediation--2026-09-09).
+Subtractive and Cognitive
+Load found no blockers or reason for a broad refactor. Four optional P3
+follow-ups stay separate in the register; they do not expand this series.
+The fixes add no Core or networking changes. Do not automatically repeat broad
+discovery and repair.
+
+The corrected source passes 42 normal and sanitized native targets, 440
+Python/Core cases, affected-unit Clang-Tidy and static/mechanics checks. Commit
+the verified candidate before claiming exact-source archive/package results;
+the archive check still exercises the prior committed revision. These checks
+do not substitute for independent
+approval of the corrected commit, the exact six-artifact package battery in a
+clean buildroot, installed acceptance, or the planned one-week immutable-runtime
+soak. Version 0.13.0 remains unreleased. The dated checkpoints below retain
+earlier evidence, not current approval.
+
 ### Ownership consolidation before further UX work
 
 This is the approved refactor program following the 2026-09-07
@@ -58,12 +95,12 @@ dependency-ordered commits with focused proofs.
 
 #### Review checkpoint — bounded error-class correction 2026-09-08
 
-Latest isolated review: the separate seven-review battery at `4d6b5f2` found seven
+Earlier isolated review: the separate seven-review battery at `4d6b5f2` found seven
 P2 issues and one P3. The maintainer-authorized bounded series through `5a34639`
 implements R1–R8 with regression cases. All 41 normal/sanitized test targets,
 439 backend tests, 35 Clang-Tidy production files and static/candidate gates
 pass; explicit environment and package-validation gaps remain in the register.
-The [current correction register](SECURITY-AUDIT-2026-08-30.md#current-bounded-seven-review-correction-register--2026-09-08)
+The [previous correction register](SECURITY-AUDIT-2026-08-30.md#previous-bounded-seven-review-correction-register--2026-09-08)
 separates these results from the older checkpoints retained below. Do not reopen
 optional cleanup or begin another automatic scan/repair loop. After the bounded
 gates, freeze the candidate for package validation and focused installed UAT;

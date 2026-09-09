@@ -141,6 +141,8 @@ Item {
         onRejected: clearRequest()
 
         Controls.Label {
+            objectName: "runnerConfirmationText"
+            textFormat: Text.PlainText
             width: Kirigami.Units.gridUnit * 24
             wrapMode: Text.WordWrap
             text: runnerActionDialog.actionId === "fastest"

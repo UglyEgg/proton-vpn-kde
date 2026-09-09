@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <QDir>
+#include <QFile>
 #include <QJSValue>
 #include <QQmlComponent>
 #include <QQmlContext>
@@ -46,12 +47,51 @@ private Q_SLOTS:
     void windowSizeIsOwnedByContent();
     void startupControlsPreservePreferencesAndFit_data();
     void startupControlsPreservePreferencesAndFit();
+    void startupControlsRestoreRejectedValues();
     void releaseNotesAreBriefAndNavigable_data();
     void releaseNotesAreBriefAndNavigable();
 
 private:
     void capture(QQuickWindow *window);
 };
+
+void PresentationLayoutTest::startupControlsRestoreRejectedValues()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    const auto oldConfig = qgetenv("XDG_CONFIG_HOME");
+    const auto restore = qScopeGuard([&] { qputenv("XDG_CONFIG_HOME", oldConfig); });
+    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
+    QFile config(configHome.filePath("proton-vpn-kderc"));
+    QVERIFY(config.open(QIODevice::WriteOnly));
+    QVERIFY(config.write("[General][$i]\nAutoConnectTarget=US\n") > 0);
+    config.close();
+    AppSettings settings;
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(QStringLiteral(
+        PROTON_VPN_KDE_SOURCE_DIR "/qml/StartupSettingsSection.qml")));
+    QScopedPointer<QObject> root(component.createWithInitialProperties({
+        {QStringLiteral("appSettings"), QVariant::fromValue(static_cast<QObject *>(&settings))},
+        {QStringLiteral("pageWidth"), 800.0}}));
+    QVERIFY2(root, qPrintable(component.errorString()));
+    auto *autoConnect = root->findChild<QObject *>(QStringLiteral("startupAutoConnect"));
+    auto *presentation = root->findChild<QObject *>(QStringLiteral("startupPresentation"));
+    auto *tray = root->findChild<QObject *>(QStringLiteral("keepTrayControlsSwitch"));
+    QVERIFY(autoConnect && presentation && tray);
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        autoConnect->setProperty("currentIndex", 0);
+        QVERIFY(QMetaObject::invokeMethod(autoConnect, "activated", Q_ARG(int, 0)));
+        QCOMPARE(settings.autoConnectTarget(), QStringLiteral("US"));
+        QCOMPARE(autoConnect->property("currentIndex").toInt(), 2);
+        QVERIFY(!settings.errorMessage().isEmpty());
+        presentation->setProperty("currentIndex", 1);
+        QVERIFY(QMetaObject::invokeMethod(presentation, "activated", Q_ARG(int, 1)));
+        QCOMPARE(presentation->property("currentIndex").toInt(), 0);
+        tray->setProperty("checked", false);
+        QVERIFY(QMetaObject::invokeMethod(tray, "toggled"));
+        QVERIFY(tray->property("checked").toBool());
+    }
+}
 
 void PresentationLayoutTest::capture(QQuickWindow *window)
 {

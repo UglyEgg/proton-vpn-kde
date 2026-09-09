@@ -1,6 +1,70 @@
 # Performance
 
-## Bounded 0.13.0 observation — 2026-09-08
+## Corrected offline benchmark — 2026-09-09
+
+**Current status:** RC6 is corrected in the local working candidate based on
+`0912144`. Both benchmark passes use a shared offline authenticated fixture,
+not a real account session. A synthetic-cache regression explicitly prohibits
+initialization, login and socket creation and checks both passes. Production
+authentication checks and the search implementation are unchanged.
+
+After the native builds completed, the corrected script ran 50 iterations per
+query with actual Core 5.6.10 cache/model types. The local cache was 24,456,354
+bytes, containing 18,221 logical servers and 201 projected locations. Loading
+took 201.054 ms; projection construction and the first query took 117.946 ms.
+The allocation pass retained 2,640,733 traced bytes and peaked at 5,290,116 bytes.
+
+| Query | Median | p95 | Maximum |
+| --- | ---: | ---: | ---: |
+| `ch` | 1.207 ms | 1.345 ms | 1.431 ms |
+| `zur` | 0.758 ms | 1.073 ms | 1.388 ms |
+| `us-` | 0.425 ms | 0.552 ms | 0.701 ms |
+| `#1` | 0.202 ms | 0.223 ms | 0.296 ms |
+| `a` | 5.539 ms | 6.894 ms | 7.371 ms |
+| no match | 0.269 ms | 0.537 ms | 1.302 ms |
+
+This is offline adapter search with a fake authenticated session and an
+in-memory refresher. It excludes D-Bus, rendering, live refresh, cold GUI
+navigation and whole-app CPU/RAM. The cache and host differ from older samples;
+these figures confirm that measurement works again, not a new speedup claim.
+
+## Frozen candidate observation — 2026-09-09
+
+The isolated performance review of
+`0912144793b8a149b8b2e2933bd8c78b71470214` found a **measurement-tool defect**:
+both adapters created by `scripts/benchmark-search.py` remain signed out, so
+the authenticated search guard rejects the first timing query and the separate
+allocation pass. At that reviewed revision the script could not reproduce the
+historical search figures below. This did not demonstrate a runtime search regression; the
+production authentication guard is correct and must not be weakened. The
+[current review register](SECURITY-AUDIT-2026-08-30.md#frozen-release-candidate-review--2026-09-09)
+records RC6 and its subsequent correction.
+
+The existing two-cycle Inspector retention probe was rerun on that source:
+
+| Control Center state | PSS (KiB) | Private resident memory (KiB) |
+| --- | ---: | ---: |
+| Initial overview | 64,780 | 59,348 |
+| First Inspector open | 69,440 | 64,008 |
+| First close | 67,524 | 62,092 |
+| Second Inspector open | 69,168 | 63,752 |
+| Second close | 68,574 | 63,120 |
+
+The first close retained 2,744 KiB of both PSS and private memory above the
+initial sample. The second close added 1,050 KiB PSS and 1,028 KiB private
+memory. This is a Control Center-only, private-bus demo fixture with forced GC
+and offscreen software rendering, not combined client/Core memory or live-GPU
+evidence. Two cycles neither establish a leak nor prove bounded long-run growth.
+The earlier 20-cycle observation below used a different runtime and remains
+historical evidence; it is not silently carried forward to this candidate.
+
+Fresh cold-projection/browse event-loop latency, representative cache scaling,
+normal-GC long-run retention and native-GPU behavior remain measurement gaps.
+The benchmark repair permits measurement again; it does not itself improve
+runtime performance. Broader measurement gaps remain separate from RC6's
+tooling correction and do not justify speculative runtime optimization.
+
+## Bounded 0.13.0 observation — 2026-09-08 (historical)
 
 Before the startup-controls follow-up, the installed `58b3d83` client was
 observed connected with the Control Center closed for ten minutes (21 samples).
@@ -112,10 +176,11 @@ short isolated demo observations, not real-Core measurements, evidence of a
 leak, or proof of bounded long-run growth. They do not replace exact-package
 acceptance or supersede the separate historical 0.12.0 measurements.
 
-The native global-search benchmark uses Proton's existing local server cache.
-It does not contact Proton, connect a VPN, or read credentials.
+The backend search benchmark is intended to use Proton's existing local server
+cache without contacting Proton, connecting a VPN, or reading credentials.
+Its fixture correction is recorded in the 2026-09-09 section above.
 
-## Before-and-after search measurement
+## Before-and-after search measurement (historical)
 
 The measured cache was 24,328,124 bytes and contained 18,138 logical servers
 across 200 locations. Measurements used system Python 3.14 and Proton VPN API
@@ -196,7 +261,7 @@ no startup-latency claim is made from that run.
 
 ## Reproduce
 
-With an existing Proton server cache:
+With the RC6 fixture correction and an existing Proton server cache:
 
 ```bash
 PYTHONPATH=backend /usr/bin/python3 scripts/benchmark-search.py --iterations 50

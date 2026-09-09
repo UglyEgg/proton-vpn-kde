@@ -709,7 +709,10 @@ if(BUILD_TESTING)
     proton_vpn_kde_enable_backend_identity(control-center-control-tests)
     proton_vpn_kde_enable_installed_executable_paths(
         control-center-control-tests)
-    add_test(NAME control-center-control-tests COMMAND control-center-control-tests)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME control-center-control-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:control-center-control-tests>)
+    endif()
 
     qt_add_executable(krunner-plugin-tests
         tests/ProtonVpnRunnerTest.cpp
@@ -860,6 +863,7 @@ if(BUILD_TESTING)
     )
     qt_add_executable(sign-in-presentation-tests
         tests/SignInPresentationTest.cpp
+        src/RunnerActionRequest.cpp
     )
     target_include_directories(sign-in-presentation-tests PRIVATE src)
     set_target_properties(sign-in-presentation-tests PROPERTIES
@@ -867,6 +871,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(sign-in-presentation-tests PRIVATE
         Qt6::Core
+        Qt6::Network
         Qt6::Gui
         Qt6::Qml
         Qt6::Quick

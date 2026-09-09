@@ -6,6 +6,7 @@
 #include <KQuickConfigModuleLoader>
 
 #include <QGuiApplication>
+#include <QDir>
 #include <QQuickItem>
 #include <QResource>
 #include <QTemporaryDir>
@@ -42,6 +43,18 @@ void ProtonVpnKcmTest::loadsQmlConfigurationModule()
 #endif
     QVERIFY(result.plugin->mainUi()->findChild<QObject *>(QStringLiteral("startupSettingsSection")));
     QVERIFY(result.plugin->mainUi()->findChild<QObject *>(QStringLiteral("startAtLoginSwitch")));
+
+    auto *settings = result.plugin->property("appSettings").value<QObject *>();
+    auto *error = result.plugin->mainUi()->findChild<QObject *>(QStringLiteral("localPreferenceSaveError"));
+    QVERIFY(settings && error);
+    const QString configPath = QDir(QString::fromUtf8(qgetenv("XDG_CONFIG_HOME")))
+        .filePath(QStringLiteral("proton-vpn-kderc"));
+    QVERIFY(QDir().mkpath(configPath)); // Disposable unwritable config filename.
+    QVERIFY(settings->setProperty("iconStyle", QStringLiteral("light")));
+    QVERIFY(!settings->property("errorMessage").toString().isEmpty());
+    QCOMPARE(error->property("text"), settings->property("errorMessage"));
+    QVERIFY(error->property("visible").toBool());
+    QCOMPARE(settings->property("iconStyle").toString(), QStringLiteral("color"));
 }
 
 int main(int argc, char **argv)

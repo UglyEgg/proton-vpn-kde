@@ -5,10 +5,37 @@
 #include "InstalledExecutablePaths.h"
 
 #include <QFile>
+#include <QElapsedTimer>
+#include <QScopeGuard>
+#include <QDBusConnection>
+#include <QDBusError>
+#include <QDBusMessage>
+#include <QTimer>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTest>
 #include <QTemporaryDir>
+
+class FakeAgentActivation final : public QObject, protected QDBusContext
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", PROTON_VPN_KDE_DBUS_AGENT_INTERFACE)
+public:
+    bool reject = false;
+    bool withhold = false;
+public slots:
+    Q_SCRIPTABLE void EnsureRunning()
+    {
+        setDelayedReply(true);
+        if (!withhold) {
+            const auto reply = reject
+                ? message().createErrorReply(QDBusError::Failed, QStringLiteral("Synthetic activation failure"))
+                : message().createReply();
+            const auto bus = connection();
+            QTimer::singleShot(25, this, [bus, reply] { bus.send(reply); });
+        }
+    }
+};
 
 class ControlCenterControlTest final : public QObject
 {
@@ -20,7 +47,56 @@ private slots:
     void rejectsBroadBackendAuthority_data();
     void rejectsBroadBackendAuthority();
     void installedLaunchPathsIgnoreHostilePath();
+    void agentActivationSettlesBeforeLauncherExit_data();
+    void agentActivationSettlesBeforeLauncherExit();
 };
+
+void ControlCenterControlTest::agentActivationSettlesBeforeLauncherExit_data()
+{
+    QTest::addColumn<bool>("reject");
+    QTest::addColumn<bool>("withhold");
+    QTest::addColumn<bool>("fallbackWorks");
+    QTest::newRow("delayed-success") << false << false << true;
+    QTest::newRow("rejected-fallback") << true << false << true;
+    QTest::newRow("timeout-fallback") << false << true << true;
+    QTest::newRow("total-failure") << true << false << false;
+}
+
+void ControlCenterControlTest::agentActivationSettlesBeforeLauncherExit()
+{
+    QFETCH(bool, reject);
+    QFETCH(bool, withhold);
+    QFETCH(bool, fallbackWorks);
+    namespace Agent = ProtonVpnKde::DBusContract::Agent;
+    const auto name = QStringLiteral("activation-test-server");
+    auto bus = QDBusConnection::connectToBus(QDBusConnection::SessionBus, name);
+    const auto disconnect = qScopeGuard([&] { QDBusConnection::disconnectFromBus(name); });
+    QVERIFY(bus.isConnected()); // CTest supplies a private bus, never the desktop.
+    FakeAgentActivation agent;
+    agent.reject = reject;
+    agent.withhold = withhold;
+    QVERIFY(bus.registerService(QString::fromLatin1(Agent::serviceName)));
+    QVERIFY(bus.registerObject(QString::fromLatin1(Agent::objectPath), &agent,
+                               QDBusConnection::ExportScriptableSlots));
+    int fallbacks = 0;
+    int completions = 0;
+    bool started = false;
+    QElapsedTimer elapsed;
+    elapsed.start();
+    ProtonVpnKde::ensureAgentRunning([&](bool success) {
+        started = success;
+        ++completions;
+    }, [&] { ++fallbacks; return fallbackWorks; });
+    QCOMPARE(completions, 0);
+    QTRY_COMPARE_WITH_TIMEOUT(completions, 1, 5000);
+    QCOMPARE(fallbacks, reject || withhold ? 1 : 0);
+    QCOMPARE(started, (!reject && !withhold) || fallbackWorks);
+    if (withhold) {
+        QVERIFY(elapsed.elapsed() >= 2500); // Exercise the real pending-call deadline.
+    }
+    bus.unregisterObject(QString::fromLatin1(Agent::objectPath));
+    bus.unregisterService(QString::fromLatin1(Agent::serviceName));
+}
 
 void ControlCenterControlTest::acceptsOnlyValidatedRunnerActions_data()
 {

@@ -22,6 +22,14 @@ Kirigami.ScrollablePage {
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
+        Kirigami.InlineMessage {
+            objectName: "localPreferenceSaveError"
+            Layout.fillWidth: true
+            visible: page.settings.errorMessage.length > 0
+            type: Kirigami.MessageType.Warning
+            text: page.settings.errorMessage
+        }
+
         StartupSettingsSection {
             appSettings: page.settings
             pageWidth: page.width
@@ -46,14 +54,20 @@ Kirigami.ScrollablePage {
                 Kirigami.FormData.label: qsTr("Recovery:")
                 text: qsTr("Reconnect dropped VPN tunnels")
                 checked: page.settings.reconnectEnabled
-                onToggled: page.settings.reconnectEnabled = checked
+                onToggled: {
+                    page.settings.reconnectEnabled = checked
+                    checked = Qt.binding(() => page.settings.reconnectEnabled)
+                }
             }
 
             Controls.Switch {
                 Kirigami.FormData.label: qsTr("Notifications:")
                 text: qsTr("Show connection notifications")
                 checked: page.settings.notificationsEnabled
-                onToggled: page.settings.notificationsEnabled = checked
+                onToggled: {
+                    page.settings.notificationsEnabled = checked
+                    checked = Qt.binding(() => page.settings.notificationsEnabled)
+                }
             }
 
             Controls.ComboBox {
@@ -69,7 +83,11 @@ Kirigami.ScrollablePage {
                 currentIndex: page.settings.iconStyle === "light" ? 1
                               : page.settings.iconStyle === "dark" ? 2 : 0
                 Accessible.name: qsTr("Interface icon style")
-                onActivated: page.settings.iconStyle = currentValue
+                onActivated: {
+                    page.settings.iconStyle = currentValue
+                    currentIndex = Qt.binding(() => page.settings.iconStyle === "light" ? 1
+                                              : page.settings.iconStyle === "dark" ? 2 : 0)
+                }
             }
 
             Controls.TextField {
@@ -79,7 +97,7 @@ Kirigami.ScrollablePage {
                 placeholderText: qsTr("US, CH, CH#101")
                 onEditingFinished: {
                     page.settings.pinnedServersText = text
-                    text = page.settings.pinnedServersText
+                    text = Qt.binding(() => page.settings.pinnedServersText)
                 }
             }
 

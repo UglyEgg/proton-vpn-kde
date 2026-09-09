@@ -5,6 +5,16 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Keep auto-connect as a single launch intent: wait for startup work to finish,
+  do not replay it after tray preference changes, and allow tray-only launch
+  to finish its bounded activation/fallback attempt before exiting.
+- Confirm local Plasma preferences are stored before applying them. Show save
+  errors in the Control Center and KDE System Settings and restore rejected
+  controls to their stored values.
+- Render desktop action confirmations as literal text so supplied location
+  names cannot load images before consent. Restore offline search measurements
+  without initializing an account session or weakening authentication checks.
+
 - Invalidate cached System Settings QML after same-day package upgrades by
   stamping embedded resources with the exact source commit time.
 

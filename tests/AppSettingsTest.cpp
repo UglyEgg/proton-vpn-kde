@@ -10,6 +10,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <cctype>
 
 class AppSettingsTest final : public QObject
 {
@@ -23,7 +24,106 @@ private slots:
     void preservesForeignLoginEntries();
     void reportsLoginEntryWriteFailure();
     void doesNotClaimLockedLoginEntryWasSaved();
+    void rejectsUnpersistedPreferences_data();
+    void rejectsUnpersistedPreferences();
+    void rejectsPinnedGroupWrite();
 };
+
+void AppSettingsTest::rejectsUnpersistedPreferences_data()
+{
+    QTest::addColumn<QByteArray>("propertyName");
+    QTest::addColumn<QVariant>("requested");
+    QTest::addColumn<bool>("immutable");
+    const QList<QPair<QByteArray, QVariant>> changes{
+        {"notificationsEnabled", false}, {"reconnectEnabled", false},
+        {"startMinimized", true}, {"closeToTray", false},
+        {"autoConnectTarget", QString()},
+        {"pinnedServersText", QStringLiteral("CH#1")},
+        {"packetCaptureDirectory", QStringLiteral("/tmp/other-captures")},
+        {"iconStyle", QStringLiteral("light")},
+        {"fastestFeatures", QStringList{QStringLiteral("p2p")}}};
+    for (const auto &[property, value] : changes) {
+        for (bool locked : {false, true}) {
+            QTest::newRow((property + (locked ? "-immutable" : "-write-failed")).constData())
+                << property << value << locked;
+        }
+    }
+}
+
+void AppSettingsTest::rejectsUnpersistedPreferences()
+{
+    QFETCH(QByteArray, propertyName);
+    QFETCH(QVariant, requested);
+    QFETCH(bool, immutable);
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
+    const QString path = configHome.filePath("proton-vpn-kderc");
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    const QByteArray contents = immutable
+        ? "[General][$i]\nAutoConnectTarget=US\n"
+        : "[General]\nAutoConnectTarget=US\n";
+    QCOMPARE(file.write(contents), contents.size());
+    file.close();
+    AppSettings settings;
+    const QVariant previous = settings.property(propertyName.constData());
+    const QMetaProperty property = settings.metaObject()->property(
+        settings.metaObject()->indexOfProperty(propertyName.constData()));
+    QSignalSpy accepted(&settings, property.notifySignal());
+    if (!immutable) {
+        // A directory at the config filename fails writes even in root CI.
+        QVERIFY(file.remove());
+        QVERIFY(QDir().mkdir(path));
+    }
+    QVERIFY(settings.setProperty(propertyName.constData(), requested));
+    QVERIFY(!settings.errorMessage().isEmpty());
+    if (immutable) {
+        QCOMPARE(settings.property(propertyName.constData()), previous);
+        QCOMPARE(accepted.count(), 0);
+    } else {
+        // Reloading the now-missing config publishes defaults, never the
+        // rejected value. Auto-connect safely becomes Off in this fixture.
+        if (propertyName != "autoConnectTarget") {
+            QCOMPARE(settings.property(propertyName.constData()), previous);
+            QCOMPARE(accepted.count(), 0);
+        }
+        QVERIFY(QDir().rmdir(path));
+        // Neither destruction nor the next unrelated successful save may
+        // flush the failed write from KConfig's dirty cache.
+        settings.setPinnedServersText(QStringLiteral("DE"));
+        QVERIFY(settings.errorMessage().isEmpty());
+        KConfig stored(path, KConfig::SimpleConfig);
+        const KConfigGroup group(&stored, QStringLiteral("General"));
+        if (propertyName != "pinnedServersText") {
+            QByteArray key = propertyName;
+            key[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(key[0])));
+            QVERIFY(!group.hasKey(key.constData()));
+        }
+    }
+}
+
+void AppSettingsTest::rejectsPinnedGroupWrite()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toUtf8());
+    QFile file(configHome.filePath("proton-vpn-kderc"));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write("[General][$i]\n") > 0);
+    file.close();
+    AppSettings settings;
+    QSignalSpy servers(&settings, &AppSettings::pinnedServersChanged);
+    QSignalSpy groups(&settings, &AppSettings::pinnedServerGroupsChanged);
+    settings.togglePinnedServer(QStringLiteral("US"));
+    settings.togglePinnedServerGroup(QStringLiteral("US"), QStringLiteral("location"),
+                                    QStringLiteral("Illinois"));
+    QVERIFY(settings.pinnedServers().isEmpty());
+    QVERIFY(settings.pinnedServerGroups().isEmpty());
+    QCOMPARE(servers.count(), 0);
+    QCOMPARE(groups.count(), 0);
+    QVERIFY(!settings.errorMessage().isEmpty());
+}
 
 void AppSettingsTest::managesOnlyExplicitlyEnabledLoginEntry()
 {

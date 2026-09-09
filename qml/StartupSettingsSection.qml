@@ -12,6 +12,9 @@ SectionCard {
     required property var appSettings
     required property real pageWidth
     property bool choosingCustomTarget: false
+    readonly property int autoConnectIndex: choosingCustomTarget ? 2
+        : appSettings.autoConnectTarget.length === 0 ? 0
+        : appSettings.autoConnectTarget === "FASTEST" ? 1 : 2
     readonly property var loginStartup: appSettings.autostart
     title: qsTr("Startup")
     description: qsTr("Choose when Plasma VPN starts, what opens, and whether it connects.")
@@ -57,6 +60,8 @@ SectionCard {
                 if (index === 1) {
                     section.appSettings.closeToTray = true
                 }
+                currentIndex = Qt.binding(() => section.appSettings.startMinimized
+                                          && section.appSettings.closeToTray ? 1 : 0)
             }
         }
 
@@ -70,6 +75,7 @@ SectionCard {
                     section.appSettings.startMinimized = false
                 }
                 section.appSettings.closeToTray = checked
+                checked = Qt.binding(() => section.appSettings.closeToTray)
             }
         }
 
@@ -87,9 +93,7 @@ SectionCard {
             Kirigami.FormData.label: qsTr("Auto-connect:")
             Layout.fillWidth: true
             model: [qsTr("Off"), qsTr("Fastest suitable server"), qsTr("Country or exact server")]
-            currentIndex: section.choosingCustomTarget ? 2
-                          : section.appSettings.autoConnectTarget.length === 0 ? 0
-                          : section.appSettings.autoConnectTarget === "FASTEST" ? 1 : 2
+            currentIndex: section.autoConnectIndex
             onActivated: index => {
                 if (index === 0) {
                     section.appSettings.autoConnectTarget = ""
@@ -99,6 +103,7 @@ SectionCard {
                     section.appSettings.autoConnectTarget = ""
                 }
                 section.choosingCustomTarget = index === 2
+                currentIndex = Qt.binding(() => section.autoConnectIndex)
             }
         }
 

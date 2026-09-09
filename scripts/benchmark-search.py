@@ -34,6 +34,19 @@ class _CachedRefresher:
         return self._server_list
 
 
+def _offline_search_adapter(server_list: ServerList) -> ProtonCoreAdapter:
+    """Supply an authenticated search fixture, never a real account session.
+
+    The fake API exposes only an in-memory refresher. Do not initialize/login
+    the adapter: doing so would change this offline measurement's I/O boundary.
+    """
+    adapter = ProtonCoreAdapter(
+        SimpleNamespace(refresher=_CachedRefresher(server_list))
+    )
+    adapter._logged_in = True  # Offline fixture state, not production admission.
+    return adapter
+
+
 async def benchmark(cache_path: Path, iterations: int, queries: list[str]) -> dict:
     load_started = perf_counter()
     payload = CacheHandler(
@@ -43,9 +56,7 @@ async def benchmark(cache_path: Path, iterations: int, queries: list[str]) -> di
         raise RuntimeError(f"No valid Proton server cache found at {cache_path}")
     server_list = ServerList.from_dict(payload)
     load_milliseconds = (perf_counter() - load_started) * 1000
-    adapter = ProtonCoreAdapter(
-        SimpleNamespace(refresher=_CachedRefresher(server_list))
-    )
+    adapter = _offline_search_adapter(server_list)
 
     projection_started = perf_counter()
     await adapter.search_locations(queries[0])
@@ -73,15 +84,15 @@ async def benchmark(cache_path: Path, iterations: int, queries: list[str]) -> di
 
     projection = adapter._search_projection  # pylint: disable=protected-access
 
-    memory_adapter = ProtonCoreAdapter(
-        SimpleNamespace(refresher=_CachedRefresher(server_list))
-    )
+    memory_adapter = _offline_search_adapter(server_list)
     tracemalloc.start()
-    await memory_adapter.search_locations(queries[0])
-    projection_current_bytes, projection_peak_bytes = (
-        tracemalloc.get_traced_memory()
-    )
-    tracemalloc.stop()
+    try:
+        await memory_adapter.search_locations(queries[0])
+        projection_current_bytes, projection_peak_bytes = (
+            tracemalloc.get_traced_memory()
+        )
+    finally:
+        tracemalloc.stop()
     return {
         "cacheBytes": cache_path.stat().st_size,
         "cacheLoadMilliseconds": round(load_milliseconds, 3),

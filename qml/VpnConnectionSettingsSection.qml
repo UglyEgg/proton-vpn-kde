@@ -70,7 +70,10 @@ SectionCard {
             Kirigami.FormData.label: qsTr("Recovery:")
             text: qsTr("Reconnect dropped VPN tunnels")
             checked: appSettings.reconnectEnabled
-            onToggled: appSettings.reconnectEnabled = checked
+            onToggled: {
+                appSettings.reconnectEnabled = checked
+                checked = Qt.binding(() => appSettings.reconnectEnabled)
+            }
         }
 
         Controls.Label {

@@ -1,21 +1,30 @@
-# Security and engineering assessment — 2026-08-30, refreshed 2026-09-08
+# Security and engineering assessment — 2026-08-30, refreshed 2026-09-09
 
 ## Current assessment posture
 
-Documentation alignment was checked on 2026-09-09; this is not a new security
-review. The latest recorded client installation is `0.13.0-0.4.fc44` from
+The bounded seven-isolated-reviewer release battery completed on 2026-09-09
+against frozen source `0912144793b8a149b8b2e2933bd8c78b71470214`.
+That review required five P2 corrections and one low-severity/P3 security
+correction in four work areas. **All six are implemented in the local working
+candidate based on that revision**, with the bounded verification recorded
+below. This is not an independently approved release commit or an installed
+fix. No P0 or P1 was substantiated. The original review had explicit coverage
+limits and was not an exhaustive security audit.
+
+The latest recorded client installation is `0.13.0-0.4.fc44` from
 `16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`, with the exact package and
 verification evidence in the [local installation checkpoint](#startup-and-polish-local-install--2026-09-08).
-Later documentation changes do not extend that package's test evidence or
-replace the final release gates below.
+The new review did not operate or revalidate the installed client. Source
+checks do not extend that package's acceptance evidence or replace the final
+release gates below.
 
 The original `0.11.3` assessment closed its seven recorded issues: one high,
 four medium and two low severity. Their original failure modes no longer
 reproduced in focused tests, and the 2026-08-31 re-review found no new
 reportable issue. That historical result is not a claim about findings from
-later assessments. The current R1–R8 review and correction concern the
-unreleased branch; applicability to older public releases was not assessed in
-this bounded series.
+later assessments. Both the previous R1–R8 corrections and the new RC1–RC6
+findings concern the unreleased branch; applicability to older public releases
+was not assessed in these bounded series.
 
 The accepted `0.12.0` mechanics add event-driven backend lifetime and an
 on-demand Connection Inspector. Their pre-final isolated reviews and standard
@@ -30,14 +39,11 @@ asynchronous state-ownership corrections where the new presentation exposed a
 real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
-**Current source decision: the seven-isolated-reviewer battery at `4d6b5f2`
-required seven P2 corrections and one P3 correction. The bounded patch series
-through `5a34639` implements all eight and passes the bounded verification
-gates. Independent final release approval and installed UAT remain pending.**
-The current R1–R8 register below supersedes earlier candidate decisions. This
-is not release approval. No P1 was substantiated in this bounded review, but
-partial security coverage cannot exclude undiscovered defects. Subtractive and
-Cognitive Load/Code Maintainability required no changes.
+The [current RC1–RC6 register](#frozen-release-candidate-review--2026-09-09)
+supersedes earlier candidate decisions. R1–R8 remain implemented historical
+corrections; the new review does not reopen them. Subtractive and Cognitive
+Load/Code Maintainability found no blocking changes or reason for a broad
+refactor. Optional suggestions are recorded separately from required work.
 
 The refactor uses hash-checked actual Core **5.6.10** with external I/O replaced
 for conformance tests. The older 5.5.6 static API check is not evidence of a
@@ -109,7 +115,128 @@ attestation, certification, or warranty of security.
 
 ## Current 0.13.0 error-class review
 
-### Current bounded seven-review correction register — 2026-09-08
+### Bounded RC1–RC6 remediation — 2026-09-09
+
+The maintainer authorized one bounded correction series after the complete
+review. The following changes are implemented locally; the original frozen
+review decisions below are retained as historical evidence, not current open
+defects. No optional P3 cleanup, new Core patch or networking change was added.
+
+| Finding | Implemented correction | Focused verification |
+| --- | --- | --- |
+| RC1–RC2: startup intent | The window captures a target only when it owns launch auto-connect. It waits for actual connection admission, consumes the intent once and retires it on account/connection state, explicit connection operations or relevant preference changes. An agent-owned launch never creates a later window intent. | `ConnectionActionTest` covers not-ready, ready/busy then idle, one-shot consumption, agent-owned empty intent, active/error states and signed-out retirement. Startup preference tests preserve explicit launcher/settings requests. |
+| RC3: tray activation | The windowless launcher runs its event loop until the three-second activation attempt and optional detached-launch fallback finish. Total launch failure logs guidance and exits unsuccessfully. | `ControlCenterControlTest` uses a separate connection on a private bus: delayed success, rejection, a genuinely withheld reply reaching the deadline, fallback success and total failure. The fallback is harmless test code, never the installed agent. A successful detached launch is not a claim that backend authentication has completed. |
+| RC4: local persistence | All local setting types share a write/sync/readback boundary. Failed dirty writes are discarded; cached values and change signals come from stored state. The Control Center and KCM show save errors, and edited controls restore their bindings to accepted values. | Nine property families under immutable and failed-write conditions, pin/group toggles, no delayed flush after failure, ordinary persistence and cross-instance notification; repeated rejected startup controls and an actual loaded KCM error surface. If the config disappears, documented defaults become authoritative rather than retaining an unsaved proposal. |
+| RC5: confirmation text | The single public confirmation label explicitly uses `Text.PlainText`; validation, original arguments and acceptance-time permission checks are unchanged. | The committed production-dialog fixture first reproduced image requests for raw and JSON-escaped markup with all network I/O denied. After the fix both produce zero requests before/after acceptance; Unicode, entities and exact accepted group tuples are preserved. The existing permission/revocation matrix still passes. |
+| RC6: offline benchmark | Both measurement passes use one clearly named offline authenticated fixture exposing only an in-memory refresher. No adapter initialization, login or production authentication relaxation is involved. Allocation tracing is stopped even on failure. | A synthetic-cache regression covers timing and allocation, result counts and finite nonnegative measurements while forbidding account initialization/login and socket creation. A separate local-cache run completes with actual installed Core types; see Performance. |
+
+Security used one fresh read-only boundary investigator and one fresh read-only
+candidate reviewer. The candidate reviewer found no concrete bypass or
+legitimate-input regression. This closes the demonstrated RC5 path in the
+candidate; it does not turn the original partial scan into full coverage or
+replace the final seven-perspective release gate. Its sealed findings remain
+unchanged as evidence of the original revision.
+
+Candidate verification: **42 normal native targets**, the **42-target
+address/leak/undefined-behavior sanitizer suite**, **440 Python/Core 5.6.10 tests
+without skips**, Mypy for 31 files and 86% branch-aware Python coverage pass.
+The final QML/KCM changes also repeat the affected sanitizer checks. The three
+changed production C++ translation units pass Clang-Tidy; unchanged production
+units were not newly re-audited. Static analysis, documentation links, release
+metadata and the explicitly updated candidate-delta seal pass. These seals
+record the authorized scope, not independent approval.
+
+No package was built or installed, no live VPN was operated, and no commit,
+push, tag, release or upstream submission was made during remediation. The
+existing source-archive reproducibility check still targets committed
+`0912144`, not this uncommitted correction. Freeze/commit the verified candidate
+before the exact-source package/reproducibility gate, independent release
+approval, installed acceptance and planned soak. Do not restart a broad
+discovery/refactor loop automatically.
+
+### Frozen release-candidate review — 2026-09-09
+
+Reviewed source: `0912144793b8a149b8b2e2933bd8c78b71470214`, unchanged and clean
+through all seven reviews. Each perspective had its own fresh-context source
+reviewer; findings were consolidated only after the independent reports.
+Security also used an independent architecture investigator and parent-led
+validation. Reviewers did not run the application, inspect credentials, change
+the host network, or contact GitHub. Validation below used disposable local
+fixtures. No runtime remediation was applied during this review.
+
+| Perspective | Original decision at `0912144` | Consolidated result at that revision |
+| --- | --- | --- |
+| Hostile | Changes required | RC1–RC2; also identified the RC4 persistence class. |
+| Subtractive | Pass, no blocker | One optional unused-wrapper removal; no broad deletion proposal. |
+| Entropy | Changes required | RC3–RC4. |
+| Error-Class | Pass, optional follow-up | Two local adapter fields can lag in the cached snapshot after successful writes; no demonstrated networking defect. |
+| HPC/Performance | Changes required | RC6 blocks current offline search measurement; no measured runtime regression established. |
+| Hardening/Security | Changes required | RC5, low severity under the realistic same-session threat boundary. |
+| Cognitive Load/Code Maintainability | Pass, no blocker | Reuse an existing message validator and an existing fake-builder module when those areas next change. |
+
+All six baseline findings below are **corrected in the local candidate** as
+recorded above, not yet installed or release-approved. The table preserves the
+original failure and correction requirements. Priorities do not imply that
+every entry is a security vulnerability.
+
+| ID | Priority | Failure and evidence | Bounded correction and required regression |
+| --- | --- | --- | --- |
+| RC1 | P2 | Window-only startup consumes `startupActionHandled` before `connectTarget()` can dispatch. A first ready, signed-in but busy snapshot loses the saved auto-connect intent (`src/main.cpp`, `src/VpnControllerActions.cpp`). Source-validated. | Retain the one-shot until an admissible dispatch, with explicit startup ownership. Test ready/busy followed by idle: exactly one connection request. |
+| RC2 | P2 | Tray-enabled startup leaves the window's startup intent unconsumed. After manual disconnect, disabling tray controls and refreshing Inspector can revive auto-connect (`src/main.cpp`, `qml/ConnectionInspectorPage.qml`). Source-validated. | Choose the startup owner once and retire the window intent when the agent owns it. Test that later preference changes and refreshes cannot replay launch intent. |
+| RC3 | P2 | Tray-only startup returns before asynchronous agent activation settles; the application's watcher and fallback callback are destroyed (`src/main.cpp`, `src/AgentControl.cpp`). Healthy activation may succeed, but rejected or delayed activation loses recovery. Source-validated. | Keep a bounded launch transaction alive through activation/fallback and report total failure. Test rejected/delayed activation on a private bus, healthy startup, and explicit `--show`. |
+| RC4 | P2 | `AppSettings` publishes accepted changes while ignoring persistence failure or immutable KConfig entries. An isolated immutable `AutoConnectTarget=US` fixture displayed Off, still stored US, and emitted one accepted-change signal. A later process can therefore auto-connect despite the apparent opt-out. | Confirm persistence/readback before publishing accepted state, retain the authoritative value on failure and expose an error through existing settings surfaces. Cover immutable and unwritable configuration without changing host preferences. |
+| RC5 | P3 / low security | A public broker request can put image markup in a bounded group name. `qml/MainDialogs.qml` auto-formats the confirmation label before acceptance. The production validator and unchanged dialog requested one synthetic image URL in a fixture whose network manager denied all I/O. | Use `Text.PlainText` at the confirmation label. Test literal markup, zero resource requests before/after acceptance, Unicode names and existing confirmation/admission controls. |
+| RC6 | P2 / tooling | Both adapters constructed by `scripts/benchmark-search.py` remain signed out. `search_locations()` rejects them at the authenticated-epoch guard before timing or allocation measurement. Source-validated; historical search figures are not a result from this candidate. | Give both passes one explicit offline authenticated fixture, or measure the projection directly and label the narrower scope. Never weaken production authentication or log in for a benchmark. Cover both passes with a small synthetic cache and external I/O disabled. |
+
+RC1–RC3 belong to one startup-intent/activation work area; RC4, RC5 and RC6 are
+three separate areas. None requires changing Proton Core, authentication
+protocols or NetworkManager behavior. They were addressed by the bounded
+correction series above, not another discovery/refactor loop.
+
+RC5's demonstrated effect is pre-consent resource loading and attacker-chosen
+presentation. Extra network reach requires a caller with session-bus access
+but less network authority than the frontend. No code execution, credential
+disclosure, unauthorized VPN mutation or protection bypass was established.
+The existing backend authorization and confirmation gates still apply to VPN
+actions. The sealed standard security scan is
+`1a80f402-bb79-4c74-8bbc-e991aa144538`: **71/333 tracked paths fully reviewed,
+262 deferred**. That inventory is not a claim of complete repository coverage;
+older scans' coverage must not be added to it. Full external Core/NetworkManager
+behavior and live sandbox permissions were not independently audited.
+
+Optional P3 follow-ups, not required release corrections:
+
+- Remove the unreferenced `_connection_supports_packet_capture()` wrapper in
+  `adapters.py`; retain the actual `PacketCaptureCoordinator` consumer.
+- Publish cached adapter snapshot fields after confirmed reconnect-preference
+  and kill-switch-setting commits. Persistence and Core behavior are correct;
+  these two cached fields can remain stale until another snapshot event.
+- Reuse the existing `BackendCallPolicy` message validator in the three native
+  settings reply families; preserve family-specific error handling.
+- Move the stateless API fake builder borrowed from another `TestCase` into
+  the existing `core_fakes.py`, without a new fixture framework.
+
+Fresh validation on the frozen source passed **42/42 native CTest targets**,
+**439 Python/Core 5.6.10 tests without skips**, Mypy for 31 files and 86%
+branch-aware Python coverage. Ruff, ShellCheck, contract/provenance checks,
+documentation links, release metadata, mechanics scope and exact-commit source
+archive reproducibility also passed. Core conformance uses hash-checked actual
+5.6.10 code with external I/O substituted. The immutable-preference and denied
+image-request probes independently reproduced RC4 and RC5. They are temporary
+diagnostic fixtures, not committed regression coverage or installed UAT.
+
+A fresh two-cycle Inspector retention probe is recorded in
+[Performance](PERFORMANCE.md#frozen-candidate-observation--2026-09-09). It uses
+forced GC and software rendering and does not prove long-run retention bounds.
+No fresh complete sanitizer/Clang-Tidy run, package buildroot, six-artifact
+rebuild, live acceptance or soak was performed in this battery. These remain
+separate gates, alongside independent approval of the eventual corrected
+commit. No push, tag, publication or upstream submission occurred.
+
+### Previous bounded seven-review correction register — 2026-09-08
+
+**Historical implemented corrections, not the current open-finding register.**
+The RC1–RC6 section above is the current release decision.
 
 Reviewed baseline: `4d6b5f28615f2e4b1543b292879bd1e6b8a42a88`. Each of the seven
 perspectives used a separate fresh-context reviewer. The maintainer authorized

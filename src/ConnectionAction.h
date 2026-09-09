@@ -4,9 +4,27 @@
 #pragma once
 
 #include <QStringView>
+#include <QString>
+#include <utility>
 
 namespace ProtonVpnKde
 {
+// pendingTarget is captured once at launch, empty when the agent owns startup.
+// Observation cannot create a new intent, and readiness alone cannot consume it.
+inline QString takeStartupConnectionTarget(QString &pendingTarget, bool ready,
+                                           bool loggedIn, QStringView state,
+                                           bool canConnect)
+{
+    if (!ready || pendingTarget.isEmpty()) {
+        return {};
+    }
+    if (!loggedIn || state != QStringView(u"disconnected")) {
+        pendingTarget.clear();
+        return {};
+    }
+    return canConnect ? std::exchange(pendingTarget, QString()) : QString();
+}
+
 inline bool primaryActionDisconnects(QStringView state)
 {
     return state == QStringView(u"connected")

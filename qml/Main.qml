@@ -31,6 +31,15 @@ ContentSizedWindow {
                  ? Kirigami.Units.smallSpacing : 0
         height: childrenRect.height
 
+        Kirigami.InlineMessage {
+            objectName: "localPreferenceSaveError"
+            width: parent.width
+            visible: root.integrationSettings.errorMessage.length > 0
+            height: visible ? implicitHeight : 0
+            type: Kirigami.MessageType.Warning
+            text: root.integrationSettings.errorMessage
+        }
+
         ApplicationRecoveryBanner {
             id: applicationRecoveryBanner
             width: parent.width

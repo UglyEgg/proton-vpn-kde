@@ -2,15 +2,67 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <QQmlComponent>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QQmlNetworkAccessManagerFactory>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QQuickItem>
+#include <QQuickWindow>
+#include <QTimer>
+#include <atomic>
 #include <QScopedPointer>
 #include <QStringListModel>
 #include <QtTest>
 #include "ConnectionAction.h"
+#include "RunnerActionRequest.h"
 
 namespace
 {
+class DeniedReply final : public QNetworkReply
+{
+public:
+    DeniedReply(const QNetworkRequest &request, QObject *parent) : QNetworkReply(parent)
+    {
+        setRequest(request);
+        setUrl(request.url());
+        open(QIODevice::ReadOnly);
+        setError(QNetworkReply::ContentAccessDenied, QStringLiteral("No test network I/O"));
+        setFinished(true);
+        QTimer::singleShot(0, this, [this] { emit finished(); });
+    }
+    void abort() override { }
+protected:
+    qint64 readData(char *, qint64) override { return -1; }
+};
+
+class DenyingNetworkFactory final : public QQmlNetworkAccessManagerFactory
+{
+public:
+    std::atomic_int requests = 0;
+    QNetworkAccessManager *create(QObject *parent) override
+    {
+        class Manager final : public QNetworkAccessManager
+        {
+        public:
+            Manager(std::atomic_int &count, QObject *owner)
+                : QNetworkAccessManager(owner), m_count(count) { }
+        protected:
+            QNetworkReply *createRequest(Operation, const QNetworkRequest &request,
+                                         QIODevice *) override
+            {
+                ++m_count;
+                return new DeniedReply(request, this); // Never call the network implementation.
+            }
+        private:
+            std::atomic_int &m_count;
+        };
+        return new Manager(requests, parent);
+    }
+};
+
 class FakeVpnController final : public QObject
 {
     Q_OBJECT
@@ -70,6 +122,7 @@ public:
     int refreshCalls = 0;
     int disconnectCalls = 0;
     int connectCalls = 0;
+    QStringList connectedGroup;
     QString serverFilter;
     QStringListModel emptyServerModel;
 
@@ -111,7 +164,11 @@ public:
         serverFilter = filter;
     }
     Q_INVOKABLE void connectGroup(
-        const QString &, const QString &, const QString &) { ++connectCalls; }
+        const QString &country, const QString &kind, const QString &name)
+    {
+        ++connectCalls;
+        connectedGroup = {country, kind, name};
+    }
     Q_INVOKABLE void connectGroupWithFeatures(
         const QString &, const QString &, const QString &, const QStringList &) { }
     Q_INVOKABLE void connectServer(const QString &) { ++connectCalls; }
@@ -161,6 +218,8 @@ private slots:
     void connectionFeedbackCannotInferAcknowledgement();
     void runnerActionsUseCurrentIntentPermission_data();
     void runnerActionsUseCurrentIntentPermission();
+    void runnerNamesAreLiteralWithoutResourceLoading_data();
+    void runnerNamesAreLiteralWithoutResourceLoading();
     void serverEmptyStateExplainsActiveFilters_data();
     void serverEmptyStateExplainsActiveFilters();
     void captureActionPreservesCleanupAdmission_data();
@@ -171,6 +230,64 @@ private:
                              const QString &fileName);
     QString m_componentErrors;
 };
+
+void SignInPresentationTest::runnerNamesAreLiteralWithoutResourceLoading_data()
+{
+    QTest::addColumn<QString>("argument");
+    QTest::newRow("image") << QStringLiteral(
+        R"({"countryCode":"CH","kind":"location","name":"<img src='https://review.invalid/pixel.png'>"})");
+    QTest::newRow("json-escaped-image") << QStringLiteral(
+        R"({"countryCode":"CH","kind":"location","name":"\u003cimg src='https://review.invalid/pixel.png'\u003e"})");
+    QTest::newRow("unicode-secure-core") << QStringLiteral(
+        R"({"countryCode":"CH","kind":"secure-core","name":"Zürich — 東京"})");
+    QTest::newRow("entities") << QStringLiteral(
+        R"({"countryCode":"CH","kind":"location","name":"<b>A &amp; B</b>"})");
+}
+
+void SignInPresentationTest::runnerNamesAreLiteralWithoutResourceLoading()
+{
+    QFETCH(QString, argument);
+    const auto request = ProtonVpnKde::validatedRunnerActionRequest(QStringLiteral("group"), argument);
+    QVERIFY(request);
+    const auto group = QJsonDocument::fromJson(request->argument.toUtf8()).object();
+    FakeVpnController controller;
+    controller.loggedIn = true;
+    controller.authState = QStringLiteral("signed_in");
+    FakeAppSettings appSettings;
+    DenyingNetworkFactory network;
+    QQmlEngine engine;
+    engine.setNetworkAccessManagerFactory(&network);
+    QQuickWindow window;
+    window.resize(800, 600);
+    QQmlComponent component(&engine, QUrl::fromLocalFile(QStringLiteral(
+        PROTON_VPN_KDE_SOURCE_DIR "/qml/MainDialogs.qml")));
+    QScopedPointer<QObject> dialogs(component.createWithInitialProperties({
+        {QStringLiteral("vpnController"), QVariant::fromValue(static_cast<QObject *>(&controller))},
+        {QStringLiteral("appSettings"), QVariant::fromValue(static_cast<QObject *>(&appSettings))},
+        {QStringLiteral("windowWidth"), 800.0}}));
+    QVERIFY2(dialogs, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(dialogs.data());
+    QVERIFY(item);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(800, 600));
+    window.show();
+    QVERIFY(QMetaObject::invokeMethod(dialogs.data(), "requestRunnerAction",
+        Q_ARG(QVariant, QVariant(request->action)), Q_ARG(QVariant, QVariant(request->argument))));
+    QTRY_VERIFY(dialogs->property("runnerActionVisible").toBool());
+    QTest::qWait(100);
+    QCOMPARE(controller.connectCalls, 0);
+    QCOMPARE(network.requests.load(), 0);
+    auto *label = dialogs->findChild<QObject *>(QStringLiteral("runnerConfirmationText"));
+    QVERIFY(label);
+    QCOMPARE(label->property("textFormat").toInt(), static_cast<int>(Qt::PlainText));
+    QVERIFY(label->property("text").toString().contains(group.value(QStringLiteral("name")).toString()));
+    QVERIFY(QMetaObject::invokeMethod(dialogs.data(), "acceptRunnerAction"));
+    QTest::qWait(50);
+    QCOMPARE(network.requests.load(), 0);
+    QCOMPARE(controller.connectCalls, 1);
+    QCOMPARE(controller.connectedGroup, QStringList({QStringLiteral("CH"),
+        group.value(QStringLiteral("kind")).toString(), group.value(QStringLiteral("name")).toString()}));
+}
 
 QObject *SignInPresentationTest::createComponent(QQmlEngine &engine,
                                                  FakeVpnController &controller,

@@ -26,6 +26,7 @@ class AppSettings final : public QObject
     Q_PROPERTY(QString packetCaptureDirectory READ packetCaptureDirectory WRITE setPacketCaptureDirectory NOTIFY packetCaptureDirectoryChanged)
     Q_PROPERTY(QString iconStyle READ iconStyle WRITE setIconStyle NOTIFY iconStyleChanged)
     Q_PROPERTY(QStringList fastestFeatures READ fastestFeatures WRITE setFastestFeatures NOTIFY fastestFeaturesChanged)
+    Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
 
 public:
     struct PinnedServerGroup {
@@ -52,6 +53,7 @@ public:
     [[nodiscard]] QString packetCaptureDirectory() const;
     [[nodiscard]] QString iconStyle() const;
     [[nodiscard]] QStringList fastestFeatures() const;
+    [[nodiscard]] QString errorMessage() const { return m_errorMessage; }
 
     void setNotificationsEnabled(bool enabled);
     void setReconnectEnabled(bool enabled);
@@ -77,6 +79,7 @@ public:
                                               bool enabled);
 
 signals:
+    void errorMessageChanged();
     void notificationsEnabledChanged();
     void reconnectEnabledChanged();
     void startMinimizedChanged();
@@ -90,9 +93,7 @@ signals:
 
 private:
     void reloadSettings();
-    void writeSetting(const char *key, bool value);
-    void writeSetting(const char *key, const QString &value);
-    void writeSetting(const char *key, const QStringList &value);
+    template<typename T> void writeSetting(const char *key, const T &value);
     static QString normalizeConnectionTarget(const QString &target);
     static QStringList normalizePinnedServers(const QString &servers);
     static PinnedServerGroup normalizePinnedServerGroup(
@@ -106,6 +107,7 @@ private:
     static QStringList normalizeFastestFeatures(const QStringList &features);
 
     KSharedConfig::Ptr m_config;
+    QString m_errorMessage;
     AutostartSettings *m_autostart = nullptr;
     KConfigWatcher::Ptr m_configWatcher;
     bool m_notificationsEnabled = true;

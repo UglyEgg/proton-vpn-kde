@@ -220,20 +220,32 @@ void ProtonVpnKde::setAgentEnabled(bool enabled)
             agentCall(QString::fromLatin1(AgentDbus::Method::quit)), 2000);
         return;
     }
+    ensureAgentRunning();
+}
+
+void ProtonVpnKde::ensureAgentRunning(std::function<void(bool)> completed,
+                                     std::function<bool()> fallback)
+{
+    if (!fallback) {
+        fallback = [] { return QProcess::startDetached(ProtonVpnKde::agentExecutablePath()); };
+    }
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(
             agentCall(QString::fromLatin1(AgentDbus::Method::ensureRunning)), 3000),
         QCoreApplication::instance());
     QObject::connect(watcher, &QDBusPendingCallWatcher::finished,
                      QCoreApplication::instance(),
-                     [](QDBusPendingCallWatcher *finished) {
+                     [completed = std::move(completed), fallback = std::move(fallback)]
+                     (QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<> reply = *finished;
         finished->deleteLater();
-        if (!reply.isError()) {
-            return;
+        const bool started = !reply.isError() || fallback();
+        if (!started) {
+            qWarning("Unable to start Plasma VPN background controls");
         }
-        QProcess::startDetached(
-            ProtonVpnKde::agentExecutablePath());
+        if (completed) {
+            completed(started);
+        }
     });
 }
 

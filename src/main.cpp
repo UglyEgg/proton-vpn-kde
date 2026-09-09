@@ -5,6 +5,7 @@
 #include "AppIcon.h"
 #include "AppSettings.h"
 #include "BackendIdentity.h"
+#include "ConnectionAction.h"
 #include "TranslationLoader.h"
 #include "UpdateChannel.h"
 #include "VpnController.h"
@@ -161,19 +162,32 @@ int main(int argc, char *argv[])
     }
 
     if (!internalTest) {
+        if (settings.startTrayOnly(openSettings, forceShow)) {
+            // A windowless launcher must keep its event loop alive until the
+            // bounded activation attempt and any detached fallback settle.
+            QTimer::singleShot(0, &app, [] {
+                ProtonVpnKde::ensureAgentRunning([](bool started) {
+                    QCoreApplication::exit(started ? 0 : 1);
+                });
+            });
+            return app.exec();
+        }
         ProtonVpnKde::setAgentEnabled(settings.closeToTray());
         QObject::connect(&settings, &AppSettings::closeToTrayChanged,
                          &app, [&settings] {
             ProtonVpnKde::setAgentEnabled(settings.closeToTray());
         });
-        if (settings.startTrayOnly(openSettings, forceShow)) {
-            return 0;
-        }
     }
 
     UpdateChannel updateChannel;
     VpnController controller;
-    bool startupActionHandled = false;
+    QString startupTarget = settings.closeToTray() ? QString()
+                                                  : settings.autoConnectTarget();
+    const auto retireStartup = [&startupTarget] { startupTarget.clear(); };
+    QObject::connect(&settings, &AppSettings::closeToTrayChanged, &app, retireStartup);
+    QObject::connect(&settings, &AppSettings::autoConnectTargetChanged, &app, retireStartup);
+    QObject::connect(&controller, &VpnController::connectionOperationStarted,
+                     &app, retireStartup);
     controller.setReconnectionEnabled(settings.reconnectEnabled());
     controller.setFastestFeatures(settings.fastestFeatures());
     QObject::connect(&settings, &AppSettings::reconnectEnabledChanged,
@@ -185,16 +199,12 @@ int main(int argc, char *argv[])
         controller.setFastestFeatures(settings.fastestFeatures());
     });
     QObject::connect(&controller, &VpnController::snapshotChanged,
-                     &app, [&controller, &settings, &startupActionHandled] {
-        if (settings.closeToTray() || startupActionHandled
-            || !controller.ready()) {
-            return;
-        }
-        startupActionHandled = true;
-        if (controller.loggedIn()
-            && controller.state() == QStringLiteral("disconnected")
-            && !settings.autoConnectTarget().isEmpty()) {
-            controller.connectTarget(settings.autoConnectTarget());
+                     &app, [&controller, &startupTarget] {
+        const QString target = ProtonVpnKde::takeStartupConnectionTarget(
+            startupTarget, controller.ready(), controller.loggedIn(),
+            controller.state(), controller.canConnect());
+        if (!target.isEmpty()) {
+            controller.connectTarget(target);
         }
     });
 

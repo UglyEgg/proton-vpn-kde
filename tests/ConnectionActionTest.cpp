@@ -15,7 +15,37 @@ private slots:
     void admissionMatrix_data();
     void admissionMatrix();
     void invalidAndUnauthenticatedStatesNeverAuthorizeConnect();
+    void startupWaitsForAdmissionAndNeverReplays();
 };
+
+void ConnectionActionTest::startupWaitsForAdmissionAndNeverReplays()
+{
+    using ProtonVpnKde::takeStartupConnectionTarget;
+    QString target = QStringLiteral("US");
+    QVERIFY(takeStartupConnectionTarget(target, false, false, u"disconnected", false).isEmpty());
+    QCOMPARE(target, QStringLiteral("US"));
+    // Registration's reconnection-preference write can make the first ready
+    // snapshot busy. That observation is not an admitted Connect request.
+    QVERIFY(takeStartupConnectionTarget(target, true, true, u"disconnected", false).isEmpty());
+    QCOMPARE(target, QStringLiteral("US"));
+    QCOMPARE(takeStartupConnectionTarget(target, true, true, u"disconnected", true), QStringLiteral("US"));
+    QVERIFY(takeStartupConnectionTarget(target, true, true, u"disconnected", true).isEmpty());
+
+    // An agent-owned launch starts with no window intent. Manual disconnect,
+    // later tray disable and Inspector refresh cannot manufacture one.
+    QString agentOwnedTarget;
+    QVERIFY(takeStartupConnectionTarget(agentOwnedTarget, true, true, u"connected", true).isEmpty());
+    QVERIFY(takeStartupConnectionTarget(agentOwnedTarget, true, true, u"disconnected", true).isEmpty());
+    for (const QString &state : {QStringLiteral("connected"), QStringLiteral("connecting"),
+                                QStringLiteral("disconnecting"), QStringLiteral("error")}) {
+        target = QStringLiteral("US");
+        QVERIFY(takeStartupConnectionTarget(target, true, true, state, false).isEmpty());
+        QVERIFY(takeStartupConnectionTarget(target, true, true, u"disconnected", true).isEmpty());
+    }
+    target = QStringLiteral("US");
+    QVERIFY(takeStartupConnectionTarget(target, true, false, u"disconnected", false).isEmpty());
+    QVERIFY(takeStartupConnectionTarget(target, true, true, u"disconnected", true).isEmpty());
+}
 
 void ConnectionActionTest::disconnectsProtectiveAndActiveStates()
 {

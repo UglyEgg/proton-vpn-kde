@@ -104,6 +104,7 @@ while IFS= read -r path; do
         backend/tests/test_proton_core_adapter.py|\
         backend/tests/test_reconnector.py|\
         backend/tests/test_refresher_events.py|\
+        backend/tests/test_search_projection.py|\
         backend/tests/test_task_scope.py|\
         data/proton-vpn-kde-backend.service.in|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
@@ -114,6 +115,7 @@ while IFS= read -r path; do
         src/BackendIdentity.cpp|src/BackendIdentity.h|\
         src/NotificationIntegration.cpp|src/NotificationIntegration.h|\
         src/AppSettings.cpp|src/AppSettings.h|kcm/ui/main.qml|\
+        src/AgentControl.cpp|src/AgentControl.h|\
         src/AutostartSettings.cpp|src/AutostartSettings.h|\
         src/BackendCallPolicy.h|src/BackgroundQuitCoordinator.cpp|\
         src/ConnectionAction.h|src/OperationCompletion.h|src/ShortcutIntegration.cpp|\
@@ -129,6 +131,7 @@ while IFS= read -r path; do
         tests/AgentVpnClientTest.cpp|tests/GroupedNavigationTest.cpp|\
         tests/BackendIdentityTest.cpp|tests/NotificationIntegrationTest.cpp|\
         tests/AppSettingsTest.cpp|\
+        tests/ControlCenterControlTest.cpp|\
         tests/ProtonVpnKcmTest.cpp|\
         tests/PresentationLayoutTest.cpp|\
         tests/BackendCallPolicyTest.cpp|tests/BackgroundQuitCoordinatorTest.cpp|\
@@ -146,6 +149,7 @@ while IFS= read -r path; do
         scripts/check-core-contract.py|\
         scripts/check-release-metadata.sh|scripts/check-rpm-artifact.sh|\
         scripts/check-ux-mechanics-freeze.sh|\
+        scripts/benchmark-search.py|\
         scripts/smoke-qml-diagnostics.sh|scripts/smoke-qml-layout-variants.sh|\
         scripts/smoke-settings-route.sh|scripts/smoke-staged-install.sh|\
         scripts/test-ux-mechanics-freeze-negative.sh)
@@ -165,14 +169,14 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "de082b5b70f5499b3d4742a1120a721da864c8761a5c4b4d58d9cc13bcda93c3" \
+    "fc959b5d884b31e604d77bf806ad0df507b5dd8e76d4c2d3c83a4142eb69acad" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "3f68e8c8f33d5b01744d8a8c2c537f620160ec3ea04c2ff3884ddf64e5efb71f" \
+    "bb89a0e8d52fa0a7d34adfde107b7ce904d176dcb75056f15f25ce2bd448f2d4" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
@@ -199,12 +203,18 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "dec39e2482aa8eff6afffaf5c61576f0b84ada961e71c56897256f9303730791" \
+    "5eff62042e534555b0eb695a87306ccd450da7832ab114b2574d115d97ef1c78" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "b615e53f698af636cec260d58ffd6b2dc8bdc4d64071e7c34c595ccf64fc3128" \
+    "b2ab7903186266d7165efa4907038b272070223b8b43157ad3c3f61a37916323" \
     "QML presentation" qml
+
+# RC1–RC6: explicitly authorized startup/persistence/presentation corrections
+# and offline measurement fixtures. These seals still do not grant approval.
+assert_diff_hash \
+    "2307b7ff215dd918276e71decb16703f3120702aee1ff6a61fa46c993ea9a3e6" \
+    "offline search measurement" scripts/benchmark-search.py
 
 assert_diff_hash \
     "5bfd83782480c0976b1b3cfe6ea8dd84d099329137b1b0f46c80acb4dde2f48a" \

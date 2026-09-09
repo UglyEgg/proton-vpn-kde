@@ -87,7 +87,7 @@ Kirigami.ScrollablePage {
                 notes: [
                     qsTr("A clearer connection view, with server details beside your destination and a curved outside-VPN route when split tunneling is on."),
                     qsTr("The window fits the connection layout. Settings, server browsing, and account details open from the places you already use."),
-                    qsTr("Choose whether Plasma VPN starts at login, opens a window or stays in the tray, and connects automatically."),
+                    qsTr("Choose login, window or tray startup and reliable auto-connect. Local preference save failures stay visible."),
                     qsTr("Find suitable servers with combined capability filters, and get clearer guidance when sign-in or connection recovery needs attention."),
                     qsTr("Native Plasma themes, smoother route graphics, and better layouts for larger text.")
                 ]

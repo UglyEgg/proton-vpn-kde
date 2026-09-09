@@ -8,6 +8,7 @@
 #include <QDBusContext>
 #include <QObject>
 #include <QStringList>
+#include <functional>
 
 class AgentControl final : public QObject, protected QDBusContext
 {
@@ -60,6 +61,10 @@ private:
 
 namespace ProtonVpnKde
 {
+// Completion belongs to the application lifetime. Tests supply a harmless
+// fallback; production always uses the configured packaged executable path.
+void ensureAgentRunning(std::function<void(bool)> completed = {},
+                        std::function<bool()> fallback = {});
 void setAgentEnabled(bool enabled);
 void requestControlCenter(bool settings = false);
 void requestConfirmedControlCenterAction(const QString &action,
