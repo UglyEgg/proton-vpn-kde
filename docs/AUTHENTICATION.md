@@ -41,6 +41,19 @@ System Settings module, and resident-agent fallback use configured absolute
 paths, so an inherited writable-leading `PATH` cannot substitute a different
 client process inside this boundary.
 
+Direct desktop launches and native fallback launches may inherit those same
+overrides from a launcher such as KRunner. Both native entry points remove
+them before constructing `QApplication` and, only if any were present,
+re-execute `/proc/self/exe` with the original arguments and PID. Re-execution
+replaces the initial environment visible through `/proc/<pid>/environ`;
+`unsetenv` alone does not satisfy the backend's unchanged sender check.
+An unsuccessful cleanup or re-execution exits before application startup.
+The shared denylist is used without provider-specific exceptions. This is
+normalization of inherited configuration, not containment of malicious code
+already loaded by the dynamic loader before the initial `main`; arbitrary
+same-user native code remains outside the boundary described above. Systemd
+service activation still removes overrides before the initial executable load.
+
 The in-process KRunner plug-in is deliberately not a backend client and never
 handles authentication material. KRunner, global shortcuts, and D-Bus-exported
 tray actions send only bounded connection requests to the Control Center and

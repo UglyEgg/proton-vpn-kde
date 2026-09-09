@@ -5,6 +5,10 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Fix first-launch authorization from KDE launchers that inherit plugin/search
+  overrides. Clean and re-execute the native entry points before Qt starts;
+  keep backend authorization and saved-session handling unchanged.
+
 - Keep auto-connect as a single launch intent: wait for startup work to finish,
   do not replay it after tray preference changes, and allow tray-only launch
   to finish its bounded activation/fallback attempt before exiting.

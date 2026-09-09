@@ -96,6 +96,13 @@ time, and the Control Center, agent, and backend remove the same native-loader
 and runtime search overrides before their entry points load application code.
 The desktop file and community-owned fallback launches also use configured
 absolute paths rather than the inherited desktop executable search order.
+For direct native launches, both `main` entry points use `NativeStartup` before
+`QApplication`: remove that shared denylist, then re-execute `/proc/self/exe`
+only when removal was needed. This preserves arguments and PID and replaces
+the kernel-visible initial environment checked by backend authorization.
+Cleanup/re-execution failure terminates startup; a clean service launch incurs
+no extra exec. This does not contain code loaded before the initial `main`;
+the [authentication boundary](AUTHENTICATION.md) retains that distinction.
 
 The version-one contract groups operations into:
 

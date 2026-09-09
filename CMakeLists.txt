@@ -179,6 +179,8 @@ qt_add_executable(proton-vpn-kde
     src/SplitTunnelingModel.cpp
     src/SplitTunnelingModel.h
     src/main.cpp
+    src/NativeStartup.cpp
+    src/NativeStartup.h
     ${PROTON_VPN_KDE_LOCATION_MODEL_SOURCES}
     src/RunnerActionRequest.cpp
     src/RunnerActionRequest.h
@@ -230,6 +232,8 @@ qt_add_executable(proton-vpn-kde-agent
     src/TrayIntegration.h
     src/VpnConnectionController.h
     src/agent_main.cpp
+    src/NativeStartup.cpp
+    src/NativeStartup.h
 )
 proton_vpn_kde_enable_translations(proton-vpn-kde-agent)
 proton_vpn_kde_enable_backend_identity(proton-vpn-kde-agent)
@@ -382,6 +386,24 @@ add_subdirectory(kcm)
 
 if(BUILD_TESTING)
     find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
+    add_executable(native-startup-probe
+        tests/NativeStartupProbe.cpp
+        src/NativeStartup.cpp
+    )
+    set_target_properties(native-startup-probe PROPERTIES AUTOMOC OFF)
+    target_include_directories(native-startup-probe PRIVATE
+        src "${CMAKE_CURRENT_BINARY_DIR}")
+    target_compile_options(native-startup-probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>)
+    target_link_options(native-startup-probe PRIVATE
+        "-Wl,--wrap=execv" "-Wl,--wrap=unsetenv")
+    add_test(NAME native-startup-tests
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-native-startup.py"
+            "$<TARGET_FILE:native-startup-probe>"
+            "${PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CONTRACT}")
+    set_tests_properties(native-startup-tests PROPERTIES TIMEOUT 30)
+
     qt_add_executable(backend-call-policy-tests
         tests/BackendCallPolicyTest.cpp
         src/BackendCallPolicy.h
@@ -1020,6 +1042,7 @@ if(BUILD_TESTING)
             NAME control-center-activation-smoke
             COMMAND ${CMAKE_COMMAND} -E env
                 "XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
+                "QT_PLUGIN_PATH=${CMAKE_CURRENT_BINARY_DIR}/absent-plugins"
                 "QT_QPA_PLATFORM=offscreen"
                 "QT_QPA_PLATFORMTHEME=generic"
                 "QT_ACCESSIBILITY=0"

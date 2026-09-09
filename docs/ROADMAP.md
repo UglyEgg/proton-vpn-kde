@@ -102,10 +102,26 @@ policies, and the combined container-only installation passes payload and
 native-hardening verification. Exact source and six-artifact hashes are in the
 [replacement package checkpoint](SECURITY-AUDIT-2026-08-30.md#replacement-package-verification--2026-09-09).
 
-Still required: final independent seven-perspective approval, host installation
-with focused acceptance, and the planned one-week immutable-runtime soak.
-The installed client remains `0.13.0-0.4.fc44`; no host package or VPN state was
-changed during this package-only follow-up. Version 0.13.0 remains unreleased.
+The host now has `0.13.0-0.7.fc44`, with root-side payload verification complete
+and Core/keyring unchanged. First-launch UAT exposed START-01: KRunner's
+inherited Qt plugin path causes the GUI's authorization to fail, while the
+clean service path used on tray reopening succeeds. A controlled warm-backend
+reproduction confirmed that rejection without disconnecting the VPN.
+
+The bounded `0.8` source correction normalizes both native entry points before
+Qt initialization, re-executing only when the shared denylist requires it.
+It preserves backend authorization and Core/networking behavior. The
+[START-01 checkpoint](SECURITY-AUDIT-2026-08-30.md#start-01-direct-native-launch--2026-09-09)
+records the regression cases and separates implementation from installed UAT.
+
+Bounded source verification passes: 43 CTest targets, 442 Python/Core cases,
+41 normal/sanitized startup-probe cases, the real native-entry-point environment
+check, affected-unit Clang-Tidy, and static/metadata/scope checks.
+
+Still required: a frozen, validated replacement package,
+separately approved installation with first-launch acceptance, final independent
+seven-perspective approval, and the planned one-week immutable-runtime soak.
+Version 0.13.0 remains unreleased.
 The dated checkpoints below retain earlier evidence, not current approval.
 
 ### Ownership consolidation before further UX work

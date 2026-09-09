@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.13.0
-Release:        0.7%{?dist}
+Release:        0.8%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -141,6 +141,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.8
+- Normalize inherited native loader settings before direct GUI/agent startup
+- Preserve backend sender authorization and add kernel-environment regressions
+
 * Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.7
 - Point translation tests at build-owned catalogs and isolate fallback paths.
 - Declare the Breeze schemes and KDE platform theme used by visual fixtures.

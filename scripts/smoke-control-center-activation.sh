@@ -5,6 +5,7 @@
 set -euo pipefail
 
 build_dir="${1:?Pass the CMake build directory}"
+project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 staging_dir="$(mktemp -d)"
 agent_pid=""
 duplicate_pid=""
@@ -82,6 +83,22 @@ if [[ "$control_center_count" != "1" ]]; then
     exit 1
 fi
 control_center_pid="$(pgrep -f "^$build_dir/proton-vpn-kde( |$)")"
+
+# The private bus and direct agent inherit CTest's harmless QT_PLUGIN_PATH
+# canary. Verify both real entry points satisfy the unchanged backend policy,
+# not just a helper probe or libc's post-unset view of the environment.
+PYTHONPATH="$project_dir/backend" python3 - "$agent_pid" "$control_center_pid" <<'PY'
+from pathlib import Path
+import sys
+
+from proton_vpn_kde_backend.client_authorization import process_environment_is_safe
+
+for process_id in sys.argv[1:]:
+    entries = Path(f"/proc/{int(process_id)}/environ").read_bytes().split(b"\0")
+    if not process_environment_is_safe(entries):
+        raise SystemExit("A native entry point retained blocked startup configuration")
+print("Both native entry points satisfy the backend environment policy")
+PY
 
 env XDG_CONFIG_HOME="$staging_dir/config" \
     "$build_dir/proton-vpn-kde" --show \

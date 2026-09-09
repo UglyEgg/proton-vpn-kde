@@ -127,7 +127,8 @@ while IFS= read -r path; do
         src/VpnControllerActions.cpp|\
         src/VpnControllerLifecycle.cpp|src/VpnControllerLocations.cpp|\
         src/VpnControllerSettings.cpp|src/VpnControllerSnapshot.cpp|\
-        src/main.cpp|\
+        src/main.cpp|src/agent_main.cpp|src/NativeStartup.cpp|src/NativeStartup.h|\
+        tests/NativeStartupProbe.cpp|\
         tests/AgentVpnClientTest.cpp|tests/GroupedNavigationTest.cpp|\
         tests/BackendIdentityTest.cpp|tests/NotificationIntegrationTest.cpp|\
         tests/AppSettingsTest.cpp|\
@@ -147,6 +148,8 @@ while IFS= read -r path; do
         scripts/check-compatibility-metadata.py|\
         scripts/check-core-compatibility.sh|\
         scripts/check-core-contract.py|\
+        scripts/check-native-startup.py|\
+        scripts/smoke-control-center-activation.sh|\
         scripts/check-release-metadata.sh|scripts/check-rpm-artifact.sh|\
         scripts/check-ux-mechanics-freeze.sh|\
         scripts/benchmark-search.py|\
@@ -169,7 +172,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "40fdcd9f011e5486bea6ba019691605c643d14ce203ffd84acde4ddab5912238" \
+    "e49b26e7ad802eaf97a718469b3a6a83c6ee586f180a7f04dc1108dcb82014fb" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
@@ -197,7 +200,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "a3653b346f8101af197e22d90d4e2eba4823d4aa215a4e42e70aebc82b3306c2" \
+    "80e9a8dbfd7e324eef93ca1882e95d25596c9488aa381f3388b3b11186e65099" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "e97f135d1d57cac0e1970bf0b40b2c142268fe64f942fabdff829aa7d5a9c2af" \
@@ -206,15 +209,22 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "5eff62042e534555b0eb695a87306ccd450da7832ab114b2574d115d97ef1c78" \
+    "c7fbb9402a6fb490b8ab4e3adadd973de31683366a55292740b44d9b7cd3cdc3" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "b2ab7903186266d7165efa4907038b272070223b8b43157ad3c3f61a37916323" \
+    "30d98e60634fe2d169a8f37f4d787e3cec2072b52d887479e1b29117c7f8f8ca" \
     "QML presentation" qml
 
 # RC1–RC6: explicitly authorized startup/persistence/presentation corrections
 # and offline measurement fixtures. These seals still do not grant approval.
+# START-01 additionally admits direct native startup normalization and its
+# kernel-environment regression probe; backend authorization stays unchanged.
+assert_diff_hash \
+    "0b9bc3a05869509205d9dbfe761bf4e9eb9ccd1a423c07d9d41603e353c0cc12" \
+    "native startup regression" scripts/check-native-startup.py \
+    scripts/smoke-control-center-activation.sh
+
 assert_diff_hash \
     "2307b7ff215dd918276e71decb16703f3120702aee1ff6a61fa46c993ea9a3e6" \
     "offline search measurement" scripts/benchmark-search.py

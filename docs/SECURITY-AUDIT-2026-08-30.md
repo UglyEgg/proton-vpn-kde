@@ -11,7 +11,7 @@ below. This is not an independently approved release commit or an installed
 fix. No P0 or P1 was substantiated. The original review had explicit coverage
 limits and was not an exhaustive security audit.
 
-**Current package gate: passed; PKG-01 is closed for package validation.**
+**Package gate for `0.7`: passed; PKG-01 is closed for package validation.**
 Signed source `4eebc3f385e5e6082ce594a0e4fb3e5cacbaaffc` produces the
 `0.13.0-0.7.fc44` candidate with all 442 Python/Core cases and 41 native targets
 passing in each of two isolated Fedora builds. The client RPM outputs are
@@ -22,12 +22,14 @@ separates its evidence from the failed `0.5` and `0.6` attempts. The authorized
 production or overlay source; the validation defect was not evidence of a new
 VPN runtime vulnerability.
 
-The latest recorded client installation is `0.13.0-0.4.fc44` from
-`16ed2392d8f6f67d4223ec36f1106d94b2cdd1f8`, with the exact package and
-verification evidence in the [local installation checkpoint](#startup-and-polish-local-install--2026-09-08).
-The new review did not operate or revalidate the installed client. Source
-checks do not extend that package's acceptance evidence or replace the final
-release gates below.
+The latest client installation is `0.13.0-0.7.fc44` from `4eebc3f`, verified
+on 2026-09-09. Its first-launch UAT exposed **START-01 (P2 availability):
+inherited native-launcher configuration causes client authorization rejection**.
+This is not a credential failure or demonstrated authorization bypass. The
+bounded source correction is recorded in the
+[startup checkpoint](#start-01-direct-native-launch--2026-09-09); replacement
+package validation and installed first-launch acceptance remain pending.
+The previous `0.7` package results do not approve that changed source.
 
 The original `0.11.3` assessment closed its seven recorded issues: one high,
 four medium and two low severity. Their original failure modes no longer
@@ -51,7 +53,8 @@ real defect. These corrections do not alter Proton Core, VPN protocols,
 NetworkManager behavior, or the authentication protocol.
 
 The [current RC1–RC6 register](#frozen-release-candidate-review--2026-09-09)
-supersedes earlier candidate decisions. R1–R8 remain implemented historical
+and subsequent START-01 UAT checkpoint supersede earlier candidate decisions.
+R1–R8 remain implemented historical
 corrections; the new review does not reopen them. Subtractive and Cognitive
 Load/Code Maintainability found no blocking changes or reason for a broad
 refactor. Optional suggestions are recorded separately from required work.
@@ -125,6 +128,67 @@ attestation, certification, or warranty of security.
   tool-generated form and are not release signatures.
 
 ## Current 0.13.0 error-class review
+
+### START-01: direct native launch — 2026-09-09
+
+**Status: reproduced on installed `0.7`; bounded source correction implemented
+for candidate `0.8`, not yet package-validated or accepted on the host.**
+No independent re-review or release approval is claimed for this correction.
+
+After installation at 11:33 CDT, the first Control Center launched through
+Plasma/KRunner at 11:35:27. Its disconnected backend exited about ten seconds
+later, consistent with idle retirement without a GUI lease. Opening the
+window from the tray at 11:35:49 used the dedicated systemd service and worked.
+The first process's environment was not retained. Inspection found
+`QT_PLUGIN_PATH` in the current KRunner process but not the user service
+manager; the direct-launch inheritance explanation was then tested explicitly.
+
+A controlled reproduction used the installed executable and the harmless
+system Qt plugin directory. A sender-scoped bus trace recorded `RegisterClient`
+returning `quest.entropy.PlasmaVPN.Error.Unauthorized` while a warm backend
+remained ready, signed in, and connected. This rules out slow session
+restoration as the cause of the reproduced failure. The test window was then
+closed; the agent, backend, and active VPN remained running. No authentication
+payloads or account credentials were collected.
+
+The error class is inconsistent entry-point normalization: service launches
+already remove the shared native-loader/search denylist, while direct desktop
+and native fallback launches did not. Both native `main` functions now call
+one small helper before `QApplication`. Only when a denied variable is present
+(including an empty value), it removes the variables and re-executes the same
+executable through `/proc/self/exe`, retaining PID and arguments. Re-execution
+is required because `unsetenv` alone leaves the initial environment visible
+to the backend through `/proc`. Cleanup or exec failure terminates startup.
+
+The backend's denylist and sender authorization, leases, Proton Core, saved
+sessions and networking remain unchanged. A clean launch adds no exec, child
+process, polling, or resident state. This is not protection against native
+code already loaded before the first `main`; the existing
+[same-user threat boundary](AUTHENTICATION.md) still applies.
+
+The regression probe links the production helper and exercises all 18 denied
+names with empty and nonempty values, combined overrides, clean launch,
+PID/argument/ordinary-variable preservation, and failed unset/exec. It checks
+both libc and the actual kernel-visible environment. Its unset-only negative
+control proves the test rejects an incomplete late scrub. The prior suite
+tested sender rejection and service activation separately, but missed their
+interaction on a direct launcher path.
+
+Bounded source verification passes all 43 CTest targets, including all 442
+Python cases with hash-checked installed Core 5.6.10 conformance fixtures.
+The 41 startup-probe cases also pass Clang address/undefined-behavior
+sanitizers, and all three changed production translation units pass
+Clang-Tidy. The real agent and Control Center activation fixture now inherits
+a harmless Qt plugin-path canary and checks both live processes against the
+unchanged backend environment predicate on a private bus. Static checks,
+documentation links, release metadata and the explicitly updated delta seal
+pass. No replacement package or independent review is implied by those checks.
+
+Remaining gates: freeze the changed candidate, validate its RPM/SRPM,
+install with separate approval, then exercise
+the first desktop/KRunner launch after upgrade and tray reopening. Final
+independent approval and the planned immutable-candidate soak remain separate;
+this UAT correction does not start a new broad discovery/refactor cycle.
 
 ### Replacement package verification — 2026-09-09
 

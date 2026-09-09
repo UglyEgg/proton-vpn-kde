@@ -6,6 +6,7 @@
 #include "AppSettings.h"
 #include "BackendIdentity.h"
 #include "ConnectionAction.h"
+#include "NativeStartup.h"
 #include "TranslationLoader.h"
 #include "UpdateChannel.h"
 #include "VpnController.h"
@@ -84,6 +85,7 @@ struct InspectorRetentionSamples {
 
 int main(int argc, char *argv[])
 {
+    ProtonVpnKde::prepareNativeStartup(argv);
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("proton-vpn-kde"));
     QApplication::setApplicationDisplayName(QStringLiteral("Plasma VPN"));
