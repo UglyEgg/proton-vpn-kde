@@ -36,4 +36,4 @@ for relative_path in "${first_artifacts[@]}"; do
     fi
 done
 
-echo "Normalized-path RPM output set is byte-reproducible (${#first_artifacts[@]} artifacts)"
+echo "RPM output set is byte-reproducible (${#first_artifacts[@]} artifacts)"

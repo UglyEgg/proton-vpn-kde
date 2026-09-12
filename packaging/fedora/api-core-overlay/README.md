@@ -1,7 +1,7 @@
 # Reproducible API Core overlay
 
 This directory rebuilds the Plasma-compatible API Core package from Proton's
-exact signed Fedora `5.6.10-1.fc44` RPM. The vendor RPM is a build input only;
+exact signed Fedora `5.6.20-1.fc44` RPM. The vendor RPM is a build input only;
 the workflow does not install Proton's GTK client and does not download or
 combine payload files from any other package.
 
@@ -33,7 +33,8 @@ active connection, and releases asynchronous work and signal subscriptions on
 timeout. It preserves existing protection rules and permanent/unsaved behavior;
 it neither deletes pre-existing profiles nor tears down protection after an
 uncertain activation. This is an authorized networking-integration correction,
-not another memory optimization. Revision `5.6.10-12.plasmavpn1.fc44` also
+not another memory optimization. Historical revision
+`5.6.10-12.plasmavpn1.fc44` also
 normalizes the comparison copy to match NetworkManager's stored settings.
 Revision `11` introduced explicit activation but could reject its own stored
 profile because normalization adds default settings such as the proxy group.
@@ -55,7 +56,7 @@ all patches with zero fuzz, deterministically regenerates only the affected
 bytecode, and compares the complete vendor and overlay trees. It imports the
 pinned signing key into a temporary unprivileged RPM database solely to verify
 the vendor RPM, so a clean builder does not depend on a preconfigured system
-keyring. Its behavioral verifier also executes the pinned 5.6.10 connection
+keyring. Its behavioral verifier also executes the pinned 5.6.20 connection
 state contract that motivates the client's stable-disconnect barrier: newest
 queued target wins, Down while Disconnecting retains that target, and the old
 tunnel's late Disconnected event promotes it. A future Core that changes this
@@ -69,13 +70,19 @@ Build and verify with:
 
 ```bash
 packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
-    /path/to/python3-proton-vpn-api-core-5.6.10-1.fc44.x86_64.rpm
+    /path/to/python3-proton-vpn-api-core-5.6.20-1.fc44.x86_64.rpm
 ```
 
 The resulting SRPM contains the signed vendor RPM, manifest, verifier, and
 patches. The binary RPM contains the same payload paths as Proton's RPM, with
 only the eighteen manifest-listed file hashes changed. The SRPM also includes
 the offline protection-activation regression tests, which run in `%check`.
+
+The spec derives RPM build time from its changelog and refers to source inputs
+relative to the RPM build directory. This prevents a caller's temporary top
+directory from entering the source-package metadata. Release CI builds the
+overlay twice in distinct clean top directories and requires both the RPM and
+SRPM to be byte-identical.
 
 The direct `NetworkManager-openvpn-gnome` dependency is deliberately retained
 because it belongs to Proton's current Core package contract. Removing it may
@@ -90,7 +97,7 @@ Proton review, acceptance or endorsement. The manifest's historical
 source-format commits and exported patches. They do not mean those commits
 were merged by Proton. The first three exports originated from a local
 `v5.5.15` checkout; the installed-path adaptations are separately hash-checked
-and behavior-tested against the pinned **5.6.10** RPM. The original source
+and behavior-tested against the pinned **5.6.20** RPM. The original source
 commits include tests, while the five payload patches here change runtime
 files only. Those originals are not bundled in this client repository, so the
 identifiers alone are not a portable upstream submission.
@@ -101,7 +108,7 @@ identifiers alone are not a portable upstream submission.
 | [0002](patches/0002-share-server-strings-during-cache-decoding.patch) | Reuse the sharing policy during cache decoding with a per-load hook factory; builds on 0001. Source origin: `88887e4223aed45b18d2dd7554565278c4dda9c0`. | Cached country and endpoint strings share identity after loading. |
 | [0003](patches/0003-avoid-deprecated-fido2-capability-query.patch) | Read current session capability properties without the deprecated API wrapper; independent of string sharing. Source origin: `f39782e411d629694eab174b4b04adc86765d7d8`. | All four capability combinations retain their results, with deprecated-property access forced to fail. |
 | [0004](patches/0004-keep-protun-private-key-ephemeral.patch) | Change Protun secret ownership in its existing unsaved profile; a separate interoperability/security decision, not a representation-only optimization. Locally authored payload patch. | Constructed settings retain the supplied secret with the system-owned flag; the mocked NetworkManager add call remains explicitly unsaved. |
-| [0005](patches/0005-explicitly-activate-protection-profiles.patch) | Reuse matching protection profiles and explicitly request/observe activation. Locally authored against the pinned 5.6.10 helper; separate from keyring and memory changes. | Real libnm settings with fake I/O cover inactive/active profiles, mismatches, duplicates, activation failure, autoconnect races, cancellation and late callbacks. The retained-inactive-profile regression fails against the unpatched vendor helper. |
+| [0005](patches/0005-explicitly-activate-protection-profiles.patch) | Reuse matching protection profiles and explicitly request/observe activation. Originally authored against 5.6.10; its target helper is unchanged in 5.6.20 and the patch is revalidated there. Separate from keyring and memory changes. | Real libnm settings with fake I/O cover inactive/active profiles, mismatches, duplicates, activation failure, autoconnect races, cancellation and late callbacks. The retained-inactive-profile regression fails against the unpatched vendor helper. |
 
 The checks above are in `_verify_behavior` in
 [`rebuild_overlay.py`](rebuild_overlay.py). The separate

@@ -45,6 +45,30 @@ The implementation constraints are:
   mechanics gate compares against `ec27fdc` and seals admitted deltas; that
   checksum is drift detection, not proof of correctness or reviewer approval.
 
+### API Core 5.6.20 compatibility refresh — 2026-09-12
+
+Proton's Fedora repository advanced from API Core 5.6.10 to 5.6.20. The stock
+5.6.20 package cannot replace the installed Plasma overlay because it does not
+provide the client's explicit Protun interoperability capability. The bounded
+refresh rebuilds Proton's exact signed `5.6.20-1.fc44` payload as
+`5.6.20-2.plasmavpn1.fc44`, preserving the existing five patches and adopting
+Proton's current dependency and package-script contracts.
+
+The patch targets still apply with zero fuzz, and exact tree verification
+continues to permit only six Python sources and twelve derived bytecode files.
+Fourteen overlay activation cases and seven hash-checked actual-Core lifecycle
+cases pass; the complete 448-case backend suite, Mypy and Ruff also pass
+against the extracted 5.6.20 tree. Two clean builds in distinct RPM top
+directories produce byte-identical RPM/SRPM pairs. CI now repeats that
+overlay-specific reproducibility check.
+
+This closes source compatibility and package construction, not installed
+acceptance. The workstation remains on Core overlay
+`5.6.10-12.plasmavpn1.fc44` until the maintainer authorizes the separate
+installation gate. Root-side package verification and the existing startup,
+server-browser, connect/disconnect, retained-protection and suspend/resume
+checks must pass before 5.6.20 becomes the accepted local runtime.
+
 ### Frozen release-candidate checkpoint — 2026-09-09
 
 The seven isolated reviewers completed one bounded review of

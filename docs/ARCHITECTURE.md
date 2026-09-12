@@ -24,9 +24,12 @@ Its architecture follows six invariants:
 
 The Fedora Core package includes documented downstream patches; it is not an
 unmodified Proton binary. Alongside representation and Protun secret-ownership
-fixes, overlay revision `5.6.10-12.plasmavpn1.fc44` explicitly activates and
-reuses matching protection profiles after manual device disconnection. Core
-still owns the protection rules and connection state machine. The
+fixes, the current verified overlay candidate
+`5.6.20-2.plasmavpn1.fc44` explicitly activates and reuses matching protection
+profiles after manual device disconnection. It rebases the same bounded
+behavior onto Proton's signed 5.6.20 Fedora payload; the last installed UAT
+used `5.6.10-12.plasmavpn1.fc44`. Core still owns the protection rules and
+connection state machine. The
 [overlay scope](../packaging/fedora/api-core-overlay/README.md) separates this
 authorized integration correction from the community frontend and records its
 tests and upstream status.
@@ -479,9 +482,10 @@ completion-unknown, not proof of backend death. Read-only browsing and separate
 NPS operations retain their existing domain policies rather than acquiring a
 global mutation owner.
 
-**Account replacement boundary (approved and implemented locally):** Core
-5.6.10's public refresher disable joins the scheduler, not every child refresh
-operation. DISABLED still does not mean all provider work has joined. Instead,
+**Account replacement boundary (approved and implemented locally):** In Core
+5.6.10 through 5.6.20, the public refresher's disable operation joins the
+scheduler, not every child refresh operation. DISABLED still does not mean all
+provider work has joined. Instead,
 after refresh services have first started, the adapter permanently rejects
 replacement credentials in that process. Sign-out records a non-secret handoff,
 retires accepted connection work and the old tunnel through Core, and fences
@@ -547,7 +551,7 @@ Foreground deadlines do not strengthen Core's public refresher join contract.
 
 Provider-free tests cover coalescing, late callbacks, startup/login ordering,
 stale session ownership, connection lookup cancellation, shutdown and handler
-failure. Two opt-in tests additionally execute Core 5.6.10's hash-checked
+failure. Two opt-in tests additionally execute Core 5.6.20's hash-checked
 scheduler and public callback forwarding, replacing all refresh I/O.
 
 ## Authentication and account state
@@ -739,12 +743,12 @@ Manual targets are also registered as explicit asyncio owners. A newer manual
 target, Disconnect, logout, session expiry, disabled recovery, or adapter close
 invalidates the generation, cancels every older owner, and joins it before the
 transition can complete. That rule covers all seven selection routes rather
-than only a particular Connect entry point. Proton Core 5.6.10 can wait for
-NetworkManager in an executor, so cancelling the outer retry task is not proof
-that the provider-side mutation stopped. The adapter shields and joins Core's
+than only a particular Connect entry point. Proton Core 5.6.10 through 5.6.20
+can wait for NetworkManager in an executor, so cancelling the outer retry task
+is not proof that the provider-side mutation stopped. The adapter shields and joins Core's
 connection coroutine, performs a compensating disconnect after cancellation,
-and only then releases lifecycle serialization. Core 5.6.10 can also return
-from Connect while a replacement target remains queued in Disconnecting; a
+and only then releases lifecycle serialization. Those Core versions can also
+return from Connect while a replacement target remains queued in Disconnecting; a
 Down in that state does not clear the queue. Every invalidating transition
 retains ownership across serialized Down requests and state changes. The
 2026-09-07 [error-class review](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review)
@@ -758,7 +762,7 @@ The adapter crosses public Down even from directly observed
 Disconnected. It captures the terminal state inside the task returning from
 Down, not later in its waiter; every subsequent state change requires another
 public barrier. A stale connection identity is unconfirmed, not silently retried
-as success. The opt-in actual-Core harness uses hash-checked 5.6.10 connector
+as success. The opt-in actual-Core harness uses hash-checked 5.6.20 connector
 and state code with external I/O replaced, covering paused teardown, queued
 promotion/identity rejection, and established-tunnel preservation. This
 supplements the separate overlay oracle and unit-fake route matrix; it is not

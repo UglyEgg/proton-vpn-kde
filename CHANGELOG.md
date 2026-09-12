@@ -5,6 +5,15 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+- Rebase the Fedora API Core overlay onto Proton's signed 5.6.20 package so
+  Fedora can upgrade Core without losing the Plasma Protun capability. Retain
+  the five bounded patches, adopt Proton's updated dependency and scriptlet
+  contracts, and run the client lifecycle harness against the new Core.
+- Make the API Core overlay RPM and SRPM byte-reproducible across distinct
+  clean build roots by deriving build time from the changelog and keeping
+  temporary source/build paths out of RPM metadata. Verify that property in
+  release CI.
+
 - Keep ordinary startup failures visible without automatically restarting the
   backend and repeating Secret Service prompts. Distinguish a restored account
   from failed VPN networking; retain supervised retries for unfinished cleanup.

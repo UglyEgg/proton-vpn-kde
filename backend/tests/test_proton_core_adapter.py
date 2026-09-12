@@ -2674,7 +2674,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, adapter._reconnector._suspend_count)
 
     async def test_all_invalidators_drain_a_queued_core_replacement(self):
-        """Core 5.6.10 Down-in-Disconnecting cannot survive invalidation."""
+        """Core 5.6.10 through 5.6.20 queued work cannot survive invalidation."""
         transitions = (
             ("disconnect", lambda adapter: adapter.disconnect()),
             ("logout", lambda adapter: adapter.logout()),
@@ -2719,8 +2719,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                     nonlocal disconnect_count
                     disconnect_count += 1
                     if disconnect_count == 1:
-                        # Core 5.6.10 ignores Down while its old connection is
-                        # Disconnecting and retains the queued replacement.
+                        # Core 5.6.10 through 5.6.20 ignores Down while the old
+                        # connection disconnects and retains the replacement.
                         first_down.set()
                     elif disconnect_count == 2:
                         replacement_down.set()
@@ -3293,8 +3293,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             try:
                 if connect_calls == 1:
                     auto_started.set()
-                    # Core 5.6.10's LinuxNetworkManager.start() has this
-                    # ownership shape: an asyncio coroutine waits for a
+                    # Core 5.6.10 through 5.6.20 start() has this ownership
+                    # shape: an asyncio coroutine waits for a
                     # NetworkManager future in the default executor.
                     await asyncio.get_running_loop().run_in_executor(
                         None, release_auto.wait

@@ -31,15 +31,15 @@ honors the short test override.
 Connection supersession has its own process-safety boundary before orderly
 shutdown begins. All manual target owners and automatic retry owners are
 cancelled and joined under one 30-second deadline. The provider connection
-coroutine remains shielded while Proton Core 5.6.10 waits on executor-backed
-NetworkManager work, then a compensating disconnect completes before ownership
-is released on the handled cancellation path. Core 5.6.10 retains a queued
-replacement when Down arrives in Disconnecting. The adapter
+coroutine remains shielded while Proton Core 5.6.10 through 5.6.20 waits on
+executor-backed NetworkManager work, then a compensating disconnect completes
+before ownership is released on the handled cancellation path. Those Core
+versions retain a queued replacement when Down arrives in Disconnecting. The adapter
 crosses the public Down event barrier even from an observed Disconnected state
 and records the resulting state inside the task returning through that barrier.
 It repeats the barrier after subsequent state transitions instead of treating
 a state notification as a teardown receipt. Three opt-in adapter conformance
-tests use the exact installed Core 5.6.10 event/state implementation with fake
+tests use the exact Core 5.6.20 event/state implementation with fake
 I/O; they cover unfinished Disconnected tasks, queued promotion invalidating
 the captured connection, and preservation of an established tunnel during
 transitional cleanup. The shared cancellation helper also retains provider

@@ -1282,8 +1282,8 @@ class ProtonCoreAdapter:
                 return False
             self._require_authenticated_epoch(authentication_epoch)
             try:
-                # Proton Core 5.6.10 can be awaiting a NetworkManager future in
-                # an executor here. Cancelling only the asyncio caller would
+                # Core 5.6.10 through 5.6.20 can await a NetworkManager future
+                # in an executor here. Cancelling only the asyncio caller would
                 # detach that worker and allow an obsolete generation to add a
                 # profile later. Retain the provider coroutine until its worker
                 # and Core's own late-cancellation cleanup are both terminal.

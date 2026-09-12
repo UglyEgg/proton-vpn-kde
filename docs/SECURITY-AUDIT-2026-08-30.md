@@ -1,4 +1,4 @@
-# Security and engineering assessment — 2026-08-30, refreshed 2026-09-09
+# Security and engineering assessment — 2026-08-30, refreshed 2026-09-12
 
 ## Current assessment posture
 
@@ -32,6 +32,22 @@ entire saved-session/connection workflow.
 **Maintainer UAT: accepted on 2026-09-09 for installed client `0.9` / Core `12`.**
 The maintainer confirmed expected behavior and presentation. This is local
 acceptance, separate from independent review and controlled-failure evidence.
+
+**API Core 5.6.20 refresh: source/package verification passed on 2026-09-12;
+installation and UAT remain open.** Proton's signed Fedora
+`python3-proton-vpn-api-core-5.6.20-1.fc44` package was verified and rebuilt as
+`5.6.20-2.plasmavpn1.fc44`, retaining all five bounded patches. They apply with
+zero fuzz; only the manifest-listed six source files and twelve derived
+bytecode files differ. The output adopts Proton 5.6.20's dependency, conflict,
+obsolete and scriptlet sets. Fourteen protection-activation cases, seven
+hash-checked actual-Core lifecycle cases, all 448 backend cases, Mypy and Ruff
+pass. Two distinct clean RPM top directories on the same Fedora 44 workstation
+produce byte-identical RPM and SRPM files. The reproducibility correction pins
+build time to the changelog epoch and prevents temporary top-directory paths
+from entering source-package metadata; CI now repeats the two-build check.
+These are unsigned local artifacts. The installed Core remains
+`5.6.10-12.plasmavpn1.fc44`; no VPN, Secret Service, NetworkManager, installed
+package, GitHub or publication state changed in this verification step.
 
 **START-02 (P2 availability): installed failure containment, automatic recovery
 and normal disconnect/reconnect pass; the remaining controlled-failure check
@@ -83,8 +99,9 @@ corrections; the new review does not reopen them. Subtractive and Cognitive
 Load/Code Maintainability found no blocking changes or reason for a broad
 refactor. Optional suggestions are recorded separately from required work.
 
-The refactor uses hash-checked actual Core **5.6.10** with external I/O replaced
-for conformance tests. The older 5.5.6 static API check is not evidence of a
+The current conformance harness uses hash-checked actual Core **5.6.20** with
+external I/O replaced. Historical correction checkpoints below used 5.6.10.
+The older 5.5.6 static API check is not evidence of a
 current runtime defect. No live VPN, credential prompt, installed package,
 GitHub operation or publication was exercised during the source-review cycle;
 subsequent package installation and visual UAT work are recorded separately below.

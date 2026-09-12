@@ -90,7 +90,7 @@ These are engineering checks, not certification. The project has received mainta
 
 ## Current status
 
-The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and the independently verified Proton VPN API Core 5.6.10 Plasma overlay. The Fedora RPM declares 5.6.10 as its runtime floor. A separate 5.5.6 check is static legacy API lint only: it is never executed as the supported runtime or used to justify behavioral fixes. Other distributions may work but have not completed the packaged acceptance battery.
+The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and the locally verified Proton VPN API Core 5.6.20 Plasma overlay candidate. The Fedora RPM retains 5.6.10 as its tested API floor; the current downstream overlay is rebuilt from Proton's signed 5.6.20 Fedora package. A separate 5.5.6 check is static legacy API lint only: it is never executed as the supported runtime or used to justify behavioral fixes. Other distributions may work but have not completed the packaged acceptance battery.
 
 > [!NOTE]
 > Verified KeePassXC support uses the separately packaged, provider-neutral Proton keyring rebuild recorded in [Compatibility](docs/COMPATIBILITY.md). The source, patches, tests, manifest, and Fedora spec are included under [`packaging/fedora/keyring-overlay`](packaging/fedora/keyring-overlay/); release CI builds its binary and source RPMs beside the client. The client RPM requires that explicit capability instead of silently replacing an installed Python file.

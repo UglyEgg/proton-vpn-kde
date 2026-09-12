@@ -17,10 +17,13 @@ The source build requires:
 - `dbus-fast` 2.20 or newer.
 
 The Fedora package declares Proton VPN API Core 5.6.10 as its runtime floor and
-requires the Protun-secret capability supplied by this repository's exact
-5.6.10 overlay. The adapter separately retains a static public-API floor check
-against historical Core 5.5.6. That older package is extracted and parsed but
-never imported or executed, and no behavioral fix is accepted from it.
+requires the separately versioned Protun-secret capability. The current
+overlay supplies that capability by rebuilding Proton's exact signed Fedora
+5.6.20 package; its version is deliberately newer than Proton's 5.6.20-1
+package so Fedora can select it during an upgrade. The adapter separately
+retains a static public-API floor check against historical Core 5.5.6. That
+older package is extracted and parsed but never imported or executed, and no
+behavioral fix is accepted from it.
 
 The supported Fedora package installs both Plasma and project executables below
 `/usr`. The hardened System Settings launcher is compiled from that package
@@ -33,7 +36,7 @@ contract check downloads and extracts Proton's SHA-256-pinned Fedora 44 API
 Core 5.5.6 RPM, then verifies every public class, method, property, and exported
 type consumed by the adapter. It does not instantiate Core, read credentials,
 or touch networking and must not be interpreted as the behavioral runtime
-under test. The overlay verifier imports the pinned 5.6.10 payload and exercises
+under test. The overlay verifier imports the pinned 5.6.20 payload and exercises
 its queued-target state machine: the newest Up replaces an older queued target,
 Down while Disconnecting retains it, and the old tunnel's late Disconnected
 event promotes it. This is a provider-semantics oracle, not a combined
@@ -41,7 +44,7 @@ adapter/provider conformance test. The 2026-09-07
 [error-class review](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review)
 found an intermediate state missing from the adapter's fake-driven regression.
 The adapter includes an opt-in combined adapter/Core conformance
-harness for the unmodified, SHA-256-checked 5.6.10 connector, state, scheduler
+harness for the unmodified, SHA-256-checked 5.6.20 connector, state, scheduler
 and refresher callback-forwarding modules:
 
 ```sh
@@ -53,7 +56,7 @@ python3 -m unittest -v test_core_lifecycle_conformance
 It constructs neither the live API nor NetworkManager, and substitutes all
 external I/O. It checks paused teardown, queued promotion with stale connection
 identity, preservation of established tunnels, and authentication/non-authentication
-failures dispatched by the actual scheduler. Its five cases skip unless
+failures dispatched by the actual scheduler. Its seven cases skip unless
 the fixture is explicitly selected; they currently supplement local validation
 and are not a silently assumed CI pass. A changed provider hash requires
 contract review. Core 5.5.6 static lint establishes neither runtime support nor
@@ -91,11 +94,41 @@ but that weaker capability cannot satisfy the owner-pinned client dependency. Th
 dependency can be retired after an equivalent upstream build is verified; it
 is not a claim that stock Proton 0.2.3 supports KeePassXC correctly.
 
-Proton API Core 5.6.10 exposes a cancellation event for FIDO2 assertions but
+Proton API Core 5.6.20 exposes a cancellation event for FIDO2 assertions but
 does not apply it while choosing among multiple attached keys. The Plasma
 client therefore does not advertise FIDO2 on that version. Authenticator and
 recovery codes remain available. A future Core must explicitly guarantee
 cancellable multi-key selection before the security-key action is enabled.
+
+## Core 5.6.20 overlay refresh — package verification passed, install pending
+
+The working-tree overlay rebuilds Proton's signed Fedora
+`python3-proton-vpn-api-core-5.6.20-1.fc44` package as
+`5.6.20-2.plasmavpn1.fc44`. It provides the capability already required by the
+installed Plasma client, so it can replace both the older 5.6.10 overlay and
+Proton's stock 5.6.20 package without weakening the client's dependency.
+
+All five patches apply with zero fuzz. Exact tree verification permits only
+six Python sources and their twelve derived bytecode files to differ from the
+vendor payload. The overlay adopts Proton 5.6.20's current dependency,
+conflict, obsolete and package-script contracts instead of carrying those
+forward from 5.6.10. Fourteen protection-activation regressions, seven
+hash-checked actual-Core lifecycle cases, all 448 backend cases, Mypy for 31
+source files, and Ruff pass against the extracted 5.6.20 candidate.
+
+Two builds in distinct clean RPM top directories on the same Fedora 44
+workstation produced byte-identical unsigned artifacts:
+
+```text
+41d0cec651e62b82cda3ded36dd9633292edfde2f1cb2aaef16169861ec0f0e4  python3-proton-vpn-api-core-5.6.20-2.plasmavpn1.fc44.x86_64.rpm
+a08ea87c5ebbbad07d975535ac6c622c612a13a06f3c546c807816d13bf2b846  python3-proton-vpn-api-core-5.6.20-2.plasmavpn1.fc44.src.rpm
+```
+
+This is source and package evidence only. The workstation still has
+`5.6.10-12.plasmavpn1.fc44` installed at this checkpoint; root-side package
+verification, saved-session startup, server browsing, connect/disconnect,
+retained protection recovery, and suspend/resume acceptance remain the next
+separate gate.
 
 ## Current local candidate — maintainer UAT passed, release pending
 

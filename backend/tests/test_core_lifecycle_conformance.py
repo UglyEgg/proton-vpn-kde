@@ -3,7 +3,7 @@
 
 """Opt-in actual-Core event-order tests; never construct the live API or NM.
 
-Set PLASMA_VPN_TEST_CORE_SITE_PACKAGES to a Core 5.6.10 site-packages tree.
+Set PLASMA_VPN_TEST_CORE_SITE_PACKAGES to a Core 5.6.20 site-packages tree.
 Unlike unit fakes, these use the unmodified connector event dispatcher and
 state tasks, plus the public refresher error forwarder and actual scheduler.
 All external I/O and publication are substituted explicitly.
@@ -31,7 +31,7 @@ class RetirementRejected(RuntimeError):
 
 
 @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_CORE_SITE_PACKAGES"),
-                     "explicit Core 5.6.10 conformance fixture required")
+                     "explicit Core 5.6.20 conformance fixture required")
 class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
@@ -51,13 +51,13 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
         # These provider modules are unchanged by our packaging overlays.
         expected = {
             "proton/vpn/core/vpnconnector.py":
-                "3ff83e99d3ae138a91fc4a393c82eb811212020736bbb499228b7ef22f52ccda",
+                "56166d64f78fea439d430266753ae5591341b8501ea38e0f6c3f61f732162ebf",
             "proton/vpn/connection/states.py":
                 "1c54923e121d36c8c57c606addc64afb4d1d0c768a99084966de0664813968fe",
             "proton/vpn/core/refresher/scheduler.py":
                 "a4830c8b24645e59d8ec4b47180b2afd0e72bc2c7d685da9ecb15647eb886449",
             "proton/vpn/core/refresher/vpn_data_refresher.py":
-                "cbeb460254d8535d7a51f61e647865d3684f5e5506ff10ea0087fe6a8bdd67a7",
+                "80117ee317910e528a129a0c0d10bcda873f48234e372555bfbab54d3e478804",
         }
         for relative, digest in expected.items():
             if hashlib.sha256((source / relative).read_bytes()).hexdigest() != digest:

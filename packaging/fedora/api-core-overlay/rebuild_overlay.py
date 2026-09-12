@@ -631,7 +631,7 @@ def _verify_behavior(root: Path) -> None:
     if add_call.get("save_to_disk") is not False:
         raise OverlayError("Protun connection is not explicitly unsaved")
 
-    # This is the 5.6.10 behavior that requires the KDE adapter's bounded
+    # This 5.6.10-through-5.6.20 behavior requires the KDE adapter's bounded
     # stable-disconnect barrier.  A Down received while Disconnecting is
     # ignored, and the queued replacement is promoted after the old tunnel's
     # late Disconnected event.  Fail loudly when a future pinned Core changes

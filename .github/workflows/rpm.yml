@@ -26,6 +26,7 @@ jobs:
       RPM_REPRO_WORKDIR: /tmp/proton-vpn-kde-rpmbuild
       KEYRING_RPM_TOPDIR: ${{ github.workspace }}/keyring-rpm-build
       API_CORE_RPM_TOPDIR: ${{ github.workspace }}/api-core-rpm-build
+      API_CORE_RPM_REPRO_TOPDIR: ${{ github.workspace }}/api-core-rpm-repro-build
       RELEASE_ARTIFACT_DIR: ${{ github.workspace }}/release-artifacts
 
     steps:
@@ -101,6 +102,15 @@ jobs:
             packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
               '' "$API_CORE_RPM_TOPDIR" \
               /tmp/protonvpn-fedora-44-public-key.asc
+
+      - name: Verify API Core overlay reproducibility
+        run: |
+          runuser --user ci-builder -- \
+            packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
+              '' "$API_CORE_RPM_REPRO_TOPDIR" \
+              /tmp/protonvpn-fedora-44-public-key.asc
+          scripts/check-rpm-reproducibility.sh \
+            "$API_CORE_RPM_TOPDIR" "$API_CORE_RPM_REPRO_TOPDIR"
 
       - name: Create source archive
         run: |

@@ -156,6 +156,7 @@ while IFS= read -r path; do
         scripts/check-native-startup.py|\
         scripts/smoke-control-center-activation.sh|\
         scripts/check-release-metadata.sh|scripts/check-rpm-artifact.sh|\
+        scripts/check-rpm-reproducibility.sh|\
         scripts/check-ux-mechanics-freeze.sh|\
         scripts/benchmark-search.py|\
         scripts/smoke-qml-diagnostics.sh|scripts/smoke-qml-layout-variants.sh|\
@@ -184,11 +185,11 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "886f5c98294528323dd300120e766265b03a63cf7e97c958313fab6b97d1dc9f" \
+    "97cb52cf706b28a72abb079a475b72bab971b545477bd72359dfe3703d13ec5b" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
-    "fc1cefe07356bf5efb693f4369ea2361ab1e713f719f15941d5a99118a85060d" \
+    "cb5d241402ae7ae06808dbd30a393b394e827df9a5b09f48472e2d203253f6c2" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
     packaging/fedora/core-compatibility.json \
@@ -197,7 +198,7 @@ assert_diff_hash \
 # START-02 explicitly authorizes this separate Core activation overlay. The
 # exact-delta seal records scope, not independent review or installed acceptance.
 assert_diff_hash \
-    "2f9d280d76b8560c46dbe455854ac053855bbb67c1e9cf68148b8c3994e1eb97" \
+    "2d1476c739e25f65b4315e38df179eb9231890c2cf466b8fc45a7707915a3b48" \
     "protection activation overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -218,8 +219,9 @@ assert_diff_hash \
     "f3162d807a00c9fe303440840fa26aba439b4974bc3853046025d5b8a8a2040d" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
-    "e97f135d1d57cac0e1970bf0b40b2c142268fe64f942fabdff829aa7d5a9c2af" \
-    "RPM test dependencies" .github/workflows/rpm.yml
+    "13dc9a8269e46d978f0b3ad88c06a09f5bf17d0647c973e34f75aa0644f0ba02" \
+    "RPM test dependencies" .github/workflows/rpm.yml \
+    scripts/check-rpm-reproducibility.sh
 assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
