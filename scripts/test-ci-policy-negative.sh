@@ -49,6 +49,12 @@ expect_rejection 'once per pull request'
 echo "CI policy rejects duplicate feature-branch triggers"
 
 reset_workflows
+sed -i 's/-${{ github.run_attempt }}//' \
+    "$fixture_dir/.github/workflows/ci.yml"
+expect_rejection 'without blocking manual retries'
+echo "CI policy keeps manual reruns out of their original concurrency group"
+
+reset_workflows
 sed -i "/if: github.event_name != 'pull_request'/d" \
     "$fixture_dir/.github/workflows/rpm.yml"
 expect_rejection 'must remain release-only'

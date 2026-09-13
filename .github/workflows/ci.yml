@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: source-ci-${{ github.event.pull_request.number || github.ref }}
+  group: source-ci-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}
   cancel-in-progress: true
 
 jobs:

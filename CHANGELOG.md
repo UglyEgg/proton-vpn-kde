@@ -16,6 +16,8 @@ accepted internal development milestone, not a tagged or published release.
 - Eliminate duplicate feature-branch CI runs and reserve repeated RPM
   reproducibility builds and artifact uploads for tags or explicit release
   runs while retaining a complete single-build package check on every PR.
+- Keep manual CI retries outside their original concurrency group so a rerun
+  cannot wait on the attempt it replaces.
 - Separate the signed Proton Fedora Core `5.6.20` package identity from the
   latest public source reference (`v5.6.10`) in overlay metadata, add Proton's
   upstream copyright notice to the new keyring test module, and close SPDX

@@ -119,12 +119,14 @@ failure.
 
 The `RPM Package` GitHub Actions workflow performs one complete build and
 package-policy inspection for each pull-request update. Feature-branch pushes
-do not launch a duplicate workflow. A signed release tag or explicit manual
-run additionally rebuilds the API-Core overlay and complete client RPM/SRPM
-output set in a second clean top directory under the same normalized RPM build
-path, requires byte-identical results, and retains the complete six-artifact
-set for 14 days. These unsigned CI artifacts are review evidence, not published
-releases and not a substitute for the clean-environment live acceptance below.
+do not launch a duplicate workflow, and retry attempts use a distinct
+concurrency identity so they cannot wait on the run being retried. A signed
+release tag or explicit manual run additionally rebuilds the API-Core overlay
+and complete client RPM/SRPM output set in a second clean top directory under
+the same normalized RPM build path, requires byte-identical results, and
+retains the complete six-artifact set for 14 days. These unsigned CI artifacts
+are review evidence, not published releases and not a substitute for the
+clean-environment live acceptance below.
 
 ## 4. Inspect artifacts and complete acceptance
 

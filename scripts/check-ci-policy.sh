@@ -22,6 +22,18 @@ if ! rg -Uq \
     exit 1
 fi
 
+# These are literal GitHub expression strings, not shell substitutions.
+# shellcheck disable=SC2016
+if ! grep -Fq \
+        'group: source-ci-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}' \
+        "$source_workflow" \
+        || ! grep -Fq \
+            'group: rpm-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}' \
+            "$rpm_workflow"; then
+    echo "CI concurrency must deduplicate commits without blocking manual retries" >&2
+    exit 1
+fi
+
 workflow_job_block() {
     local workflow="$1"
     local job_name="$2"
