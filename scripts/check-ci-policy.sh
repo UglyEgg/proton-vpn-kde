@@ -22,6 +22,10 @@ if ! rg -Uq \
     echo "DEB CI must validate pull requests and reserve push builds for release tags" >&2
     exit 1
 fi
+if ! rg -Uq '^defaults:\n  run:\n    shell: bash\n' "$deb_workflow"; then
+    echo "DEB CI must run shell blocks explicitly with Bash" >&2
+    exit 1
+fi
 
 if ! rg -Uq \
         '^on:\n  pull_request:\n  push:\n    tags:\n      - "v\*"\n  workflow_dispatch:\n' \

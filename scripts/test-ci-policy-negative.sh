@@ -51,6 +51,12 @@ expect_rejection 'once per pull request'
 echo "CI policy rejects duplicate feature-branch triggers"
 
 reset_workflows
+sed -i '/^[[:space:]]*shell: bash$/d' \
+    "$fixture_dir/.github/workflows/deb.yml"
+expect_rejection 'explicitly with Bash'
+echo "CI policy rejects an implicit Ubuntu run-shell"
+
+reset_workflows
 sed -i 's/-${{ github.run_attempt }}//' \
     "$fixture_dir/.github/workflows/ci.yml"
 expect_rejection 'without blocking manual retries'

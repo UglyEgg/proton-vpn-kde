@@ -283,7 +283,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "7c9c59c2d3e28817f2a2aec96fcbe79ce85b24cf8047314b2380f1ff254999ac" \
+    "85768fcaa9ca126053c3fa62db22e8b62e26db6a624188bc3ff47aea60a9d153" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \
