@@ -1,11 +1,11 @@
 # Security and engineering assessment
 
 Last updated: 2026-09-13
-Release: unreleased 0.13.1
+Release: 0.13.1
 
 ## Status
 
-No open release-blocking finding is recorded for the unreleased 0.13.1 package
+No open release-blocking finding is recorded for the 0.13.1 package
 update. The 0.13.0 runtime review found no P0 or P1 issue; its six findings were
 corrected and have regression coverage. Later Fedora and Ubuntu packaging,
 Core-overlay, provenance, CI, and documentation changes are covered by their

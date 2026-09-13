@@ -2,11 +2,11 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.13.1 is the unreleased package update for the baselines below.
+Plasma VPN 0.13.1 is the current public package release for the baselines below.
 Ubuntu 26.04 remains package-validated rather than live-supported until
 community Plasma field reports establish its live lifecycle.
 
-| Component | Fedora 44 | Ubuntu 26.04 candidate |
+| Component | Fedora 44 | Ubuntu 26.04 package-validated |
 | --- | --- | --- |
 | Architecture | x86_64 | amd64 |
 | Desktop | KDE Plasma 6 with systemd user services | KDE Plasma 6 with systemd user services |
@@ -113,7 +113,7 @@ the old backend process is dead.
 | START-02 recovery | Installed Core revision 12 reused and activated one retained protection profile without duplicates or backend restarts |
 | Core 5.6.20 install | Runtime-equivalent overlay revision 2 installed; revision 3 verified as provenance-only |
 | Clean package builds | Client and both overlay package pairs pass policy, transaction, and reproducibility checks |
-| Ubuntu 26.04 package candidate | Client and both overlay `.deb`/source sets pass clean-container policy and lifecycle checks; community Plasma field acceptance pending |
+| Ubuntu 26.04 package validation | Client and both overlay `.deb`/source sets pass clean-container policy and lifecycle checks; community Plasma field acceptance pending |
 
 The release client revision changes package metadata, documentation, screenshots,
 and CI policy after the installed `0.9` build; it does not change client runtime
