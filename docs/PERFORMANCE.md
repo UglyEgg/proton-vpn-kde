@@ -1,22 +1,64 @@
 # Performance
 
-## Corrected offline benchmark — 2026-09-09
+## Runtime measurements
 
-**Current status:** RC6 is corrected in signed commit `17791c7`; the latest
-package measured by this benchmark is `4eebc3f` (`0.13.0-0.7.fc44`). Later
-client and overlay corrections do not include a replacement performance
-measurement, so these results are not attributed to the current
-`0.13.0-0.10.fc44` candidate or Core 5.6.20. Both benchmark passes use a shared
-offline authenticated fixture, not a real account session. A
-synthetic-cache regression explicitly prohibits
-initialization, login and socket creation and checks both passes. Production
-authentication checks and the search implementation are unchanged.
+Measurements are proportional set size (PSS) unless noted. They are regression
+evidence for the stated build and fixture, not fixed product requirements.
 
-After the native builds completed, the corrected script ran 50 iterations per
-query with actual Core 5.6.10 cache/model types. The local cache was 24,456,354
-bytes, containing 18,221 logical servers and 201 projected locations. Loading
-took 201.054 ms; projection construction and the first query took 117.946 ms.
-The allocation pass retained 2,640,733 traced bytes and peaked at 5,290,116 bytes.
+| State | Result | Scope |
+| --- | ---: | --- |
+| Resident agent, disconnected | 11,124 KiB PSS | Fedora 44 Plasma session; no Control Center or backend |
+| Resident agent, isolated offscreen | 29,440 KiB RSS | Qt offscreen session |
+| Agent + backend, connected for 10 minutes | 130.8–133.8 MiB PSS + SwapPss | 21 samples from 0.13 development build `58b3d83`; Control Center closed |
+| Connected resident CPU | 0.537 CPU-seconds / 10 minutes | 0.089% of one core over the same interval |
+| Complete disconnected demo stack | 76.5 MiB combined PSS | Published 0.11.3; backend, agent, and Control Center |
+| Complete disconnected demo stack | 80.8 MiB median combined PSS | Accepted 0.12 mechanics baseline; three runs |
+
+During the connected retention sample, agent private writable memory plus swap
+remained 7,800 KiB; backend private writable memory plus swap fell from 114,660
+to 113,408 KiB. Thread and descriptor counts were constant. This is bounded
+observation, not proof that every reconnect or longer session is leak-free.
+
+The resident agent does not load QML, server/application models, authentication
+transport, or Proton Core. It observes without a backend lease and acquires one
+only for an explicit action. A disconnected, unleased backend retires through a
+one-shot deadline; active tunnels and capture recovery are event-owned without a
+polling loop.
+
+## Inspector retention
+
+Two 20-cycle, same-process Inspector open/close probes retained 7,284 KiB of
+private writable memory after warm-up. The final five closes varied by 128 KiB,
+and owned-page/window-descendant counts returned to baseline after every close.
+An explicit diagnostic GC after ten seconds reclaimed a further 1,024 KiB.
+
+A shorter frozen-source probe produced:
+
+| State | PSS (KiB) | Private memory (KiB) |
+| --- | ---: | ---: |
+| Initial Overview | 64,780 | 59,348 |
+| First close | 67,524 | 62,092 |
+| Second close | 68,574 | 63,120 |
+
+The short probe shows warm-up retention and a smaller second increment; two
+cycles do not establish long-run behavior. Offscreen software rendering excludes
+native GPU-driver retention.
+
+## Search benchmark
+
+The corrected offline benchmark uses actual Core 5.6.10 cache/model types and an
+explicit fake authenticated session. It prohibits initialization, login, and
+socket creation. Production authentication and search code are unchanged.
+
+Fixture: 24,456,354-byte cache, 18,221 logical servers, 201 projected
+locations, system Python 3.14, 50 iterations per query.
+
+| Metric | Result |
+| --- | ---: |
+| Cache load | 201.054 ms |
+| Projection build + first query | 117.946 ms |
+| Retained traced allocation | 2,640,733 bytes |
+| Peak traced allocation | 5,290,116 bytes |
 
 | Query | Median | p95 | Maximum |
 | --- | ---: | ---: | ---: |
@@ -27,273 +69,30 @@ The allocation pass retained 2,640,733 traced bytes and peaked at 5,290,116 byte
 | `a` | 5.539 ms | 6.894 ms | 7.371 ms |
 | no match | 0.269 ms | 0.537 ms | 1.302 ms |
 
-This is offline adapter search with a fake authenticated session and an
-in-memory refresher. It excludes D-Bus, rendering, live refresh, cold GUI
-navigation and whole-app CPU/RAM. The cache and host differ from older samples;
-these figures confirm that measurement works again, not a new speedup claim.
+The projection stores immutable scalar search fields, not Proton server
+objects. It resolves load, maintenance, and account availability from current
+Core objects for matched records. Load-only refreshes do not rebuild it;
+topology or localized-name changes invalidate it for lazy reconstruction.
 
-## Frozen candidate observation — 2026-09-09
-
-The isolated performance review of
-`0912144793b8a149b8b2e2933bd8c78b71470214` found a **measurement-tool defect**:
-both adapters created by `scripts/benchmark-search.py` remain signed out, so
-the authenticated search guard rejects the first timing query and the separate
-allocation pass. At that reviewed revision the script could not reproduce the
-historical search figures below. This did not demonstrate a runtime search regression; the
-production authentication guard is correct and must not be weakened. The
-[current review register](SECURITY-AUDIT-2026-08-30.md#frozen-release-candidate-review--2026-09-09)
-records RC6 and its subsequent correction.
-
-The existing two-cycle Inspector retention probe was rerun on that source:
-
-| Control Center state | PSS (KiB) | Private resident memory (KiB) |
-| --- | ---: | ---: |
-| Initial overview | 64,780 | 59,348 |
-| First Inspector open | 69,440 | 64,008 |
-| First close | 67,524 | 62,092 |
-| Second Inspector open | 69,168 | 63,752 |
-| Second close | 68,574 | 63,120 |
-
-The first close retained 2,744 KiB of both PSS and private memory above the
-initial sample. The second close added 1,050 KiB PSS and 1,028 KiB private
-memory. This is a Control Center-only, private-bus demo fixture with forced GC
-and offscreen software rendering, not combined client/Core memory or live-GPU
-evidence. Two cycles neither establish a leak nor prove bounded long-run growth.
-The earlier 20-cycle observation below used a different runtime and remains
-historical evidence; it is not silently carried forward to this candidate.
-
-Fresh cold-projection/browse event-loop latency, representative cache scaling,
-normal-GC long-run retention and native-GPU behavior remain measurement gaps.
-The benchmark repair permits measurement again; it does not itself improve
-runtime performance. Broader measurement gaps remain separate from RC6's
-tooling correction and do not justify speculative runtime optimization.
-
-## Bounded 0.13.0 observation — 2026-09-08 (historical)
-
-Before the startup-controls follow-up, the installed `58b3d83` client was
-observed connected with the Control Center closed for ten minutes (21 samples).
-Combined agent/backend PSS plus SwapPss ranged from 130.8 to 133.8 MiB. Their
-cgroups consumed 0.537 CPU-seconds, averaging 0.089% of one core, including one
-brief background-work interval. Agent private writable memory plus swap was
-constant at 7,800 KiB; the backend decreased from 114,660 to 113,408 KiB.
-Thread and descriptor counts stayed constant. Falling RSS during paging was
-not counted as an allocation reduction.
-
-Two isolated, same-process Inspector probes each opened and closed the page
-20 times with two-second settling intervals and normal page teardown. A staged
-diagnostic main used the matching native objects, private D-Bus/demo backend,
-and offscreen software rendering. Both retained 7,284 KiB of private writable
-memory after warm-up; the final five closes varied by 128 KiB. Owned-page and
-window-descendant counts returned to baseline after every close. After ten
-seconds idle, one explicit diagnostic GC reclaimed a further 1,024 KiB.
-Clean file-page sharing varied between runs, so writable memory plus swap was
-used for retention rather than attributing every PSS/private-clean change to
-the heap. This supports bounded caching in the exercised path, not a claim
-that every reconnect, refresh, GPU path, or longer session is leak-free. These
-are pre-follow-up observations, not new package acceptance measurements.
-
-## Resident Plasma agent
-
-The system tray, global shortcuts, notifications, favorites, and auto-connect
-run in `proton-vpn-kde-agent`. The agent does not
-load QML, server or application models, the protected authentication transport,
-or Proton's Python core. It observes without a resident client lease and uses
-one only transiently while an explicit connection action is starting.
-
-Backend discovery, activation and identity RPCs do not block the frontend event
-loop. Verification uses a single five-second deadline; a private-bus heartbeat
-regression covers delayed metadata and owner destruction. Route probes have a
-three-second execution deadline and two half-second cleanup stages. These are
-bounded-latency/resource-ownership corrections, not a newly measured memory
-reduction; the historical measurements below have not been refreshed for this
-patch series.
-
-On the Fedora 44 Plasma development session, the disconnected agent settled at
-58,412 KiB RSS and 11,124 KiB proportional set size; systemd attributed about
-8.1 MiB to its private cgroup footprint. The same binary on an isolated
-offscreen Qt session settled at 29,440 KiB RSS. In both cases no Control Center
-or Python backend remained running, and NetworkManager stayed disconnected.
-The live figure includes the real Plasma platform theme, status notifier,
-global-shortcut, and notification integrations.
-
-The lifecycle regressions start the agent beside a demo backend with a
-two-second idle grace period. The backend exits while the observing agent
-remains alive, while a temporary explicit-action lease is acquired and released
-around commands. Separate startup tests prove that a live frontend protects a
-provider prompt and a vanished frontend releases it. The resident process
-therefore does not retain the substantially larger Python server model while
-disconnected.
-
-Backend lifetime is event-driven. Lease acquisition performs one D-Bus owner
-check, and the authenticated `NameOwnerChanged` stream releases a vanished
-frontend. Connected, busy, and packet-capture states wait for Core or client
-events without a repeating timer; only an exit-eligible idle backend arms its
-one-shot grace deadline.
-
-The Connection Inspector adds no resident process or backend collector. Its
-QML page is created only when selected in the already-running Control Center,
-uses the controller's existing bounded connection snapshot, and loads its
-cold settings models only when first opened. Explicit refreshes are coalesced
-while one snapshot request is in flight and reload all three Inspector-owned
-settings models. A static UI gate rejects timers and worker or socket collectors
-in that page.
-
-A later alternating same-host differential compared the exact event-driven
-baseline (`75ffc5e`) with the pre-remediation 0.12.0 candidate (`98969fc`). The
-median combined PSS moved from 91,828 KiB to 92,956 KiB: an increase of 1,128
-KiB, or 1.23%, almost entirely in the Control Center. Unstripped artifacts grew
-by 405,696 bytes while executable text and data grew by roughly 44 KiB. This
-supersedes the earlier three-run observation that classified the difference as
-sharing variance; the smaller positive result is still bounded and consistent
-with adding the dormant page and controller fields.
-
-The measured 0.12.0 baseline adds a repeatable same-process retention probe.
-It measures the Control Center at Overview, after opening and destroying the Inspector,
-then repeats that open/destroy cycle in the same process. The probe reports both
-PSS and private resident memory because PSS can change when another process
-starts or stops sharing the same Qt pages. Three runs retained 580, 580, and
-576 KiB of private memory after the first close, which is normal one-time QML
-and allocator warming. The second close changed private memory by -60, -76,
-and -56 KiB from the first-close sample. The exact accepted runtime revision
-`d2e7a74` repeated the 576 KiB first-cycle and -60 KiB second-cycle results. No
-per-open retained growth was observed. The earlier corresponding second-cycle
-PSS changes were -109, -168, and -57 KiB; the exact revision measured -60 KiB.
-These figures do not claim that allocator caches return to the cold baseline;
-they demonstrate that repeated use does not accumulate another page-sized
-allocation.
-
-## Search performance
-
-The 2026-09-08 development review found no bound on accepted reads when a
-provider lookup stalls; it did not measure an ordinary-session leak or OOM.
-The follow-up limits browsing/settings reads to eight backend owners, including
-queued settings readers. Cancellation does not free a slot until the provider
-child exits. Native search coalesces to one outstanding request and the latest
-query. Event-controlled tests cover repeated cancellation, saturation,
-withdrawal before provider entry, and delayed query replies.
-
-The reviewed `a2b3d5e` demo snapshot measured combined PSS of 72,275 KiB
-(about 70.6 MiB). On correction `7d4d030`, one Inspector probe retained
-556 KiB PSS/private memory after the first close and an additional 840 KiB
-after the second close: 1,396 KiB above the cold sample in total. These are
-short isolated demo observations, not real-Core measurements, evidence of a
-leak, or proof of bounded long-run growth. They do not replace exact-package
-acceptance or supersede the separate historical 0.12.0 measurements.
-
-The backend search benchmark is intended to use Proton's existing local server
-cache without contacting Proton, connecting a VPN, or reading credentials.
-Its fixture correction is recorded in the 2026-09-09 section above.
-
-## Before-and-after search measurement (historical)
-
-The measured cache was 24,328,124 bytes and contained 18,138 logical servers
-across 200 locations. Measurements used system Python 3.14 and Proton VPN API
-Core 5.6.10. The original implementation was sampled five times per query; the
-generation-scoped projection was sampled 50 times per query.
-
-| Query | Result shape | Original median | Projection median | Improvement |
-| --- | --- | ---: | ---: | ---: |
-| `zur` | one location | 418.049 ms | 0.715 ms | 585x |
-| `us-` | 100 servers | 968.139 ms | 0.387 ms | 2,501x |
-| `#1` | 100 servers | 601.205 ms | 0.209 ms | 2,876x |
-| `a` | 100 locations and 100 servers | 420.881 ms | 5.213 ms | 81x |
-| no match | no results | 421.318 ms | 0.233 ms | 1,808x |
-
-Building the projection and completing its first query took 114.053 ms. Its
-traced steady allocation was 2,625,623 bytes, with a 5,267,488-byte peak while
-building. This is a bounded memory trade for eliminating repeated normalization,
-sorting, and physical-server expansion on every keystroke.
-
-The projection stores only immutable scalar search fields. It retains no
-official Proton server or server-list object, never reorders Proton's list, and
-resolves current load, maintenance, and plan availability through the current
-official objects only for matched records. Load-only refreshes therefore remain
-live without rebuilding. A full topology refresh or localized-location-name
-refresh invalidates the projection and rebuilds it lazily on the next search.
-
-An exact comparison with the previous implementation produced identical result
-fields and ordering for 12 representative location, exact-server, feature,
-broad, punctuation, and no-match queries.
-
-## Measured pre-release 0.12.0 baseline (historical)
-
-Three isolated disconnected/demo runs of the measured runtime revision
-`d2e7a74` measured 83,114, 82,629, and 82,754 KiB combined PSS, for a median of
-82,754 KiB (80.8 MiB). The median components were 21,570 KiB for the Python
-backend, 5,542 KiB for the resident agent, and 55,599 KiB for the Control
-Center. This is 2.5 MiB above the earlier absolute pre-final median but remains
-within the cross-run page-sharing variation demonstrated by the stronger
-alternating comparison above; no runtime implementation changed between those
-measurements. These absolute figures do not replace that differential result.
-
-## Published 0.11.3 release measurement (historical)
-
-The 0.11.3 release battery repeated the measurements after the Protun reconnect
-and stale-backend-state recovery work. An isolated offscreen demo stack settled
-at:
-
-| Process | PSS | RSS |
-| --- | ---: | ---: |
-| Python backend | 22,041 KiB | 34,364 KiB |
-| Resident Plasma agent | 4,833 KiB | 32,588 KiB |
-| Control Center | 51,492 KiB | 112,324 KiB |
-| **Combined** | **78,366 KiB (76.5 MiB)** | Not additive for shared pages |
-
-This is below the 81.2 MiB 0.11.2 release result, the earlier 86.0 MiB
-post-remediation result, and the 90.6 MiB pre-remediation source result. It is
-an isolated disconnected/demo measurement, not a claim about a live connected
-Core session.
-
-The current cache was 24,342,666 bytes, with 18,138 logical servers and 200
-locations. Projection construction plus its first query took 116.743 ms. The
-projection retained 2,629,679 bytes of traced allocation and peaked at
-5,267,584 bytes while building.
-
-| Query | Median | p95 | Maximum |
-| --- | ---: | ---: | ---: |
-| `ch` | 1.217 ms | 1.511 ms | 2.228 ms |
-| `zur` | 0.749 ms | 1.143 ms | 2.856 ms |
-| `us-` | 0.409 ms | 0.696 ms | 0.891 ms |
-| `#1` | 0.205 ms | 0.229 ms | 0.308 ms |
-| `a` | 5.667 ms | 6.418 ms | 6.931 ms |
-| no match | 0.273 ms | 0.487 ms | 1.189 ms |
-
-Each row used 50 iterations against the existing local cache. A separate
-visual-startup timing attempt was discarded because the isolated session lacked
-portal and systemd services and backend activation interfered with the sample;
-no startup-latency claim is made from that run.
+The earlier direct-object implementation measured 418–968 ms for representative
+queries against a comparable 18,138-server cache. The scalar projection measured
+0.2–5.7 ms and returned identical fields and ordering for 12 representative
+queries. Host/cache differences preclude interpreting that comparison as a
+universal ratio.
 
 ## Reproduce
 
-With the RC6 fixture correction and an existing Proton server cache:
-
 ```bash
 PYTHONPATH=backend /usr/bin/python3 scripts/benchmark-search.py --iterations 50
-```
-
-The report includes only cache size, aggregate counts, timing, allocation, and
-result counts. It does not print server names, cache contents, or account data.
-
-Measure the disconnected demo processes from an existing build:
-
-```bash
 scripts/measure-demo-memory.sh build
-```
-
-Measure same-process Inspector retention with two consecutive open/close
-cycles:
-
-```bash
 scripts/measure-inspector-retention.sh build
 ```
 
-Both scripts use an isolated session bus, temporary configuration, the
-deterministic backend, and an offscreen Qt platform. The demo-stack script also
-starts the resident agent and samples all three processes after a five-second
-settling period. The retention probe runs the Control Center without the agent
-and reads both PSS and private memory from `/proc/self/smaps_rollup`; private
-memory is the primary same-process retention signal because it is not
-re-apportioned as page-sharing peers change. Both scripts remove their isolated
-processes and state. PSS varies with the allocator, Qt/KDE package versions,
-and the host page cache; it is a regression measurement rather than a fixed
-product requirement.
+All scripts use isolated state and remove their processes and files. The search
+report prints only cache size, aggregate counts, timing, allocation, and result
+counts. PSS varies with allocators, Qt/KDE versions, platform plugins, and page
+cache.
+
+Measurement gaps: live GPU rendering, cold navigation latency, representative
+cache scaling, normal-GC long-duration Inspector retention, and a fresh complete
+0.13.0/Core-5.6.20 resident-state matrix.

@@ -1,157 +1,113 @@
 # Authentication security boundary
 
-## Data flow
+## Secret transport
 
-The Kirigami process necessarily receives text entered into its username,
-password, two-factor, recovery-code, and security-key PIN fields. It clears
-secret fields immediately after submission and does not persist or log them.
+The Kirigami process receives text entered into username, password, second-factor,
+recovery-code, and security-key PIN fields. It clears those fields immediately
+after submission and does not persist or log them.
 
-Ordinary D-Bus string arguments are intentionally not used for secret values.
-Before any application call, the installed Control Center and agent resolve the
-backend's well-known name to a unique D-Bus owner and check that its current
-process matches the packaged, root-owned launcher, active systemd user service,
-acceptable unit inputs, and safe loader environment.
-Every later call and signal is pinned to that unique owner. For each secret
-operation, the frontend requests an ephemeral X25519 public key bound to both
-its actual unique sender and the intended method, derives an independent
-AES-256-GCM key with HKDF-SHA256, and encrypts the minimum required fields. It
-writes only that versioned ciphertext to an anonymous Linux `memfd`, applies
-seals that prevent writing, growing, or
-shrinking it, rewinds it, and transfers its Unix file descriptor. The backend
-rotates its private key before every decryption attempt, so the key is one-use
-and a captured payload cannot be replayed. Even if a session-bus monitor
-receives a copy of the descriptor, it contains authenticated ciphertext rather
-than credentials. A different client cannot consume the outstanding key, and
-owner replacement between key retrieval and submission invalidates the
-frontend's service generation instead of retargeting the secret.
+For each secret operation:
 
-These process checks defend against ordinary or sandboxed same-session peers;
-they are not code-signing identity. Arbitrary native code already executing as
-the desktop user can inject into or rewrite same-user processes and can
-transiently alter user-owned systemd configuration. That attacker is outside
-the authentication boundary unless it must first escape a sandbox or gain
-additional authority. The packaged services and launcher still remove a shared
-denylist of dynamic-loader, OpenSSL-provider, GIO/GI, Python, Qt-plugin, and QML
-search overrides before importing backend or Core code, preventing accidental
-or inherited configuration from crossing the narrower supported boundary.
+1. The native client resolves the backend name to a unique D-Bus owner and
+   verifies its installed executable, systemd unit, UID, loader environment,
+   and owner continuity.
+2. It requests an ephemeral X25519 public key bound to the actual client sender
+   and intended backend method.
+3. It derives an AES-256-GCM key with HKDF-SHA256 and encrypts only the required
+   fields.
+4. It writes the versioned ciphertext to an anonymous Linux `memfd`, seals it
+   against writes and size changes, rewinds it, and transfers the descriptor.
+5. The backend validates sender, method, descriptor count, seals, payload size,
+   schema, field set, and types before decrypting.
+6. The backend rotates its private key before each decryption attempt. A key or
+   payload cannot be reused by another sender, operation, or backend generation.
 
-The Control Center's D-Bus activation also enters a dedicated systemd user
-service carrying the same denylist before Qt loads. Its desktop entry, Plasma
-System Settings module, and resident-agent fallback use configured absolute
-paths, so an inherited writable-leading `PATH` cannot substitute a different
-client process inside this boundary.
+Payloads are limited to 16 KiB. The backend closes the descriptor on every path
+and overwrites its mutable input buffer. D-Bus monitors see authenticated
+ciphertext, not plaintext credentials.
 
-Direct desktop launches and native fallback launches may inherit those same
-overrides from a launcher such as KRunner. Both native entry points remove
-them before constructing `QApplication` and, only if any were present,
-re-execute `/proc/self/exe` with the original arguments and PID. Re-execution
-replaces the initial environment visible through `/proc/<pid>/environ`;
-`unsetenv` alone does not satisfy the backend's unchanged sender check.
-An unsuccessful cleanup or re-execution exits before application startup.
-The shared denylist is used without provider-specific exceptions. This is
-normalization of inherited configuration, not containment of malicious code
-already loaded by the dynamic loader before the initial `main`; arbitrary
-same-user native code remains outside the boundary described above. Systemd
-service activation still removes overrides before the initial executable load.
+Qt and Python may retain immutable string copies until allocator reuse. The
+design does not defend against root, debuggers, or arbitrary same-user native
+code with process-memory access.
 
-The in-process KRunner plug-in is deliberately not a backend client and never
-handles authentication material. KRunner, global shortcuts, and D-Bus-exported
-tray actions send only bounded connection requests to the Control Center and
-require explicit user confirmation there. Synthetic desktop-broker activation
-can therefore present a modal but cannot silently mutate VPN state.
+## Process identity
 
-The backend accepts at most 16 KiB, validates the exact field set and value
-types, closes the received descriptor in every path, and overwrites its mutable
-input buffer. Python and Qt may retain immutable string copies in process memory
-until their normal allocators reuse them; this design does not claim to defend
-against root, a debugger, or arbitrary same-user native code that can read or
-modify either process's memory.
+All packaged entry points use root-owned absolute paths and a shared generated
+environment denylist. D-Bus activation crosses dedicated systemd user services
+before Qt or Python imports application code. Direct native launches remove
+loader/runtime overrides and re-execute `/proc/self/exe` before constructing
+`QApplication` when cleanup was required.
+
+These checks resist ordinary and sandboxed session peers. They are current-state
+policy, not code-signing identity or durable attestation against arbitrary
+same-UID native code. KRunner is therefore an untrusted broker and never handles
+authentication material or calls the backend directly.
+
+## Secret Service provider
+
+Proton SSO persists the session through `org.freedesktop.secrets`. The downstream
+keyring adapter:
+
+- selects or activates the desktop's provider without sending secrets;
+- requires the provider to run as the session user;
+- pins calls, replies, and prompt signals to its unique owner;
+- fails closed on owner replacement;
+- accepts an already-running provider that is not D-Bus activatable; and
+- handles absent or stale `default` collection aliases without provider-specific
+  KeePassXC logic.
+
+The session bus cannot portably attest the executable behind a non-dumpable
+provider. The initially selected same-user provider is a trusted desktop
+dependency; unique-owner pinning prevents later replacement but does not prove
+package provenance.
+
+The verified overlay and supported provider stack are recorded in
+[Compatibility](COMPATIBILITY.md). The client stores only non-secret UI
+preferences in KConfig.
+
+## Session and account lifecycle
+
+Saved-session restoration and connector readiness are separate. A restored
+session with failed connector initialization remains signed in but not ready;
+the UI exposes the startup error and explicit retry. Credentials are not
+requested again to mask a networking failure.
+
+Login, second factor, cancellation, FIDO2, logout, expiry, and shutdown share an
+authentication-transition owner. Account-scoped work captures the current
+session epoch and cannot mutate a replacement account. After Core refreshers
+start, replacement credentials require backend process replacement. A private
+non-secret handoff and pidfd/start-time check prove outgoing-process death before
+new login admission.
+
+Logout disables reconnection, crosses the stable-disconnect boundary, removes
+the persisted Proton session, and restores the previous kill-switch preference
+if a later step fails. Unconfirmed account or protection state produces explicit
+recovery guidance and blocks unsafe admission.
+
+The frontend receives only minimum account display metadata. Snapshots exclude
+passwords, factors, recovery codes, assertions, tokens, certificates, private
+keys, VPN credentials, human-verification tokens, and raw API responses.
 
 ## Password managers
 
-The sign-in fields support ordinary clipboard paste and deterministic keyboard
-navigation, but the client does not query a password-manager database or expose
-a browser-extension protocol. Desktop Auto-Type availability depends on the
-password-manager release and display platform; in particular, an X11-only
-Auto-Type implementation cannot inject into a native Wayland window. This is
-kept outside the authentication contract rather than adding provider-specific
-credential lookup or storage.
+The fields support clipboard paste and deterministic keyboard navigation. The
+client does not query a password-manager database or expose a browser-extension
+protocol. Desktop Auto-Type depends on the password manager and display system;
+X11-only Auto-Type cannot inject into a native Wayland window.
 
-## Persistence
+## Failure contract
 
-Saved-session restoration and connector readiness are separate results. A
-connector failure after a successful session probe retains that signed-in
-fact but keeps `ready=false`; credential submission and VPN operations remain
-unavailable. The UI shows a startup error with an explicit service retry, not
-another credential form or continuing progress animation. Only safe authored
-guidance and exception class names are published/logged.
+- Expected failures map to fixed public messages.
+- Unexpected provider exception text and tracebacks do not cross D-Bus.
+- Owner replacement invalidates pending keys and replies.
+- A cancelled or failed logout is reconciled against Core's account state.
+- A connector failure after successful session restoration does not erase the
+  signed-in fact.
+- Ordinary startup failure remains visible without an automatic prompt loop;
+  durable cleanup failure uses supervised nonzero restart.
 
-Ordinary initialization failure keeps the registered backend available to
-display that error without automatic process restarts or repeated Secret
-Service prompts. Explicit retry still starts a fresh process. With no frontend
-leases, the failed backend retires after the existing idle grace. Durable
-capture/account cleanup remains different: its recovery record preserves
-nonzero startup failure and supervised retries. No credentials are cached by
-the community client to bypass provider approval.
-
-Only Proton's SSO/session implementation persists the authenticated session.
-Its Linux keyring adapter uses the Freedesktop Secret Service API, so KeePassXC,
-KWallet, GNOME Keyring, or another implementation can own
-`org.freedesktop.secrets` when the adapter handles that provider's collection
-layout correctly. Before an operation sends session material, the downstream
-adapter activates the configured provider without secrets, resolves its unique
-D-Bus owner, requires that owner to run as the session user, and pins all later
-calls, replies, and prompt signals to that owner. Owner replacement fails
-closed. A provider that already owns the name after desktop autostart does not
-need to be D-Bus-activatable; the adapter tolerates that activation response
-only when current-owner resolution and same-user validation succeed. This is
-provider-neutral owner pinning, not KeePassXC-specific logic.
-
-The session bus does not portably attest the executable behind a non-dumpable
-provider. KeePassXC on the verified Fedora system denies same-user access to
-`/proc/<pid>/exe`, while process names, command lines, and user-owned autostart
-units are spoofable. The adapter therefore makes no package-provenance claim:
-the desktop-selected same-user Secret Service provider is a trusted dependency.
-Pinning prevents a later owner from inheriting the session traffic; it cannot
-prove that the initially selected provider is benign.
-
-The verified KeePassXC stack uses the compatible downstream adapter recorded in
-[Compatibility](COMPATIBILITY.md); release builds provide it as a separate,
-provenance-tracked RPM rather than overwriting the keyring package in place. The
-KDE application stores only non-secret UI preferences in KConfig.
-
-State snapshots expose connection state and the minimum useful account display
-metadata. They must never contain passwords, two-factor values, recovery codes,
-FIDO2 assertions, API tokens, certificates, private keys, VPN credentials,
-human-verification tokens, or raw API responses.
-
-## Failure handling
-
-Expected authentication failures are converted to fixed messages. Unexpected
-exception text is not returned to the UI because third-party exceptions can
-embed request details. Interrupted logout is reconciled against Core's account
-state; an exception alone does not prove that the session remains signed in.
-Unless logout is confirmed, the adapter attempts to restore a changed
-kill-switch preference through Core's settings API. Unconfirmed protection or
-account state produces explicit recovery guidance, not a claim of restored
-protection or a successful sign-out.
-
-An accepted account transition retains its backend-restart requirement even
-when logout fails. Compensation does not restart refreshers or reopen
-same-process login. The successful path first stops automatic reconnection,
-crosses the stable-disconnect barrier, and asks Proton SSO to remove the
-persisted session. Replacement login then requires outgoing-process death and
-fresh-process cleanup through the non-secret handoff described in the
-[account-transition contract](ARCHITECTURE.md#ownership-consolidation-checkpoint).
-
-Automated coverage includes backend-owner substitution rejection, sender-bound
-authorization, per-operation key isolation, encrypted descriptor creation,
-seal verification, bounded backend reads, descriptor closure, extra-field
-rejection, tamper and replay rejection, exception redaction, password login,
-TOTP/recovery codes, the fail-closed FIDO2 capability gate and compatible-Core
-FIDO2 flow, session expiry, and transactional logout. A
-cross-language compatibility test encrypts known test-only fields with the
-actual C++ frontend implementation and decrypts
-them with the actual Python backend implementation. The complete encrypted
-D-Bus file-descriptor smoke test also verifies that a tampered payload produces
-only the fixed public error name and message, without a traceback.
+Regression coverage includes owner substitution, sender authorization,
+operation isolation, C++/Python encryption compatibility, descriptor seals and
+closure, size and field bounds, tamper/replay rejection, exception redaction,
+password/TOTP/recovery-code flows, FIDO2 capability gating, session expiry,
+transactional logout, and a complete encrypted D-Bus descriptor smoke test.

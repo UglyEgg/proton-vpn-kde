@@ -7,13 +7,10 @@ tagged minor release.
 
 | Release | Security fixes |
 | --- | --- |
-| 0.11.x | Supported |
-| 0.10.x and earlier | Unsupported |
+| 0.13.x | Supported |
+| 0.11.x and earlier | Unsupported |
 
-Version 0.13.0 is unreleased and does not enter the supported-version table
-until publication. Version 0.12.0 was an internal development milestone, not a
-public release. When 0.13.0 is published, support moves to 0.13.x and 0.11.x
-becomes unsupported.
+Version 0.12.0 was an internal development milestone and was never published.
 
 ## Report a vulnerability privately
 

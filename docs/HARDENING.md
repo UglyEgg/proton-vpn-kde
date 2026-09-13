@@ -1,386 +1,131 @@
 # Backend service hardening
 
-Current review limitation: repository-package switching uses a direct `pkexec`
-child, while the systemd-launched Control Center has `NoNewPrivileges=true`.
-That launch path needs installed acceptance testing. This is a functionality/
-launch-policy question, not a validated privilege escalation; the review did
-not weaken the hardening policy.
-
-The installed backend is an unprivileged, D-Bus-activated systemd user service.
-Its sandbox must protect the process without moving VPN networking, session
-storage, or privileged split tunneling out of Proton's official components.
-
-## Retained controls
-
-The Fedora service starts the installed backend by its absolute path and uses:
-
-- `NoNewPrivileges=true`, preventing the backend and its children from gaining
-  privileges through set-user-ID, set-group-ID, or file capabilities.
-- an isolated-mode Python launcher plus `UnsetEnvironment` for Python, dynamic
-  loader, OpenSSL provider, GIO/GI, Qt plugin, and QML import overrides. The
-  launcher repeats the cleanup before importing community or Proton code, and
-  all consumers derive the exact denylist from one installed contract.
-
-These controls prevent inherited user-manager configuration from silently
-redirecting common native-code loaders and let each D-Bus peer reject a
-currently unsafe packaged-process environment before accepting a mutation.
-The backend's project-owned `ip` readiness probe and dormant `journalctl`
-collector also use their absolute Fedora package paths rather than the inherited
-desktop `PATH`. The production idle deadline is fixed; only explicit demo mode
-honors the short test override.
-Connection supersession has its own process-safety boundary before orderly
-shutdown begins. All manual target owners and automatic retry owners are
-cancelled and joined under one 30-second deadline. The provider connection
-coroutine remains shielded while Proton Core 5.6.10 through 5.6.20 waits on
-executor-backed NetworkManager work, then a compensating disconnect completes
-before ownership is released on the handled cancellation path. Those Core
-versions retain a queued replacement when Down arrives in Disconnecting. The adapter
-crosses the public Down event barrier even from an observed Disconnected state
-and records the resulting state inside the task returning through that barrier.
-It repeats the barrier after subsequent state transitions instead of treating
-a state notification as a teardown receipt. Three opt-in adapter conformance
-tests use the exact Core 5.6.20 event/state implementation with fake
-I/O; they cover unfinished Disconnected tasks, queued promotion invalidating
-the captured connection, and preservation of an established tunnel during
-transitional cleanup. The shared cancellation helper also retains provider
-failure separately from caller cancellation. These implemented corrections
-are tracked in the current
-[error-class review](SECURITY-AUDIT-2026-08-30.md#current-0130-error-class-review),
-which separates source and package evidence from pending final release and
-installed acceptance. On detected retirement failure,
-including an obsolete Core connection identity, or deadline exhaustion, the
-backend logs a critical condition and exits nonzero. That
-bounds local process lifetime; supervised replacement is not confirmation that
-NetworkManager has disconnected or undone an already accepted operation.
-
-Orderly backend shutdown closes public ingress, drains accepted work under one
-absolute deadline, disconnects D-Bus, and closes the asyncio loop. It then
-joins service-created non-daemon threads for a final bounded grace period.
-This covers current and future official-Core default-executor calls rather than
-maintaining a fragile list of persistence and NetworkManager methods. If a
-worker still retains process lifetime, the backend logs the condition and exits
-immediately with a nonzero status so it cannot later mutate shared state beside
-a replacement instance. `TimeoutStopSec=35s` gives systemd a longer external
-bound around the complete orderly protocol; `Restart=on-failure` then permits a
-fresh D-Bus activation after a forced terminal exit. Explicit
-`KillMode=control-group` and `SendSIGKILL=yes` retain systemd's external bound
-for all processes in the service control group.
-They are defense-in-depth within the threat boundary below, not a claim that an
-unprivileged process can attest another same-user process cryptographically.
-Support-report temporary files remain mode-restricted and bounded by the
-application's explicit cleanup lifecycle.
-
-The candidate also makes account replacement a process boundary. Once Core
-refresh services have started, that process cannot accept replacement
-credentials. Sign-out records a private, non-secret runtime handoff before
-changing the session. Fresh startup checks outgoing-process exit using a
-pidfd plus PID start time, clears any restored outgoing session, and verifies
-signed-out state before admitting a new login. Missing evidence or unavailable
-pidfd support blocks recovery; bus-name loss alone is not retirement. The
-[architecture contract](ARCHITECTURE.md#ownership-consolidation-checkpoint)
-describes explicit expired-session preparation, bounded startup cleanup and
-the separate installed acceptance gates. This does not change Core's public
-refresher-disable semantics or claim that all its children were joined.
-
-Core refresh errors now enter a bounded, session-tagged adapter handler through
-the public error callback. Raw exception objects, provider messages and
-tracebacks are not queued or published. The callback never synchronously stops
-the scheduler; authentication ownership and epoch are rechecked by the separate
-worker. Shutdown closes admission before joining that worker, while a
-stateless sink receives late Core notices after adapter retirement. This is
-local handler ownership, not proof of provider-child retirement. Generic
-update failures preserve the tunnel and surface a degraded-services warning;
-authentication failures use the existing expiry/connection-retirement path.
-The [architecture contract](ARCHITECTURE.md#ownership-consolidation-checkpoint)
-records the remaining global deadline and installed acceptance gates.
-
-Native connection actions share one admission policy. Starting a connection
-requires a usable account and ready, healthy, idle backend; cancellation and
-tunnel cleanup do not require a still-valid login. Both confirmation acceptance
-and native dispatch recheck their current permission. Missing or invalid state
-never authorizes a mutation. Agent activation and queued intent remain distinct
-from permission to dispatch. These are client-side consistency controls, not
-a replacement for backend authorization or ownership. Schema 1 cannot identify
-the kind of remote busy work. The backend now retains one session-tagged worker
-per cleanup kind, coalescing repeated requests. Disconnect preempts connection
-work but waits for an accepted non-connect foreground transaction, because
-Core settings saves can apply protection outside its connector event lock.
-Accepting cleanup does not promise immediate completion; whole-operation
-cleanup now has one 30-second admission-to-retirement budget. Expiry while
-waiting for a conflicting transaction rejects that request without cancelling
-the transaction or dispatching cleanup later. Duplicate callers cannot extend
-the original budget. Session and deadline checks precede final dispatch.
-Once adapter retirement starts, connection ownership and public Down use the
-remaining time; unconfirmed retirement retains the existing nonzero process
-boundary. A capture Stop provider task is retained through caller cancellation
-and bounded by the same deadline. If still live at expiry, process retirement
-preserves the capture recovery journal rather than discarding its owner.
-
-Retry scheduling requires the adapter's connection and account-lifecycle
-callbacks. There is no standalone direct Core Up/Down fallback: the shared
-connection owner handles post-lock validation, retained provider work and stale
-success compensation. This is an in-process ownership contract, not a new
-security isolation boundary. The production binding and retry/network policy
-outside shutdown are unchanged; tests separate scheduling from actual ownership
-and cleanup. Shutdown now fences retry scheduling immediately; ordered disable
-still joins the existing retry and unregisters its observer.
-
-Close is singleflight at both controller and adapter boundaries. The service's
-absolute deadline is passed inward rather than restarted by capture drainage,
-background-handler retirement or connection supersession. Repeated callers
-share the original deadline and terminal outcome, including failure; caller
-cancellation does not detach teardown. A pending provider call is retained on
-timeout, with later teardown stages guarded against an expired budget. The
-enclosing service reports failure and applies the existing process-retirement
-boundary. This does not prove external tunnel removal or Core child quiescence.
-Process-task/thread graces and the systemd stop limit remain external backstops,
-especially if synchronous provider code stalls the event loop.
-
-Foreground mutations have one 180-second admission-to-retirement budget.
-Pre-admission expiry withdraws just that request. After admission, the complete
-transaction and its compensation remain owned through caller cancellation;
-settings and authentication are not abandoned after a transport timeout.
-Connection, capture Start and FIDO retain their explicit cancellation paths.
-Inner recovery limits cannot detach accepted side effects or extend the outer
-budget. Unconfirmed foreground work fences admission and retires the process
-nonzero, using the existing boundary without altering Core or network policy.
-The controller's deadline assumes a progressing event loop; it is not proof of
-external tunnel teardown. Installed acceptance remains required.
-
-Packet capture first requires Core to accept the selected destination, then
-reserves its bounded lifecycle before Core receives the start request. A
-rejected destination remains inactive and retryable. Cancellation and
-completion-unknown starts issue a compensating stop;
-the watchdog is armed first against the original 15-minute deadline, and every
-Core stop attempt has its own timeout. An unconfirmed stop preserves active
-state rather than publishing a false clean shutdown condition. Before Core can
-receive a start request, the backend atomically records the deadline in the
-session's private runtime directory. Confirmed stop removes that record. If a
-backend replacement follows an unconfirmed stop, it reacquires the current Core
-connection and retries before publishing readiness; unavailable recovery state
-fails startup for systemd retry. While any recovery entry exists, initialization
-is not eligible for the ordinary no-client idle exit, so a hanging bounded stop
-cannot be canceled into an unsupervised clean shutdown. The recovered watchdog
-retains the original deadline and continues bounded attempts after that deadline
-until Core confirms completion.
-Risk-reducing Stop remains callable after account-session expiry and bypasses
-unrelated foreground mutations. It cancels accepted Start only once and joins
-its compensation. Final Stop and Down calls serialize; each rechecks its
-captured session epoch immediately before dispatch. New mutations wait for
-accepted cleanup and revalidate their account after waiting. Caller cancellation
-cannot cancel or drop a cleanup worker, and shutdown grace expiry does not
-cancel mandatory cleanup. If the shutdown deadline expires first, close fails
-explicitly without closing Core underneath that work. Existing process and
-capture recovery bounds remain necessary; this is not proof of external teardown.
-The frontend gives capture its own completion generation so a later foreground
-operation cannot discard a valid Stop reply or release shutdown early.
-Authentication, settings, and protection recovery states block ordinary
-mutations but deliberately do not block this same risk-reducing Stop path.
-Snapshot publication is also gated on completed adapter initialization. Recovery
-and connector callbacks may update internal state during startup, but clients
-cannot observe a ready session until authentication state, callbacks, and
-session services are coherent.
-
-The 0.11.3 release-battery inspection confirmed that all four ELF files in the
-exact locally built `proton-vpn-kde-0.11.3-1.fc44` RPM are position-independent
-executables or shared objects with non-executable stacks, GNU RELRO, and
-immediate binding. A generic CMake build does not automatically inherit
-Fedora's compiler and linker hardening policy.
-
-## Deliberately excluded controls
-
-The service deliberately does not use `PrivateTmp` or `ProtectSystem`. On
-Fedora 44 with SELinux, either setting creates a mount namespace from which an
-unprivileged process receives `EACCES` for another same-user process's
-`/proc/<pid>/exe` and `/proc/<pid>/environ`. Those reads are required to
-distinguish the packaged root-owned Plasma clients from an arbitrary same-user
-D-Bus process. Keeping a cosmetic mount namespace while disabling executable
-authentication would weaken the higher-value security boundary. The backend
-already runs without elevated privileges, so the desktop user cannot write the
-root-owned system paths that `ProtectSystem=full` would remount read-only.
-
-The service also does not use `ProtectSystem=strict`, `ProtectHome`, or fixed
-`ReadWritePaths`. Proton persists account and VPN state below the user's home
-directory, and packet capture intentionally accepts any existing writable
-directory selected by the user. A static allowlist would either break those
-workflows or create a misleadingly incomplete sandbox.
-
-The service also retains host networking, Unix, Internet, netlink, and device
-access. The official Core reaches NetworkManager and privileged Proton helpers
-over D-Bus, uses network APIs, and may use FIDO2 security keys. Controls such as
-`PrivateNetwork`, aggressive `RestrictAddressFamilies`, or `PrivateDevices`
-would change or disable supported behavior rather than merely harden it.
-
-The privileged split-tunneling daemon remains Proton's separately packaged
-system service. These user-service settings neither grant the KDE backend new
-privileges nor modify that daemon's security policy.
-
-Official Core requires its restored Secret Service session while constructing
-the connector needed for persisted packet-capture recovery. The adapter warms
-that session outside the D-Bus event loop and bounds the wait whenever a
-recovery entry exists. A locked or unanswered provider therefore causes a
-nonzero startup with the entry retained for systemd retry; the backend cannot
-publish readiness or claim supervision without first reacquiring the Core
-connection and processing the original `CLOCK_BOOTTIME` deadline. Connector
-construction is bounded in this recovery path as well, so a stalled system
-D-Bus dependency returns ownership to systemd without discarding the record. A
-restored logged-out session also fails with the entry retained because Core
-deliberately does not restore persisted connection state in that condition;
-its synthetic disconnected connector cannot authorize clearing
-completion-unknown recovery.
-
-The current installed backend and agent units each receive a 9.0 “UNSAFE”
-score from `systemd-analyze security --offline=yes --user`. This heuristic is
-not a vulnerability verdict and heavily penalizes capabilities that an
-unprivileged desktop integration legitimately retains. It is still useful as a
-defense-in-depth backlog. Compatible candidates to evaluate independently are
-`UMask=0077`, an empty `CapabilityBoundingSet`, `LockPersonality`,
-`RestrictRealtime`, `RestrictSUIDSGID`, `SystemCallArchitectures=native`, and
-the `ProtectKernel*` family. Each must pass real Core, FIDO2, packet-capture,
-KRunner, KCM, tray, and procfs peer-identity tests before adoption.
-
 ## Threat boundary
 
-The local attacker considered here is an ordinary or sandboxed same-session
-process that can reach D-Bus but cannot already execute arbitrary native code as
-the desktop user. Arbitrary same-UID native code is already able to rewrite
-same-user process memory, inject into a newly launched packaged executable, or
-temporarily alter user-owned systemd units and drop-ins. Linux does not provide
-the unprivileged backend with durable evidence that distinguishes those actions
-after the attacker restores the observable files and environment.
+The protected local adversary is an ordinary or sandboxed process in the same
+graphical session with D-Bus access but without arbitrary native-code execution
+as the desktop user.
 
-Consequently, the controls below resist ordinary bus-name substitution,
-owner-replacement races, stale replies, unexpected inherited loader settings,
-and peers without equivalent host-code execution. They do not constitute
-OS-backed code-signing identity and do not defend against arbitrary native code
-already running with the user's authority. A stronger boundary would require a
-root-controlled system service, a mandatory-access-control policy, or another
-privileged launch and attestation design; that would materially change the
-desktop architecture and is not implied by this project.
+Out of scope:
 
-## D-Bus process identity
+- root and debuggers;
+- arbitrary same-UID native code or process-memory access;
+- malicious replacement of user-owned systemd state followed by restoration;
+- compromise of Proton Core, NetworkManager, the Secret Service provider, or
+  Proton's service.
 
-The well-known session-bus name is an address, not an identity. Installed
-Control Center and agent clients therefore resolve it to a unique owner and
-check that the current process matches the active packaged systemd unit, its
-root-owned launcher, acceptable unit inputs, and a safe loader environment.
-User-owned, writable, or mixed-trust drop-ins fail closed while present. Calls
-and signals then use the checked unique name so ownership replacement cannot
-retarget an in-flight operation. These are current-state policy checks within
-the documented boundary, not durable same-UID attestation.
+Linux session D-Bus does not provide code-signing identity. A stronger same-UID
+boundary requires a root-controlled service, MAC policy, or equivalent
+privileged attestation and would materially change the desktop architecture.
 
-Each asynchronous frontend request is additionally stamped with the verified
-unique destination and the frontend's current owner generation. Completion
-handlers discard replies from any superseded generation before mutating local
-state, and D-Bus signal handlers reject senders other than the current verified
-owner. Service-replacement regressions exercise both the Control Center and the
-resident agent.
+## Deployment controls
 
-Operations that can overlap under the same verified backend owner also carry a
-monotonic operation generation. A delayed connection, authentication, survey,
-or dismissal reply cannot complete or overwrite its replacement merely because
-both calls share the same service owner. One controller-owned connection-action
-signal pair gives every QML surface the accepted operation identifier, so
-feedback lifetime is not inferred independently by whichever button initiated
-the request.
+The backend, Control Center, and agent are unprivileged D-Bus-activated systemd
+user services. Fedora units and launchers provide:
 
-At the backend ingress boundary, the actual D-Bus sender is captured before
-method dispatch. Mutations require a sender currently executing one of the
-root-owned native client paths without a denied loader environment. Claims in
-method arguments never replace the sender identity. Authorization and pending
-secret keys are revoked when the sender's unique name vanishes. Build-tree
-tests use an exact-owner pin that is ignored by installed root-owned
-executables.
+- root-owned absolute executable paths;
+- `NoNewPrivileges=true`;
+- isolated Python startup;
+- one generated denylist for dynamic-loader, OpenSSL-provider, GIO/GI, Python,
+  Qt-plugin, and QML search overrides;
+- fixed absolute paths for project-owned `ip` and `journalctl` subprocesses;
+- `KillMode=control-group`, `SendSIGKILL=yes`, and an outer 35-second stop
+  deadline; and
+- a production-fixed backend idle grace, with override only in demo/test mode.
 
-Successful authorization already verifies that the caller's unique D-Bus name
-is still owned. Frontend lifetime registration reuses that verified result
-instead of issuing a second asynchronous owner probe, then checks authorization
-again and rolls the lease back if owner loss raced registration. Every service
-requires an authorizer; demo mode uses an explicit non-networking demo policy
-rather than an authorizer-free export path. Owner
-loss during the asynchronous identity checks also invalidates the pending
-authorization before it can create a lifetime lease; this pending marker is
-removed when the check completes rather than accumulating unique-name
-tombstones for the backend lifetime.
+Native direct launches apply the same environment policy before Qt starts and
+re-execute `/proc/self/exe` when cleanup changes the environment. D-Bus
+activation applies it before the initial executable load.
 
-The ingress policy covers every supported exported-call representation and
-discharges unexpected descriptor ownership before object routing, including
-ignored signals and scalar replies without consuming their normal dispatch.
-Closed descriptors are detached from the message to prevent double cleanup.
-The guard is installed before bus connection, allows secret adoption only after
-export, and remains active in non-adopting mode through shutdown/disconnect.
-The shared export boundary applies the generated method classification
-again before any protected operation body runs. This second check covers
-revocation while an asynchronous call is queued and closes its secret descriptor
-if authorization is lost before the method adopts it. Request identity defaults
-to empty outside ingress; test identities are established explicitly.
+Repository-channel changes use a fixed Polkit action, fixed package names, and
+fixed DNF arguments. No shell or user-selected package name crosses the
+privilege boundary. Installed acceptance must cover the interaction between
+`pkexec` and the Control Center's `NoNewPrivileges` launch path.
 
-Read-only settings and protection replies are also scoped to the active account
-session. A logout or account transition advances the session generation and
-rejects late replies, preventing an old session from repopulating cleared
-frontend state. Core settings reads do not persist normalization or mutate the
-adapter's snapshot-owned kill-switch value. In community builds they disable
-the unsupported crash-report sender in memory and translate its visible value
-to off; an already explicit settings mutation persists that policy through
-Core's public API. This keeps a stale read from committing an old account's
-whole settings object after logout.
+## D-Bus identity and authorization
 
-The adapter independently serializes every authentication transition and
-assigns account-scoped Core work an authentication epoch. Only the epoch that
-still owns the current account may turn an authentication-needed exception
-into signed-out state and session-service teardown. This closes the deeper
-source-of-authority race in which a frontend correctly rejected a stale reply
-only after the adapter had already invalidated a replacement session. The
-transition is reentrant only for work descending from its active owner and is
-also drained by adapter shutdown.
+The well-known name is an address. Native clients resolve it to a unique owner
+and verify UID, PID, installed executable, active unit, acceptable unit inputs,
+loader environment, and owner continuity. User-writable or mixed-trust service
+drop-ins fail closed.
 
-General settings, split tunneling, and custom DNS share one backend completion
-order because all three project the same persisted Core object. Reads recheck
-their session after entering that order and after Core returns, writes publish
-change notifications only after success, and shutdown drains or joins the
-accepted settings task before teardown. A read is therefore side-effect-free
-and cannot arrive after a newer write with an older visible value.
-Destructive NPS survey reads and submissions use a separate side-effect fence
-shared with logout and backend shutdown, then recheck the account generation
-before and after entering the official adapter. The fence does not own the VPN
-operation lock, preventing invisible rejection of connect or disconnect while
-still keeping survey state out of a replacement account. Frontend submission
-and dismissal generations keep their results out of newer foreground guidance;
-dismissal never reopens the prompt. The synchronous Core mark-seen cache
-transaction runs off the event loop as an owned task; cancellation joins its
-worker before controller ownership is released, and queued work is rejected
-once shutdown begins. Any exception after invoking the official
-submission API is represented by a dedicated completion-unknown D-Bus error and
-disables retry, because the upstream side effect may already have been accepted.
+Calls and subscriptions target the verified unique name. Every asynchronous
+completion also carries the frontend's backend generation; replacement owners
+cannot receive an in-flight call or have stale replies accepted.
 
-FIDO2 is available only when Core explicitly guarantees that the official
-cancellation event reaches multi-key selection. For a compatible Core,
-cancellation also releases any PIN waiter, is observed before a PIN waiter is
-created, and joins the assertion task before the adapter interaction is
-released. Core versions without that complete contract fail closed by not
-advertising the security-key action.
+At ingress, the backend captures the actual D-Bus sender. Protected methods
+require an authorized installed client, then recheck authorization before the
+operation body runs. Claims in arguments never substitute for the sender.
+Owner loss revokes authorization, leases, and secret keys. Unexpected file
+descriptors are closed before ignored or rejected messages leave ingress.
 
-The same address-versus-identity rule is applied as far as the portable Secret
-Service API permits. The downstream keyring overlay activates the selected
-provider without sending secrets, requires its current unique owner to run as
-the session user, and retargets every Secret Service call to that unique owner.
-Replies, prompt signals, and well-known-owner continuity are checked. This
-prevents later name replacement without KeePassXC-specific logic. It does not
-attest the executable behind the initial provider: Linux deliberately blocks
-same-user `/proc/<pid>/exe` inspection for some non-dumpable providers, and
-process names or user-owned autostart units are not trustworthy substitutes.
-The desktop-selected same-user Secret Service provider is therefore an explicit
-platform trust dependency.
+KRunner, global shortcuts, and status-notifier brokers are not authentication
+principals. They can request a bounded confirmation surface but cannot invoke
+the authorized backend controller directly.
 
-Executable-path policy is useful defense-in-depth for isolated project
-processes such as the Control Center and agent within the stated boundary. It
-is not an OS-backed identity, and it is insufficient for shared desktop
-brokers. Therefore `/usr/bin/krunner`, KGlobalAccel, and status-notifier
-D-BusMenu are not trusted backend clients. Their actions send only validated
-connection requests to the Control Center activation service, which requires
-explicit modal confirmation before its already authenticated controller acts.
-That activation service delegates startup to a dedicated systemd user unit,
-which removes the shared loader environment before Qt loads. The KCM, desktop
-entry, and agent fallbacks use configured absolute executable paths. The
-guarded disconnect-and-quit tray path also requires local confirmation. Shared
-brokers never authenticate to or call the backend.
+## Lifetime and cancellation
+
+- The backend acquires its bus name without queueing; only the primary owner
+  initializes Core.
+- Owner-loss events release frontend leases; disconnected idle retirement is
+  event-driven.
+- Manual and automatic connection work share generation-bound ownership.
+  Superseded Core work is shielded, joined, and compensated before ownership
+  is released.
+- Disconnect crosses Core's public event barrier. Observed `Disconnected`
+  alone is not treated as proof that queued provider work has retired.
+- Cleanup requests have one admission-to-retirement deadline. Duplicate
+  callers cannot extend it.
+- Shutdown is singleflight and uses one absolute deadline through controller,
+  adapter, capture, background-handler, and thread retirement.
+- Unconfirmed retirement exits nonzero so a stale process cannot later mutate
+  state beside a replacement.
+
+Account replacement is a process boundary. A private non-secret handoff, pidfd,
+and PID start time prove outgoing-process death before new credentials are
+accepted. Missing evidence blocks recovery.
+
+## Capture and diagnostic bounds
+
+Direct Proton support and crash-report submission are disabled in community
+builds at UI, native, backend, and package-policy boundaries.
+
+The dormant support collector has:
+
+- fixed journal sources;
+- no shell;
+- 20-second process timeout;
+- 1 MiB per-source limit; and
+- 2 MiB aggregate limit.
+
+Packet capture requires an active supported protocol, an existing writable
+absolute directory, and Core's positive reviewed byte cap, currently no more
+than 512 MiB. A 15-minute generation-bound watchdog owns Stop. A private atomic
+recovery record preserves the original deadline across backend replacement.
+Failed or ambiguous Stop retains supervised retry; the adapter never uploads or
+rewrites capture data.
+
+## Secret Service and authentication
+
+The keyring overlay requires a same-user Secret Service provider and pins all
+traffic to its unique owner. Owner replacement fails closed. The initial
+provider remains a trusted desktop dependency because portable session APIs do
+not attest its executable provenance.
+
+Authentication fields cross D-Bus only as bounded, authenticated ciphertext in
+a sealed descriptor under one-use sender/method-bound keys. Raw provider
+exceptions, tracebacks, tokens, and credentials do not enter public state.
+See [Authentication](AUTHENTICATION.md).
+
+## Defense-in-depth backlog
+
+`systemd-analyze security --offline=yes --user` scores both services 9.0,
+`UNSAFE`, largely because desktop VPN integration requires host networking,
+D-Bus, home state, devices, and procfs peer inspection. This is a heuristic, not
+a vulnerability result.
+
+Potential additions are `UMask=0077`, an empty `CapabilityBoundingSet`,
+`LockPersonality`, `RestrictRealtime`, `RestrictSUIDSGID`,
+`SystemCallArchitectures=native`, and selected `ProtectKernel*` directives.
+Each requires installed Core, FIDO2, capture, KRunner, KCM, tray, Polkit, and
+procfs identity regression testing before adoption.

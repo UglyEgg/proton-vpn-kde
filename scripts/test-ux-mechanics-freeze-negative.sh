@@ -11,6 +11,7 @@ feedback_fixture_dir="$fixture_root/feedback-repository"
 busy_fixture_dir="$fixture_root/busy-repository"
 controller_fixture_dir="$fixture_root/controller-repository"
 rpm_fixture_dir="$fixture_root/rpm-repository"
+release_fixture_dir="$fixture_root/release-repository"
 trap 'rm -rf -- "$fixture_root"' EXIT
 
 git clone --quiet --no-hardlinks "$project_dir" "$fixture_dir"
@@ -126,3 +127,29 @@ if ! rg -q 'RPM %check requires ripgrep' "$rpm_output"; then
     exit 1
 fi
 echo "The QML gate rejects an undeclared RPM test dependency"
+
+git clone --quiet --no-hardlinks "$project_dir" "$release_fixture_dir"
+cp "$project_dir/scripts/check-release-metadata.sh" \
+    "$release_fixture_dir/scripts/check-release-metadata.sh"
+cp "$project_dir/packaging/fedora/proton-vpn-kde.spec" \
+    "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
+cp "$project_dir/CHANGELOG.md" "$release_fixture_dir/CHANGELOG.md"
+cp "$project_dir/README.md" "$release_fixture_dir/README.md"
+cp "$project_dir/SECURITY.md" "$release_fixture_dir/SECURITY.md"
+cp "$project_dir/docs/SECURITY-AUDIT-2026-08-30.md" \
+    "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
+sed -i \
+    's/^Release:[[:space:]]*1%{?dist}$/Release:        0.10%{?dist}/' \
+    "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
+release_output="$fixture_root/release-output"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted a prerelease RPM identity" >&2
+    exit 1
+fi
+if ! rg -q 'final Fedora release number' "$release_output"; then
+    echo "The release metadata fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects a prerelease RPM identity for a dated release"

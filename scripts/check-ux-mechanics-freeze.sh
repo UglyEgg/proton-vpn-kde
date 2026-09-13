@@ -237,7 +237,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "d6dacc5e90a5fecb25e71cbf29861e81610e05620bf3579e441b0e034053f141" \
+    "5ee0594cd9199df4c9e8ba4dae56e42b01570f373bb3e7bc94d30e576e126991" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "b97187b4c217c1673e959608012e29a6e3226eee78a1d752fcfe5c63cd41e96c" \
@@ -251,7 +251,7 @@ assert_diff_hash \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "acd060a0bc2cc667bc97e65c0d41e90f7d3b598c7fb71da2fe680d8c9a4aff2e" \
+    "298fe3ed74b0d6ff0d6e16dba499ca1bac6b28d593797a9f06e521426a9e6a1a" \
     "QML presentation" qml
 
 assert_diff_hash \

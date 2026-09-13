@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.13.0
-Release:        0.10%{?dist}
+Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -141,6 +141,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sun Sep 13 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-1
+- Publish the 0.13 Plasma interface and lifecycle release
+- Ship the verified keyring and API Core integration requirements
+- Use concise current-state engineering and release documentation
+
 * Sat Sep 12 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.10
 - Complete SPDX provenance for installed Python templates and strict JSON sources
 - Separate signed Core package identity from public source-tag provenance

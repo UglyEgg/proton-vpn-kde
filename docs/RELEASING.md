@@ -1,59 +1,37 @@
 # Release procedure
 
-Only release from a clean working tree after the version-specific changes are
-committed.
+Release only from a clean, immutable commit. Runtime changes after review or
+acceptance restart the affected gates. Feature releases require one week of
+local use on the reviewed runtime before publication.
 
-Feature releases require at least one week of local use on one immutable
-candidate commit after the complete review and package battery passes. Any
-runtime change restarts that soak. During the soak, record defects on the
-feature branch instead of publishing successive corrective tags; one deliberate
-release should represent the complete reviewed feature set.
+## 1. Metadata
 
-## 1. Update release metadata
+Synchronize:
 
-Update the canonical version in `CMakeLists.txt` and the matching values in:
-
+- `CMakeLists.txt`;
 - `backend/pyproject.toml`;
 - `backend/proton_vpn_kde_backend/__init__.py`;
 - `packaging/fedora/proton-vpn-kde.spec`;
 - `qml/ReleaseNotesPage.qml`;
-- `CHANGELOG.md` and packaging documentation.
+- `CHANGELOG.md`;
+- `README.md`, `SECURITY.md`, and `docs/COMPATIBILITY.md`.
 
-Update [Compatibility](COMPATIBILITY.md) only with evidence from the installed
-stack. Review the current posture and release gates in the security assessment;
-never carry an open or ambiguous finding into release notes.
-
-A development candidate may retain an `Unreleased` changelog section and a
-prerelease RPM suffix. Public-release metadata needs a dated version entry,
-the final Fedora release number, and a security-support table in `SECURITY.md`
-that matches the published versions. Prepare that metadata before freezing the
-release candidate; do not describe a local acceptance build as already released.
-Label accepted but unpublished version boundaries as internal development
-milestones; they must not appear as prior public releases in the README,
-changelog, in-app release notes, or security-support table.
-The synchronization check below verifies version consistency, not completion
-of those publication requirements.
-
-Verify synchronization:
+A public release requires a dated changelog entry, final RPM release number,
+matching security-support table, and current in-app notes. Accepted internal
+milestones must not appear as published releases.
 
 ```bash
 scripts/check-release-metadata.sh
+scripts/check-documentation-links.py
 ```
 
-## 2. Verify the source tree
+## 2. Source gate
 
-Require seven isolated reviewers on the same immutable candidate: Hostile,
+Seven isolated reviewers assess the same immutable source: Hostile,
 Subtractive, Entropy, Error-Class, HPC/Performance, Hardening/Security, and
-Cognitive Load/Code Maintainability. Collect every result before remediation,
-consolidate duplicates, and re-review behavioral corrections. The seventh
-perspective checks unnecessary abstraction, duplicate ownership, hidden flow,
-and the cost of understanding and changing code. Record results in the existing
-security assessment; partial coverage and focused fix checks are not a complete
-release approval. Preserve earlier review records as explicitly historical.
-
-Review `git status --short` and the complete release diff first. The committed
-tree must contain no build output, local RPMs, credentials, diagnostics,
-machine-specific paths, editor state, or unrelated development debris.
+Cognitive Load/Code Maintainability. Consolidate only after all reports arrive.
+Behavioral remediation requires focused regression cases and re-review of the
+changed class.
 
 ```bash
 scripts/check-static-analysis.sh
@@ -67,40 +45,24 @@ scripts/check-clang-tidy.sh
 scripts/measure-inspector-retention.sh build
 scripts/check-qml-visual-matrix.sh build build/visual-matrix
 git diff --check
+git status --short
 ```
 
-Confirm that the working tree is clean after verification. If a tool changes a
-tracked file, review and commit that change before rebuilding.
+The tree must contain no build output, local packages, credentials, diagnostics,
+machine-specific paths, editor state, or unrelated changes.
 
-## 3. Build the Fedora source and binary packages
+## 3. Packages
 
-Build the provider-neutral keyring dependency first. The script fetches and
-digest-verifies Proton's pinned upstream source, verifies the patch manifest,
-runs the focused test suite in `%check`, and emits both source and binary RPMs:
+Build overlays first:
 
 ```bash
 packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
     '' "$PWD/build-keyring-overlay"
-```
-
-Build the Plasma-compatible API-Core dependency next. Its script fetches and
-digest-verifies Proton's exact signed Fedora RPM, applies only the manifest
-patch set, rejects every unlisted payload change, runs the behavior checks,
-and emits both source and binary RPMs:
-
-```bash
 packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     '' "$PWD/build-api-core-overlay"
 ```
 
-Create a fresh dedicated top directory with the commit-stamping helper, then
-build with Fedora's package flags and `%check` enabled. The helper refuses a
-nonempty output directory and normalizes the injected commit marker so the
-same source commit produces the same archive. The spec also derives the RPM
-header build time from the changelog epoch and uses a fixed non-routable build
-host so independent unsigned builds can be compared byte for byte. Embedded Qt
-resources instead use the exact normalized source-commit timestamp; distinct
-same-day candidates must not reuse older QML disk caches:
+Build the client from the exact commit:
 
 ```bash
 packaging/fedora/prepare-rpmbuild-tree.sh \
@@ -113,59 +75,50 @@ rpmbuild \
     -ba build-release/SPECS/proton-vpn-kde.spec
 ```
 
-For a tagged release, replace `HEAD` with the verified signed `vVERSION` tag.
-The resulting build is not releasable if `%check` is skipped or reports a
-failure.
+Use the verified signed `vVERSION` tag instead of `HEAD` for publication.
+`%check` is mandatory.
 
-The `RPM Package` GitHub Actions workflow performs one complete build and
-package-policy inspection for each pull-request update. Feature-branch pushes
-do not launch a duplicate workflow, and retry attempts use a distinct
-concurrency identity so they cannot wait on the run being retried. A signed
-release tag or explicit manual run additionally rebuilds the API-Core overlay
-and complete client RPM/SRPM output set in a second clean top directory under
-the same normalized RPM build path, requires byte-identical results, and
-retains the complete six-artifact set for 14 days. These unsigned CI artifacts
-are review evidence, not published releases and not a substitute for the
-clean-environment live acceptance below.
+Pull requests receive one complete client/keyring/Core build and policy
+inspection. Feature-branch pushes do not duplicate it. Tag and manual workflows
+also repeat client and API-Core builds in clean roots, require byte-identical
+outputs, and retain all three RPM/SRPM pairs for 14 days. CI artifacts are
+unsigned evidence, not published packages.
 
-## 4. Inspect artifacts and complete acceptance
+## 4. Artifact and live acceptance
 
-- Inspect RPM metadata, dependency generation, payload ownership and modes,
-  systemd and D-Bus paths, feature gates, and native hardening.
-- Install into a clean Fedora Plasma environment and verify KeePassXC or
-  another intended Secret Service provider using the exact keyring adapter
-  declared in [Compatibility](COMPATIBILITY.md); then verify signed-out and
-  signed-in startup, server browsing, settings persistence, connect/disconnect,
-  KRunner confirmation, resident-agent lifetime, and clean disconnected shutdown.
-- Verify opt-in login launch, window/tray startup, and auto-connect with both
-  ready and locked Secret Service. Installation must not enable login launch
-  or replace custom autostart entries. Exercise full/split route layouts,
-  keyboard navigation, app-owned sizing, and monitor/work-area changes.
-- Confirm that direct Proton support and crash submission remain disabled in
-  community packages.
-- Inspect source content, licenses and provenance for all three package pairs:
-  client, keyring overlay, and API Core overlay. The API Core SRPM contains a
-  signed vendor binary RPM plus the reconstruction inputs; it is not a complete
-  upstream source checkout or an upstream-ready patch submission. Check the
-  actual source material rather than treating the `.src.rpm` suffix as proof of
-  completeness; see the [overlay packaging boundary](../packaging/fedora/api-core-overlay/README.md).
-- Complete and record the one-week exact-candidate soak described above before
-  authorizing publication. Package installation alone does not start that gate.
+Inspect:
 
-## 5. Tag, sign and publish
+- package metadata, dependencies, payload ownership/modes, systemd/D-Bus paths,
+  feature gates, ELF hardening, licenses, and provenance;
+- exact changed-path and patch-manifest policy for both overlays;
+- the API-Core SRPM's vendor-RPM reconstruction boundary; and
+- final binary/source checksums.
 
-Create the signed `vVERSION` tag only after the exact commit has completed the
-release battery, then verify that the published archive reproduces from that
-tag. Release notes must identify the supported stack, known limitations, test
-results, checksums, and the project's unofficial status.
+Install all three binary packages in a clean Fedora Plasma environment. Test:
 
-After unsigned reproducibility comparisons and acceptance are complete, sign
-the final RPMs with the maintainer-controlled key and verify their signatures.
-Generate SHA-256 checksums **after signing**, because signing changes the RPM
-bytes. Publish all three binary/source pairs and their final checksums; retain
-the exact source commit and build evidence. Never describe an unsigned local
-package as a signed release or imply that a community artifact is an official
-Proton release.
+- signed-out, saved-session, and signed-in startup;
+- KeePassXC or another intended Secret Service provider;
+- server browsing, settings persistence, Connect/Disconnect, and recovery;
+- KRunner confirmation, shortcuts, tray, backend retirement, and agent lifetime;
+- opt-in login launch, window/tray startup, and auto-connect with ready and
+  locked Secret Service;
+- full/split layouts, keyboard navigation, app-owned sizing, and monitor changes;
+- packet-capture stop and disconnected shutdown; and
+- disabled Proton support/crash submission.
 
-The release process must never publish Proton credentials, account data,
-private test logs, local signing material, or support bundles.
+Installation must not enable autostart or overwrite custom autostart entries.
+Record exact versions and outcomes in [Compatibility](COMPATIBILITY.md).
+
+## 5. Sign and publish
+
+1. Confirm the review, package, installed-UAT, and soak gates.
+2. Create and verify signed tag `vVERSION`.
+3. Rebuild from that tag and compare with the verified unsigned outputs.
+4. Sign final RPMs with the maintainer key.
+5. Generate SHA-256 checksums after signing.
+6. Publish all three RPM/SRPM pairs and checksums.
+7. Verify tag signature, release links, downloaded signatures, and checksums.
+
+Release notes identify supported versions, known limitations, validation
+results, and unofficial community status. Never publish credentials, account
+data, private keys, raw diagnostics, or unreviewed capture data.

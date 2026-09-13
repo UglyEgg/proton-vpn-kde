@@ -127,7 +127,7 @@ Kirigami.ScrollablePage {
                 heading: qsTr("0.12.0 development milestone")
                 headingLevel: 3
                 notes: [
-                    qsTr("Accepted locally but never tagged or published. Its changes are included in 0.13.0, the next public release after 0.11.3.")
+                    qsTr("Accepted locally but never tagged or published. Its changes are included in the 0.13.0 release.")
                 ]
             }
 

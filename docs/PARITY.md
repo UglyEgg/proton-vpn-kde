@@ -52,8 +52,8 @@ Proton's official core.
   launch, window/tray startup, and auto-connect. Installation never enables
   login launch. Existing custom autostart entries are preserved, and explicit
   launcher requests still open the window. This native integration is covered
-  by isolated tests; actual login/session-restoration acceptance remains a
-  release gate in the [compatibility record](COMPATIBILITY.md#current-local-candidate--maintainer-uat-passed-release-pending).
+  by isolated tests; installed results are recorded in the
+  [compatibility evidence](COMPATIBILITY.md#acceptance-evidence).
 - The Plasma client has no direct GTK, PyGObject, Gio, GNOME Keyring, or GLib
   main-loop dependency. Qt/Kirigami, KConfig, KNotification, KService, KRunner,
   and Plasma's status-notifier APIs own desktop integration. Proton's current
