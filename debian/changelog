@@ -1,0 +1,8 @@
+proton-vpn-kde (0.13.1-1plasmavpn1) resolute; urgency=medium
+
+  * Package the Plasma VPN 0.13.1 client for Ubuntu 26.04 LTS.
+  * Require the verified provider-neutral keyring and Protun API-Core
+    capabilities used by the Fedora release.
+  * Preserve Proton's daemon, networking, and session ownership boundaries.
+
+ -- uglyegg <uglyegg@entropy.quest>  Sun, 13 Sep 2026 00:00:00 -0500

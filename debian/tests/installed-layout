@@ -1,0 +1,92 @@
+#!/usr/bin/bash
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+set -euo pipefail
+
+test_tmp_dir="$(mktemp -d "${AUTOPKGTEST_TMP:-/tmp}/proton-vpn-kde-installed.XXXXXX")"
+trap 'rm -rf "$test_tmp_dir"' EXIT
+
+required_paths=(
+    /usr/bin/proton-vpn-kde
+    /usr/bin/proton-vpn-kde-agent
+    /usr/bin/proton-vpn-kde-backend
+    /usr/lib/systemd/user/proton-vpn-kde-agent.service
+    /usr/lib/systemd/user/proton-vpn-kde-backend.service
+    /usr/lib/systemd/user/proton-vpn-kde-control-center.service
+    /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/__main__.py
+    /usr/share/applications/proton-vpn-kde.desktop
+    /usr/share/dbus-1/services/quest.entropy.PlasmaVPN.Backend.service
+    /usr/share/dbus-1/services/quest.entropy.PlasmaVPN.Agent.service
+    /usr/share/dbus-1/services/quest.entropy.PlasmaVPN.ControlCenter.service
+    /usr/share/icons/hicolor/scalable/apps/plasma-vpn.svg
+)
+
+for required_path in "${required_paths[@]}"; do
+    test -e "$required_path"
+done
+
+test "$(stat -c '%U:%G' /usr/bin/proton-vpn-kde)" = root:root
+test "$(stat -c '%a' /usr/bin/proton-vpn-kde)" = 755
+test "$(stat -c '%a' \
+    /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/__main__.py)" = 644
+env \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    QT_QPA_PLATFORM=offscreen \
+    QT_QPA_PLATFORMTHEME=generic \
+    QT_ACCESSIBILITY=0 \
+    proton-vpn-kde --version \
+    2>"$test_tmp_dir/version.stderr" \
+    | grep -Fqx 'proton-vpn-kde 0.13.1'
+if [[ -s "$test_tmp_dir/version.stderr" ]]; then
+    [[ $(wc -l <"$test_tmp_dir/version.stderr") -eq 1 ]]
+    grep -Eq \
+        '^QThreadStorage: entry [0-9]+ destroyed before end of thread 0x[0-9a-f]+$' \
+        "$test_tmp_dir/version.stderr"
+fi
+pycache_dir="$test_tmp_dir/pycache"
+mkdir -m 0700 "$pycache_dir"
+python3 -I -X pycache_prefix="$pycache_dir" -m compileall -q \
+    /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend
+
+grep -Fqx 'ExecStart=/usr/bin/proton-vpn-kde-backend' \
+    /usr/lib/systemd/user/proton-vpn-kde-backend.service
+grep -Fqx 'NoNewPrivileges=true' \
+    /usr/lib/systemd/user/proton-vpn-kde-backend.service
+
+backend_log="${AUTOPKGTEST_TMP:-/tmp}/proton-vpn-kde-backend.log"
+dbus-run-session -- bash -s -- "$backend_log" <<'DBUS_TEST'
+set -euo pipefail
+backend_log="$1"
+backend_pid=""
+
+cleanup() {
+    if [[ -n "$backend_pid" ]]; then
+        kill "$backend_pid" 2>/dev/null || true
+        wait "$backend_pid" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+/usr/bin/proton-vpn-kde-backend --demo >"$backend_log" 2>&1 &
+backend_pid=$!
+
+for _ in {1..80}; do
+    if [[ "$(gdbus call --session \
+        --dest org.freedesktop.DBus \
+        --object-path /org/freedesktop/DBus \
+        --method org.freedesktop.DBus.NameHasOwner \
+        quest.entropy.PlasmaVPN.Backend 2>/dev/null)" == "(true,)" ]]; then
+        break
+    fi
+    sleep 0.05
+done
+
+kill -0 "$backend_pid"
+snapshot="$(gdbus call --session \
+    --dest quest.entropy.PlasmaVPN.Backend \
+    --object-path /quest/entropy/PlasmaVPN/Backend \
+    --method quest.entropy.PlasmaVPN.Backend1.GetSnapshot)"
+[[ "$snapshot" == *'"state":"disconnected"'* ]]
+DBUS_TEST

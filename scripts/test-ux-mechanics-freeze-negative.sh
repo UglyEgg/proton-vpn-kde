@@ -129,14 +129,39 @@ fi
 echo "The QML gate rejects an undeclared RPM test dependency"
 
 git clone --quiet --no-hardlinks "$project_dir" "$release_fixture_dir"
+mkdir -p \
+    "$release_fixture_dir/backend/proton_vpn_kde_backend" \
+    "$release_fixture_dir/debian" \
+    "$release_fixture_dir/qml"
 cp "$project_dir/scripts/check-release-metadata.sh" \
     "$release_fixture_dir/scripts/check-release-metadata.sh"
+cp "$project_dir/CMakeLists.txt" "$release_fixture_dir/CMakeLists.txt"
+cp "$project_dir/backend/pyproject.toml" \
+    "$release_fixture_dir/backend/pyproject.toml"
+cp "$project_dir/backend/proton_vpn_kde_backend/__init__.py" \
+    "$release_fixture_dir/backend/proton_vpn_kde_backend/__init__.py"
+cp "$project_dir/debian/changelog" "$release_fixture_dir/debian/changelog"
 cp "$project_dir/packaging/fedora/proton-vpn-kde.spec" \
     "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
+cp "$project_dir/qml/ReleaseNotesPage.qml" \
+    "$release_fixture_dir/qml/ReleaseNotesPage.qml"
 cp "$project_dir/CHANGELOG.md" "$release_fixture_dir/CHANGELOG.md"
 cp "$project_dir/README.md" "$release_fixture_dir/README.md"
 cp "$project_dir/SECURITY.md" "$release_fixture_dir/SECURITY.md"
 cp "$project_dir/docs/SECURITY-AUDIT-2026-08-30.md" \
+    "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
+release_fixture_version="$(sed -n \
+    's/^project(proton-vpn-kde VERSION \([^ ]*\) LANGUAGES CXX)$/\1/p' \
+    "$project_dir/CMakeLists.txt")"
+release_fixture_version_pattern="${release_fixture_version//./\\.}"
+sed -i \
+    "s/^## \\[Unreleased\\]$/## [$release_fixture_version] - 2099-01-01/" \
+    "$release_fixture_dir/CHANGELOG.md"
+sed -i \
+    "s/The unreleased $release_fixture_version_pattern update/The $release_fixture_version release/" \
+    "$release_fixture_dir/README.md"
+sed -i \
+    "s/^Release: unreleased $release_fixture_version_pattern$/Release: $release_fixture_version/" \
     "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
 sed -i \
     's/^Release:[[:space:]]*[1-9][0-9]*%{?dist}$/Release:        0.10%{?dist}/' \

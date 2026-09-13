@@ -7,11 +7,19 @@ set -euo pipefail
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_workflow="$project_dir/.github/workflows/ci.yml"
 rpm_workflow="$project_dir/.github/workflows/rpm.yml"
+deb_workflow="$project_dir/.github/workflows/deb.yml"
 
 if ! rg -Uq \
         '^on:\n  push:\n    branches:\n      - main\n  pull_request:\n' \
         "$source_workflow"; then
     echo "Source CI must run once per pull request and on main pushes only" >&2
+    exit 1
+fi
+
+if ! rg -Uq \
+        '^on:\n  pull_request:\n  push:\n    tags:\n      - "v\*"\n  workflow_dispatch:\n' \
+        "$deb_workflow"; then
+    echo "DEB CI must validate pull requests and reserve push builds for release tags" >&2
     exit 1
 fi
 
@@ -29,7 +37,10 @@ if ! grep -Fq \
         "$source_workflow" \
         || ! grep -Fq \
             'group: rpm-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}' \
-            "$rpm_workflow"; then
+            "$rpm_workflow" \
+        || ! grep -Fq \
+            'group: deb-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}' \
+            "$deb_workflow"; then
     echo "CI concurrency must deduplicate commits without blocking manual retries" >&2
     exit 1
 fi
@@ -61,6 +72,22 @@ for source_job in fedora native-analysis; do
     done
     if ! grep -Fq 'fetch-depth: 0' <<<"$job_block"; then
         echo "Source CI job '$source_job' must use a full Git checkout for history-sensitive tests" >&2
+        exit 1
+    fi
+done
+
+for release_step in \
+        'Stage release artifacts' \
+        'Upload Ubuntu artifacts'; do
+    step_block="$(awk -v header="      - name: $release_step" '
+        $0 == header { in_step = 1; seen_header = 1 }
+        in_step && seen_header && $0 != header && $0 ~ /^      - name:/ { exit }
+        in_step { print }
+    ' "$deb_workflow")"
+    if [[ -z "$step_block" ]] \
+            || ! grep -Fq "if: github.event_name != 'pull_request'" \
+                <<<"$step_block"; then
+        echo "DEB step '$release_step' must remain release-only" >&2
         exit 1
     fi
 done

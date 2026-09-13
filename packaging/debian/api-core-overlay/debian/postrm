@@ -1,0 +1,12 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2022-2026 Proton AG
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+set -e
+case "$1" in
+    remove|purge|upgrade)
+        pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
+        ;;
+esac
+
+#DEBHELPER#

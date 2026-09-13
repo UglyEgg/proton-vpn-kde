@@ -68,6 +68,7 @@ if ! env \
         QT_FORCE_STDERR_LOGGING=1 \
         XDG_CACHE_HOME="$staging_dir/cache" \
         XDG_CONFIG_HOME="$staging_dir/config" \
+        XDG_CONFIG_DIRS="$project_dir/tests/xdg:/etc/xdg" \
         PROTON_VPN_KDE_TEST_BACKEND_OWNER="$backend_owner" \
         timeout 15s "$build_dir/proton-vpn-kde" --diagnostics-smoke \
         >"$frontend_log" 2>&1; then

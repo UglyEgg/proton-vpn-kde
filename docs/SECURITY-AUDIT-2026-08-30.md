@@ -1,14 +1,15 @@
 # Security and engineering assessment
 
 Last updated: 2026-09-13
-Release: 0.13.0
+Release: unreleased 0.13.1
 
 ## Status
 
-No open release-blocking finding is recorded for 0.13.0. The final bounded
-review found no P0 or P1 issue. Its six findings were corrected and have
-regression coverage. Later Fedora packaging, Core-overlay, provenance, CI, and
-documentation changes are covered by their own policy and compatibility tests.
+No open release-blocking finding is recorded for the unreleased 0.13.1 package
+update. The 0.13.0 runtime review found no P0 or P1 issue; its six findings were
+corrected and have regression coverage. Later Fedora and Ubuntu packaging,
+Core-overlay, provenance, CI, and documentation changes are covered by their
+own policy and compatibility tests.
 
 This is a maintainer-directed, AI-assisted assessment. It is not an independent
 third-party audit, penetration test, certification, or warranty.
@@ -16,10 +17,10 @@ third-party audit, penetration test, certification, or warranty.
 ## Scope and assurance boundary
 
 The assessment covers project-owned C++, QML, Python, D-Bus interfaces,
-systemd user services, Fedora packaging, and the two downstream overlay build
-systems. It evaluates the interaction boundary with Proton VPN API Core but
-does not audit Proton's service, NetworkManager, the Secret Service provider,
-or unmodified Proton packages.
+systemd user services, Fedora and Ubuntu packaging, and the two downstream
+overlay families. It evaluates the interaction boundary with Proton VPN API
+Core but does not audit Proton's service, NetworkManager, the Secret Service
+provider, or unmodified Proton packages.
 
 The local attacker is an ordinary or sandboxed process in the same graphical
 session that can reach D-Bus but cannot already execute arbitrary native code
@@ -37,8 +38,8 @@ Official Proton Core remains authoritative for:
 
 Community code owns desktop presentation, input validation, D-Bus policy,
 operation ownership, process lifetime, and downstream package integration.
-The Fedora API-Core package contains declared, version-pinned patches and must
-not be represented as an unmodified Proton binary.
+The distribution API-Core packages contain declared, version-pinned patches
+and must not be represented as unmodified Proton binaries.
 
 ## 0.13.0 review result
 
@@ -177,6 +178,7 @@ the commit history retains the per-defect development record.
 | Native analysis | Full production set under Clang-Tidy and address/leak/undefined-behavior sanitizers |
 | Python analysis | Mypy, Ruff, and branch-coverage floor |
 | Fedora packaging | Client, keyring overlay, and API-Core overlay RPM/SRPM policy checks |
+| Ubuntu packaging | Client, keyring overlay, and API-Core overlay binary/source `.deb` policy and lifecycle checks; live Plasma UAT pending |
 | Reproducibility | Client and both overlay package pairs use normalized source/package metadata; tag workflow repeats release builds |
 | Installed UAT | Authentication, server browsing, settings, connection/disconnection, tray behavior, START-01 launch, and START-02 recovery accepted on Fedora 44 |
 

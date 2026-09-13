@@ -1,0 +1,9 @@
+#!/usr/bin/make -f
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+export PYBUILD_NAME = proton_keyring_linux
+export PYBUILD_TEST_ARGS = --no-cov -q
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild

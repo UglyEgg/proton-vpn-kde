@@ -71,13 +71,13 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("A clearer Plasma experience, with Proton Core still handling your VPN.")
+            description: qsTr("Ubuntu packages, with Proton Core still handling your VPN.")
             iconName: "software-properties"
 
             Kirigami.Heading {
                 Layout.fillWidth: true
                 level: 3
-                text: "0.13.0"
+                text: "0.13.1"
             }
 
             ReleaseNoteGroup {
@@ -85,11 +85,9 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Highlights")
                 headingLevel: 4
                 notes: [
-                    qsTr("A clearer connection view, with server details beside your destination and a curved outside-VPN route when split tunneling is on."),
-                    qsTr("The window fits the connection layout. Settings, server browsing, and account details open from the places you already use."),
-                    qsTr("Choose login, window or tray startup and reliable auto-connect. Recover from manually disconnected protection profiles with the updated Fedora Core overlay."),
-                    qsTr("Find suitable servers with combined capability filters. Startup errors no longer repeat secret-store prompts or look like rejected credentials."),
-                    qsTr("Native Plasma themes, smoother route graphics, and better layouts for larger text.")
+                    qsTr("Add Ubuntu 26.04 packages for the Plasma client and both reviewed Proton compatibility overlays."),
+                    qsTr("Verify clean installation, reinstallation, source packages, and removal boundaries in Ubuntu CI."),
+                    qsTr("Keep Proton's daemon and networking ownership unchanged while making community field testing possible on Plasma.")
                 ]
             }
 
@@ -122,6 +120,17 @@ Kirigami.ScrollablePage {
             title: qsTr("Earlier versions")
             description: qsTr("Development milestones and published releases. The complete engineering history remains in CHANGELOG.md.")
             iconName: "view-history"
+
+            ReleaseNoteGroup {
+                heading: "0.13.0"
+                headingLevel: 3
+                notes: [
+                    qsTr("Introduced the graphical Plasma connection experience, on-demand Control Center and Inspector, and lean resident agent."),
+                    qsTr("Added capability-aware server discovery, native settings, bounded recovery, and hardened local process boundaries.")
+                ]
+            }
+
+            Kirigami.Separator { Layout.fillWidth: true }
 
             ReleaseNoteGroup {
                 heading: qsTr("0.12.0 development milestone")

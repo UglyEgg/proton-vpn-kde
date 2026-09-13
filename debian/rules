@@ -1,0 +1,40 @@
+#!/usr/bin/make -f
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_CXXFLAGS_MAINT_APPEND = -Wformat -Werror=format-security
+
+%:
+	dh $@ --buildsystem=cmake+ninja
+
+override_dh_auto_configure:
+	dh_auto_configure --buildsystem=cmake+ninja -- \
+		-DBUILD_TESTING=ON \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_LIBEXECDIR=libexec \
+		-DKDE_INSTALL_LIBEXECDIR=libexec \
+		-DKDE_INSTALL_SBINDIR=sbin \
+		-DPROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR=/usr/share/proton-vpn-kde/translations \
+		-DPROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION=OFF \
+		-DPROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION=OFF
+
+override_dh_auto_test:
+	scripts/check-python-analysis.sh
+	ctest --test-dir obj-$$(dpkg-architecture -qDEB_HOST_GNU_TYPE) \
+		--output-on-failure
+
+override_dh_installchangelogs:
+	dh_installchangelogs CHANGELOG.md
+
+override_dh_auto_install:
+	dh_auto_install
+	desktop-file-validate debian/proton-vpn-kde/usr/share/applications/proton-vpn-kde.desktop
+
+override_dh_fixperms:
+	dh_fixperms
+	find debian/proton-vpn-kde/usr/libexec/proton-vpn-kde/proton_vpn_kde_backend \
+		-type f -exec chmod 0644 {} +
+
+override_dh_missing:
+	dh_missing --fail-missing

@@ -1,0 +1,72 @@
+Source: proton-vpn-kde
+Section: net
+Priority: optional
+Maintainer: uglyegg <uglyegg@entropy.quest>
+Build-Depends:
+ cmake (>= 3.24),
+ debhelper-compat (= 13),
+ desktop-file-utils,
+ extra-cmake-modules (>= 6.0),
+ libglib2.0-bin,
+ libkf6config-dev (>= 6.0),
+ libkf6coreaddons-dev (>= 6.0),
+ libkf6globalaccel-dev (>= 6.0),
+ libkf6kcmutils-dev (>= 6.0),
+ libkf6notifications-dev (>= 6.0),
+ libkf6runner-dev (>= 6.0),
+ libkf6service-dev (>= 6.0),
+ libkf6statusnotifieritem-dev (>= 6.0),
+ libssl-dev (>= 3.0),
+ ninja-build,
+ plasma-integration,
+ python3 (>= 3.11),
+ python3-coverage,
+ python3-cryptography (>= 46.0.5),
+ python3-dbus-fast (>= 2.20),
+ python3-mypy,
+ qt6-base-dev (>= 6.8),
+ qt6-declarative-dev (>= 6.8),
+ qt6-svg-plugins (>= 6.8),
+ qt6-tools-dev (>= 6.8),
+ qt6-tools-dev-tools (>= 6.8)
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/UglyEgg/proton-vpn-kde
+Vcs-Browser: https://github.com/UglyEgg/proton-vpn-kde
+Vcs-Git: https://github.com/UglyEgg/proton-vpn-kde.git
+
+Package: proton-vpn-kde
+Architecture: amd64
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+ iproute2,
+ plasma-integration,
+ proton-vpn-daemon (>= 0.13.8),
+ proton-keyring-secret-service-provider-agnostic (>= 1),
+ proton-keyring-secret-service-owner-pinned (>= 1),
+ proton-vpn-api-core-plasma-protun-secret (>= 1),
+ python3 (>= 3.11),
+ python3-cryptography (>= 46.0.5),
+ python3-dbus-fast (>= 2.20),
+ python3-fido2,
+ python3-proton-vpn-api-core (>= 5.6.10),
+ qml6-module-org-kde-kirigami,
+ qml6-module-qtquick,
+ qml6-module-qtquick-controls,
+ qml6-module-qtquick-dialogs,
+ qml6-module-qtquick-layouts,
+ qt6-svg-plugins (>= 6.8),
+ systemsettings
+Suggests: keepassxc | gnome-keyring
+Description: Proton VPN-compatible community client for KDE Plasma
+ Plasma VPN is an unofficial native Qt 6 and Kirigami frontend compatible
+ with Proton VPN. It reuses Proton's official Python VPN Core and daemon.
+ VPN protocols, NetworkManager integration, kill-switch behavior, split
+ tunneling, and session persistence remain owned by those official components.
+ .
+ The frontend has no direct GTK or GNOME Keyring dependency and uses the
+ Freedesktop Secret Service provider selected by the desktop session. The
+ separately packaged API-Core overlay keeps Protun's transient key in its
+ unsaved NetworkManager profile. Proton's Core package retains its upstream
+ desktop integration dependencies.

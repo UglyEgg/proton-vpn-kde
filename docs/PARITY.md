@@ -26,7 +26,7 @@ Proton's official core.
 | Connection recovery | Retry nonfatal drops and react to network/session changes | Asyncio reconnector preserves server, protocol, and backend and observes network route and logind unlock | Complete |
 | Connection errors | Specific summaries plus recovery dialogs for important fatal states | Stable non-sensitive error codes, official recovery text, and error-state cancellation | Complete |
 | Startup compatibility | Warn when no compatible VPN backend is registered | Official validator when available; public protocol-registry fallback for Fedora's initial core 5.5.6 | Complete |
-| Protun connection secret | Agent-owned transient key returned through a desktop NetworkManager secret agent | System-owned transient key remains in Core's unsaved NetworkManager profile, avoiding Plasma's missing Protun secret plugin | Native equivalent on supported Fedora stack |
+| Protun connection secret | Agent-owned transient key returned through a desktop NetworkManager secret agent | System-owned transient key remains in Core's unsaved NetworkManager profile, avoiding Plasma's missing Protun secret plugin | Native equivalent on packaged distributions |
 | Memory-overlay awareness | No equivalent warning | Behavior-check both server-string sharing paths and identify an unoptimized installed Core without blocking VPN use | Superset |
 | Quit/logout safety | Confirm active disconnect, preserve permanent kill switch on quit, disable it on logout | Closing the Control Center preserves the tunnel; tray shutdown offers explicit keep-connected and confirmed disconnect-and-quit paths; logout remains kill-switch safe | Native equivalent |
 | Protocols | Generic protocols and feature-flagged Proton protocols | Lists core-provided protocols and honors the ProTun feature flag | Complete |
@@ -57,7 +57,7 @@ Proton's official core.
 - The Plasma client has no direct GTK, PyGObject, Gio, GNOME Keyring, or GLib
   main-loop dependency. Qt/Kirigami, KConfig, KNotification, KService, KRunner,
   and Plasma's status-notifier APIs own desktop integration. Proton's current
-  Fedora API Core package still transitively requires
+  Fedora and Ubuntu API Core packages still require
   `NetworkManager-openvpn-gnome`; this project preserves that upstream package
   contract even though the Plasma frontend does not use the editor component.
 - Settings conflicts are never resolved by silently changing another setting.
@@ -102,6 +102,7 @@ Before claiming parity with a newer official release:
 2. Add a regression test for every new or changed behavior before marking it
    complete.
 3. Run the backend suite, native CTest suite, isolated authentication smoke,
-   isolated full demo smoke, and a staged Fedora install.
+   isolated full demo smoke, and a staged install on every supported package
+   target.
 4. Re-import exact shared translations from the audited official tag and
    record that tag and commit in `translations/README.md`.

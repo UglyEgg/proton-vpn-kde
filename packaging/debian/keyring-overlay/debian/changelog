@@ -1,0 +1,9 @@
+proton-keyring-linux (0.2.3-9plasmavpn1) resolute; urgency=medium
+
+  * Rebuild Proton's exact v0.2.3 source with provider-neutral Secret Service
+    collection selection and one bounded reusable D-Bus connection.
+  * Treat GNOME Keyring as an optional provider instead of a hard dependency.
+  * Avoid error-level tracebacks when a requested keyring entry is absent.
+  * Pin secret traffic to the selected provider's unique D-Bus owner.
+
+ -- uglyegg <uglyegg@entropy.quest>  Sun, 13 Sep 2026 00:00:00 -0500

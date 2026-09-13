@@ -18,6 +18,10 @@ EXPECTED_DEPENDENCIES = {
     "cryptography": "50.0.0",
     "dbus-fast": "2.20",
 }
+EXPECTED_UBUNTU_DEPENDENCIES = {
+    "cryptography": "46.0.5",
+    "dbus-fast": "2.20",
+}
 
 
 def fail(message: str) -> None:
@@ -117,6 +121,43 @@ def check() -> None:
             spec,
             rf"^Requires:\s+{re.escape(rpm_name)}(?: >= {re.escape(version)})?$",
             f"{name} runtime dependency",
+        )
+
+    debian_control = PROJECT_DIR / "debian/control"
+    debian_overlay_manifest = json.loads(
+        (
+            PROJECT_DIR
+            / "packaging/debian/api-core-overlay/overlay-manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    if debian_overlay_manifest["vendor"]["version"] != runtime_floor:
+        fail("Ubuntu Core overlay does not match the supported runtime floor")
+    require_text(
+        debian_control,
+        rf"^\s+python3-proton-vpn-api-core \(>= {re.escape(runtime_floor)}\),$",
+        "Debian Core runtime floor",
+    )
+    require_text(
+        debian_control,
+        r"^\s+proton-keyring-secret-service-provider-agnostic \(>= 1\),$",
+        "Debian provider-neutral keyring capability",
+    )
+    require_text(
+        debian_control,
+        r"^\s+proton-keyring-secret-service-owner-pinned \(>= 1\),$",
+        "Debian owner-pinned keyring capability",
+    )
+    require_text(
+        debian_control,
+        r"^\s+proton-vpn-api-core-plasma-protun-secret \(>= 1\),$",
+        "Debian Protun Core capability",
+    )
+    for name, version in EXPECTED_UBUNTU_DEPENDENCIES.items():
+        debian_name = "python3-dbus-fast" if name == "dbus-fast" else f"python3-{name}"
+        require_text(
+            debian_control,
+            rf"^\s+{re.escape(debian_name)} \(>= {re.escape(version)}\),$",
+            f"Debian {name} runtime dependency",
         )
 
     workflow = PROJECT_DIR / ".github/workflows/ci.yml"

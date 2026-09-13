@@ -1,0 +1,7 @@
+The build script verifies Proton's exact v0.2.3 GitHub archive against the
+SHA-256 identity recorded by the shared Fedora overlay manifest. It converts
+the three checked shared patches into a Debian 3.0 (quilt) source package, while
+keeping Debian dependency and maintainer metadata outside the upstream patch.
+
+The resulting .dsc, orig archive, Debian delta, build information, changes
+file, and architecture-independent binary package are staged together.

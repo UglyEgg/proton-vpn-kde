@@ -6,7 +6,8 @@
     "commit": "77b7653b783adac70dffefff5cc99fa7650fcc20",
     "archiveUrl": "https://github.com/ProtonVPN/python-proton-keyring-linux/archive/refs/tags/v0.2.3.tar.gz",
     "archiveFilename": "python-proton-keyring-linux-0.2.3.tar.gz",
-    "archiveSha256": "6ac94f08057973f16dc14f09a457a578ac1001b75793314bd5245f32fd40048c"
+    "archiveSha256": "6ac94f08057973f16dc14f09a457a578ac1001b75793314bd5245f32fd40048c",
+    "sourceDateEpoch": 1781172000
   },
   "overlay": {
     "packageName": "python3-proton-keyring-linux",
@@ -28,7 +29,7 @@
       },
       {
         "file": "0003-pin-secret-service-provider.patch",
-        "sha256": "8413c9857c4c6d82963ba201c35d2d8905e772ea46d55b22cbb0a32aff113ddf"
+        "sha256": "78ebae72a3e2b80bee5b8fbfbf3bc43b633f14190c2667dca39455d44fdbf928"
       }
     ]
   }

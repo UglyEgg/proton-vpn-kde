@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "publicUpstream": {
+    "repository": "https://github.com/ProtonVPN/python-proton-vpn-api-core.git",
+    "tag": "v5.6.10",
+    "commit": "f1d13b71c506bbd5f47351a9e4392572e21d0169"
+  },
+  "vendor": {
+    "package": "python3-proton-vpn-api-core",
+    "version": "5.6.10",
+    "architecture": "amd64",
+    "filename": "python3-proton-vpn-api-core_5.6.10_amd64.deb",
+    "url": "https://repo.protonvpn.com/debian/dists/stable/main/binary-amd64/python3-proton-vpn-api-core_5.6.10_amd64.deb",
+    "sha256": "f10688c9d4349f7acd1611054f03faacd7f0438cb84d9eaf85e7c377f908ce69",
+    "controlSha256": "26c765adf50897482174c1c6ce523cf7f0caba5af06eec24460d0dfd01ca9363",
+    "maintainerScripts": {
+      "prerm": "c10cd2bc634dec1d835992ab70e8f4473ba2147fa5de9df3a44906d903aee9eb",
+      "postrm": "7a3b813e0b6c168eda739073c08407088ad512960905e4dced852d2d95486b86"
+    }
+  },
+  "overlay": {
+    "packageVersion": "5.6.10-12plasmavpn1",
+    "capability": "proton-vpn-api-core-plasma-protun-secret (= 1)",
+    "capabilityPatch": "0004-keep-protun-private-key-ephemeral.patch",
+    "sourceDateEpoch": 1787327750,
+    "patchPathPrefix": {
+      "from": "usr/lib64/python3.14/site-packages",
+      "to": "usr/lib/python3/dist-packages"
+    },
+    "patches": [
+      {
+        "file": "0001-share-repeated-server-endpoint-strings.patch",
+        "sha256": "8fe15335ae88b296145428f7644071d30e923bc0dd4cec8faadc9c8a3649867e"
+      },
+      {
+        "file": "0002-share-server-strings-during-cache-decoding.patch",
+        "sha256": "d32c55255ab993f4e6467c2d55c454da7d966da86d478f107f3d839dfd6e45ba"
+      },
+      {
+        "file": "0003-avoid-deprecated-fido2-capability-query.patch",
+        "sha256": "1489f5af318c96167b0a2850fedd6993600b14710089408c0c1d091df0df0365"
+      },
+      {
+        "file": "0004-keep-protun-private-key-ephemeral.patch",
+        "sha256": "95cf092c97d5cc2e5005efcd4e96a88227ad88f5b21985d86dea306efed14cad"
+      },
+      {
+        "file": "0005-explicitly-activate-protection-profiles.patch",
+        "sha256": "c85103ebcde258ede876527659eabce2773cac3f37e6c54b1b002f4e2ac243f8"
+      }
+    ],
+    "modifiedFiles": [
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/core/api.py",
+        "vendorSha256": "29dc8db030df17e1fcc7f07ce27578bd372d8aa430c8a05654bb1e95f6a094c6",
+        "overlaySha256": "00c3648fcdf7cf5650bb9d5c7656882e35d93e519bfd143f0f6ee0d198e77a6c"
+      },
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/core/cache_handler.py",
+        "vendorSha256": "e41d760b55d04ab7eae1ddacb41f5b7a4a3e852c8a19e080ed3d85f842889b69",
+        "overlaySha256": "994ca21f5f60cc349683ff7507e396b2a24a94049d77ae7681c03ea1d8cdee79"
+      },
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/session/servers/logicals.py",
+        "vendorSha256": "a97a1444b594a9fee49abc15ad8c2ac50392d76e00ef300bd3c4b8641a83fa71",
+        "overlaySha256": "ca7c7d1e45fdc126a658ba9efe401b9851268ae0e57b7a1f0f9a12a9cf3edcf8"
+      },
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/session/servers/server_list_fetcher.py",
+        "vendorSha256": "d9cad21c1c910fc55374fdcc042263e7dc933f103ae6f25def68be16a3e04535",
+        "overlaySha256": "caf9f9c352bdecb5d70ff552ebd90c22520cbb92d274d5036f02b7f1381be0a5"
+      },
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/backend/networkmanager/protocol/protun/protun.py",
+        "vendorSha256": "70876ff4db2ae79baa51dac9b29497180b6d785103e2313c5da1091adac4820c",
+        "overlaySha256": "eaee44cb5aff2756de96b6bc739be13776b2ab25878d4d86f8ca91723d8a6f35"
+      },
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/nmclient.py",
+        "vendorSha256": "0a7235bd5e11d0433b060a2f311d0398af2099d6636ddc682108c3ddf6d73e84",
+        "overlaySha256": "d73f867bf007c15ca664448e2bd2bf6054c19f192df7650e13c9e15e1a461866"
+      }
+    ]
+  }
+}

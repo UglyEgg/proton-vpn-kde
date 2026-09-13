@@ -1,0 +1,44 @@
+Source: proton-keyring-linux
+Section: python
+Priority: optional
+Maintainer: uglyegg <uglyegg@entropy.quest>
+XSBC-Original-Maintainer: Proton AG <opensource@proton.me>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-python,
+ python3-all,
+ python3-keyring,
+ python3-proton-core,
+ python3-pytest,
+ python3-pytest-cov,
+ python3-secretstorage,
+ python3-setuptools
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/ProtonVPN/python-proton-keyring-linux
+Vcs-Browser: https://github.com/UglyEgg/proton-vpn-kde/tree/main/packaging/debian/keyring-overlay
+Vcs-Git: https://github.com/UglyEgg/proton-vpn-kde.git
+
+Package: python3-proton-keyring-linux
+Architecture: all
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+ python3-keyring,
+ python3-proton-core,
+ python3-secretstorage
+Provides: proton-keyring-secret-service-provider-agnostic (= 1),
+          proton-keyring-secret-service-owner-pinned (= 1)
+Suggests: keepassxc | gnome-keyring
+Replaces: python3-proton-keyring-linux-secretservice
+Breaks: python3-proton-keyring-linux-secretservice (<< 0.1.0)
+Description: provider-neutral Proton Secret Service adapter
+ This package rebuilds Proton's Linux keyring adapter with a narrow,
+ provider-neutral Secret Service compatibility patch. It honors the provider's
+ default collection, safely falls back when exactly one collection is exposed,
+ and retains one bounded D-Bus connection so provider authorization applies to
+ the complete operation sequence. Secret traffic is pinned to the selected
+ provider's unique D-Bus owner and rejected if that owner changes.
+ .
+ It is an unofficial downstream build. It contains no KeePassXC- or KDE-specific
+ behavior and does not require GNOME Keyring.

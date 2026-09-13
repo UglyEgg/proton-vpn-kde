@@ -4,6 +4,17 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 ## [Unreleased]
 
+Target release: 0.13.1.
+
+### Packaging
+
+- Add Ubuntu 26.04 amd64 binary and source Debian packages for the client,
+  provider-neutral keyring overlay, and API-Core overlay.
+- Reconstruct Proton's SHA-256-pinned Ubuntu API Core 5.6.10 payload and reject
+  changes outside the same six reviewed Python sources used by Fedora.
+- Add clean-container build, artifact-policy, install/reinstall, autopkgtest,
+  removal-boundary, and release-artifact gates for all three packages.
+
 ### Maintenance
 
 - Raise the supported `cryptography` floor to 50.0.0, including its CFFI 2.0.0

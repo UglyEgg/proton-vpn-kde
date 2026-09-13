@@ -1,0 +1,12 @@
+<!-- SPDX-FileCopyrightText: 2026 Plasma VPN contributors -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
+  "http://www.freedesktop.org/standards/menu-spec/1.0/menu.dtd">
+<Menu>
+  <Name>Applications</Name>
+  <DefaultAppDirs/>
+  <DefaultDirectoryDirs/>
+  <Include>
+    <All/>
+  </Include>
+</Menu>

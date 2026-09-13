@@ -1,0 +1,223 @@
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Ubuntu Package
+
+on:
+  pull_request:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deb-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}
+  cancel-in-progress: true
+
+jobs:
+  ubuntu-deb:
+    name: Ubuntu 26.04 DEB
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container: ubuntu:26.04
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      DEB_BUILD_OPTIONS: parallel=2
+      CLIENT_DEB_DIR: ${{ github.workspace }}/deb-build/client
+      KEYRING_DEB_DIR: ${{ github.workspace }}/deb-build/keyring
+      API_CORE_DEB_DIR: ${{ github.workspace }}/deb-build/api-core
+      VENDOR_DEB_DIR: ${{ github.workspace }}/deb-build/vendor
+      VENDOR_API_CORE_DEB: ${{ github.workspace }}/deb-build/vendor/python3-proton-vpn-api-core_5.6.10_amd64.deb
+      RELEASE_ARTIFACT_DIR: ${{ github.workspace }}/release-deb-artifacts
+
+    steps:
+      - name: Install bootstrap tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            autopkgtest ca-certificates curl devscripts dpkg-dev equivs git \
+            gnupg lintian passwd patchutils procps ripgrep
+
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Trust the container workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Configure Proton's signed Ubuntu repository
+        run: |
+          curl --fail --location --silent --show-error \
+            --output /tmp/protonvpn-stable-release.deb \
+            https://repo.protonvpn.com/debian/dists/stable/main/binary-all/protonvpn-stable-release_1.0.8_all.deb
+          echo '0b14e71586b22e498eb20926c48c7b434b751149b1f2af9902ef1cfe6b03e180  /tmp/protonvpn-stable-release.deb' \
+            | sha256sum --check --strict
+          dpkg --install /tmp/protonvpn-stable-release.deb
+          apt-get update
+
+      - name: Install declared build dependencies
+        run: |
+          mk-build-deps --install --remove \
+            --tool 'apt-get -y --no-install-recommends' \
+            debian/control
+          mk-build-deps --install --remove \
+            --tool 'apt-get -y --no-install-recommends' \
+            packaging/debian/keyring-overlay/debian/control
+          mk-build-deps --install --remove \
+            --tool 'apt-get -y --no-install-recommends' \
+            packaging/debian/api-core-overlay/debian/control
+
+      - name: Download the signed-repository API Core payload
+        run: |
+          install -d -m 0755 "$VENDOR_DEB_DIR"
+          cd "$VENDOR_DEB_DIR"
+          apt-get download python3-proton-vpn-api-core=5.6.10
+          test -f "$VENDOR_API_CORE_DEB"
+          printf '%s  %s\n' \
+            f10688c9d4349f7acd1611054f03faacd7f0438cb84d9eaf85e7c377f908ce69 \
+            "$VENDOR_API_CORE_DEB" | sha256sum --check --strict
+
+      - name: Prepare unprivileged builder
+        run: |
+          useradd --create-home --shell /bin/bash ci-builder
+          chown -R ci-builder:ci-builder "$GITHUB_WORKSPACE"
+
+      - name: Build provider-neutral keyring package
+        run: |
+          runuser --user ci-builder -- \
+            packaging/debian/keyring-overlay/build-overlay-deb.sh \
+              "$KEYRING_DEB_DIR"
+
+      - name: Build Plasma-compatible API Core package
+        run: |
+          runuser --user ci-builder -- \
+            packaging/debian/api-core-overlay/build-overlay-deb.sh \
+              "$API_CORE_DEB_DIR" "$VENDOR_API_CORE_DEB"
+
+      - name: Build client binary and source packages
+        run: |
+          runuser --user ci-builder -- \
+            packaging/debian/build-debs.sh "$CLIENT_DEB_DIR"
+
+      - name: Inspect Debian package artifacts
+        run: |
+          mapfile -t client_debs < <(
+            find "$CLIENT_DEB_DIR" -maxdepth 1 -type f \
+              -name 'proton-vpn-kde_*_amd64.deb' -print
+          )
+          mapfile -t keyring_debs < <(
+            find "$KEYRING_DEB_DIR" -maxdepth 1 -type f \
+              -name 'python3-proton-keyring-linux_*_all.deb' -print
+          )
+          mapfile -t api_core_debs < <(
+            find "$API_CORE_DEB_DIR" -maxdepth 1 -type f \
+              -name 'python3-proton-vpn-api-core_*_amd64.deb' -print
+          )
+          [[ ${#client_debs[@]} -eq 1 ]]
+          [[ ${#keyring_debs[@]} -eq 1 ]]
+          [[ ${#api_core_debs[@]} -eq 1 ]]
+          packaging/debian/check-deb-artifacts.sh \
+            "${client_debs[0]}" \
+            "${keyring_debs[0]}" \
+            "${api_core_debs[0]}" \
+            "$VENDOR_API_CORE_DEB"
+          runuser --user ci-builder -- lintian --fail-on error \
+              "$CLIENT_DEB_DIR"/*.changes \
+              "$KEYRING_DEB_DIR"/*.changes \
+              "$API_CORE_DEB_DIR"/*.changes
+
+      - name: Verify clean offline install and reinstall
+        run: |
+          mapfile -t client_debs < <(
+            find "$CLIENT_DEB_DIR" -maxdepth 1 -type f \
+              -name 'proton-vpn-kde_*_amd64.deb' -print
+          )
+          mapfile -t keyring_debs < <(
+            find "$KEYRING_DEB_DIR" -maxdepth 1 -type f \
+              -name 'python3-proton-keyring-linux_*_all.deb' -print
+          )
+          mapfile -t api_core_debs < <(
+            find "$API_CORE_DEB_DIR" -maxdepth 1 -type f \
+              -name 'python3-proton-vpn-api-core_*_amd64.deb' -print
+          )
+          # Proton's daemon postinst invokes systemctl directly. GitHub's job
+          # container is not booted with systemd, so preserve the real binary
+          # while validating the otherwise-complete package transactions.
+          install -d -m 0755 /usr/lib/plasma-vpn-ci
+          dpkg-divert --quiet --local --rename --add \
+            --divert /usr/lib/plasma-vpn-ci/systemctl.real /usr/bin/systemctl
+          install -m 0755 /bin/true /usr/bin/systemctl
+          restore_systemctl() {
+            rm -f /usr/bin/systemctl
+            dpkg-divert --quiet --rename --remove /usr/bin/systemctl
+          }
+          trap restore_systemctl EXIT
+          apt-get install -y --no-install-recommends \
+            "${keyring_debs[0]}" "${api_core_debs[0]}" "${client_debs[0]}"
+          runuser --user ci-builder -- debian/tests/installed-layout
+          apt-get install -y --reinstall --no-install-recommends \
+            "${keyring_debs[0]}" "${api_core_debs[0]}" "${client_debs[0]}"
+          runuser --user ci-builder -- debian/tests/installed-layout
+          restore_systemctl
+          trap - EXIT
+
+      - name: Run autopkgtest
+        run: |
+          mapfile -t client_debs < <(
+            find "$CLIENT_DEB_DIR" -maxdepth 1 -type f \
+              -name 'proton-vpn-kde_*_amd64.deb' -print
+          )
+          mapfile -t keyring_debs < <(
+            find "$KEYRING_DEB_DIR" -maxdepth 1 -type f \
+              -name 'python3-proton-keyring-linux_*_all.deb' -print
+          )
+          mapfile -t api_core_debs < <(
+            find "$API_CORE_DEB_DIR" -maxdepth 1 -type f \
+              -name 'python3-proton-vpn-api-core_*_amd64.deb' -print
+          )
+          mapfile -t client_dscs < <(
+            find "$CLIENT_DEB_DIR" -maxdepth 1 -type f \
+              -name 'proton-vpn-kde_*.dsc' -print
+          )
+          [[ ${#client_dscs[@]} -eq 1 ]]
+          autopkgtest \
+            "${client_dscs[0]}" \
+            "${client_debs[0]}" \
+            "${keyring_debs[0]}" \
+            "${api_core_debs[0]}" \
+            -- null
+
+      - name: Verify client removal boundary
+        run: |
+          apt-get remove -y proton-vpn-kde
+          test ! -e /usr/bin/proton-vpn-kde
+          dpkg-query --show --showformat='${db:Status-Status}\n' \
+            python3-proton-keyring-linux | grep -Fqx installed
+          dpkg-query --show --showformat='${db:Status-Status}\n' \
+            python3-proton-vpn-api-core | grep -Fqx installed
+
+      - name: Stage release artifacts
+        if: github.event_name != 'pull_request'
+        run: |
+          runuser --user ci-builder -- \
+            packaging/debian/stage-release-artifacts.sh \
+              "$CLIENT_DEB_DIR" \
+              "$KEYRING_DEB_DIR" \
+              "$API_CORE_DEB_DIR" \
+              "$RELEASE_ARTIFACT_DIR"
+          python3 scripts/create-release-artifact-manifest.py \
+            "$RELEASE_ARTIFACT_DIR" --commit "$GITHUB_SHA"
+
+      - name: Upload Ubuntu artifacts
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: proton-vpn-kde-ubuntu-26.04-${{ github.sha }}
+          path: ${{ env.RELEASE_ARTIFACT_DIR }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

@@ -523,7 +523,10 @@ def prepare_overlay(
     )
 
 
-def verify_behavior(root: Path) -> None:
+def verify_behavior(
+    root: Path,
+    site_packages_relative: str = "usr/lib64/python3.14/site-packages",
+) -> None:
     """Verify the overlay without depending on a logged-in desktop session."""
     previous_runtime = os.environ.get("XDG_RUNTIME_DIR")
     with tempfile.TemporaryDirectory(
@@ -531,7 +534,7 @@ def verify_behavior(root: Path) -> None:
     ) as runtime_directory:
         os.environ["XDG_RUNTIME_DIR"] = runtime_directory
         try:
-            _verify_behavior(root)
+            _verify_behavior(root, site_packages_relative)
         finally:
             if previous_runtime is None:
                 os.environ.pop("XDG_RUNTIME_DIR", None)
@@ -539,8 +542,8 @@ def verify_behavior(root: Path) -> None:
                 os.environ["XDG_RUNTIME_DIR"] = previous_runtime
 
 
-def _verify_behavior(root: Path) -> None:
-    site_packages = root / "usr/lib64/python3.14/site-packages"
+def _verify_behavior(root: Path, site_packages_relative: str) -> None:
+    site_packages = _root_path(root, site_packages_relative)
     if not site_packages.is_dir():
         raise OverlayError(f"Missing staged site-packages: {site_packages}")
     sys.path.insert(0, str(site_packages))
@@ -882,6 +885,10 @@ def _parser() -> argparse.ArgumentParser:
 
     behavior = subparsers.add_parser("verify-behavior")
     behavior.add_argument("--root", type=Path, required=True)
+    behavior.add_argument(
+        "--site-packages",
+        default="usr/lib64/python3.14/site-packages",
+    )
 
     rpm_parser = subparsers.add_parser("verify-rpm")
     rpm_parser.add_argument("--manifest", type=Path, required=True)
@@ -914,7 +921,7 @@ def main() -> int:
             )
             print("Verified API Core overlay payload boundary")
         elif arguments.command == "verify-behavior":
-            verify_behavior(arguments.root)
+            verify_behavior(arguments.root, arguments.site_packages)
         elif arguments.command == "verify-rpm":
             verify_overlay_rpm(
                 arguments.manifest,
