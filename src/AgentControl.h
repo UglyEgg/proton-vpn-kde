@@ -5,10 +5,12 @@
 
 #include "DbusContract.h"
 
+#include <QDBusContext>
 #include <QObject>
 #include <QStringList>
+#include <functional>
 
-class AgentControl final : public QObject
+class AgentControl final : public QObject, protected QDBusContext
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", PROTON_VPN_KDE_DBUS_AGENT_INTERFACE)
@@ -18,12 +20,13 @@ public:
     [[nodiscard]] bool registerOnSessionBus();
 
 public slots:
-    void EnsureRunning();
-    void ShowControlCenter();
-    void ShowSettings();
-    void Quit();
+    Q_SCRIPTABLE void EnsureRunning();
+    Q_SCRIPTABLE void ShowControlCenter();
+    Q_SCRIPTABLE void ShowSettings();
+    Q_SCRIPTABLE void Quit();
 
 private:
+    [[nodiscard]] bool callerIsControlCenter() const;
     void launchControlCenter(const QStringList &arguments = {});
 };
 
@@ -40,10 +43,10 @@ public:
     void setWindow(QWindow *window);
 
 public slots:
-    void ShowControlCenter();
-    void ShowSettings();
-    bool RequestRunnerAction(const QString &action, const QString &argument);
-    void Quit();
+    Q_SCRIPTABLE void ShowControlCenter();
+    Q_SCRIPTABLE void ShowSettings();
+    Q_SCRIPTABLE bool RequestRunnerAction(const QString &action,
+                                          const QString &argument);
 
 signals:
     void runnerActionRequested(const QString &action, const QString &argument);
@@ -58,6 +61,12 @@ private:
 
 namespace ProtonVpnKde
 {
+// Completion belongs to the application lifetime. Tests supply a harmless
+// fallback; production always uses the configured packaged executable path.
+void ensureAgentRunning(std::function<void(bool)> completed = {},
+                        std::function<bool()> fallback = {});
 void setAgentEnabled(bool enabled);
 void requestControlCenter(bool settings = false);
+void requestConfirmedControlCenterAction(const QString &action,
+                                         const QString &argument = {});
 }

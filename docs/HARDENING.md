@@ -1,90 +1,131 @@
 # Backend service hardening
 
-The installed backend is an unprivileged, D-Bus-activated systemd user service.
-Its sandbox must protect the process without moving VPN networking, session
-storage, or privileged split tunneling out of Proton's official components.
+## Threat boundary
 
-## Retained controls
+The protected local adversary is an ordinary or sandboxed process in the same
+graphical session with D-Bus access but without arbitrary native-code execution
+as the desktop user.
 
-The Fedora service starts the installed backend by its absolute path and uses:
+Out of scope:
 
-- `NoNewPrivileges=true`, preventing the backend and its children from gaining
-  privileges through set-user-ID, set-group-ID, or file capabilities.
-- an isolated-mode Python launcher plus `UnsetEnvironment` for Python, dynamic
-  loader, Qt plugin, and QML import overrides. This makes the packaged unit and
-  root-owned launcher a stable identity that native clients can verify before
-  sending secrets or control operations.
+- root and debuggers;
+- arbitrary same-UID native code or process-memory access;
+- malicious replacement of user-owned systemd state followed by restoration;
+- compromise of Proton Core, NetworkManager, the Secret Service provider, or
+  Proton's service.
 
-These controls preserve the backend's ability to authenticate the actual
-executable and environment of each D-Bus peer before accepting a mutation.
-Support-report temporary files remain mode-restricted and bounded by the
-application's explicit cleanup lifecycle.
+Linux session D-Bus does not provide code-signing identity. A stronger same-UID
+boundary requires a root-controlled service, MAC policy, or equivalent
+privileged attestation and would materially change the desktop architecture.
 
-The 0.11.3 release-battery inspection confirmed that all four ELF files in the
-exact locally built `proton-vpn-kde-0.11.3-1.fc44` RPM are position-independent
-executables or shared objects with non-executable stacks, GNU RELRO, and
-immediate binding. A generic CMake build does not automatically inherit
-Fedora's compiler and linker hardening policy.
+## Deployment controls
 
-## Deliberately excluded controls
+The backend, Control Center, and agent are unprivileged D-Bus-activated systemd
+user services. Fedora units and launchers provide:
 
-The service deliberately does not use `PrivateTmp` or `ProtectSystem`. On
-Fedora 44 with SELinux, either setting creates a mount namespace from which an
-unprivileged process receives `EACCES` for another same-user process's
-`/proc/<pid>/exe` and `/proc/<pid>/environ`. Those reads are required to
-distinguish the packaged root-owned Plasma clients from an arbitrary same-user
-D-Bus process. Keeping a cosmetic mount namespace while disabling executable
-authentication would weaken the higher-value security boundary. The backend
-already runs without elevated privileges, so the desktop user cannot write the
-root-owned system paths that `ProtectSystem=full` would remount read-only.
+- root-owned absolute executable paths;
+- `NoNewPrivileges=true`;
+- isolated Python startup;
+- one generated denylist for dynamic-loader, OpenSSL-provider, GIO/GI, Python,
+  Qt-plugin, and QML search overrides;
+- fixed absolute paths for project-owned `ip` and `journalctl` subprocesses;
+- `KillMode=control-group`, `SendSIGKILL=yes`, and an outer 35-second stop
+  deadline; and
+- a production-fixed backend idle grace, with override only in demo/test mode.
 
-The service also does not use `ProtectSystem=strict`, `ProtectHome`, or fixed
-`ReadWritePaths`. Proton persists account and VPN state below the user's home
-directory, and packet capture intentionally accepts any existing writable
-directory selected by the user. A static allowlist would either break those
-workflows or create a misleadingly incomplete sandbox.
+Native direct launches apply the same environment policy before Qt starts and
+re-execute `/proc/self/exe` when cleanup changes the environment. D-Bus
+activation applies it before the initial executable load.
 
-The service also retains host networking, Unix, Internet, netlink, and device
-access. The official Core reaches NetworkManager and privileged Proton helpers
-over D-Bus, uses network APIs, and may use FIDO2 security keys. Controls such as
-`PrivateNetwork`, aggressive `RestrictAddressFamilies`, or `PrivateDevices`
-would change or disable supported behavior rather than merely harden it.
+Repository-channel changes use a fixed Polkit action, fixed package names, and
+fixed DNF arguments. No shell or user-selected package name crosses the
+privilege boundary. Installed acceptance must cover the interaction between
+`pkexec` and the Control Center's `NoNewPrivileges` launch path.
 
-The privileged split-tunneling daemon remains Proton's separately packaged
-system service. These user-service settings neither grant the KDE backend new
-privileges nor modify that daemon's security policy.
+## D-Bus identity and authorization
 
-The current installed backend and agent units each receive a 9.0 “UNSAFE”
-score from `systemd-analyze security --offline=yes --user`. This heuristic is
-not a vulnerability verdict and heavily penalizes capabilities that an
-unprivileged desktop integration legitimately retains. It is still useful as a
-defense-in-depth backlog. Compatible candidates to evaluate independently are
-`UMask=0077`, an empty `CapabilityBoundingSet`, `LockPersonality`,
-`RestrictRealtime`, `RestrictSUIDSGID`, `SystemCallArchitectures=native`, and
-the `ProtectKernel*` family. Each must pass real Core, FIDO2, packet-capture,
-KRunner, KCM, tray, and procfs peer-identity tests before adoption.
+The well-known name is an address. Native clients resolve it to a unique owner
+and verify UID, PID, installed executable, active unit, acceptable unit inputs,
+loader environment, and owner continuity. User-writable or mixed-trust service
+drop-ins fail closed.
 
-## D-Bus process identity
+Calls and subscriptions target the verified unique name. Every asynchronous
+completion also carries the frontend's backend generation; replacement owners
+cannot receive an in-flight call or have stale replies accepted.
 
-The well-known session-bus name is an address, not an identity. Installed
-Control Center and agent clients therefore resolve it to a unique
-owner and require that owner to match the active packaged systemd unit, its
-immutable root-owned unit inputs, and its root-owned launcher. User-owned,
-writable, or mixed-trust drop-ins and unsafe loader or Python-path variables
-fail closed. Calls and signals then use the verified unique name so ownership
-replacement cannot retarget an in-flight operation.
+At ingress, the backend captures the actual D-Bus sender. Protected methods
+require an authorized installed client, then recheck authorization before the
+operation body runs. Claims in arguments never substitute for the sender.
+Owner loss revokes authorization, leases, and secret keys. Unexpected file
+descriptors are closed before ignored or rejected messages leave ingress.
 
-At the backend ingress boundary, the actual D-Bus sender is captured before
-method dispatch. Mutations require a sender whose process is one of the
-root-owned native client executables. Claims in method arguments never replace
-the sender identity. Authorization and pending secret keys are revoked when
-the sender's unique name vanishes. Build-tree tests use an exact-owner pin that
-is ignored by installed root-owned executables.
+KRunner, global shortcuts, and status-notifier brokers are not authentication
+principals. They can request a bounded confirmation surface but cannot invoke
+the authorized backend controller directly.
 
-Executable identity is appropriate for isolated project processes such as the
-Control Center and agent. It is not sufficient for a shared in-process plugin
-host, so `/usr/bin/krunner` is not a trusted backend client. The plugin sends
-only validated connection requests to the Control Center activation service,
-which requires explicit modal confirmation before its already authenticated
-controller acts. The shared plugin host never authenticates to or calls the
-backend.
+## Lifetime and cancellation
+
+- The backend acquires its bus name without queueing; only the primary owner
+  initializes Core.
+- Owner-loss events release frontend leases; disconnected idle retirement is
+  event-driven.
+- Manual and automatic connection work share generation-bound ownership.
+  Superseded Core work is shielded, joined, and compensated before ownership
+  is released.
+- Disconnect crosses Core's public event barrier. Observed `Disconnected`
+  alone is not treated as proof that queued provider work has retired.
+- Cleanup requests have one admission-to-retirement deadline. Duplicate
+  callers cannot extend it.
+- Shutdown is singleflight and uses one absolute deadline through controller,
+  adapter, capture, background-handler, and thread retirement.
+- Unconfirmed retirement exits nonzero so a stale process cannot later mutate
+  state beside a replacement.
+
+Account replacement is a process boundary. A private non-secret handoff, pidfd,
+and PID start time prove outgoing-process death before new credentials are
+accepted. Missing evidence blocks recovery.
+
+## Capture and diagnostic bounds
+
+Direct Proton support and crash-report submission are disabled in community
+builds at UI, native, backend, and package-policy boundaries.
+
+The dormant support collector has:
+
+- fixed journal sources;
+- no shell;
+- 20-second process timeout;
+- 1 MiB per-source limit; and
+- 2 MiB aggregate limit.
+
+Packet capture requires an active supported protocol, an existing writable
+absolute directory, and Core's positive reviewed byte cap, currently no more
+than 512 MiB. A 15-minute generation-bound watchdog owns Stop. A private atomic
+recovery record preserves the original deadline across backend replacement.
+Failed or ambiguous Stop retains supervised retry; the adapter never uploads or
+rewrites capture data.
+
+## Secret Service and authentication
+
+The keyring overlay requires a same-user Secret Service provider and pins all
+traffic to its unique owner. Owner replacement fails closed. The initial
+provider remains a trusted desktop dependency because portable session APIs do
+not attest its executable provenance.
+
+Authentication fields cross D-Bus only as bounded, authenticated ciphertext in
+a sealed descriptor under one-use sender/method-bound keys. Raw provider
+exceptions, tracebacks, tokens, and credentials do not enter public state.
+See [Authentication](AUTHENTICATION.md).
+
+## Defense-in-depth backlog
+
+`systemd-analyze security --offline=yes --user` scores both services 9.0,
+`UNSAFE`, largely because desktop VPN integration requires host networking,
+D-Bus, home state, devices, and procfs peer inspection. This is a heuristic, not
+a vulnerability result.
+
+Potential additions are `UMask=0077`, an empty `CapabilityBoundingSet`,
+`LockPersonality`, `RestrictRealtime`, `RestrictSUIDSGID`,
+`SystemCallArchitectures=native`, and selected `ProtectKernel*` directives.
+Each requires installed Core, FIDO2, capture, KRunner, KCM, tray, Polkit, and
+procfs identity regression testing before adoption.

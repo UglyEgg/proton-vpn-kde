@@ -28,11 +28,15 @@ It is not a new VPN implementation. Proton's installed Core continues to own pro
 
 ## See it
 
-| Connected overview | Server browser | Native settings |
-| :---: | :---: | :---: |
-| [![Connected overview](docs/images/overview.png)](docs/images/overview.png) | [![Capability-aware server browser](docs/images/locations.png)](docs/images/locations.png) | [![Native Plasma settings](docs/images/settings.png)](docs/images/settings.png) |
+| Connected | Split tunneling |
+| :---: | :---: |
+| [<img src="docs/images/overview.png" width="360" alt="Connected route with details beside the VPN server">](docs/images/overview.png) | [<img src="docs/images/overview-split.png" width="360" alt="Split route with a separate outside-VPN internet branch">](docs/images/overview-split.png) |
 
-The screenshots use the deterministic demo backend. The connection is simulated; no Proton account, NetworkManager state, or real VPN tunnel was used.
+| Server browser | Connection Inspector | Native settings |
+| :---: | :---: | :---: |
+| [<img src="docs/images/locations.png" width="280" alt="Capability-aware server browser">](docs/images/locations.png) | [<img src="docs/images/inspector.png" width="280" alt="Read-only Connection Inspector">](docs/images/inspector.png) | [<img src="docs/images/settings.png" width="280" alt="Native Plasma settings">](docs/images/settings.png) |
+
+These previews show the 0.13.0 interface in light and dark Plasma themes. They use the deterministic demo backend: the connection is simulated, with no Proton account, NetworkManager changes, or real VPN tunnel.
 
 ## Why this exists
 
@@ -42,11 +46,13 @@ The project was started by a paying Proton subscriber since 2017 who wanted the 
 
 ## What it offers
 
-- Native password, TOTP/recovery-code, and Proton FIDO2 sign-in flows.
+- Native password and TOTP/recovery-code sign-in, plus Proton FIDO2 when the
+  installed Core explicitly provides cancellable multi-key selection.
 - Country, city/state, Secure Core, and exact-server browsing with combinable P2P, Streaming, Tor, and Secure Core filters.
 - Proton-ranked fastest connections, saved capability defaults, global search, and pinned tray targets.
 - Protocol, NetShield, NAT, port forwarding, IPv6, custom DNS, kill-switch, and split-tunneling controls through Core's public settings APIs.
-- A resident native agent for tray actions, notifications, shortcuts, auto-connect, and reconnect coordination while the full Control Center stays on demand.
+- A resident native agent for tray actions, notifications, shortcuts, auto-connect, and reconnect coordination while the full Control Center stays on demand. Shared Startup controls let you opt into login launch, choose an open window or tray-only startup, and connect automatically to your saved target.
+- An on-demand, read-only Connection Inspector for the active server, capabilities, protection configuration, and local integration status, with no traffic collection or retained history.
 - KRunner connection requests that require explicit Control Center confirmation rather than trusting the shared KRunner process as a VPN controller.
 - Direct Proton support-report and crash-report submission disabled in community builds so unofficial-client defects are not sent to Proton as official-client reports.
 
@@ -56,7 +62,7 @@ The maintained comparison with Proton's GTK client is in [Feature parity](docs/P
 
 ```text
 Plasma agent (resident)  ─┐
-                          ├─ authenticated session D-Bus
+                          ├─ owner-pinned, policy-checked session D-Bus
 Control Center (on demand)┘
                                   │
                     Community adapter (Python)
@@ -68,24 +74,23 @@ Control Center (on demand)┘
 
 Community code owns the Plasma experience, bounded input validation, and lifecycle coordination. Official Proton packages own VPN networking and session persistence. Authentication fields cross the community process boundary only as bounded, one-use encrypted ciphertext in sealed Linux memory descriptors.
 
+The desktop boundary resists ordinary and sandboxed session-bus peers; it does not claim OS-backed process identity against arbitrary native code already running as the same desktop user. The precise boundary and stronger-but-incompatible alternatives are documented in [Backend service hardening](docs/HARDENING.md).
+
 For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authentication](docs/AUTHENTICATION.md), and [Backend service hardening](docs/HARDENING.md).
 
 ## Engineering posture
 
-| Evidence | Current 0.11.3 release evidence |
-| --- | --- |
-| Automated verification | 36/36 CTest tests, including 130 backend tests, plus Python 3.11/minimum-dependency and Core 5.5.6 contract gates, Mypy, Clang-Tidy, ASan/LSan/UBSan, and a measured 75% backend branch-coverage floor |
-| Integration verification | QML diagnostics, D-Bus activation, staged installation, KRunner, and System Settings |
-| Package verification | Exact 0.11.3-1 client and pinned overlay binary/source RPM builds, artifact-policy checks, and a combined transaction test |
-| Security assessment | All seven historical findings closed; the eight-surface 2026-08-31 re-review found no new reportable issue |
-| Disconnected demo footprint | 76.5 MiB combined PSS across backend, agent, and Control Center; the resident agent measured 4.7 MiB PSS |
-| Server search | 0.205–5.667 ms measured median across representative queries against an 18,138-server cache |
+The client has regression tests for asynchronous recovery and desktop integration, isolated demo captures for layout checks, and static-analysis and sanitizer gates. Each pull request gets one source and package-validation run; release tags add repeated binary/source reproducibility checks and retained artifacts without duplicating feature-branch jobs.
 
-These are scoped engineering measurements, not certification. The project has completed a maintainer-directed, AI-assisted security assessment, but it has not received an independent security audit or penetration test. Read the [security assessment](docs/SECURITY-AUDIT-2026-08-30.md) and [performance methodology](docs/PERFORMANCE.md) for the evidence and limits.
+The 0.13.0 release passed a frozen seven-perspective review. Its six bounded findings are corrected and covered by regressions; no P0 or P1 issue was substantiated. CI validates source, minimum Python dependencies, Clang-Tidy, sanitizers, Fedora packages, overlay policy, reproducibility inputs, and provenance without duplicating feature-branch jobs. Installed Fedora acceptance covers authentication, server browsing, settings, connection lifecycle, tray behavior, KDE launch, and inactive-protection recovery.
+
+The concise [security and engineering assessment](docs/SECURITY-AUDIT-2026-08-30.md) records findings, controls, evidence, and residual risk. Memory, CPU, search, and retention measurements are in [Performance](docs/PERFORMANCE.md).
+
+These are engineering checks, not certification. The project has received maintainer-directed, AI-assisted review; it has not received an independent third-party security audit or penetration test.
 
 ## Current status
 
-The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and Proton VPN API Core 5.5.6 or newer. Other distributions may work but have not completed the packaged acceptance battery.
+Version 0.13.0 is the current release line. Version 0.12.0 was an accepted internal milestone and was never tagged or published. The supported target is Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and the verified Proton VPN API Core 5.6.20 Plasma overlay. The Fedora RPM retains 5.6.10 as its API floor; a separate 5.5.6 check is static legacy API lint only and is never executed as the supported runtime. Other distributions may work but have not completed the packaged acceptance battery.
 
 > [!NOTE]
 > Verified KeePassXC support uses the separately packaged, provider-neutral Proton keyring rebuild recorded in [Compatibility](docs/COMPATIBILITY.md). The source, patches, tests, manifest, and Fedora spec are included under [`packaging/fedora/keyring-overlay`](packaging/fedora/keyring-overlay/); release CI builds its binary and source RPMs beside the client. The client RPM requires that explicit capability instead of silently replacing an installed Python file.

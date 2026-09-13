@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.11.3 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.13.0 LANGUAGES CXX)
 set(PROJECT_HOMEPAGE_URL "https://github.com/uglyegg/proton-vpn-kde")
 
 option(
@@ -15,6 +15,45 @@ option(
     PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION
     "Allow anonymous crash-report submission to Proton's production API"
     OFF
+)
+
+# This file is the single source of truth for environment variables that can
+# redirect native code loading in an otherwise trusted packaged process.
+set(PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CONTRACT
+    "${CMAKE_CURRENT_SOURCE_DIR}/backend/proton_vpn_kde_backend/unsafe_environment.txt")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CONTRACT}")
+file(STRINGS
+    "${PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CONTRACT}"
+    PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES
+)
+list(FILTER PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES
+    EXCLUDE REGEX "^[ \t]*(#|$)")
+set(PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES_UNIQUE
+    ${PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES})
+list(REMOVE_DUPLICATES PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES_UNIQUE)
+list(LENGTH PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES
+    PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_COUNT)
+list(LENGTH PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES_UNIQUE
+    PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_UNIQUE_COUNT)
+if(NOT PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_COUNT EQUAL
+        PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_UNIQUE_COUNT)
+    message(FATAL_ERROR "Unsafe backend environment names must be unique")
+endif()
+foreach(environment_name IN LISTS PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES)
+    if(NOT environment_name MATCHES "^[A-Z][A-Z0-9_]*$")
+        message(FATAL_ERROR
+            "Invalid unsafe backend environment name: ${environment_name}")
+    endif()
+    string(APPEND PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CXX
+        "    \"${environment_name}=\",\n")
+endforeach()
+list(JOIN PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_NAMES " "
+    PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_SYSTEMD)
+configure_file(
+    src/UnsafeBackendEnvironment.generated.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/UnsafeBackendEnvironment.generated.h
+    @ONLY
 )
 
 find_package(ECM 6.0 REQUIRED NO_MODULE)
@@ -66,6 +105,10 @@ file(GLOB PROTON_VPN_KDE_TS_FILES CONFIGURE_DEPENDS
 )
 set(PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR
     "${CMAKE_CURRENT_BINARY_DIR}/translations")
+set(PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR
+    "${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}"
+    CACHE PATH
+    "Translation directory compiled into runtime targets")
 qt_add_lrelease(
     LRELEASE_TARGET proton-vpn-kde-translations
     TS_FILES ${PROTON_VPN_KDE_TS_FILES}
@@ -76,15 +119,25 @@ qt_add_lrelease(
 
 function(proton_vpn_kde_enable_translations target)
     target_compile_definitions(${target} PRIVATE
-        PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR="${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}"
+        PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR="${PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR}"
     )
     add_dependencies(${target} proton-vpn-kde-translations)
 endfunction()
 
 function(proton_vpn_kde_enable_backend_identity target)
+    target_include_directories(${target} PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR})
     target_compile_definitions(${target} PRIVATE
         PROTON_VPN_KDE_BACKEND_EXECUTABLE_PATH="${CMAKE_INSTALL_FULL_BINDIR}/proton-vpn-kde-backend"
         PROTON_VPN_KDE_BACKEND_UNIT_PATH="${KDE_INSTALL_FULL_SYSTEMDUSERUNITDIR}/proton-vpn-kde-backend.service"
+    )
+endfunction()
+
+function(proton_vpn_kde_enable_installed_executable_paths target)
+    target_compile_definitions(${target} PRIVATE
+        PROTON_VPN_KDE_CONTROL_CENTER_EXECUTABLE_PATH="${CMAKE_INSTALL_FULL_BINDIR}/proton-vpn-kde"
+        PROTON_VPN_KDE_AGENT_EXECUTABLE_PATH="${CMAKE_INSTALL_FULL_BINDIR}/proton-vpn-kde-agent"
+        PROTON_VPN_KDE_SYSTEM_SETTINGS_EXECUTABLE_PATH="${CMAKE_INSTALL_FULL_BINDIR}/systemsettings"
     )
 endfunction()
 
@@ -110,11 +163,15 @@ qt_add_executable(proton-vpn-kde
     src/ClientRegistrationState.h
     src/AppSettings.cpp
     src/AppSettings.h
+    src/AutostartSettings.cpp
+    src/AutostartSettings.h
     src/CustomDnsModel.cpp
     src/CustomDnsModel.h
     src/ConnectionAction.h
     src/InstalledApplicationModel.cpp
     src/InstalledApplicationModel.h
+    src/InstalledExecutablePaths.cpp
+    src/InstalledExecutablePaths.h
     src/SecretTransport.cpp
     src/SecretTransport.h
     src/TranslationLoader.cpp
@@ -122,6 +179,8 @@ qt_add_executable(proton-vpn-kde
     src/SplitTunnelingModel.cpp
     src/SplitTunnelingModel.h
     src/main.cpp
+    src/NativeStartup.cpp
+    src/NativeStartup.h
     ${PROTON_VPN_KDE_LOCATION_MODEL_SOURCES}
     src/RunnerActionRequest.cpp
     src/RunnerActionRequest.h
@@ -140,6 +199,7 @@ qt_add_executable(proton-vpn-kde
 )
 proton_vpn_kde_enable_translations(proton-vpn-kde)
 proton_vpn_kde_enable_backend_identity(proton-vpn-kde)
+proton_vpn_kde_enable_installed_executable_paths(proton-vpn-kde)
 
 qt_add_executable(proton-vpn-kde-agent
     src/AgentControl.cpp
@@ -150,12 +210,16 @@ qt_add_executable(proton-vpn-kde-agent
     src/AppIcon.h
     src/AppSettings.cpp
     src/AppSettings.h
+    src/AutostartSettings.cpp
+    src/AutostartSettings.h
     src/BackgroundQuitCoordinator.cpp
     src/BackgroundQuitCoordinator.h
     src/BackendCallPolicy.h
     src/BackendIdentity.cpp
     src/BackendIdentity.h
     src/ConnectionAction.h
+    src/InstalledExecutablePaths.cpp
+    src/InstalledExecutablePaths.h
     src/NotificationIntegration.cpp
     src/NotificationIntegration.h
     src/RunnerActionRequest.cpp
@@ -168,9 +232,12 @@ qt_add_executable(proton-vpn-kde-agent
     src/TrayIntegration.h
     src/VpnConnectionController.h
     src/agent_main.cpp
+    src/NativeStartup.cpp
+    src/NativeStartup.h
 )
 proton_vpn_kde_enable_translations(proton-vpn-kde-agent)
 proton_vpn_kde_enable_backend_identity(proton-vpn-kde-agent)
+proton_vpn_kde_enable_installed_executable_paths(proton-vpn-kde-agent)
 
 qt_add_resources(proton-vpn-kde "plasma-vpn-app-icon"
     PREFIX "/"
@@ -193,11 +260,17 @@ qt_add_qml_module(proton-vpn-kde
     NO_IMPORT_SCAN
     QML_FILES
         qml/Main.qml
+        qml/ContentSizedWindow.qml
         qml/AccountPage.qml
         qml/AboutPage.qml
+        qml/ApplicationRecoveryBanner.qml
+        qml/ConnectionActionFeedback.qml
+        qml/ConnectionInspectorPage.qml
+        qml/ConnectionScene.qml
         qml/CustomDnsPage.qml
         qml/CountryPage.qml
         qml/DetailRow.qml
+        qml/IdentityStage.qml
         qml/FastestSettingsSection.qml
         qml/LocationsPage.qml
         qml/OverviewPage.qml
@@ -211,8 +284,10 @@ qt_add_qml_module(proton-vpn-kde
         qml/ReleaseNotesPage.qml
         qml/SectionCard.qml
         qml/ServerCapabilitySelector.qml
+        qml/ServerBrowserFeedback.qml
         qml/ServersPage.qml
         qml/SettingsPage.qml
+        qml/StartupSettingsSection.qml
         qml/SignInPage.qml
         qml/SplitTunnelingSettingsSection.qml
         qml/SplitTunnelingPage.qml
@@ -311,6 +386,24 @@ add_subdirectory(kcm)
 
 if(BUILD_TESTING)
     find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
+    add_executable(native-startup-probe
+        tests/NativeStartupProbe.cpp
+        src/NativeStartup.cpp
+    )
+    set_target_properties(native-startup-probe PROPERTIES AUTOMOC OFF)
+    target_include_directories(native-startup-probe PRIVATE
+        src "${CMAKE_CURRENT_BINARY_DIR}")
+    target_compile_options(native-startup-probe PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>)
+    target_link_options(native-startup-probe PRIVATE
+        "-Wl,--wrap=execv" "-Wl,--wrap=unsetenv")
+    add_test(NAME native-startup-tests
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-native-startup.py"
+            "$<TARGET_FILE:native-startup-probe>"
+            "${PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CONTRACT}")
+    set_tests_properties(native-startup-tests PROPERTIES TIMEOUT 30)
+
     qt_add_executable(backend-call-policy-tests
         tests/BackendCallPolicyTest.cpp
         src/BackendCallPolicy.h
@@ -327,6 +420,21 @@ if(BUILD_TESTING)
     )
     add_test(NAME backend-call-policy-tests COMMAND backend-call-policy-tests)
 
+    qt_add_executable(snapshot-contract-tests
+        tests/SnapshotContractTest.cpp
+        tests/SnapshotTestData.h
+        src/SnapshotContract.generated.h
+    )
+    target_include_directories(snapshot-contract-tests PRIVATE src tests)
+    target_link_libraries(snapshot-contract-tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    target_compile_options(snapshot-contract-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(NAME snapshot-contract-tests COMMAND snapshot-contract-tests)
+
     qt_add_executable(backend-identity-tests
         tests/BackendIdentityTest.cpp
         src/BackendIdentity.cpp
@@ -341,7 +449,11 @@ if(BUILD_TESTING)
     target_compile_options(backend-identity-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
-    add_test(NAME backend-identity-tests COMMAND backend-identity-tests)
+    proton_vpn_kde_enable_backend_identity(backend-identity-tests)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME backend-identity-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:backend-identity-tests>)
+    endif()
 
     qt_add_executable(agent-vpn-client-tests
         tests/AgentVpnClientTest.cpp
@@ -452,7 +564,8 @@ if(BUILD_TESTING)
     set_tests_properties(grouped-navigation-tests PROPERTIES
         ENVIRONMENT
             "QT_QPA_PLATFORM=offscreen;XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
-        TIMEOUT 15
+        # Includes the 64-row route/state/diagnostic completion matrix.
+        TIMEOUT 90
     )
 
     qt_add_executable(connection-action-tests
@@ -481,8 +594,11 @@ if(BUILD_TESTING)
         tests/AppSettingsTest.cpp
         src/AppSettings.cpp
         src/AppSettings.h
+        src/AutostartSettings.cpp
+        src/AutostartSettings.h
     )
     target_include_directories(app-settings-tests PRIVATE src)
+    proton_vpn_kde_enable_installed_executable_paths(app-settings-tests)
     target_link_libraries(app-settings-tests PRIVATE
         Qt6::Core
         Qt6::Test
@@ -499,6 +615,27 @@ if(BUILD_TESTING)
         )
     else()
     add_test(NAME app-settings-tests COMMAND app-settings-tests)
+    endif()
+
+    qt_add_executable(notification-integration-tests
+        tests/NotificationIntegrationTest.cpp
+        src/NotificationIntegration.cpp
+        src/NotificationIntegration.h
+        src/AppSettings.cpp
+        src/AppSettings.h
+        src/AutostartSettings.cpp
+        src/AutostartSettings.h
+        src/VpnConnectionController.h
+    )
+    target_include_directories(notification-integration-tests PRIVATE src)
+    proton_vpn_kde_enable_installed_executable_paths(notification-integration-tests)
+    target_link_libraries(notification-integration-tests PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Test KF6::ConfigCore KF6::Notifications)
+    target_compile_options(notification-integration-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME notification-integration-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:notification-integration-tests>)
     endif()
 
     qt_add_executable(app-icon-tests
@@ -574,6 +711,10 @@ if(BUILD_TESTING)
         tests/ControlCenterControlTest.cpp
         src/AgentControl.cpp
         src/AgentControl.h
+        src/BackendIdentity.cpp
+        src/BackendIdentity.h
+        src/InstalledExecutablePaths.cpp
+        src/InstalledExecutablePaths.h
         src/RunnerActionRequest.cpp
         src/RunnerActionRequest.h
     )
@@ -587,7 +728,13 @@ if(BUILD_TESTING)
     target_compile_options(control-center-control-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
-    add_test(NAME control-center-control-tests COMMAND control-center-control-tests)
+    proton_vpn_kde_enable_backend_identity(control-center-control-tests)
+    proton_vpn_kde_enable_installed_executable_paths(
+        control-center-control-tests)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME control-center-control-tests
+            COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:control-center-control-tests>)
+    endif()
 
     qt_add_executable(krunner-plugin-tests
         tests/ProtonVpnRunnerTest.cpp
@@ -698,11 +845,19 @@ if(BUILD_TESTING)
     )
     target_include_directories(translation-loader-tests PRIVATE src)
     target_link_libraries(translation-loader-tests PRIVATE Qt6::Core Qt6::Test)
-    proton_vpn_kde_enable_translations(translation-loader-tests)
+    # Package builds give production targets their final installed path.
+    # This test must load this build's catalogs, never an installed client.
+    target_compile_definitions(translation-loader-tests PRIVATE
+        PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR="${PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR}"
+    )
+    add_dependencies(translation-loader-tests proton-vpn-kde-translations)
     target_compile_options(translation-loader-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME translation-loader-tests COMMAND translation-loader-tests)
+    set_tests_properties(translation-loader-tests PROPERTIES
+        ENVIRONMENT "XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/empty-translation-data;XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/empty-translation-data"
+    )
 
     set(PROTON_VPN_KDE_TEST_DATA_DIR
         "${CMAKE_CURRENT_BINARY_DIR}/installed-translation-test-data")
@@ -725,7 +880,7 @@ if(BUILD_TESTING)
         Qt6::Test
     )
     target_compile_definitions(installed-translation-loader-tests PRIVATE
-        PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR="/nonexistent"
+        PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR="/nonexistent"
     )
     add_dependencies(installed-translation-loader-tests
         installed-translation-test-data)
@@ -736,12 +891,80 @@ if(BUILD_TESTING)
         NAME installed-translation-loader-tests
         COMMAND installed-translation-loader-tests
     )
+    qt_add_executable(sign-in-presentation-tests
+        tests/SignInPresentationTest.cpp
+        src/RunnerActionRequest.cpp
+    )
+    target_include_directories(sign-in-presentation-tests PRIVATE src)
+    set_target_properties(sign-in-presentation-tests PROPERTIES
+        QT_QML_MODULE_NO_IMPORT_SCAN TRUE
+    )
+    target_link_libraries(sign-in-presentation-tests PRIVATE
+        Qt6::Core
+        Qt6::Network
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::Test
+        Qt6::Widgets
+    )
+    target_compile_definitions(sign-in-presentation-tests PRIVATE
+        PROTON_VPN_KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_compile_options(sign-in-presentation-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
+    )
+    add_test(
+        NAME sign-in-presentation-tests
+        COMMAND sign-in-presentation-tests
+    )
+    set_tests_properties(sign-in-presentation-tests PROPERTIES
+        ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QPA_PLATFORMTHEME=generic;QT_ACCESSIBILITY=0"
+        TIMEOUT 15
+    )
+    qt_add_executable(presentation-layout-tests
+        tests/PresentationLayoutTest.cpp
+        src/AppSettings.cpp src/AppSettings.h
+        src/AutostartSettings.cpp src/AutostartSettings.h)
+    target_include_directories(presentation-layout-tests PRIVATE src)
+    proton_vpn_kde_enable_installed_executable_paths(presentation-layout-tests)
+    target_link_libraries(presentation-layout-tests PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test Qt6::Widgets KF6::ConfigCore)
+    target_compile_definitions(presentation-layout-tests PRIVATE
+        PROTON_VPN_KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    qt_add_resources(presentation-layout-tests "layout-test-icon"
+        PREFIX "/" FILES data/plasma-vpn.svg)
+    add_test(NAME presentation-layout-tests COMMAND presentation-layout-tests)
+    set_tests_properties(presentation-layout-tests PROPERTIES
+        ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QPA_PLATFORMTHEME=generic;QT_ACCESSIBILITY=0"
+        TIMEOUT 20)
+
     add_test(
         NAME qml-ui-hygiene
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-qml-ui-hygiene.sh
     )
+    add_test(
+        NAME ci-policy
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-ci-policy.sh
+    )
+    add_test(
+        NAME ci-policy-negative
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test-ci-policy-negative.sh
+    )
+    # This fixture clones history to mutate a reviewed delta. Release archives
+    # have no .git directory, so package %check keeps only hermetic tests.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+        add_test(
+            NAME ux-mechanics-freeze-negative
+            COMMAND
+                ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test-ux-mechanics-freeze-negative.sh
+        )
+    endif()
     set_tests_properties(installed-translation-loader-tests PROPERTIES
-        ENVIRONMENT "XDG_DATA_DIRS=${PROTON_VPN_KDE_TEST_DATA_DIR}"
+        ENVIRONMENT "XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/empty-translation-data;XDG_DATA_DIRS=${PROTON_VPN_KDE_TEST_DATA_DIR}"
     )
 
     qt_add_executable(secret-transport-vector
@@ -827,6 +1050,7 @@ if(BUILD_TESTING)
             NAME control-center-activation-smoke
             COMMAND ${CMAKE_COMMAND} -E env
                 "XDG_DATA_DIRS=${CMAKE_CURRENT_BINARY_DIR}/test-xdg-data"
+                "QT_PLUGIN_PATH=${CMAKE_CURRENT_BINARY_DIR}/absent-plugins"
                 "QT_QPA_PLATFORM=offscreen"
                 "QT_QPA_PLATFORMTHEME=generic"
                 "QT_ACCESSIBILITY=0"
@@ -901,6 +1125,17 @@ if(BUILD_TESTING)
             RUN_SERIAL TRUE
             TIMEOUT 45
         )
+        add_test(
+            NAME qml-visual-matrix
+            COMMAND
+                ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-qml-visual-matrix.sh
+                ${CMAKE_CURRENT_BINARY_DIR}
+                ${CMAKE_CURRENT_BINARY_DIR}/visual-matrix
+        )
+        set_tests_properties(qml-visual-matrix PROPERTIES
+            RUN_SERIAL TRUE
+            TIMEOUT 60
+        )
     endif()
 endif()
 
@@ -925,8 +1160,18 @@ configure_file(
     @ONLY
 )
 configure_file(
+    data/proton-vpn-kde-control-center.service.in
+    ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-control-center.service
+    @ONLY
+)
+configure_file(
     data/proton-vpn-kde-agent.service.in
     ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-agent.service
+    @ONLY
+)
+configure_file(
+    data/proton-vpn-kde.desktop.in
+    ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde.desktop
     @ONLY
 )
 if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBEXECDIR}")
@@ -976,10 +1221,17 @@ install(
     PATTERN "__pycache__" EXCLUDE
 )
 install(
+    FILES backend/proton_vpn_kde_backend/unsafe_environment.txt
+    DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/proton-vpn-kde/proton_vpn_kde_backend
+)
+install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/_build_features.py
     DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/proton-vpn-kde/proton_vpn_kde_backend
 )
-install(FILES data/proton-vpn-kde.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
 install(
     FILES
         data/plasma-vpn.svg
@@ -988,6 +1240,11 @@ install(
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
 )
 install(FILES data/proton-vpn-kde.notifyrc DESTINATION ${CMAKE_INSTALL_DATADIR}/knotifications6)
+# A unique icon name prevents themes from falling back from "plasma-vpn"
+# to their unrelated "plasma" icon before consulting hicolor.
+install(FILES data/plasma-vpn.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME quest.entropy.PlasmaVPN.svg)
 install(
     FILES ${PROTON_VPN_KDE_QM_FILES}
     DESTINATION ${CMAKE_INSTALL_DATADIR}/proton-vpn-kde/translations
@@ -1007,6 +1264,10 @@ install(
 install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/quest.entropy.PlasmaVPN.ControlCenter.service
     DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
+)
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/proton-vpn-kde-control-center.service
+    DESTINATION ${KDE_INSTALL_SYSTEMDUSERUNITDIR}
 )
 install(
     DIRECTORY data/dbus/

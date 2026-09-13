@@ -86,13 +86,18 @@ fi
 declare -A expected_lines=()
 expected_lines["diagnostics-smoke: loading native interface"]=1
 expected_lines["diagnostics-smoke: native interface loaded"]=1
-expected_lines["qml: navigation-drawer-smoke: complete"]=1
 expected_lines["qml: diagnostics-smoke: KRunner confirmation required"]=1
 expected_lines["qml: diagnostics-smoke: KRunner confirmed actions complete"]=1
+expected_lines["qml: diagnostics-smoke: Overview home navigation"]=1
+expected_lines["qml: diagnostics-smoke: Overview back navigation"]=1
+expected_lines["qml: diagnostics-smoke: Overview graphical route"]=1
+expected_lines["qml: diagnostics-smoke: Overview inactive facts hidden"]=1
+expected_lines["qml: diagnostics-smoke: Overview connection facts visible"]=1
 for page in \
     Overview Locations Country Servers Account Settings "Custom DNS" \
     "Settings reload" "Split tunneling" "Release notes" "Report issue" \
-    About "Sign in" "Overview reload"; do
+    "Help and information" "Sign in" "Connection Inspector" \
+    "Overview reload"; do
     expected_lines["qml: diagnostics-smoke: $page"]=1
 done
 expected_lines["qml: diagnostics-smoke: complete"]=1
@@ -100,6 +105,13 @@ expected_lines["qml: diagnostics-smoke: complete"]=1
 unexpected_log="$staging_dir/unexpected.log"
 while IFS= read -r line; do
     if [[ -z "$line" || -n "${expected_lines[$line]:-}" ]]; then
+        continue
+    fi
+    # This harness forces Qt's offscreen platform. It has no window manager
+    # to receive min/max size hints, so QPlatformWindow emits this exact notice
+    # when the content-sized window updates its constraints. Do not suppress
+    # application QML/layout diagnostics or broaden the framework allowlist.
+    if [[ "$line" == "This plugin does not support propagateSizeHints()" ]]; then
         continue
     fi
     if $allow_isolated_framework_diagnostics; then

@@ -11,11 +11,21 @@ kcmutils_add_qml_kcm(kcm_proton_vpn_kde
         ProtonVpnKcm.h
         ../src/AppSettings.cpp
         ../src/AppSettings.h
+        ../src/AutostartSettings.cpp
+        ../src/AutostartSettings.h
+        ../src/InstalledExecutablePaths.cpp
+        ../src/InstalledExecutablePaths.h
         ../src/TranslationLoader.cpp
         ../src/TranslationLoader.h
 )
 
 set(BUILD_SHARED_LIBS "${_proton_saved_build_shared_libs}")
+
+# The same startup controls are used by the client and System Settings.
+qt_add_resources(kcm_proton_vpn_kde "startup-settings-ui"
+    PREFIX "/kcm/kcm_proton_vpn_kde"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/../qml"
+    FILES ../qml/StartupSettingsSection.qml ../qml/SectionCard.qml)
 
 set_target_properties(kcm_proton_vpn_kde PROPERTIES PREFIX "")
 target_include_directories(kcm_proton_vpn_kde PRIVATE ../src)
@@ -26,6 +36,7 @@ target_link_libraries(kcm_proton_vpn_kde PRIVATE
     KF6::KCMUtilsQuick
 )
 proton_vpn_kde_enable_translations(kcm_proton_vpn_kde)
+proton_vpn_kde_enable_installed_executable_paths(kcm_proton_vpn_kde)
 target_compile_options(kcm_proton_vpn_kde PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
 )
@@ -46,6 +57,12 @@ if(BUILD_TESTING)
         PROTON_VPN_KCM_PLUGIN_DIR="$<TARGET_FILE_DIR:kcm_proton_vpn_kde>"
         PROTON_VPN_KCM_PLUGIN_NAME="$<TARGET_FILE_BASE_NAME:kcm_proton_vpn_kde>"
     )
+    if(EXISTS "${PROJECT_SOURCE_DIR}/.source-commit")
+        file(TIMESTAMP "${PROJECT_SOURCE_DIR}/.source-commit"
+            _proton_source_epoch "%s" UTC)
+        target_compile_definitions(proton-vpn-kcm-tests PRIVATE
+            PROTON_VPN_KCM_EXPECTED_RESOURCE_EPOCH=${_proton_source_epoch})
+    endif()
     add_dependencies(proton-vpn-kcm-tests kcm_proton_vpn_kde)
     add_test(NAME proton-vpn-kcm-tests COMMAND proton-vpn-kcm-tests)
     set_tests_properties(proton-vpn-kcm-tests PROPERTIES

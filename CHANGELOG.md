@@ -1,175 +1,159 @@
 # Changelog
 
-All notable user-visible changes are recorded here. The project follows
-[Semantic Versioning](https://semver.org/) while it remains pre-1.0.
+The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-13
+
+### Plasma interface
+
+- Replace sidebar navigation with a graphical Connection home, contextual
+  actions, native back navigation, and an app-sized non-resizable window.
+- Show split tunneling as a smooth, arrow-free route to separate VPN and
+  outside-VPN destinations; keep server facts beside the VPN endpoint.
+- Group Settings by Connection, Protection, Plasma, and Diagnostics while
+  preserving page/tab position across asynchronous saves.
+- Add progressive server discovery with combined P2P, Streaming, Tor, and
+  Secure Core filters, state/city groups, exact servers, search, and pins.
+- Present one authentication step at a time and route signed-out startup to
+  Sign in. Keep delayed Secret Service and two-factor states explicit.
+- Add an on-demand read-only Connection Inspector and concise in-app release
+  notes. Keep unsupported Proton report/crash submission visibly disabled.
+- Add color, light-symbol, and dark-symbol icons for the Control Center and tray.
+
+### Plasma lifecycle
+
+- Split the resident tray, shortcut, notification, pin, and auto-connect path
+  into a lean native agent; keep the QML Control Center and Python backend
+  on demand when disconnected.
+- Add opt-in KDE login launch, window/tray startup, and saved auto-connect.
+  Installation does not enable or overwrite autostart configuration.
+- Require confirmation for KRunner, shortcut, and tray mutations. Closing the
+  window preserves an active tunnel; disconnect-and-quit waits for Core.
+- Make backend lifetime event-driven, preserve active-tunnel/capture
+  supervision, and bound startup, retry, and shutdown ownership.
+
+### Correctness and recovery
+
+- Bind asynchronous requests to backend, account, foreground, operation,
+  connection-intent, and capture generations as applicable. Stale replies
+  cannot complete or overwrite replacement work.
+- Distinguish request acknowledgement, observed state, retirement, and
+  completion unknown. Reconcile timed-out mutations without replay.
+- Serialize Core settings access, make KConfig publication depend on confirmed
+  persistence, and retain write errors without navigating away.
+- Keep Disconnect and capture Stop available as risk-reducing operations.
+  Preserve capture deadlines and cleanup across backend replacement.
+- Join cancelled Core connection work and compensate before releasing ownership;
+  prevent automatic recovery from racing a newer manual target.
+- Preserve authenticated state when connector initialization fails and expose
+  explicit retry without repeated Secret Service prompts.
+- Normalize inherited native loader/search overrides before Qt startup so KDE
+  launcher environments do not fail backend authorization.
+
+### Proton integration
+
+- Ship a provider-neutral Proton keyring overlay that handles absent/stale
+  Secret Service default aliases, reuses one connection, requires the selected
+  provider to run as the session user, and pins its unique owner.
+- Rebase the API-Core overlay onto Proton's signed Fedora 5.6.20 package with
+  exact changed-path and provenance manifests.
+- Keep Protun's transient key in Core's unsaved NetworkManager profile, preserve
+  queued reconnect targets, and explicitly reactivate reusable validated
+  protection profiles.
+- Retain bounded server-string sharing and deprecated FIDO2-query cleanup.
+  Disable the unsafe security-key route until Core provides complete cancellable
+  multi-key selection.
+
+### Security and performance
+
+- Encrypt authentication fields with sender/method-bound one-use keys and pass
+  only sealed ciphertext descriptors over D-Bus.
+- Verify and pin packaged D-Bus peers, authorize actual senders at ingress and
+  dispatch, revoke on owner loss, and sanitize loader/runtime environments.
+- Bound descriptors, reads, support diagnostics, subprocesses, packet capture,
+  and process retirement. Keep community support/crash submission disabled at
+  independent UI, native, backend, and package gates.
+- Replace per-query server-object expansion with a generation-scoped scalar
+  search projection; retain current Core load and access data.
+- Complete the seven-perspective release review and regression corrections with
+  no substantiated P0/P1 finding.
+
+### Build and release
+
+- Generate D-Bus contracts and snapshot validators from authoritative schemas;
+  enforce SPDX, provenance, patch manifests, exact source archives, and
+  reproducible Fedora package metadata.
+- Run Python minimum-version/type/coverage checks, Clang-Tidy, sanitizers, QML
+  diagnostics/layout/visual gates, and complete RPM/SRPM policy checks in CI.
+- Run source and package workflows once per pull request. Reserve repeated
+  package reproducibility builds and retained artifacts for tags/manual runs;
+  isolate retry attempts from their original concurrency group.
+
+## 0.12.0 — internal development milestone
+
+Completed 2026-09-01 and never tagged or published; included in 0.13.0.
+
+- Established the on-demand Inspector and event-driven backend lifetime.
+- Added account/backend generation fencing and completion-unknown recovery.
+- Added owner-pinned Secret Service integration and fresh-process account
+  replacement.
+- Added reproducible package builds, environment sanitization, and durable
+  packet-capture recovery.
+- Established the accepted mechanics baseline used to scope the 0.13 UI work.
+
 ## [0.11.3] - 2026-08-31
 
-- Keep Protun's transient WireGuard key in its existing unsaved NetworkManager
-  profile so Plasma reconnects do not depend on a missing Protun secret-agent
-  plugin.
-- Clear cached account and tunnel metadata when the backend stops instead of
-  continuing to present a stale signed-in state.
-- Offer an explicit service retry after Secret Service session restoration
-  remains incomplete, without imposing an automatic prompt timeout.
-- Build, verify, transaction-test, and retain the API-Core overlay's binary and
-  source RPMs with the client and provider-neutral keyring artifacts.
+- Keep Protun's transient key in its unsaved NetworkManager profile.
+- Clear cached account/tunnel state when the backend stops.
+- Add explicit recovery after incomplete saved-session restoration.
+- Build and verify client, keyring, and API-Core RPM/SRPM pairs.
 
 ## [0.11.2] - 2026-08-30
 
-- Run Fedora CI and RPM builds as an unprivileged builder and retain the exact
-  client and provider-neutral keyring binary/source package set from one
-  verified release-artifact directory.
-- Run GUI smoke tests through the offscreen software backend with an explicit
-  UTF-8 locale and pin GitHub Actions to their Node 24-based releases.
-- Decompose the official-Core adapter into focused compatibility, protocol,
-  server, settings, snapshot, support, and packet-capture modules while
-  preserving the established `ProtonCoreAdapter` API.
-- Keep the QML application window and Settings page focused on orchestration by
-  extracting dialogs and independent settings sections with explicit inputs.
-- Split native location models and controller lifecycle/snapshot handling into
-  cohesive implementation units without changing their QML-facing types.
-- Add a reproducible, isolated demo-stack PSS measurement and refresh the
-  search benchmark after the maintainability decomposition.
-- Reactivate the backend after an unexpected service exit and explain when a
-  Control Center left open across an RPM upgrade must be restarted.
-- Make tray shutdown explicit and wait for Proton Core to confirm a disconnect
-  before quitting background controls.
-- Keep server-browser cleanup scoped to the page that owns the active context
-  and retry transiently empty country-group snapshots without manual refresh.
-- Respect `TMPDIR` in the Python analysis gate so constrained or isolated RPM
-  builders do not silently fall back to the host temporary filesystem.
-- Test the full backend on Python 3.11 with hash-pinned minimum dependencies
-  and validate its consumed public API against Proton's pinned Core 5.5.6 RPM.
-- Split the native controller implementation into lifecycle, action, location,
-  and settings units without changing its QML or D-Bus behavior.
-- Separate immutable backend state and payload validation from asynchronous
-  orchestration while retaining the existing Python import surface.
-- Isolate the deterministic demo adapter from the official Core adapter while
-  preserving the established adapter import facade.
-- Reconcile the public documentation with the installed `0.11.2-26`
-  acceptance evidence and repository-built provider-neutral keyring package.
-- Keep Clang-Tidy focused on project source regardless of build-directory name
-  by excluding Qt-generated `_autogen` headers explicitly.
-- Add a reproducible Fedora rebuild of Proton's keyring adapter with the
-  provider-neutral Secret Service alias and stable-client fixes used for
-  KeePassXC acceptance.
-- Require the adapter's explicit virtual capability from the client RPM and
-  build both source and binary packages in release CI.
-- Clarify that the Plasma frontend has no direct GTK dependency while Proton's
-  Fedora API Core package retains its upstream `NetworkManager-openvpn-gnome`
-  dependency.
-- Remove the prescriptive upstream-engagement guide and let GitHub flow README
-  prose without a fixed source-column width.
-- Build, inspect, transaction-test, and retain Fedora source and binary RPMs in
-  a dedicated CI workflow with an independently visible README status badge.
-- Enforce static Python type analysis and a measured 75% backend branch-
-  coverage floor in source CI and RPM `%check`.
-- Add blocking Clang-Tidy and address/leak/undefined-behavior sanitizer CI,
-  removing the avoidable Qt container conversions and implicit size narrowing
-  it found.
-- Add enforced SPDX copyright and license identifiers to every project-authored
-  source and build file without relabeling Proton-derived materials.
-- Make installed D-Bus introspection XML the checked-in source of truth for
-  endpoint, method, signal, error, and authorization policy constants, with
-  generated native/Python definitions and runtime-signature drift tests.
-- Consolidate the public documentation, make the security assessment
-  unambiguous about current versus historical findings, and record the exact
-  downstream keyring dependency used for KeePassXC acceptance.
-- Recast the README as a concise public introduction with project-status badges,
-  engineering evidence, and a linked gallery of reproducible demo screenshots.
-- Remove the shared KRunner plug-in host from backend trust and require an
-  explicit Control Center confirmation for its validated connection requests.
-- Disable Proton crash-report submission in unofficial builds, normalize the
-  stored Core preference off, and explain the community reporting policy in
-  Settings.
-- Prioritize the deepest pending server-browser request, reject obsolete
-  same-target replies, and automatically retry short-lived empty Core snapshots.
-- Keep native pin actions visible in global search and use Plasma pin artwork
-  consistently instead of favorite stars.
-- Add persistent state, city, and Secure Core group pins with direct fastest-in-
-  group actions in the Plasma tray.
-- Retain country, location-group, and exact-server requests made while the
-  backend is still initializing, removing the need for a manual refresh.
-- Add combinable P2P, Streaming, Tor, and Secure Core browser checkboxes; every
-  selected feature must be present on the same official Core server.
-- Persist optional default fastest filters for the overview, tray, global
-  shortcut, KRunner, and auto-connect while retaining Proton's scoring.
-- Accept immutable root-owned systemd user-service drop-ins, including
-  Fedora's global shutdown-timeout policy, without accepting per-user or
-  writable overrides during backend identity verification.
-- Preserve production D-Bus executable authorization on Fedora/SELinux by
-  removing mount-namespace directives that deny the required procfs peer
-  identity reads from the otherwise unprivileged user services.
-- Keep the sidebar collapse control recoverable across compact-window
-  transitions and preserve the user's wide-layout collapsed state.
-
-- Authenticate and pin the packaged backend's unique D-Bus owner before native
-  clients send commands, subscribe to signals, or retrieve encryption keys.
-- Authorize every state-changing backend call from its actual sender and bind
-  one-use secret keys to that sender and intended operation.
-- Restore the prior official-Core kill-switch setting whenever sign-out fails
-  after the temporary logout transition.
-- Close all rejected or unexpected Unix descriptors and verify descriptor
-  stability on an isolated session bus.
-- Bound optional support logs by bytes and time while keeping direct Proton
-  submission disabled in unofficial builds.
-- Require Core's reviewed packet-capture byte limit, enforce a 15-minute
-  community watchdog, and serialize every stop path.
-- Publish the complete third-party-style security and engineering audit with
-  post-remediation evidence.
-- Add selectable color, light-symbol, and dark-symbol interface icons.
-- Apply icon changes immediately to the Control Center and resident tray agent.
-- Expose the shared icon preference in both application Settings and Plasma
-  System Settings while retaining the color application-menu mark.
-- Disable direct Proton support-report submission in unofficial builds at the
-  page, native-controller, and backend D-Bus boundaries while preserving the
-  reviewed workflow as an inactive proof of concept.
-- Give Release Notes a distinct bound-notebook icon that remains recognizable
-  when the navigation sidebar is collapsed.
+- Add provider-neutral KeePassXC-compatible keyring packaging and explicit
+  client capability dependencies.
+- Add capability-aware server filters, group/server pins, and startup-safe
+  browsing retries.
+- Decompose native, QML, and Python concentration points without changing their
+  public facades.
+- Add backend identity/sender authorization, sealed secret transport, logout
+  compensation, descriptor ownership, capture bounds, and KRunner confirmation.
+- Add native analysis/sanitizers, Python typing/coverage, SPDX/provenance,
+  generated D-Bus contracts, reproducible Fedora packaging, and demo memory
+  measurements.
+- Disable Proton support/crash submission in community builds.
+- Add selectable tray/application symbols and Settings/System Settings sharing.
 
 ## [0.11.1] - 2026-08-29
 
-- Embed the application mark in the Control Center and resident agent so a
-  missing or stale desktop icon cache cannot produce a generic icon.
-- Let Kirigami own dynamically created pages and destroy them on removal.
-- Prevent inactive sign-in pages from reacting to later settings snapshots.
-- Adopt an original Plasma VPN identity and explicit community-client status.
-- Move private session services into the maintainer-owned
-  `quest.entropy.PlasmaVPN` namespace.
-- Add public-release CI, provenance, contribution, support, and release
-  guidance.
-- Preserve the Settings route after successful Core configuration changes.
+- Embed the application mark and adopt the independent Plasma VPN identity.
+- Correct dynamic page lifetime and inactive sign-in reactions.
+- Move services into `quest.entropy.PlasmaVPN` and add public project policy.
+- Preserve Settings navigation after Core writes.
 
 ## [0.10.2] - 2026-08-29
 
-- Keep Settings active after successful VPN configuration changes.
-- Limit automatic Overview navigation to completion of the sign-in flow.
-- Add end-to-end settings-navigation regression coverage.
+- Preserve Settings after successful VPN configuration changes.
+- Limit automatic Overview navigation to sign-in completion.
+- Add settings-navigation regressions.
 
 ## [0.10.1] - 2026-08-29
 
-- Route signed-out startup directly to Sign in.
-- Prevent authentication from racing Proton connector initialization.
-- Explain delayed desktop Secret Service approval during sign-in.
+- Route signed-out startup to Sign in.
+- Prevent authentication from racing connector initialization.
+- Explain delayed Secret Service approval.
 
 ## [0.10.0] - 2026-08-29
 
-- Introduce responsive desktop and compact Kirigami navigation.
-- Standardize page headers, cards, rows, semantic colors, typography, and RTL
-  behavior across the Control Center.
+- Add responsive Kirigami navigation and shared Plasma visual components.
 - Add compact, scaled-text, RTL, UI-hygiene, and screenshot checks.
 
 ## [0.9.0] - 2026-08-29
 
-- Split resident tray, shortcut, and notification behavior into a lean native
-  Plasma agent.
-- Make the full Kirigami Control Center on-demand.
-- Release disconnected idle Python backends without losing active-tunnel
-  supervision.
+- Split tray, shortcut, and notification behavior into a native agent.
+- Make the Kirigami Control Center on demand.
+- Retire disconnected idle backends while supervising active tunnels.
 
-Earlier development milestones remain recorded in the Fedora package
-changelog and Git history. The [roadmap](docs/ROADMAP.md) is intentionally
-forward-looking.
+Earlier milestones remain in the Fedora spec changelog and Git history.

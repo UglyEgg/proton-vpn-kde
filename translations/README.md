@@ -5,7 +5,8 @@ the Proton VPN GTK app v4.18.0 catalogs at commit
 `8e3897b6fe81840eef4762f2377c5a985754edea`. Those source catalogs are
 Copyright (c) 2023 Proton AG and licensed under GPL-3.0-or-later, the same
 license as this project. No GTK or Gettext component is required at build or
-runtime.
+runtime. `provenance.json` pins the source revision, complete catalog set, and
+SHA-256 digest of every imported PO file; the importer refuses drift.
 
 Only identical English source strings are imported. If Proton uses different
 translations for the same English text in different semantic contexts, the

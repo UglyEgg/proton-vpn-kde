@@ -17,12 +17,31 @@ Kirigami.ScrollablePage {
     required property bool groupAccessible
     required property bool groupUnderMaintenance
     property string initialServerFilter: ""
+    property string serverFilterText: initialServerFilter
     property var requiredCapabilities: []
     property var groupServerContextGeneration: 0
+    readonly property string serverBrowserError:
+        vpnController.serversError.length > 0
+        ? vpnController.serversError : vpnController.serverLoadsError
+    readonly property bool serverSearchActive:
+        serverFilterText.trim().length > 0
+    readonly property string emptyServerMessage:
+        vpnController.locationsBusy
+        ? qsTr("Loading servers…")
+        : serverSearchActive && requiredCapabilities.length > 0
+          ? qsTr("No servers match your search and selected capabilities")
+          : serverSearchActive
+            ? qsTr("No servers match your search")
+            : requiredCapabilities.length > 0
+              ? qsTr("No servers match the selected capabilities")
+              : qsTr("No servers available")
 
     title: groupKind === "secure-core"
            ? countryFlag + "  " + countryName + " · " + qsTr("Secure Core")
            : countryFlag + "  " + groupName
+    footer: ServerBrowserFeedback {
+        loadError: page.serverBrowserError
+    }
 
     function serverSummary(location, entryCountry, secureCore, smartRouting,
                            tor, p2p, streaming, underMaintenance) {
@@ -54,9 +73,6 @@ Kirigami.ScrollablePage {
         vpnController.setServerFeatureFilter(requiredCapabilities)
         groupServerContextGeneration = vpnController.claimGroupServerContext(
             countryCode, groupKind, groupName)
-        if (initialServerFilter.length > 0) {
-            serverSearch.text = initialServerFilter
-        }
     }
 
     actions: [
@@ -74,7 +90,8 @@ Kirigami.ScrollablePage {
                        ? "network-connect" : "internet-web-browser"
             enabled: !page.groupUnderMaintenance
                      && (page.groupAccessible
-                         ? vpnController.primaryActionEnabled : true)
+                         ? applicationWindow().browserConnectionActionEnabled
+                         : true)
             onTriggered: {
                 if (page.groupAccessible) {
                     if (page.requiredCapabilities.length > 0) {
@@ -93,7 +110,7 @@ Kirigami.ScrollablePage {
         Kirigami.Action {
             text: qsTr("Refresh")
             icon.name: "view-refresh"
-            enabled: !vpnController.locationsBusy
+            enabled: vpnController.ready && !vpnController.locationsBusy
             onTriggered: vpnController.loadGroupServers(
                 page.countryCode, page.groupKind, page.groupName)
         }
@@ -124,18 +141,20 @@ Kirigami.ScrollablePage {
                 id: serverSearch
                 Layout.fillWidth: true
                 placeholderText: qsTr("Search servers or locations")
-                onTextChanged: vpnController.setServerFilter(text)
+                text: page.initialServerFilter
+                onTextChanged: {
+                    page.serverFilterText = text
+                    vpnController.setServerFilter(text)
+                }
             }
         }
 
         Kirigami.PlaceholderMessage {
+            objectName: "serverEmptyState"
             anchors.centerIn: parent
             visible: serverList.count === 0
-            text: vpnController.locationsBusy
-                  ? qsTr("Loading servers…")
-                  : page.requiredCapabilities.length > 0
-                    ? qsTr("No servers match the selected capabilities")
-                    : qsTr("No servers available")
+                     && vpnController.serversError.length === 0
+            text: page.emptyServerMessage
             icon.name: vpnController.locationsBusy ? "view-refresh" : "network-offline"
         }
 
@@ -202,7 +221,8 @@ Kirigami.ScrollablePage {
                     display: Controls.AbstractButton.IconOnly
                     enabled: !serverDelegate.underMaintenance
                              && (serverDelegate.accessible
-                                 ? vpnController.primaryActionEnabled : true)
+                                 ? applicationWindow().browserConnectionActionEnabled
+                                 : true)
                     onClicked: {
                         if (serverDelegate.accessible) {
                             vpnController.connectServer(serverDelegate.name)

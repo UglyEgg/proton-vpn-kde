@@ -52,7 +52,7 @@ QString regionalFallback(const QLocale &locale)
 QStringList catalogDirectories()
 {
     QStringList directories{
-        QStringLiteral(PROTON_VPN_KDE_BUILD_TRANSLATIONS_DIR),
+        QStringLiteral(PROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR),
     };
     const QStringList dataLocations =
         QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation);

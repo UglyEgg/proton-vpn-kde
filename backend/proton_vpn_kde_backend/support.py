@@ -18,12 +18,13 @@ AGGREGATE_BYTE_LIMIT = 2 * 1024 * 1024
 COLLECTION_TIMEOUT_SECONDS = 20.0
 READ_CHUNK_SIZE = 64 * 1024
 TRUNCATION_MARKER = b"\n[Plasma VPN: diagnostic output truncated at the byte limit]\n"
+JOURNALCTL_COMMAND = "/usr/bin/journalctl"
 
 _JOURNAL_SOURCES = (
     (
         "ProtonVPNKDE.log",
         (
-            "journalctl",
+            JOURNALCTL_COMMAND,
             "--user",
             "--unit",
             "proton-vpn-kde-backend.service",
@@ -36,7 +37,7 @@ _JOURNAL_SOURCES = (
     (
         "NetworkManager.log",
         (
-            "journalctl",
+            JOURNALCTL_COMMAND,
             "--unit",
             "NetworkManager",
             "--no-pager",
@@ -48,7 +49,7 @@ _JOURNAL_SOURCES = (
     (
         "SplitTunneling.log",
         (
-            "journalctl",
+            JOURNALCTL_COMMAND,
             "--unit",
             "me.proton.vpn.split_tunneling",
             "--no-pager",

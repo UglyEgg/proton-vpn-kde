@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -27,6 +29,77 @@ def sha256(path: Path) -> str:
 
 
 class OverlayBoundaryTests(unittest.TestCase):
+    def test_killswitch_test_imports_without_optional_gi_bindings(self):
+        test_path = SCRIPT.parent / "tests" / "test_killswitch_activation.py"
+        with tempfile.TemporaryDirectory() as directory:
+            stub_root = Path(directory)
+            gi_stub = stub_root / "gi"
+            gi_stub.mkdir()
+            (gi_stub / "__init__.py").write_text("", encoding="utf-8")
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = str(stub_root)
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import runpy,sys; "
+                        "runpy.run_path(sys.argv[1], run_name='overlay_test_import')"
+                    ),
+                    str(test_path),
+                ],
+                check=False,
+                capture_output=True,
+                env=environment,
+                text=True,
+            )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+
+    def test_manifest_separates_vendor_version_from_public_source(self):
+        manifest = rebuild_overlay._load_manifest(
+            SCRIPT.parent / "overlay-manifest.json"
+        )
+
+        self.assertEqual("5.6.20", manifest["vendor"]["version"])
+        self.assertIsNone(manifest["vendor"]["publicSourceTag"])
+        self.assertEqual(
+            "v5.6.10", manifest["publicUpstream"]["latestVerifiedTag"]
+        )
+        self.assertEqual(
+            "f1d13b71c506bbd5f47351a9e4392572e21d0169",
+            manifest["publicUpstream"]["commit"],
+        )
+        self.assertNotIn("upstreamBaseTag", manifest["overlay"])
+
+    def test_manifest_rejects_the_conflated_v1_source_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(
+                '{"schemaVersion":1,"vendor":{},"overlay":{}}',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                rebuild_overlay.OverlayError,
+                "Unsupported overlay manifest schema",
+            ):
+                rebuild_overlay._load_manifest(path)
+
+    def test_manifest_rejects_reintroduced_upstream_base_tag(self):
+        manifest_path = SCRIPT.parent / "overlay-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["overlay"]["upstreamBaseTag"] = "v5.6.20"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                rebuild_overlay.OverlayError,
+                "upstreamBaseTag conflates package and source",
+            ):
+                rebuild_overlay._load_manifest(path)
+
     def test_behavior_verification_uses_a_private_runtime_directory(self):
         observed = {}
 

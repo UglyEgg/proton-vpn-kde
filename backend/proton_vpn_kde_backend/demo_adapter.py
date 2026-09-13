@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 from .controller import (
     CountryInfo,
@@ -41,6 +41,9 @@ def _supports_split_tunneling(protocol: str) -> bool:
 
 class DemoCoreAdapter:
     """Deterministic adapter that never touches the network or credentials."""
+
+    def retire_unconfirmed_operation(self) -> NoReturn:
+        raise SystemExit(1)
 
     def __init__(
         self,
@@ -77,6 +80,10 @@ class DemoCoreAdapter:
         self.last_support_report: SupportReport | None = None
         self.last_nps_response: NpsSurveyResponse | None = None
         self._snapshot = self._build_snapshot(message="Safe demo backend")
+
+    @staticmethod
+    def has_pending_startup_recovery() -> bool:
+        return False
 
     async def initialize(
         self,
@@ -431,7 +438,7 @@ class DemoCoreAdapter:
         if not self._connection_cancelled:
             await self._transition("connected", server_name)
 
-    async def disconnect(self) -> None:
+    async def disconnect(self, *, deadline: float | None = None) -> None:
         self._connection_cancelled = True
         self._packet_capture_active = False
         await self._transition("disconnecting", self._snapshot.server_name)
@@ -457,7 +464,7 @@ class DemoCoreAdapter:
             )
         )
 
-    async def stop_packet_capture(self) -> None:
+    async def stop_packet_capture(self, *, deadline: float | None = None) -> None:
         self._packet_capture_active = False
         self._publish(
             self._build_snapshot(
@@ -538,7 +545,7 @@ class DemoCoreAdapter:
         self._snapshot = replace(self._snapshot, reconnect_enabled=enabled)
         self._publish(self._snapshot)
 
-    async def close(self) -> None:
+    async def close(self, *, deadline: float | None = None) -> None:
         return None
 
     async def _transition(self, state: str, server_name: str) -> None:

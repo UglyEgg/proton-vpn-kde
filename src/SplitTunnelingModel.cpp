@@ -169,8 +169,7 @@ bool SplitTunnelingModel::applyJson(const QString &settingsJson,
     m_excludeIpRanges = excludeIpRanges;
     m_includeIpRanges = includeIpRanges;
     m_loaded = true;
-    m_busy = false;
-    m_message.clear();
+    // Data receipt is independent of the controller's request ownership.
     emit changed();
     return true;
 }

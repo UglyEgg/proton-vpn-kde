@@ -11,15 +11,16 @@ Proton's official core.
 | Area | Official behavior | Plasma implementation | Status |
 | --- | --- | --- | --- |
 | Password sign-in | Proton username and password login | Native Kirigami form with sealed one-use credential transport | Complete |
-| Two-factor sign-in | Authenticator/recovery codes and FIDO2 security keys | TOTP, recovery code, FIDO2 touch, key selection, and PIN interaction | Complete |
-| Session storage | Proton SSO through Secret Service | Same Core session through a separately packaged provider-neutral keyring rebuild; KeePassXC is verified with the downstream build in the compatibility matrix | Complete on supported stack |
+| Two-factor sign-in | Authenticator/recovery codes and FIDO2 security keys | TOTP and recovery codes are complete. FIDO2 touch, selection, and PIN are exposed only when Core guarantees cancellable multi-key selection; current Core 5.6.20 does not | Conditional on Core safety contract |
+| Session storage | Proton SSO through Secret Service | Same Core session through a separately packaged provider-neutral keyring rebuild that requires the selected provider to run as the session user and pins traffic to its unique owner; KeePassXC is verified with the downstream build in the compatibility matrix | Complete on supported stack |
 | Permanent kill switch before login | Requires disabling permanent mode before sign-in | Signed-out recovery action changes only the kill-switch setting | Complete |
 | Account/session | Plan, connection limit, account link, and sign-out | Native account page and kill-switch-safe disconnect/sign-out lifecycle | Complete |
-| Fastest connection | Connect to fastest available server | Official Core selection in the window, tray, shortcuts, auto-connect, and confirmation-gated KRunner requests; optional saved P2P, Streaming, Tor, and Secure Core filters use AND semantics before Core scoring | Superset |
+| Fastest connection | Connect to fastest available server | Official Core selection in the window and auto-connect, plus confirmation-gated tray, shortcut, and KRunner requests; optional saved P2P, Streaming, Tor, and Secure Core filters use AND semantics before Core scoring | Superset |
 | Country/location/server selection | Browse and connect at each topology level | Native localized country, location, Secure Core, and exact-server models with combinable capability checkboxes and filtered scoped-fastest actions | Superset |
 | Free-plan discovery | Free servers connect; paid rows remain upgrade-visible | Same accessibility model and ordering with native upgrade actions | Complete |
 | Search | Search countries, cities, and exact servers | Bounded global search through a compact scalar projection; live state stays in official Core objects | Complete |
 | Server metadata | Load, maintenance, P2P, streaming, Tor, Smart Routing, Secure Core | Native model roles and connection-detail presentation | Complete |
+| Connection inspection | Connection status and selected-server details in the main view | On-demand read-only page combining active server capabilities, effective protection settings, and local integration status without traffic collection or history | Superset |
 | Live refresh | Full topology and load-only updates | Separate Core callbacks; load changes update rows in place, and page requests made during backend startup are retained until readiness | Complete |
 | Connect cancellation | Connecting and failed states can be cancelled | Connecting cancellation bypasses the normal operation lock; failed state never reconnects accidentally | Complete |
 | Connection recovery | Retry nonfatal drops and react to network/session changes | Asyncio reconnector preserves server, protocol, and backend and observes network route and logind unlock | Complete |
@@ -34,12 +35,12 @@ Proton's official core.
 | Port forwarding | Show/copy active port and notify when it changes in the background | Native clipboard action and Plasma notification | Complete |
 | Custom DNS | Enable and edit IPv4/IPv6 servers with NetShield conflict handling | Native validated editor; both settings remain unchanged until the user explicitly resolves the conflict | Complete |
 | Split tunneling | Include/exclude modes, applications, and IP ranges | Native KService application chooser plus validated IPv4/IPv6 CIDR rules | Complete |
-| Auto-connect | Off, fastest, country, or exact server at application start | Same target syntax persisted through KConfig | Complete |
+| Auto-connect | Off, fastest, country, or exact server at application start | Same target syntax persisted through KConfig; shared Startup controls apply saved fastest-server capabilities independently of window/tray presentation, without bypassing authentication | Complete |
 | Tray preferences | Start minimized and pinned targets | Lean native status-notifier agent, tray-only startup, pinned countries, state/city groups, and exact servers, plus an on-demand Control Center | Superset |
 | Troubleshooting capture | Choose folder and start/stop capture for supported protocols | Native folder chooser, consent warning, and official protocol capture implementation | Complete |
 | Issue reporting | Submit support form with optional logs | Reviewed proof of concept retained behind a default-off build capability; community-client reports go to the project tracker | Deliberately disabled |
-| Anonymous crash reporting | Optional automatic reports to Proton's Sentry endpoint | Default-off build capability; community builds normalize the official Core preference off and direct client crashes to the project tracker | Deliberately disabled |
-| Release information | About and release-notes views | Native About and Release Notes pages | Complete |
+| Anonymous crash reporting | Optional automatic reports to Proton's Sentry endpoint | Default-off build capability; community builds disable the runtime sender, always present the preference as off, persist it during explicit settings writes, and direct client crashes to the project tracker | Deliberately disabled |
+| Release information | About and release-notes views | Native Help & information hub with on-demand Release Notes | Complete |
 | Update channel | Stable/Beta repository choice | Exact-package Polkit action; Discover remains responsible for updates | Native equivalent |
 | Account/help links | Create, manage, support, upgrade, and setup guidance | Official URLs opened through the desktop URL handler | Complete |
 | NPS survey | Cached Proton survey, seen state, submit, and dismiss | Same official notification and response APIs with sealed optional comments | Complete |
@@ -47,6 +48,12 @@ Proton's official core.
 
 ## Deliberate differences
 
+- The client and System Settings share a Startup section for opt-in KDE login
+  launch, window/tray startup, and auto-connect. Installation never enables
+  login launch. Existing custom autostart entries are preserved, and explicit
+  launcher requests still open the window. This native integration is covered
+  by isolated tests; installed results are recorded in the
+  [compatibility evidence](COMPATIBILITY.md#acceptance-evidence).
 - The Plasma client has no direct GTK, PyGObject, Gio, GNOME Keyring, or GLib
   main-loop dependency. Qt/Kirigami, KConfig, KNotification, KService, KRunner,
   and Plasma's status-notifier APIs own desktop integration. Proton's current
@@ -65,8 +72,9 @@ Proton's official core.
   enable it with `PROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION`.
 - Anonymous crash-report submission to Proton is independently compile-time
   disabled in unofficial builds. The Settings switch, native controller, and
-  backend reject re-enabling it, and the backend persists the official Core
-  preference as disabled through Core's public settings API. An approved
+  backend reject re-enabling it. Pure settings reads never rewrite Core's
+  settings object; the backend keeps the runtime sender disabled and persists
+  the official Core preference as off during any explicit settings write. An approved
   distribution may enable it with
   `PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION`.
 - A resident Plasma agent, global shortcuts, KRunner actions, a System Settings

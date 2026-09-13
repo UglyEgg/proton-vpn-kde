@@ -35,6 +35,37 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>连接错误</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>关闭</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>常规</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>连接</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>协议</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>终止开关</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>拆分隧道</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -81,6 +112,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>账户</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>登录</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>设置</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>版本说明</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>报告问题</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>关于</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>连接错误：已达到会话限制</translation>
@@ -161,30 +219,6 @@ Update your system time and try to connect again.</source>
             <source>Close</source>
             <translation>关闭</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>账户</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>登录</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>设置</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>版本说明</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>报告问题</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>关于</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -222,6 +256,13 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Sign in</source>
             <translation>登录</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>关闭</translation>
         </message>
     </context>
     <context>
@@ -266,22 +307,6 @@ Update your system time and try to connect again.</source>
             <source>Settings</source>
             <translation>设置</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>关闭</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>常规</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>拆分隧道</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>测试版功能</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -312,6 +337,31 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Security key</source>
             <translation>安全密钥</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>拆分隧道</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>测试版功能</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>关闭</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>常规</translation>
         </message>
     </context>
     <context>

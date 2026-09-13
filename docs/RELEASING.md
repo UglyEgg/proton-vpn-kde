@@ -1,122 +1,124 @@
 # Release procedure
 
-Only release from a clean working tree after the version-specific changes are
-committed.
+Release only from a clean, immutable commit. Runtime changes after review or
+acceptance restart the affected gates. Feature releases require one week of
+local use on the reviewed runtime before publication.
 
-## 1. Update release metadata
+## 1. Metadata
 
-Update the canonical version in `CMakeLists.txt` and the matching values in:
+Synchronize:
 
+- `CMakeLists.txt`;
 - `backend/pyproject.toml`;
 - `backend/proton_vpn_kde_backend/__init__.py`;
 - `packaging/fedora/proton-vpn-kde.spec`;
 - `qml/ReleaseNotesPage.qml`;
-- `CHANGELOG.md` and packaging documentation.
+- `CHANGELOG.md`;
+- `README.md`, `SECURITY.md`, and `docs/COMPATIBILITY.md`.
 
-Update `COMPATIBILITY.md` only with evidence from the installed stack. Review
-the current posture and release gates in the security assessment; never carry
-an open or ambiguous finding into release notes.
-
-Verify synchronization:
+A public release requires a dated changelog entry, final RPM release number,
+matching security-support table, and current in-app notes. Accepted internal
+milestones must not appear as published releases.
 
 ```bash
 scripts/check-release-metadata.sh
+scripts/check-documentation-links.py
 ```
 
-## 2. Verify the source tree
+## 2. Source gate
 
-Review `git status --short` and the complete release diff first. The committed
-tree must contain no build output, local RPMs, credentials, diagnostics,
-machine-specific paths, editor state, or unrelated development debris.
+Seven isolated reviewers assess the same immutable source: Hostile,
+Subtractive, Entropy, Error-Class, HPC/Performance, Hardening/Security, and
+Cognitive Load/Code Maintainability. Consolidate only after all reports arrive.
+Behavioral remediation requires focused regression cases and re-review of the
+changed class.
 
 ```bash
 scripts/check-static-analysis.sh
+scripts/check-ux-mechanics-freeze.sh
 scripts/check-python-analysis.sh
+cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
+cmake --build build --parallel 2
+ctest --test-dir build --output-on-failure
 scripts/check-native-sanitizers.sh
 scripts/check-clang-tidy.sh
-cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
-cmake --build build
-ctest --test-dir build --output-on-failure
+scripts/measure-inspector-retention.sh build
+scripts/check-qml-visual-matrix.sh build build/visual-matrix
 git diff --check
+git status --short
 ```
 
-Confirm that the working tree is clean after verification. If a tool changes a
-tracked file, review and commit that change before rebuilding.
+The tree must contain no build output, local packages, credentials, diagnostics,
+machine-specific paths, editor state, or unrelated changes.
 
-## 3. Build the Fedora source and binary packages
+## 3. Packages
 
-Build the provider-neutral keyring dependency first. The script fetches and
-digest-verifies Proton's pinned upstream source, verifies the patch manifest,
-runs the focused test suite in `%check`, and emits both source and binary RPMs:
+Build overlays first:
 
 ```bash
 packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
     '' "$PWD/build-keyring-overlay"
-```
-
-Build the Plasma-compatible API-Core dependency next. Its script fetches and
-digest-verifies Proton's exact signed Fedora RPM, applies only the manifest
-patch set, rejects every unlisted payload change, runs the behavior checks,
-and emits both source and binary RPMs:
-
-```bash
 packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     '' "$PWD/build-api-core-overlay"
 ```
 
-Create a dedicated top directory and release archive, then build with Fedora's
-package flags and `%check` enabled:
+Build the client from the exact commit:
 
 ```bash
-mkdir -p build-release/{SOURCES,SPECS,TMP}
-git archive --format=tar.gz \
-    --prefix=proton-vpn-kde-VERSION/ \
-    --output=build-release/SOURCES/proton-vpn-kde-VERSION.tar.gz \
+packaging/fedora/prepare-rpmbuild-tree.sh \
+    "$PWD/build-release" \
+    "$PWD/packaging/fedora/proton-vpn-kde.spec" \
     HEAD
-cp packaging/fedora/proton-vpn-kde.spec build-release/SPECS/
 rpmbuild \
     --define "_topdir $PWD/build-release" \
     --define "_tmppath $PWD/build-release/TMP" \
     -ba build-release/SPECS/proton-vpn-kde.spec
 ```
 
-Replace `VERSION` with the verified release version. The resulting build is not
-releasable if `%check` is skipped or reports a failure.
+Use the verified signed `vVERSION` tag instead of `HEAD` for publication.
+`%check` is mandatory.
 
-The `RPM Package` GitHub Actions workflow repeats all three builds from every
-pushed commit and pull request. It inspects the main package's identity,
-dependency boundary, required payload, ownership, permissions, community
-reporting feature gates, digest, and transaction validity; it also verifies
-the keyring and API-Core overlays and performs an isolated transaction with
-the complete six-artifact set. All binary and source RPMs are retained as CI
-artifacts for 14 days. These unsigned CI artifacts are review evidence, not
-published releases and not a substitute for the clean-environment live
-acceptance below.
+Pull requests receive one complete client/keyring/Core build and policy
+inspection. Feature-branch pushes do not duplicate it. Tag and manual workflows
+also repeat client and API-Core builds in clean roots, require byte-identical
+outputs, and retain all three RPM/SRPM pairs for 14 days. CI artifacts are
+unsigned evidence, not published packages.
 
-## 4. Inspect and sign artifacts
+## 4. Artifact and live acceptance
 
-- Inspect RPM metadata, dependency generation, payload ownership and modes,
-  systemd and D-Bus paths, feature gates, and native hardening.
-- Install into a clean Fedora Plasma environment and verify KeePassXC or
-  another intended Secret Service provider using the exact keyring adapter
-  declared in `COMPATIBILITY.md`; then verify signed-out and signed-in startup,
-  server browsing, settings persistence, connect/disconnect, KRunner
-  confirmation, resident-agent lifetime, and clean disconnected shutdown.
-- Confirm that direct Proton support and crash submission remain disabled in
-  community packages.
-- Generate SHA-256 checksums for every published source and binary artifact.
-- Sign release tags and RPMs with a maintainer-controlled key. Never describe
-  an unsigned local package as a signed release, and never imply that a
-  community artifact is an official Proton release.
-- Publish both source RPMs alongside their binary RPMs to preserve corresponding
-  source and the boundary between community code and the Proton keyring rebuild.
+Inspect:
 
-## 5. Tag and publish
+- package metadata, dependencies, payload ownership/modes, systemd/D-Bus paths,
+  feature gates, ELF hardening, licenses, and provenance;
+- exact changed-path and patch-manifest policy for both overlays;
+- the API-Core SRPM's vendor-RPM reconstruction boundary; and
+- final binary/source checksums.
 
-Create the signed `vVERSION` tag only after the exact commit has completed the
-release battery, then verify that the published archive reproduces from that
-tag. Release notes must identify the supported stack, known limitations, test
-results, checksums, and the project's unofficial status.
+Install all three binary packages in a clean Fedora Plasma environment. Test:
 
-The release process must never publish Proton credentials, account data,
-private test logs, local signing material, or support bundles.
+- signed-out, saved-session, and signed-in startup;
+- KeePassXC or another intended Secret Service provider;
+- server browsing, settings persistence, Connect/Disconnect, and recovery;
+- KRunner confirmation, shortcuts, tray, backend retirement, and agent lifetime;
+- opt-in login launch, window/tray startup, and auto-connect with ready and
+  locked Secret Service;
+- full/split layouts, keyboard navigation, app-owned sizing, and monitor changes;
+- packet-capture stop and disconnected shutdown; and
+- disabled Proton support/crash submission.
+
+Installation must not enable autostart or overwrite custom autostart entries.
+Record exact versions and outcomes in [Compatibility](COMPATIBILITY.md).
+
+## 5. Sign and publish
+
+1. Confirm the review, package, installed-UAT, and soak gates.
+2. Create and verify signed tag `vVERSION`.
+3. Rebuild from that tag and compare with the verified unsigned outputs.
+4. Sign final RPMs with the maintainer key.
+5. Generate SHA-256 checksums after signing.
+6. Publish all three RPM/SRPM pairs and checksums.
+7. Verify tag signature, release links, downloaded signatures, and checksums.
+
+Release notes identify supported versions, known limitations, validation
+results, and unofficial community status. Never publish credentials, account
+data, private keys, raw diagnostics, or unreviewed capture data.

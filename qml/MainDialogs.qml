@@ -14,6 +14,22 @@ Item {
     required property real windowWidth
     readonly property bool runnerActionVisible: runnerActionDialog.visible
     readonly property bool npsVisible: npsDialog.visible
+    readonly property var recoveryDialogs: ({
+        "maximum_sessions_reached": sessionLimitDialog,
+        "authentication_denied": authenticationErrorDialog,
+        "two_factor_required": twoFactorRequiredDialog,
+        "certificate_not_yet_valid": clockErrorDialog
+    })
+    readonly property var recoveryErrorCodes: Object.keys(recoveryDialogs)
+    readonly property bool runnerActionEnabled:
+        runnerActionDialog.actionId === "disconnect"
+        ? vpnController.canDisconnect
+        : ["fastest", "country", "server", "group"].includes(runnerActionDialog.actionId)
+          && vpnController.canConnect
+
+    function supportsRecovery(code) {
+        return recoveryErrorCodes.includes(code)
+    }
 
     function requestRunnerAction(action, argument) {
         if (runnerActionDialog.visible) {
@@ -37,23 +53,12 @@ Item {
     }
 
     function openRecovery(code) {
-        if (code === "maximum_sessions_reached") {
-            sessionLimitDialog.open()
-            return true
+        const recoveryDialog = recoveryDialogs[code]
+        if (recoveryDialog === undefined) {
+            return false
         }
-        if (code === "authentication_denied") {
-            authenticationErrorDialog.open()
-            return true
-        }
-        if (code === "two_factor_required") {
-            twoFactorRequiredDialog.open()
-            return true
-        }
-        if (code === "certificate_not_yet_valid") {
-            clockErrorDialog.open()
-            return true
-        }
-        return false
+        recoveryDialog.open()
+        return true
     }
 
     function closeAll() {
@@ -90,18 +95,29 @@ Item {
             argument = ""
         }
 
+        function parsedGroup() {
+            try {
+                return JSON.parse(argument)
+            } catch (error) {
+                return null
+            }
+        }
+
         onOpened: {
             const confirmButton = standardButton(Controls.Dialog.Yes)
             if (confirmButton !== null) {
                 confirmButton.enabled = Qt.binding(function() {
-                    return dialogs.vpnController.ready
-                           && !dialogs.vpnController.busy
+                    return dialogs.runnerActionEnabled
                 })
             }
         }
         onAccepted: {
             const confirmedAction = actionId
             const confirmedArgument = argument
+            if (!dialogs.runnerActionEnabled) {
+                clearRequest()
+                return
+            }
             clearRequest()
             if (confirmedAction === "fastest") {
                 dialogs.vpnController.connectFastestWithFeatures(
@@ -112,11 +128,21 @@ Item {
                 dialogs.vpnController.connectCountry(confirmedArgument)
             } else if (confirmedAction === "server") {
                 dialogs.vpnController.connectServer(confirmedArgument)
+            } else if (confirmedAction === "group") {
+                try {
+                    const group = JSON.parse(confirmedArgument)
+                    dialogs.vpnController.connectGroup(
+                        group.countryCode, group.kind, group.name)
+                } catch (error) {
+                    console.error("Rejected an invalid confirmed group action")
+                }
             }
         }
         onRejected: clearRequest()
 
         Controls.Label {
+            objectName: "runnerConfirmationText"
+            textFormat: Text.PlainText
             width: Kirigami.Units.gridUnit * 24
             wrapMode: Text.WordWrap
             text: runnerActionDialog.actionId === "fastest"
@@ -125,7 +151,9 @@ Item {
                     ? qsTr("Disconnect the current Proton VPN connection?")
                     : runnerActionDialog.actionId === "country"
                       ? qsTr("Connect to the fastest Proton VPN server in %1?").arg(runnerActionDialog.argument)
-                      : qsTr("Connect to Proton VPN server %1?").arg(runnerActionDialog.argument)
+                      : runnerActionDialog.actionId === "group"
+                        ? qsTr("Connect to the pinned Proton VPN location %1?").arg(runnerActionDialog.parsedGroup() !== null ? runnerActionDialog.parsedGroup().name : "")
+                        : qsTr("Connect to Proton VPN server %1?").arg(runnerActionDialog.argument)
         }
     }
 
@@ -228,11 +256,13 @@ Item {
         property int selectedScore: -1
         property bool responseSent: false
         property bool submitted: false
+        property string submissionError: ""
 
         onOpened: {
             selectedScore = -1
             responseSent = false
             submitted = false
+            submissionError = ""
             feedback.clear()
             for (let button of npsScoreGroup.buttons) {
                 button.checked = false
@@ -265,6 +295,7 @@ Item {
                             required property int modelData
                             text: modelData.toString()
                             Controls.ButtonGroup.group: npsScoreGroup
+                            enabled: !dialogs.vpnController.npsSurveySubmissionPending
                             onClicked: npsDialog.selectedScore = modelData
                         }
                     }
@@ -301,6 +332,7 @@ Item {
                         id: feedback
                         placeholderText: qsTr("Optional feedback")
                         wrapMode: TextEdit.Wrap
+                        enabled: !dialogs.vpnController.npsSurveySubmissionPending
                         onTextChanged: {
                             if (length > 250) {
                                 text = text.slice(0, 250)
@@ -317,23 +349,40 @@ Item {
                     color: Kirigami.Theme.disabledTextColor
                 }
 
+                Kirigami.InlineMessage {
+                    Layout.fillWidth: true
+                    visible: npsDialog.submissionError.length > 0
+                    type: Kirigami.MessageType.Error
+                    text: npsDialog.submissionError
+                }
+
                 RowLayout {
                     Layout.alignment: Qt.AlignHCenter
 
                     Controls.Button {
                         text: qsTr("Not now")
+                        enabled: !dialogs.vpnController.npsSurveySubmissionPending
                         onClicked: npsDialog.reject()
+                    }
+
+                    Controls.BusyIndicator {
+                        visible: dialogs.vpnController.npsSurveySubmissionPending
+                        running: visible
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: implicitWidth
                     }
 
                     Controls.Button {
                         text: qsTr("Share anonymously")
                         highlighted: true
                         enabled: npsDialog.selectedScore >= 0
+                                 && dialogs.vpnController.npsSurveyAvailable
+                                 && !dialogs.vpnController.npsSurveySubmissionPending
                         onClicked: {
                             npsDialog.responseSent = true
+                            npsDialog.submissionError = ""
                             dialogs.vpnController.submitNpsSurvey(
                                 npsDialog.selectedScore, feedback.text)
-                            npsDialog.submitted = true
                         }
                     }
                 }
@@ -362,6 +411,31 @@ Item {
                     Layout.alignment: Qt.AlignHCenter
                     text: qsTr("Close")
                     onClicked: npsDialog.accept()
+                }
+            }
+        }
+
+        Connections {
+            target: dialogs.vpnController
+
+            function onNpsSurveySubmissionFinished(success, message) {
+                if (!npsDialog.visible) {
+                    return
+                }
+                if (success) {
+                    npsDialog.submissionError = ""
+                    npsDialog.submitted = true
+                    return
+                }
+                npsDialog.responseSent = false
+                npsDialog.submissionError = message.length > 0
+                    ? message : qsTr("Your feedback could not be shared. Try again.")
+            }
+
+            function onSnapshotChanged() {
+                if (npsDialog.visible && !dialogs.vpnController.loggedIn) {
+                    npsDialog.responseSent = true
+                    npsDialog.close()
                 }
             }
         }

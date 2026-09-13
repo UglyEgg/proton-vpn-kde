@@ -132,6 +132,7 @@ def verify_contract(site_packages: Path) -> None:
             "get_up_to_date_server_list",
             "notifications",
             "server_list",
+            "set_error_callback",
             "set_server_list_updated_callback",
             "set_server_loads_updated_callback",
         },

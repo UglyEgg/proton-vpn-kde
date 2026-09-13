@@ -2,29 +2,30 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "AgentControl.h"
+#include "BackendIdentity.h"
+#include "InstalledExecutablePaths.h"
 #include "RunnerActionRequest.h"
 
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QDBusError>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
+#include <QDBusReply>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QWindow>
+
+#include <unistd.h>
 
 namespace
 {
 namespace AgentDbus = ProtonVpnKde::DBusContract::Agent;
 namespace ControlCenterDbus = ProtonVpnKde::DBusContract::ControlCenter;
-
-QString siblingExecutable(const QString &name)
-{
-    const QString candidate = QDir(QCoreApplication::applicationDirPath()).filePath(name);
-    return QFileInfo(candidate).isExecutable() ? candidate : name;
-}
 
 QDBusMessage agentCall(const QString &method)
 {
@@ -55,7 +56,7 @@ bool AgentControl::registerOnSessionBus()
         return false;
     }
     if (bus.registerObject(QString::fromLatin1(AgentDbus::objectPath), this,
-                           QDBusConnection::ExportAllSlots)) {
+                           QDBusConnection::ExportScriptableSlots)) {
         return true;
     }
     bus.unregisterService(QString::fromLatin1(AgentDbus::serviceName));
@@ -78,7 +79,65 @@ void AgentControl::ShowSettings()
 
 void AgentControl::Quit()
 {
+    if (!callerIsControlCenter()) {
+        sendErrorReply(QDBusError::AccessDenied,
+                       QStringLiteral("Only the packaged Control Center may "
+                                      "stop background controls"));
+        return;
+    }
     QCoreApplication::quit();
+}
+
+bool AgentControl::callerIsControlCenter() const
+{
+    if (!calledFromDBus()) {
+        return false;
+    }
+    const QDBusConnection bus = connection();
+    QDBusConnectionInterface *interface = bus.interface();
+    const QString sender = message().service();
+    if (!interface || !sender.startsWith(QLatin1Char(':'))) {
+        return false;
+    }
+    const QDBusReply<QString> ownerReply = interface->serviceOwner(
+        QString::fromLatin1(ControlCenterDbus::serviceName));
+    const QDBusReply<uint> uidReply = interface->serviceUid(sender);
+    const QDBusReply<uint> pidReply = interface->servicePid(sender);
+    if (!ownerReply.isValid() || ownerReply.value() != sender
+        || !uidReply.isValid() || !pidReply.isValid()
+        || uidReply.value() != static_cast<uint>(::geteuid())
+        || pidReply.value() <= 1) {
+        return false;
+    }
+
+    const QString runningAgent = QFileInfo(
+        QCoreApplication::applicationFilePath()).canonicalFilePath();
+    QString expectedControlCenter = ProtonVpnKde::controlCenterExecutablePath();
+    if (ProtonVpnKde::isRootOwnedImmutableFile(runningAgent)) {
+        if (!ProtonVpnKde::isRootOwnedImmutableFile(expectedControlCenter)) {
+            return false;
+        }
+    } else {
+        // Build-tree integration tests use adjacent user-owned executables.
+        // Installed agents always take the root-owned packaged path above.
+        expectedControlCenter = QFileInfo(runningAgent).dir().filePath(
+            QStringLiteral("proton-vpn-kde"));
+    }
+    const QString callerExecutable = QFileInfo(
+        QStringLiteral("/proc/%1/exe").arg(pidReply.value()))
+                                         .canonicalFilePath();
+    if (callerExecutable.isEmpty()
+        || callerExecutable != QFileInfo(expectedControlCenter).canonicalFilePath()) {
+        return false;
+    }
+    QFile environment(QStringLiteral("/proc/%1/environ").arg(pidReply.value()));
+    if (!environment.open(QIODevice::ReadOnly)
+        || !ProtonVpnKde::isBackendEnvironmentSafe(environment.readAll())) {
+        return false;
+    }
+    const QDBusReply<QString> finalOwner = interface->serviceOwner(
+        QString::fromLatin1(ControlCenterDbus::serviceName));
+    return finalOwner.isValid() && finalOwner.value() == sender;
 }
 
 void AgentControl::launchControlCenter(const QStringList &arguments)
@@ -99,7 +158,7 @@ bool ControlCenterControl::registerOnSessionBus()
         return false;
     }
     if (bus.registerObject(QString::fromLatin1(ControlCenterDbus::objectPath), this,
-                           QDBusConnection::ExportAllSlots)) {
+                           QDBusConnection::ExportScriptableSlots)) {
         return true;
     }
     bus.unregisterService(QString::fromLatin1(ControlCenterDbus::serviceName));
@@ -137,11 +196,6 @@ bool ControlCenterControl::RequestRunnerAction(const QString &action,
     return true;
 }
 
-void ControlCenterControl::Quit()
-{
-    QCoreApplication::quit();
-}
-
 void ControlCenterControl::present(bool settings)
 {
     m_pendingShow = true;
@@ -161,31 +215,37 @@ void ControlCenterControl::present(bool settings)
 
 void ProtonVpnKde::setAgentEnabled(bool enabled)
 {
-    auto *interface = QDBusConnection::sessionBus().interface();
-    const bool registered = interface && interface->isServiceRegistered(
-        QString::fromLatin1(AgentDbus::serviceName));
     if (!enabled) {
-        if (registered) {
-            QDBusConnection::sessionBus().asyncCall(
-                agentCall(QString::fromLatin1(AgentDbus::Method::quit)), 2000);
-        }
+        QDBusConnection::sessionBus().asyncCall(
+            agentCall(QString::fromLatin1(AgentDbus::Method::quit)), 2000);
         return;
     }
+    ensureAgentRunning();
+}
 
+void ProtonVpnKde::ensureAgentRunning(std::function<void(bool)> completed,
+                                     std::function<bool()> fallback)
+{
+    if (!fallback) {
+        fallback = [] { return QProcess::startDetached(ProtonVpnKde::agentExecutablePath()); };
+    }
     auto *watcher = new QDBusPendingCallWatcher(
         QDBusConnection::sessionBus().asyncCall(
             agentCall(QString::fromLatin1(AgentDbus::Method::ensureRunning)), 3000),
         QCoreApplication::instance());
     QObject::connect(watcher, &QDBusPendingCallWatcher::finished,
                      QCoreApplication::instance(),
-                     [](QDBusPendingCallWatcher *finished) {
+                     [completed = std::move(completed), fallback = std::move(fallback)]
+                     (QDBusPendingCallWatcher *finished) {
         const QDBusPendingReply<> reply = *finished;
         finished->deleteLater();
-        if (!reply.isError()) {
-            return;
+        const bool started = !reply.isError() || fallback();
+        if (!started) {
+            qWarning("Unable to start Plasma VPN background controls");
         }
-        QProcess::startDetached(
-            siblingExecutable(QStringLiteral("proton-vpn-kde-agent")));
+        if (completed) {
+            completed(started);
+        }
     });
 }
 
@@ -206,8 +266,28 @@ void ProtonVpnKde::requestControlCenter(bool settings)
             return;
         }
         QProcess::startDetached(
-            siblingExecutable(QStringLiteral("proton-vpn-kde")),
+            ProtonVpnKde::controlCenterExecutablePath(),
             {settings ? QStringLiteral("--settings")
                       : QStringLiteral("--show")});
+    });
+}
+
+void ProtonVpnKde::requestConfirmedControlCenterAction(
+    const QString &action, const QString &argument)
+{
+    QDBusMessage message = controlCenterCall(
+        QString::fromLatin1(ControlCenterDbus::Method::requestRunnerAction));
+    message.setArguments({action, argument});
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 5000),
+        QCoreApplication::instance());
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished,
+                     QCoreApplication::instance(),
+                     [](QDBusPendingCallWatcher *finished) {
+        const QDBusPendingReply<bool> reply = *finished;
+        finished->deleteLater();
+        if (reply.isError() || !reply.value()) {
+            qWarning("Unable to present the VPN action confirmation");
+        }
     });
 }

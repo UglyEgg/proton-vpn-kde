@@ -75,6 +75,7 @@ inline constexpr char invalidSettings[] = "quest.entropy.PlasmaVPN.Error.Invalid
 inline constexpr char invalidSplitTunneling[] =
     "quest.entropy.PlasmaVPN.Error.InvalidSplitTunneling";
 inline constexpr char invalidSupportReport[] = "quest.entropy.PlasmaVPN.Error.InvalidSupportReport";
+inline constexpr char npsCompletionUnknown[] = "quest.entropy.PlasmaVPN.Error.NpsCompletionUnknown";
 inline constexpr char operationFailed[] = "quest.entropy.PlasmaVPN.Error.OperationFailed";
 inline constexpr char unauthorized[] = "quest.entropy.PlasmaVPN.Error.Unauthorized";
 }
@@ -105,7 +106,6 @@ inline constexpr char interfaceName[] = "quest.entropy.PlasmaVPN.ControlCenter1"
 
 namespace Method
 {
-inline constexpr char quit[] = "Quit";
 inline constexpr char requestRunnerAction[] = "RequestRunnerAction";
 inline constexpr char showControlCenter[] = "ShowControlCenter";
 inline constexpr char showSettings[] = "ShowSettings";

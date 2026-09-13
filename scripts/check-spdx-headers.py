@@ -18,14 +18,20 @@ LICENSE = "SPDX-License-Identifier: GPL-3.0-or-later"
 def is_project_source(path: Path) -> bool:
     relative = path.relative_to(PROJECT_ROOT)
     name = relative.name
-    if name == "CMakeLists.txt" or relative.as_posix() == ".clang-tidy":
+    if name == "CMakeLists.txt" or relative.as_posix() in {
+        ".clang-tidy",
+        ".editorconfig",
+        ".gitattributes",
+        ".gitignore",
+    }:
         return True
-    if name.endswith((".service.in", ".conf", ".conf.in")):
+    if name.endswith(".in"):
         return True
     return path.suffix in {
         ".cpp",
         ".desktop",
         ".h",
+        ".json",
         ".notifyrc",
         ".py",
         ".qml",
@@ -57,8 +63,14 @@ def main() -> int:
         if not is_project_source(path):
             continue
         header = "\n".join(path.read_text(encoding="utf-8").splitlines()[:8])
-        if COPYRIGHT not in header or LICENSE not in header:
-            missing.append(path.relative_to(PROJECT_ROOT).as_posix())
+        if COPYRIGHT in header and LICENSE in header:
+            continue
+        sidecar = Path(f"{path}.license")
+        if sidecar.is_file():
+            annotation = sidecar.read_text(encoding="utf-8")
+            if COPYRIGHT in annotation and LICENSE in annotation:
+                continue
+        missing.append(path.relative_to(PROJECT_ROOT).as_posix())
 
     if missing:
         print("Project source files missing SPDX provenance:", file=sys.stderr)

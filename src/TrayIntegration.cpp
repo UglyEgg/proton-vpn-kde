@@ -3,6 +3,7 @@
 
 #include "TrayIntegration.h"
 
+#include "AgentControl.h"
 #include "AppIcon.h"
 #include "AppSettings.h"
 #include "BackgroundQuitCoordinator.h"
@@ -11,6 +12,8 @@
 #include <QAction>
 #include <QApplication>
 #include <QIcon>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMenu>
 #include <QMessageBox>
 #include <utility>
@@ -42,10 +45,9 @@ TrayIntegration::TrayIntegration(VpnConnectionController *controller,
     connect(m_showAction, &QAction::triggered,
             this, &TrayIntegration::showControlCenter);
     connect(m_connectionAction, &QAction::triggered,
-            m_controller, &VpnConnectionController::activatePrimaryAction);
+            this, &TrayIntegration::requestPrimaryActionConfirmation);
     connect(m_disconnectAndQuitAction, &QAction::triggered,
-            m_quitCoordinator,
-            &BackgroundQuitCoordinator::disconnectAndQuit);
+            this, &TrayIntegration::confirmDisconnectAndQuit);
     connect(m_quitAction, &QAction::triggered,
             qApp, &QCoreApplication::quit);
     connect(m_quitCoordinator, &BackgroundQuitCoordinator::readyToQuit,
@@ -110,9 +112,15 @@ void TrayIntegration::rebuildPinnedActions()
     for (const QString &target : m_settings->pinnedServers()) {
         QAction *action = new QAction(
             QIcon::fromTheme(QStringLiteral("window-pin")), target, m_menu);
-        action->setEnabled(m_controller->primaryActionEnabled());
+        action->setEnabled(m_controller->canConnect());
         connect(action, &QAction::triggered, this,
-                [this, target] { m_controller->connectTarget(target); });
+                [this, target] {
+                    if (!m_controller->canConnect() || m_quitCoordinator->pending()) {
+                        return;
+                    }
+                    ProtonVpnKde::requestConfirmedControlCenterAction(
+                        QStringLiteral("server"), target);
+                });
         m_menu->insertAction(m_pinnedSeparator, action);
         m_pinnedActions.append(action);
     }
@@ -122,16 +130,56 @@ void TrayIntegration::rebuildPinnedActions()
                                   .arg(group.countryCode, group.name);
         QAction *action = new QAction(
             QIcon::fromTheme(QStringLiteral("window-pin")), label, m_menu);
-        action->setEnabled(m_controller->primaryActionEnabled());
+        action->setEnabled(m_controller->canConnect());
         connect(action, &QAction::triggered, this,
                 [this, group] {
-                    m_controller->connectGroup(
-                        group.countryCode, group.kind, group.name);
+                    if (!m_controller->canConnect() || m_quitCoordinator->pending()) {
+                        return;
+                    }
+                    const QJsonObject argument{
+                        {QStringLiteral("countryCode"), group.countryCode},
+                        {QStringLiteral("kind"), group.kind},
+                        {QStringLiteral("name"), group.name},
+                    };
+                    ProtonVpnKde::requestConfirmedControlCenterAction(
+                        QStringLiteral("group"),
+                        QString::fromUtf8(QJsonDocument(argument).toJson(
+                            QJsonDocument::Compact)));
                 });
         m_menu->insertAction(m_pinnedSeparator, action);
         m_pinnedActions.append(action);
     }
 }
+
+void TrayIntegration::requestPrimaryActionConfirmation()
+{
+    if (!m_controller->primaryActionEnabled() || m_quitCoordinator->pending()) {
+        return;
+    }
+    ProtonVpnKde::requestConfirmedControlCenterAction(
+        m_controller->primaryActionDisconnects()
+            ? QStringLiteral("disconnect") : QStringLiteral("fastest"));
+}
+
+void TrayIntegration::confirmDisconnectAndQuit()
+{
+    const auto capability = m_controller->connectionCapabilities();
+    if (m_confirmationActive || m_quitCoordinator->pending()
+        || (!capability.disconnect && !capability.waitForDisconnect)) {
+        return;
+    }
+    m_confirmationActive = true;
+    const auto answer = QMessageBox::question(
+        nullptr, tr("Disconnect VPN and quit?"),
+        tr("Disconnect the active Proton VPN connection, then quit all "
+           "background controls?"),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+    m_confirmationActive = false;
+    if (answer == QMessageBox::Yes) {
+        m_quitCoordinator->disconnectAndQuit();
+    }
+}
+
 void TrayIntegration::showControlCenter()
 {
     if (m_showControlCenter) {
@@ -151,13 +199,12 @@ void TrayIntegration::showDisconnectTimeout()
 
 void TrayIntegration::updateState()
 {
-    const QString state = m_controller->state();
+    const bool observed = m_controller->backendAvailable() && m_controller->ready();
+    const QString state = observed ? m_controller->state() : tr("connection state unavailable");
     const QString server = m_controller->serverName();
     const bool connected = state == QStringLiteral("connected");
-    const bool activeConnection = state == QStringLiteral("connected")
-        || state == QStringLiteral("connecting")
-        || state == QStringLiteral("disconnecting")
-        || state == QStringLiteral("error");
+    const auto capability = m_controller->connectionCapabilities();
+    const bool activeConnection = capability.primaryDisconnects;
     const bool quitPending = m_quitCoordinator->pending();
     const QString tooltip = connected && !server.isEmpty()
         ? tr("Plasma VPN — connected to %1").arg(server)
@@ -166,16 +213,13 @@ void TrayIntegration::updateState()
     m_connectionAction->setText(m_controller->primaryActionText());
     m_connectionAction->setEnabled(
         !quitPending && m_controller->primaryActionEnabled());
-    m_disconnectAndQuitAction->setVisible(activeConnection);
+    m_disconnectAndQuitAction->setVisible(
+        capability.disconnect || capability.waitForDisconnect);
     m_disconnectAndQuitAction->setText(
         quitPending ? tr("Disconnecting VPN and quitting…")
                     : tr("Disconnect VPN and quit background controls"));
     m_disconnectAndQuitAction->setEnabled(
-        !quitPending && m_controller->backendAvailable()
-        && m_controller->ready() && m_controller->loggedIn()
-        && (!m_controller->busy()
-            || state == QStringLiteral("connecting")
-            || state == QStringLiteral("disconnecting")));
+        !quitPending && (capability.disconnect || capability.waitForDisconnect));
     m_quitAction->setText(
         activeConnection
             ? tr("Quit background controls without disconnecting")
@@ -183,7 +227,7 @@ void TrayIntegration::updateState()
     m_quitAction->setEnabled(!quitPending);
     for (QAction *action : std::as_const(m_pinnedActions)) {
         action->setEnabled(
-            !quitPending && m_controller->primaryActionEnabled());
+            !quitPending && m_controller->canConnect());
     }
 
 #ifdef HAVE_KSTATUSNOTIFIERITEM

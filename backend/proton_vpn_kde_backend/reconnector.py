@@ -7,35 +7,83 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager
 import logging
 import os
 import random
-import shutil
-from typing import Any
+from typing import Any, AsyncIterator
+
+from .async_utils import await_owned, join_owned
+from .errors import is_proton_authentication_needed
 
 
 StatusCallback = Callable[[str], None]
 ConditionProbe = Callable[[], Awaitable[bool]]
 DelayFactory = Callable[[int], float]
+AuthenticationEpochSource = Callable[[], int]
+AuthenticationEpochValidator = Callable[[int], bool]
+AuthenticationErrorCallback = Callable[[Exception, int], Awaitable[None]]
+ConnectionAttempt = Callable[[Any, Any, Any, int], Awaitable[bool]]
 
 
 logger = logging.getLogger(__name__)
 
 
+class ReconnectionRetirementTimeout(TimeoutError):
+    """An obsolete automatic retry remained live past its owner deadline."""
+
+
+IP_COMMAND = "/usr/bin/ip"
+ROUTE_PROBE_SECONDS = 3.0
+ROUTE_PROBE_STOP_SECONDS = 0.5
+
+
+async def _stop_route_probe(process: asyncio.subprocess.Process) -> None:
+    for stop in (process.terminate, process.kill):
+        if process.returncode is not None:
+            return
+        try:
+            stop()
+        except ProcessLookupError:
+            pass
+        try:
+            async with asyncio.timeout(ROUTE_PROBE_STOP_SECONDS):
+                await process.wait()
+            return
+        except TimeoutError:
+            continue
+    raise TimeoutError("The route probe did not stop")
+
+
 async def network_route_available() -> bool:
     """Match Proton's route-based connectivity check without GLib polling."""
-    ip_command = shutil.which("ip")
-    if not ip_command:
+    try:
+        spawned = await join_owned(asyncio.create_subprocess_exec(
+            IP_COMMAND,
+            "route",
+            "get",
+            "192.0.2.1",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        ))
+        if spawned.error is not None:
+            spawned.result()
+    except FileNotFoundError:
         return False
-    process = await asyncio.create_subprocess_exec(
-        ip_command,
-        "route",
-        "get",
-        "192.0.2.1",
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
-    return await process.wait() == 0
+    process = spawned.value
+    assert process is not None
+    try:
+        if spawned.caller_cancelled:
+            raise asyncio.CancelledError
+        async with asyncio.timeout(ROUTE_PROBE_SECONDS):
+            return await process.wait() == 0
+    except TimeoutError:
+        return False
+    finally:
+        if process.returncode is None:
+            # Cancellation of the retry task is not cancellation of its child.
+            # Join bounded termination even if the caller is cancelled again.
+            await await_owned(_stop_route_probe(process))
 
 
 class LogindSessionProbe:
@@ -59,9 +107,10 @@ class LogindSessionProbe:
 
     async def close(self) -> None:
         if self._bus:
-            self._bus.disconnect()
+            bus = self._bus
             self._bus = None
             self._properties = None
+            await self._disconnect_bus(bus)
 
     async def _ensure_proxy(self) -> None:
         if self._properties:
@@ -70,30 +119,54 @@ class LogindSessionProbe:
         from dbus_fast.aio import MessageBus
         from dbus_fast.constants import BusType
 
-        self._bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-        manager_path = "/org/freedesktop/login1"
-        manager_intro = await self._bus.introspect(
-            "org.freedesktop.login1", manager_path
-        )
-        manager_object = self._bus.get_proxy_object(
-            "org.freedesktop.login1", manager_path, manager_intro
-        )
-        manager = manager_object.get_interface("org.freedesktop.login1.Manager")
-        session_path = await manager.call_get_session_by_pid(os.getpid())
+        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        try:
+            manager_path = "/org/freedesktop/login1"
+            manager_intro = await bus.introspect(
+                "org.freedesktop.login1", manager_path
+            )
+            manager_object = bus.get_proxy_object(
+                "org.freedesktop.login1", manager_path, manager_intro
+            )
+            manager: Any = manager_object.get_interface(
+                "org.freedesktop.login1.Manager"
+            )
+            session_path = await manager.call_get_session_by_pid(os.getpid())
 
-        session_intro = await self._bus.introspect(
-            "org.freedesktop.login1", session_path
-        )
-        session_object = self._bus.get_proxy_object(
-            "org.freedesktop.login1", session_path, session_intro
-        )
-        self._properties = session_object.get_interface(
-            "org.freedesktop.DBus.Properties"
-        )
+            session_intro = await bus.introspect(
+                "org.freedesktop.login1", session_path
+            )
+            session_object = bus.get_proxy_object(
+                "org.freedesktop.login1", session_path, session_intro
+            )
+            properties = session_object.get_interface(
+                "org.freedesktop.DBus.Properties"
+            )
+        except (Exception, asyncio.CancelledError):
+            await self._disconnect_bus(bus)
+            raise
+        self._bus = bus
+        self._properties = properties
+
+    @staticmethod
+    async def _disconnect_bus(bus: Any) -> None:
+        bus.disconnect()
+        try:
+            await bus.wait_for_disconnect()
+        except Exception:
+            # Disconnect is best-effort cleanup. Preserve the operation error
+            # that caused teardown instead of replacing it with transport
+            # shutdown details.
+            pass
 
 
 class AsyncReconnector:
-    """Reconnect dropped Proton connections without a GLib main loop."""
+    """Schedule retry requests; the supplied owner controls Core Up and Down.
+
+    Account checks here fence obsolete requests before dispatch. The connection
+    owner must recheck after acquiring its lifecycle scope and retain accepted
+    provider work through cancellation and compensation.
+    """
 
     _NO_RETRY_EVENTS = {
         "AuthDenied",
@@ -107,19 +180,41 @@ class AsyncReconnector:
         connector: Any,
         refresher: Any,
         status_callback: StatusCallback | None = None,
+        *,
+        connection_attempt: ConnectionAttempt,
+        authentication_epoch_source: AuthenticationEpochSource,
+        authentication_epoch_validator: AuthenticationEpochValidator,
+        authentication_error_callback: AuthenticationErrorCallback,
         network_probe: ConditionProbe = network_route_available,
         session_probe: LogindSessionProbe | None = None,
         delay_factory: DelayFactory | None = None,
     ):
+        for name, callback in (
+            ("connection_attempt", connection_attempt),
+            ("authentication_epoch_source", authentication_epoch_source),
+            ("authentication_epoch_validator", authentication_epoch_validator),
+            ("authentication_error_callback", authentication_error_callback),
+        ):
+            if not callable(callback):
+                raise TypeError(f"Reconnection requires callable {name}")
         self._connector = connector
         self._refresher = refresher
         self._status_callback = status_callback or (lambda _message: None)
         self._network_probe = network_probe
         self._session_probe = session_probe or LogindSessionProbe()
         self._delay_factory = delay_factory or self._retry_delay
+        self._authentication_epoch_source = authentication_epoch_source
+        self._authentication_epoch_validator = authentication_epoch_validator
+        self._authentication_error_callback = authentication_error_callback
+        self._connection_attempt = connection_attempt
         self._retry_task: asyncio.Task | None = None
+        self._retry_pending = False
         self._retry_counter = 0
+        self._retry_generation = 0
         self._enabled = False
+        self._closing = False
+        self._suspension_owners: set[object] = set()
+        self._retiring_retry_tasks: set[asyncio.Task] = set()
 
     @property
     def enabled(self) -> bool:
@@ -129,22 +224,85 @@ class AsyncReconnector:
     def retry_counter(self) -> int:
         return self._retry_counter
 
-    def enable(self) -> None:
-        if self._enabled:
-            return
-        self._enabled = True
-        self._connector.register(self)
-        self.status_update(self._connector.current_state)
+    @property
+    def _suspended(self) -> bool:
+        """Derive policy suspension from live ownership tokens."""
+        return bool(self._suspension_owners)
 
-    async def disable(self) -> None:
-        if self._enabled:
-            self._connector.unregister(self)
-        self._enabled = False
+    @property
+    def _suspend_count(self) -> int:
+        """Expose the derived balance for diagnostics and invariant tests."""
+        return len(self._suspension_owners)
+
+    def enable(self) -> None:
+        if self._enabled or self._closing:
+            return
+        self._connector.register(self)
+        self._enabled = True
+        try:
+            self.status_update(self._connector.current_state)
+        except Exception:
+            try:
+                self._connector.unregister(self)
+            finally:
+                self._enabled = False
+                self._reset()
+            raise
+
+    def begin_shutdown(self) -> None:
+        """Fence scheduling now; ordered disable still joins and unregisters."""
+        self._closing = True
         self._reset()
-        await self._session_probe.close()
+
+    async def disable(self, *, deadline: float | None = None) -> None:
+        unregister_error: Exception | None = None
+        try:
+            if self._enabled:
+                self._connector.unregister(self)
+        except Exception as error:
+            unregister_error = error
+
+        # A faulty observer cannot leave retry work armed after a caller has
+        # entered a protection-unknown or signed-out state. Retain and join the
+        # retry task before returning so connector teardown cannot overtake it.
+        self._enabled = False
+        retry_task = self._reset()
+        try:
+            await self._join_retry(retry_task, deadline=deadline)
+        finally:
+            if self._retry_task is retry_task and retry_task is not None:
+                self._retry_task = None
+            await self._session_probe.close()
+        if unregister_error is not None:
+            raise unregister_error
+
+    @asynccontextmanager
+    async def suspended(
+        self, *, deadline: float | None = None
+    ) -> AsyncIterator[None]:
+        """Own a cancellation-safe temporary reconnection suspension.
+
+        The token is installed before the first await and is always retired by
+        this scope.  Concurrent owners may join the same retry retirement, but
+        only the first owner is allowed to cancel it.
+        """
+        owner = object()
+        self._suspension_owners.add(owner)
+        try:
+            retry_task = self._reset()
+            try:
+                await self._join_retry(retry_task, deadline=deadline)
+            finally:
+                if self._retry_task is retry_task and retry_task is not None:
+                    self._retry_task = None
+            yield
+        finally:
+            self._suspension_owners.discard(owner)
+            if not self._suspended and self._enabled:
+                self.status_update(self._connector.current_state)
 
     def status_update(self, state: Any) -> None:
-        if not self._enabled:
+        if not self._enabled or self._suspended or self._closing:
             return
         state_name = type(state).__name__
         if state_name in {"Connected", "Disconnected"}:
@@ -169,64 +327,199 @@ class AsyncReconnector:
         self._schedule_retry()
 
     def _schedule_retry(self) -> bool:
-        if not self._enabled or self._retry_task:
+        if not self._enabled or self._suspended:
             return False
+        if self._retry_task:
+            self._retry_pending = True
+            return False
+        self._retry_pending = False
         delay = self._delay_factory(self._retry_counter)
         self._status_callback(f"Reconnecting in {delay:.1f} seconds…")
-        self._retry_task = asyncio.create_task(self._retry_after(delay))
+        generation = self._retry_generation
+        self._retry_task = asyncio.create_task(
+            self._retry_after(delay, generation)
+        )
         return True
 
-    async def _retry_after(self, delay: float) -> None:
+    async def _retry_after(self, delay: float, generation: int) -> None:
+        retry = False
         try:
             await asyncio.sleep(delay)
+            retry = await self._attempt_retry(generation)
         except asyncio.CancelledError:
-            return
+            # Fall through after releasing ownership. A newer Error event may
+            # have arrived while this cancellation-resistant retry unwound and
+            # recorded a pending replacement generation.
+            pass
+        finally:
+            if self._retry_task is asyncio.current_task():
+                self._retry_task = None
+        if retry and self._retry_is_current(generation):
+            self._schedule_retry()
+        elif self._retry_pending and self._enabled and not self._suspended:
+            self._schedule_retry()
 
-        self._retry_task = None
-        if type(self._connector.current_state).__name__ != "Error":
-            self._reset()
-            return
-        if not await self._network_probe():
+    async def _attempt_retry(self, generation: int) -> bool:
+        if not self._retry_is_current(generation):
+            return False
+
+        try:
+            network_available = await self._network_probe()
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            if not self._retry_is_current(generation):
+                return False
+            logger.error("Network readiness probe failed (%s)", type(error).__name__)
             self._retry_counter += 1
             self._status_callback("Waiting for network connectivity…")
-            self._schedule_retry()
-            return
-        if not await self._session_probe.is_unlocked():
+            return True
+        if not network_available:
+            if not self._retry_is_current(generation):
+                return False
+            self._retry_counter += 1
+            self._status_callback("Waiting for network connectivity…")
+            return True
+        if not self._retry_is_current(generation):
+            return False
+
+        try:
+            session_unlocked = await self._session_probe.is_unlocked()
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            if not self._retry_is_current(generation):
+                return False
+            logger.error("Session readiness probe failed (%s)", type(error).__name__)
             self._retry_counter += 1
             self._status_callback("Waiting for the Plasma session to unlock…")
-            self._schedule_retry()
-            return
+            return True
+        if not session_unlocked:
+            if not self._retry_is_current(generation):
+                return False
+            self._retry_counter += 1
+            self._status_callback("Waiting for the Plasma session to unlock…")
+            return True
+        if not self._retry_is_current(generation):
+            return False
 
         connection = self._connector.current_connection
         if not connection:
             self._retry_counter += 1
             self._status_callback("Waiting for the previous VPN connection…")
-            self._schedule_retry()
-            return
+            return True
 
+        authentication_epoch = self._authentication_epoch_source()
         try:
-            logical_server = self._refresher.server_list.get_by_id(connection.server_id)
+            logical_server = self._refresher.server_list.get_by_id(
+                connection.server_id
+            )
             vpn_server = self._connector.get_vpn_server(
                 logical_server, self._refresher.client_config
             )
+            if not self._retry_is_current(generation):
+                return False
+            if not self._authentication_epoch_validator(authentication_epoch):
+                return False
             self._retry_counter += 1
             self._status_callback("Reconnecting…")
-            await self._connector.connect(
-                vpn_server, connection.protocol, connection.backend
-            )
+            if not await self._connection_attempt(
+                vpn_server,
+                connection.protocol,
+                connection.backend,
+                authentication_epoch,
+            ):
+                return False
+        except asyncio.CancelledError:
+            raise
         except Exception as error:
+            if not self._retry_is_current(generation):
+                return False
+            if is_proton_authentication_needed(error):
+                try:
+                    await self._authentication_error_callback(
+                        error, authentication_epoch
+                    )
+                except Exception:
+                    # The callback owns the authoritative session projection;
+                    # retry policy stops regardless.
+                    pass
+                return False
             logger.error("VPN reconnection failed (%s)", type(error).__name__)
             self._status_callback("Reconnection failed")
-            self._schedule_retry()
+            return True
+        return False
 
-    def _reset(self) -> None:
+    def _retry_is_current(self, generation: int) -> bool:
+        return (
+            self._enabled
+            and not self._closing
+            and not self._suspended
+            and generation == self._retry_generation
+            and type(self._connector.current_state).__name__ == "Error"
+        )
+
+    def _reset(self) -> asyncio.Task | None:
+        self._retry_generation += 1
         current_task = asyncio.current_task()
-        if self._retry_task and self._retry_task is not current_task:
-            self._retry_task.cancel()
-        self._retry_task = None
+        retry_task = self._retry_task
+        if (
+            retry_task
+            and retry_task is not current_task
+            and retry_task not in self._retiring_retry_tasks
+        ):
+            self._retiring_retry_tasks.add(retry_task)
+            retry_task.add_done_callback(self._retiring_retry_tasks.discard)
+            retry_task.cancel()
         self._retry_counter = 0
+        self._retry_pending = False
+        return retry_task if retry_task is not current_task else None
+
+    @staticmethod
+    async def _join_retry(
+        retry_task: asyncio.Task | None,
+        *,
+        deadline: float | None = None,
+    ) -> None:
+        if retry_task is None:
+            return
+        caller_cancelled = False
+        try:
+            if deadline is None:
+                await await_owned(retry_task)
+                return
+
+            remaining = max(0.0, deadline - asyncio.get_running_loop().time())
+            waiter = asyncio.create_task(
+                asyncio.wait({retry_task}, timeout=remaining)
+            )
+            try:
+                await await_owned(waiter)
+            except asyncio.CancelledError:
+                caller_cancelled = True
+            _, pending = waiter.result()
+            if pending:
+                raise ReconnectionRetirementTimeout(
+                    "Automatic reconnect work did not stop before its deadline"
+                )
+            try:
+                retry_task.result()
+            except asyncio.CancelledError:
+                pass
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if current is not None and current.cancelling():
+                raise
+        if caller_cancelled:
+            raise asyncio.CancelledError
 
     @staticmethod
     def _retry_delay(retry_counter: int) -> float:
         # Match Proton's exponential jitter while capping pathological outages.
-        return min(2**retry_counter * random.uniform(0.9, 1.1), 60.0)
+        if retry_counter >= 7:
+            return 60.0
+        bounded_counter = max(0, retry_counter)
+        return min(
+            2**bounded_counter * random.uniform(0.9, 1.1),
+            60.0,
+        )

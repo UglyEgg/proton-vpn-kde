@@ -31,6 +31,33 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Errore di connessione</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Non attivo</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Connessione</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Protocollo</translation>
+        </message>
+        <message>
+            <source>VPN Accelerator</source>
+            <translation>Acceleratore VPN</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Tunneling parziale</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -77,6 +104,29 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Sign in</source>
+            <translation>Accedi</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Impostazioni</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Note di rilascio</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Segnala un problema</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>Informazioni</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Errore di connessione: limite sessioni raggiunto</translation>
@@ -161,26 +211,6 @@ Aggiorna l'ora del sistema e prova a connetterti di nuovo.</translation>
             <source>Close</source>
             <translation>Chiudi</translation>
         </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Accedi</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Impostazioni</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Note di rilascio</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Segnala un problema</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>Informazioni</translation>
-        </message>
     </context>
     <context>
         <name>OverviewPage</name>
@@ -211,6 +241,13 @@ Aggiorna l'ora del sistema e prova a connetterti di nuovo.</translation>
         <message>
             <source>Sign in</source>
             <translation>Accedi</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Non attivo</translation>
         </message>
     </context>
     <context>
@@ -248,18 +285,6 @@ Aggiorna l'ora del sistema e prova a connetterti di nuovo.</translation>
             <source>Settings</source>
             <translation>Impostazioni</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Non attivo</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Tunneling parziale</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Accesso alla versione beta</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -286,6 +311,27 @@ Aggiorna l'ora del sistema e prova a connetterti di nuovo.</translation>
         <message>
             <source>Security key</source>
             <translation>Chiave di sicurezza</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Tunneling parziale</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Accesso alla versione beta</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Non attivo</translation>
         </message>
     </context>
     <context>

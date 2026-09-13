@@ -9,6 +9,7 @@ import org.kde.kirigami as Kirigami
 
 Kirigami.ScrollablePage {
     id: page
+    objectName: "settingsPage"
     title: qsTr("Settings")
 
     readonly property var controller: vpnController
@@ -18,6 +19,19 @@ Kirigami.ScrollablePage {
     property var splitSettings: vpnController.splitTunneling
     property var customDns: vpnController.customDns
     property var packetCaptureFolderDialog: null
+    property bool removalPrepared: false
+    readonly property int selectedIntent: settingsIntentBar.currentIndex
+
+    component SettingsIntentTab: Controls.TabButton {
+        width: settingsIntentBar.width / 4
+        display: Controls.AbstractButton.TextUnderIcon
+    }
+
+    function showIntent(index) {
+        if (index >= 0 && index < settingsIntentBar.count) {
+            settingsIntentBar.currentIndex = index
+        }
+    }
 
     Component {
         id: packetCaptureFolderDialogComponent
@@ -34,6 +48,18 @@ Kirigami.ScrollablePage {
                 packetCaptureFolderDialogComponent.createObject(page)
         }
         packetCaptureFolderDialog.open()
+    }
+
+    function prepareForRemoval() {
+        if (removalPrepared) {
+            return
+        }
+        removalPrepared = true
+        vpnController.stopPacketCapture()
+        if (packetCaptureFolderDialog !== null) {
+            packetCaptureFolderDialog.destroy()
+            packetCaptureFolderDialog = null
+        }
     }
 
     Controls.Dialog {
@@ -56,23 +82,19 @@ Kirigami.ScrollablePage {
         onAccepted: updateChannel.setBetaEnabled(enableBeta)
     }
 
-    Component.onDestruction: {
-        if (vpnController.packetCaptureActive) {
-            vpnController.stopPacketCapture()
-        }
-        if (packetCaptureFolderDialog !== null) {
-            packetCaptureFolderDialog.destroy()
-        }
-    }
+    Component.onDestruction: prepareForRemoval()
 
     Component.onCompleted: {
-        if (vpnController.loggedIn && !vpnSettings.loaded) {
+        if (vpnController.ready && vpnController.loggedIn
+                && !vpnSettings.loaded) {
             vpnController.loadSettings()
         }
-        if (vpnController.loggedIn && !splitSettings.loaded) {
+        if (vpnController.ready && vpnController.loggedIn
+                && !splitSettings.loaded) {
             vpnController.loadSplitTunneling()
         }
-        if (vpnController.loggedIn && !customDns.loaded) {
+        if (vpnController.ready && vpnController.loggedIn
+                && !customDns.loaded) {
             vpnController.loadCustomDns()
         }
         updateChannel.refresh()
@@ -81,15 +103,18 @@ Kirigami.ScrollablePage {
     Connections {
         target: vpnController
         function onSnapshotChanged() {
-            if (vpnController.loggedIn && !page.vpnSettings.loaded
+            if (vpnController.ready && vpnController.loggedIn
+                    && !page.vpnSettings.loaded
                     && !page.vpnSettings.busy) {
                 vpnController.loadSettings()
             }
-            if (vpnController.loggedIn && !page.splitSettings.loaded
+            if (vpnController.ready && vpnController.loggedIn
+                    && !page.splitSettings.loaded
                     && !page.splitSettings.busy) {
                 vpnController.loadSplitTunneling()
             }
-            if (vpnController.loggedIn && !page.customDns.loaded
+            if (vpnController.ready && vpnController.loggedIn
+                    && !page.customDns.loaded
                     && !page.customDns.busy) {
                 vpnController.loadCustomDns()
             }
@@ -98,12 +123,6 @@ Kirigami.ScrollablePage {
 
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
-
-        PageHeader {
-            heading: qsTr("Settings")
-            description: qsTr("Configure Proton VPN and its Plasma integration.")
-            iconName: "settings-configure"
-        }
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
@@ -117,6 +136,14 @@ Kirigami.ScrollablePage {
             visible: vpnSettings.message.length > 0
             type: Kirigami.MessageType.Error
             text: vpnSettings.message
+        }
+
+        Kirigami.InlineMessage {
+            objectName: "packetCaptureOperationError"
+            Layout.fillWidth: true
+            visible: vpnController.packetCaptureError.length > 0
+            type: Kirigami.MessageType.Error
+            text: vpnController.packetCaptureError
         }
 
         RowLayout {
@@ -135,57 +162,114 @@ Kirigami.ScrollablePage {
             }
         }
 
-        VpnConnectionSettingsSection {
-            vpnController: page.controller
-            vpnSettings: page.vpnSettings
-            appSettings: page.integrationSettings
-            pageWidth: page.width
+        Controls.TabBar {
+            id: settingsIntentBar
+
+            objectName: "settingsIntentBar"
+            implicitWidth: Kirigami.Units.gridUnit * 24
+            Layout.fillWidth: true
+
+            SettingsIntentTab {
+                text: qsTr("Connection")
+                icon.name: "network-vpn"
+            }
+
+            SettingsIntentTab {
+                text: qsTr("Protection")
+                icon.name: "security-high"
+            }
+
+            SettingsIntentTab {
+                text: qsTr("Plasma")
+                icon.name: "preferences-desktop"
+            }
+
+            SettingsIntentTab {
+                text: qsTr("Diagnostics")
+                icon.name: "utilities-system-monitor"
+            }
         }
 
-        FastestSettingsSection {
-            appSettings: page.integrationSettings
-        }
+        StackLayout {
+            Layout.fillWidth: true
+            currentIndex: settingsIntentBar.currentIndex
 
-        ProtectionSettingsSection {
-            vpnController: page.controller
-            vpnSettings: page.vpnSettings
-            pageWidth: page.width
-        }
+            ColumnLayout {
+                spacing: Kirigami.Units.largeSpacing
 
-        CustomDnsSettingsSection {
-            vpnController: page.controller
-            vpnSettings: page.vpnSettings
-            customDns: page.customDns
-            pageWidth: page.width
-            onManageRequested: applicationWindow().pushCustomDns()
-        }
+                VpnConnectionSettingsSection {
+                    vpnController: page.controller
+                    vpnSettings: page.vpnSettings
+                    appSettings: page.integrationSettings
+                    pageWidth: page.width
+                }
 
-        SplitTunnelingSettingsSection {
-            vpnController: page.controller
-            vpnSettings: page.vpnSettings
-            splitSettings: page.splitSettings
-            pageWidth: page.width
-            onManageRequested: applicationWindow().pushSplitTunneling()
-        }
+                FastestSettingsSection {
+                    appSettings: page.integrationSettings
+                }
+            }
 
-        PrivacySettingsSection {
-            vpnController: page.controller
-            vpnSettings: page.vpnSettings
-            appSettings: page.integrationSettings
-            pageWidth: page.width
-            onBrowseRequested: page.openPacketCaptureFolderDialog()
-        }
+            ColumnLayout {
+                spacing: Kirigami.Units.largeSpacing
 
-        PlasmaIntegrationSettingsSection {
-            appSettings: page.integrationSettings
-            pageWidth: page.width
-        }
+                ProtectionSettingsSection {
+                    enabled: vpnController.ready
+                    vpnController: page.controller
+                    vpnSettings: page.vpnSettings
+                    pageWidth: page.width
+                }
 
-        UpdateSettingsSection {
-            updateChannel: page.packageChannel
-            onConfirmationRequested: function(enableBeta) {
-                updateChannelDialog.enableBeta = enableBeta
-                updateChannelDialog.open()
+                CustomDnsSettingsSection {
+                    enabled: vpnController.ready
+                    vpnController: page.controller
+                    vpnSettings: page.vpnSettings
+                    customDns: page.customDns
+                    pageWidth: page.width
+                    onManageRequested: applicationWindow().pushCustomDns()
+                }
+
+                SplitTunnelingSettingsSection {
+                    enabled: vpnController.ready
+                    vpnController: page.controller
+                    vpnSettings: page.vpnSettings
+                    splitSettings: page.splitSettings
+                    pageWidth: page.width
+                    onManageRequested: applicationWindow().pushSplitTunneling()
+                }
+            }
+
+            ColumnLayout {
+                spacing: Kirigami.Units.largeSpacing
+
+                StartupSettingsSection {
+                    appSettings: page.integrationSettings
+                    pageWidth: page.width
+                }
+
+                PlasmaIntegrationSettingsSection {
+                    appSettings: page.integrationSettings
+                    pageWidth: page.width
+                }
+            }
+
+            ColumnLayout {
+                spacing: Kirigami.Units.largeSpacing
+
+                PrivacySettingsSection {
+                    vpnController: page.controller
+                    vpnSettings: page.vpnSettings
+                    appSettings: page.integrationSettings
+                    pageWidth: page.width
+                    onBrowseRequested: page.openPacketCaptureFolderDialog()
+                }
+
+                UpdateSettingsSection {
+                    updateChannel: page.packageChannel
+                    onConfirmationRequested: function(enableBeta) {
+                        updateChannelDialog.enableBeta = enableBeta
+                        updateChannelDialog.open()
+                    }
+                }
             }
         }
     }

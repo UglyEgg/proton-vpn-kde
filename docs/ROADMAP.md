@@ -1,51 +1,84 @@
 # Roadmap
 
-This roadmap contains planned work only. Completed user-visible changes belong
-in the [changelog](../CHANGELOG.md), and closed security findings remain in the
-[security assessment](SECURITY-AUDIT-2026-08-30.md).
+Completed behavior belongs in the [changelog](../CHANGELOG.md). Security and
+review results belong in the [assessment](SECURITY-AUDIT-2026-08-30.md).
 
-Every item must preserve the project boundary: Proton's official Core owns VPN
-protocols, NetworkManager integration, kill switch, IPv6 leak protection,
-split tunneling, server selection, and session persistence. A Core change is an
-independent upstream contribution, not a hidden part of this client.
+All work preserves the product boundary: Proton Core owns VPN protocols,
+NetworkManager, routing, protection, server selection, and persisted sessions.
+Core patches are versioned and reviewed as independent downstream overlays or
+upstream contributions.
 
-## Post-release stabilization
+## 0.13 release line
 
-- Send Proton a concise engineering introduction after the public tag and
-  signed Fedora artifacts are available for review.
-- Triage public-alpha reports against the documented support boundary and add
-  regression coverage before changing behavior.
-- Keep the compatibility matrix current as Proton Core, Fedora, Qt, and KDE
-  Frameworks releases change.
-- Expand the release battery to a second independently tested Plasma
-  distribution before claiming broader Linux support.
-- Seek an independent review of the authentication transport, D-Bus service
-  identity, and sender-authorization design before describing the project as
-  independently security-reviewed or stable.
-- Complete translation coverage for Plasma-specific strings without guessing
-  translations or obscuring their provenance.
+0.13.0 establishes the progressive Plasma interface and current runtime model:
 
-## Connection Inspector
+- graphical connection and split-route presentation;
+- native server discovery, settings, authentication, and account surfaces;
+- an on-demand Control Center and Inspector with a lean resident agent;
+- opt-in login launch, window/tray startup, and saved auto-connect;
+- generation-owned asynchronous operations and completion-unknown handling;
+- bounded backend lifetime and capture recovery;
+- provider-neutral Secret Service support; and
+- Fedora 44 packages for the client, keyring overlay, and API-Core overlay.
 
-Add an on-demand Control Center page for richer connection details and bounded
-diagnostics. It should:
+The release branch passed the seven-perspective review and its bounded
+remediation series. Version-specific results are maintained in the assessment,
+compatibility matrix, and release workflow rather than duplicated here.
 
-- consume only existing non-sensitive backend state;
-- collect nothing while the page is closed;
-- avoid traffic inspection, history retention, remote telemetry, or new
-  networking ownership; and
-- keep the full Control Center out of the resident process.
+## Post-release priorities
 
-## Optional Plasma widget
+1. Triage 0.13 reports against the documented support and Core boundaries.
+2. Require a regression for each accepted defect before changing behavior.
+3. Revalidate on every Proton Core, Fedora, Qt, or KDE Frameworks update.
+4. Add an independently tested second Plasma distribution before claiming
+   broader Linux support.
+5. Obtain independent review of authentication transport, D-Bus identity, and
+   sender authorization before using a security-reviewed or stable label.
+6. Translate Plasma-specific strings without guessing or obscuring provenance.
+7. Reassess workflow trust if CI gains secrets, persistent runners, package
+   signing, or publication authority.
 
-Provide a Plasma 6 widget for status and common connection actions. It should
-reuse the resident agent and current authenticated backend path instead of
-embedding Python or Proton Core in `plasmashell`. The agent and Control Center
-must remain complete without the widget.
+## Plasma integration
+
+An optional Plasma 6 widget may expose status and common actions through the
+resident agent. It must not embed Python or Proton Core in `plasmashell`, and
+the agent and Control Center must remain complete without it.
+
+Potential later integrations require a separate design review:
+
+- native NetworkManager status correlation without duplicating Core ownership;
+- richer read-only connection telemetry without traffic history;
+- desktop power/network transition observability; and
+- distribution-native packaging beyond Fedora.
 
 ## Upstream opportunities
 
-Provider-neutral Secret Service compatibility, small Core API hygiene fixes,
-and terminology improvements should be proposed separately to the Proton
-repository that owns each behavior. Each patch must stand on its own, include
-focused tests, and avoid depending on this Plasma frontend.
+### Proton VPN API Core
+
+Prepare independent submissions for:
+
+- the dependency-ordered server string-sharing series;
+- deprecated FIDO2-query removal;
+- Protun transient-secret ownership;
+- queued target preservation; and
+- validated protection-profile activation.
+
+The [overlay handoff checklist](../packaging/fedora/api-core-overlay/README.md#patch-scope-and-upstream-handoff)
+records provenance, patch order, tests, attribution, and source-format work.
+Each proposal must stand without this frontend and must not include speculative
+Core refactoring.
+
+### Proton keyring
+
+Submit default-alias recovery, Secret Service connection reuse, and same-user
+unique-owner pinning as one provider-neutral series. Include focused tests and
+preserve actual authorship. Do not introduce KeePassXC-specific behavior.
+
+### FIDO2 cancellation
+
+A future Core can re-enable security keys by carrying its public cancellation
+event through multi-key selection, assertion, and PIN work and exposing a
+capability only when all workers quiesce on cancellation.
+
+Upstream submission and any public statement of Proton acceptance require
+separate maintainer approval.

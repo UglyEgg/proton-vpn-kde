@@ -7,11 +7,13 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
 import py_compile
+import re
 import shutil
 import stat
 import subprocess
@@ -39,14 +41,72 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as error:
         raise OverlayError(f"Unable to read overlay manifest: {error}") from error
 
-    if manifest.get("schemaVersion") != 1:
+    if manifest.get("schemaVersion") != 2:
         raise OverlayError("Unsupported overlay manifest schema")
     if not isinstance(manifest.get("vendor"), dict):
         raise OverlayError("Overlay manifest has no vendor record")
+    vendor = manifest["vendor"]
+    vendor_version = vendor.get("version")
+    if not isinstance(vendor_version, str) or re.fullmatch(
+        r"[0-9]+(?:\.[0-9]+)+", vendor_version
+    ) is None:
+        raise OverlayError("Overlay manifest has no valid vendor version")
+    public_source_tag = vendor.get("publicSourceTag")
+    if public_source_tag is not None and public_source_tag != f"v{vendor_version}":
+        raise OverlayError("Vendor public source tag does not match its version")
     if not isinstance(manifest["vendor"].get("signingKey"), dict):
         raise OverlayError("Overlay manifest has no vendor signing-key record")
+    public_upstream = manifest.get("publicUpstream")
+    if not isinstance(public_upstream, dict):
+        raise OverlayError("Overlay manifest has no public upstream reference")
+    if public_upstream.get("repository") != (
+        "https://github.com/ProtonVPN/python-proton-vpn-api-core.git"
+    ):
+        raise OverlayError("Overlay manifest has an unexpected upstream repository")
+    latest_verified_tag = public_upstream.get("latestVerifiedTag")
+    if not isinstance(latest_verified_tag, str) or re.fullmatch(
+        r"v[0-9]+(?:\.[0-9]+)+", latest_verified_tag
+    ) is None:
+        raise OverlayError("Overlay manifest has no valid public upstream tag")
+    upstream_commit = public_upstream.get("commit")
+    if not isinstance(upstream_commit, str) or re.fullmatch(
+        r"[0-9a-f]{40}", upstream_commit
+    ) is None:
+        raise OverlayError("Overlay manifest has no valid public upstream commit")
+    verified_on = public_upstream.get("verifiedOn")
+    if not isinstance(verified_on, str) or re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}", verified_on
+    ) is None:
+        raise OverlayError("Overlay manifest has no valid upstream verification date")
     if not isinstance(manifest.get("overlay"), dict):
         raise OverlayError("Overlay manifest has no overlay record")
+    overlay = manifest["overlay"]
+    if "upstreamBaseTag" in overlay:
+        raise OverlayError("Deprecated upstreamBaseTag conflates package and source")
+    package_name = overlay.get("packageName")
+    if not isinstance(package_name, str) or not package_name:
+        raise OverlayError("Overlay manifest has no package name")
+    vendor_nevra = vendor.get("nevra")
+    if not isinstance(vendor_nevra, str) or not vendor_nevra.startswith(
+        f"{package_name}-{vendor_version}-"
+    ):
+        raise OverlayError("Vendor version does not match its NEVRA")
+    overlay_nevra = overlay.get("nevra")
+    if not isinstance(overlay_nevra, str) or not overlay_nevra.startswith(
+        f"{package_name}-{vendor_version}-"
+    ):
+        raise OverlayError("Overlay version does not match the vendor version")
+    capability = overlay.get("capability")
+    capability_patch = overlay.get("capabilityPatch")
+    patch_files = {
+        record.get("file")
+        for record in overlay.get("patches", [])
+        if isinstance(record, dict)
+    }
+    if not isinstance(capability, str) or not capability:
+        raise OverlayError("Overlay manifest has no required capability")
+    if capability_patch not in patch_files:
+        raise OverlayError("Overlay capability is not tied to a listed patch")
     return manifest
 
 
@@ -492,6 +552,7 @@ def _verify_behavior(root: Path) -> None:
 
     from proton.vpn.core.cache_handler import CacheHandler  # noqa: PLC0415
     from proton.vpn.core.api import ProtonVPNAPI  # noqa: PLC0415
+    from proton.vpn.connection import events, states  # noqa: PLC0415
     from proton.vpn.backend.networkmanager.protocol.protun.protun import (  # noqa: PLC0415
         SYSTEM_OWNED_PRIVATE_KEY,
         PRIVATE_KEY,
@@ -617,6 +678,90 @@ def _verify_behavior(root: Path) -> None:
         raise OverlayError("Protun did not add the generated VPN connection")
     if add_call.get("save_to_disk") is not False:
         raise OverlayError("Protun connection is not explicitly unsaved")
+
+    # This 5.6.10-through-5.6.20 behavior requires the KDE adapter's bounded
+    # stable-disconnect barrier.  A Down received while Disconnecting is
+    # ignored, and the queued replacement is promoted after the old tunnel's
+    # late Disconnected event.  Fail loudly when a future pinned Core changes
+    # that contract so the downstream workaround is reviewed instead of being
+    # carried forward on an obsolete assumption.
+    class ConnectionFixture:
+        def __init__(self):
+            self.persistence_removed = False
+
+        async def remove_persistence(self):
+            self.persistence_removed = True
+
+    class KillSwitchFixture:
+        def __init__(self):
+            self.enabled = False
+
+        async def enable(self, **_kwargs):
+            self.enabled = True
+
+    old_connection = ConnectionFixture()
+    queued_connection = object()
+    newer_connection = object()
+    kill_switch = KillSwitchFixture()
+    previous_kill_switch = states.StateContext.kill_switch
+    states.StateContext.kill_switch = kill_switch
+    try:
+        disconnecting = states.Disconnecting(
+            states.StateContext(
+                connection=old_connection,
+                reconnection=queued_connection,
+            )
+        )
+        after_new_target = disconnecting.on_event(
+            events.Up(events.EventContext(connection=newer_connection))
+        )
+        if (
+            after_new_target is not disconnecting
+            or disconnecting.context.reconnection is not newer_connection
+        ):
+            raise OverlayError(
+                "Pinned Core no longer replaces an older queued target with "
+                "the newest target; review manual target arbitration"
+            )
+        after_down = disconnecting.on_event(
+            events.Down(events.EventContext(connection=old_connection))
+        )
+        if (
+            after_down is not disconnecting
+            or disconnecting.context.reconnection is not newer_connection
+        ):
+            raise OverlayError(
+                "Pinned Core no longer retains a queued replacement after "
+                "Down while Disconnecting; review the adapter barrier"
+            )
+        after_disconnected = disconnecting.on_event(
+            events.Disconnected(
+                events.EventContext(connection=old_connection)
+            )
+        )
+        if (
+            not isinstance(after_disconnected, states.Disconnected)
+            or after_disconnected.context.reconnection is not newer_connection
+        ):
+            raise OverlayError(
+                "Pinned Core no longer carries the queued replacement into "
+                "Disconnected; review the adapter barrier"
+            )
+        promoted_event = asyncio.run(after_disconnected.run_tasks())
+        if (
+            not isinstance(promoted_event, events.Up)
+            or promoted_event.context.connection is not newer_connection
+        ):
+            raise OverlayError(
+                "Pinned Core no longer promotes the queued replacement; "
+                "review the adapter barrier"
+            )
+    finally:
+        states.StateContext.kill_switch = previous_kill_switch
+    if not old_connection.persistence_removed or not kill_switch.enabled:
+        raise OverlayError(
+            "Pinned Core did not execute queued-replacement teardown tasks"
+        )
     print("Verified API Core overlay behavior")
 
 
@@ -633,6 +778,29 @@ def verify_overlay_rpm(
         raise OverlayError(
             f"Overlay RPM NEVRA mismatch: expected {manifest['overlay']['nevra']}, "
             f"got {overlay_fields['nevra']}"
+        )
+    downstream_vendor = manifest["overlay"].get("downstreamVendor")
+    if not isinstance(downstream_vendor, str) or not downstream_vendor:
+        raise OverlayError("Overlay manifest has no downstream vendor")
+    actual_vendor = _run(
+        ["rpm", "-qp", "--qf", "%{VENDOR}", str(overlay_rpm)]
+    ).stdout.decode("utf-8", errors="strict")
+    if actual_vendor != downstream_vendor:
+        raise OverlayError(
+            "Overlay RPM downstream vendor mismatch: "
+            f"expected {downstream_vendor!r}, got {actual_vendor!r}"
+        )
+    if "Proton AG" in actual_vendor:
+        raise OverlayError("Unofficial overlay RPM claims Proton AG as its vendor")
+    capability = manifest["overlay"].get("capability")
+    if not isinstance(capability, str) or not capability:
+        raise OverlayError("Overlay manifest has no required capability")
+    overlay_provides = _run(
+        ["rpm", "-qp", "--provides", str(overlay_rpm)]
+    ).stdout.decode("utf-8", errors="strict").splitlines()
+    if capability not in overlay_provides:
+        raise OverlayError(
+            f"Overlay RPM does not provide the required capability: {capability}"
         )
     for option in ("--requires", "--obsoletes", "--conflicts"):
         vendor_values = sorted(
@@ -691,6 +859,7 @@ def verify_installed(manifest_path: Path) -> None:
                 f"Installed overlay hash mismatch for /{path}: "
                 f"expected {record['overlaySha256']}, got {actual_hash}"
             )
+    verify_behavior(Path("/"))
     print(f"Verified installed API Core overlay {actual_nevra}")
 
 

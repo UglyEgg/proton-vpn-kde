@@ -7,8 +7,10 @@ tagged minor release.
 
 | Release | Security fixes |
 | --- | --- |
-| 0.11.x | Supported |
-| 0.10.x and earlier | Unsupported |
+| 0.13.x | Supported |
+| 0.11.x and earlier | Unsupported |
+
+Version 0.12.0 was an internal development milestone and was never published.
 
 ## Report a vulnerability privately
 
@@ -64,8 +66,23 @@ The following properties are part of the project's security contract:
   D-Bus sender and intended operation;
 - installed clients must authenticate and pin the packaged backend's unique
   D-Bus owner before sending secrets or state-changing requests;
+- packaged user services and the backend launcher must remove the shared
+  native-loader and runtime search-path override set before community or Proton
+  code is imported;
+- D-Bus activation of the packaged Control Center must cross its sanitized
+  systemd user-service boundary before Qt or community code is loaded;
+- project-owned subprocesses must use fixed packaged executable paths rather
+  than select commands through the inherited desktop `PATH`;
+- the downstream keyring adapter must require the desktop-selected Secret
+  Service provider to run as the session user, pin traffic to its unique D-Bus
+  owner, and reject owner replacement before sending Proton session material;
 - state-changing backend methods must authorize the actual D-Bus sender and
   revoke that authority when its unique name vanishes;
+- shared desktop action brokers may present bounded confirmation requests but
+  must not invoke an authorized VPN controller before explicit acceptance;
+- public frontend D-Bus brokers must export an explicit presentation/action
+  allowlist; any retained process-lifecycle operation must authorize its actual
+  caller and must not grant that authority to arbitrary session peers;
 - unexpected third-party exception text must not cross the public D-Bus
   boundary;
 - the community client must not implement or override VPN protocols,
@@ -89,9 +106,28 @@ new suspected vulnerability.
 
 ## Known boundaries and exclusions
 
-The design does not claim to defend against root, a debugger, or another
-same-user process that can directly read client memory. Python and Qt may
-retain immutable string copies until their allocators reuse them.
+The primary local attacker is an ordinary or sandboxed process in the same
+graphical session that can reach the session bus but cannot already execute
+arbitrary native code as the desktop user. Unique-owner pinning, root-owned
+package paths, current process metadata, sender authorization, and environment
+sanitization are meaningful defenses within that boundary. They are not an
+OS-backed code-signing or process-attestation mechanism.
+
+The design does not claim to defend against root, a debugger, or arbitrary
+native code already running as the desktop user. The latter can inspect or
+rewrite same-user process memory, preload code into a packaged process, and
+transiently modify user-owned systemd units or drop-ins before removing the
+evidence. Findings that require only those already-equivalent host-code
+capabilities are out of scope unless they cross an additional security boundary,
+such as escaping a sandbox or gaining another user's or root's authority.
+Python and Qt may retain immutable secret-string copies until their allocators
+reuse them.
+
+The desktop-selected same-user Secret Service provider is a trusted dependency.
+The session bus can identify its unique owner and Unix user, but does not
+portably attest the executable behind a non-dumpable provider process. Unique-
+owner pinning prevents later name replacement; it does not prove the initial
+provider's package provenance.
 
 The following are outside this repository's disclosure scope:
 
@@ -103,8 +139,7 @@ The following are outside this repository's disclosure scope:
 - theoretical hardening suggestions without a reproducible exploit path.
 
 Findings exclusively affecting Proton should be reported through Proton's
-official security response process:
-https://proton.me/security/response-center
+official [security response process](https://proton.me/security/response-center).
 
 ## Coordinated disclosure
 

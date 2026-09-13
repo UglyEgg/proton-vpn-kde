@@ -4,9 +4,18 @@
 from __future__ import annotations
 
 import gc
+import importlib.util
+import json
+import math
+from pathlib import Path
+import tempfile
+from types import ModuleType, SimpleNamespace
 import unittest
+from unittest.mock import patch
 import weakref
 
+from core_fakes import core_module_fakes
+from proton_vpn_kde_backend.adapters import ProtonCoreAdapter
 from proton_vpn_kde_backend.search_projection import ServerSearchProjection
 
 
@@ -56,6 +65,70 @@ def sort_key(server: StubServer) -> str:
     prefix, _, suffix = server.name.lower().partition("#")
     natural_name = f"{prefix}#{suffix.zfill(10)}" if suffix else prefix
     return f"{server.exit_country_name}__{natural_name}"
+
+
+class OfflineSearchBenchmarkTests(unittest.IsolatedAsyncioTestCase):
+    async def test_both_measurement_passes_use_offline_authenticated_fixture(self):
+        modules = core_module_fakes()
+        cache_module = ModuleType("proton.vpn.core.cache_handler")
+        fetcher_module = ModuleType("proton.vpn.session.servers.server_list_fetcher")
+
+        class CacheHandler:
+            def __init__(self, path, *, object_hook_factory):
+                self.path = path
+
+            def load(self):
+                return json.loads(self.path.read_text())
+
+        def from_dict(payload):
+            return StubServerList([
+                StubServer(row["Name"], row["ExitCountry"], row["City"], row["Load"])
+                for row in payload["LogicalServers"]
+            ], payload["MaxTier"])
+
+        cache_module.CacheHandler = CacheHandler
+        fetcher_module.ServerListFetcher = SimpleNamespace(CACHE_PATH=Path("not-used"))
+        logicals = modules["proton.vpn.session.servers.logicals"]
+        logicals.ServerList = SimpleNamespace(from_dict=from_dict)
+        logicals._server_string_object_hook = lambda: lambda item: item
+        modules[cache_module.__name__] = cache_module
+        modules[fetcher_module.__name__] = fetcher_module
+        script = Path(__file__).resolve().parents[2] / "scripts/benchmark-search.py"
+        spec = importlib.util.spec_from_file_location("offline_search_benchmark", script)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict("sys.modules", modules),
+            patch.dict("os.environ", {"XDG_RUNTIME_DIR": directory}),
+        ):
+            cache = Path(directory) / "serverlist.json"
+            cache.write_text(json.dumps({"MaxTier": 2, "LogicalServers": [
+                {"Name": "CH#1", "ExitCountry": "CH", "City": "Zürich", "Load": 10},
+                {"Name": "US#1", "ExitCountry": "US", "City": "New York", "Load": 20},
+            ]}))
+            spec.loader.exec_module(module)
+            with (
+                patch.object(module, "_offline_search_adapter", wraps=module._offline_search_adapter) as factory,
+                patch.object(ProtonCoreAdapter, "initialize", side_effect=AssertionError("No session initialization")),
+                patch.object(ProtonCoreAdapter, "login", side_effect=AssertionError("No authentication")),
+                patch("socket.socket", side_effect=AssertionError("No network")),
+            ):
+                report = await module.benchmark(cache, 2, ["zur", "us-", "notfound"])
+            self.assertEqual(factory.call_count, 2)  # Timing AND allocation adapters.
+            self.assertEqual(report["logicalServerCount"], 2)
+            self.assertEqual(report["projectedLocationCount"], 2)
+            self.assertEqual(report["projectedServerCount"], 2)
+            self.assertEqual(report["queries"][0]["resultCounts"], {"location": 1})
+            self.assertEqual(report["queries"][-1]["resultCounts"], {})
+            self.assertGreaterEqual(report["projectionPeakBuildBytes"], report["projectionCurrentBytes"])
+            for value in report.values():
+                if isinstance(value, (int, float)):
+                    self.assertTrue(math.isfinite(value) and value >= 0)
+            for query in report["queries"]:
+                for key in ("medianMilliseconds", "p95Milliseconds", "maximumMilliseconds"):
+                    self.assertTrue(math.isfinite(query[key]) and query[key] >= 0)
 
 
 class ServerSearchProjectionTests(unittest.TestCase):

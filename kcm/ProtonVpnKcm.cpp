@@ -4,12 +4,13 @@
 #include "ProtonVpnKcm.h"
 
 #include "AppSettings.h"
+#include "InstalledExecutablePaths.h"
 #include "TranslationLoader.h"
 
 #include <KPluginFactory>
 #include <QCoreApplication>
 #include <QProcess>
-#include <QStandardPaths>
+#include <QFileInfo>
 
 ProtonVpnKcm::ProtonVpnKcm(QObject *parent, const KPluginMetaData &metadata)
     : KQuickConfigModule(parent, metadata)
@@ -27,15 +28,14 @@ AppSettings *ProtonVpnKcm::appSettings() const
 
 void ProtonVpnKcm::openFullSettings()
 {
-    QProcess::startDetached(QStringLiteral("proton-vpn-kde"),
+    QProcess::startDetached(ProtonVpnKde::controlCenterExecutablePath(),
                             {QStringLiteral("--settings")});
 }
 
 void ProtonVpnKcm::openGlobalShortcuts()
 {
-    const QString systemSettings =
-        QStandardPaths::findExecutable(QStringLiteral("systemsettings"));
-    if (!systemSettings.isEmpty()) {
+    const QString systemSettings = ProtonVpnKde::systemSettingsExecutablePath();
+    if (QFileInfo(systemSettings).isExecutable()) {
         QProcess::startDetached(systemSettings, {QStringLiteral("kcm_keys")});
     }
 }

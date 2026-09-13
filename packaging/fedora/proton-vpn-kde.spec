@@ -3,8 +3,11 @@
 
 %bcond_without kstatusnotifier
 
+%global use_source_date_epoch_as_buildtime 1
+%global _buildhost reproducible.invalid
+
 Name:           proton-vpn-kde
-Version:        0.11.3
+Version:        0.13.0
 Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
@@ -28,6 +31,8 @@ BuildRequires:  kf6-kstatusnotifieritem-devel
 %endif
 BuildRequires:  ninja-build
 BuildRequires:  openssl-devel
+BuildRequires:  plasma-breeze-common
+BuildRequires:  plasma-integration
 BuildRequires:  python3-coverage
 BuildRequires:  python3-cryptography >= 45.0.1
 BuildRequires:  python3-dbus-fast
@@ -36,17 +41,19 @@ BuildRequires:  python3-mypy
 BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
 BuildRequires:  qt6-linguist
+BuildRequires:  ripgrep
 
 Requires:       kf6-kirigami
 Requires:       kf6-kglobalaccel
 Requires:       kf6-kcmutils
 Requires:       kf6-krunner
+Requires:       /usr/bin/ip
 Requires:       python3-cryptography >= 45.0.1
 Requires:       python3-dbus-fast
 Requires:       python3-fido2
-Requires:       python3-proton-vpn-api-core >= 5.5.6
+Requires:       python3-proton-vpn-api-core >= 5.6.10
 Requires:       proton-vpn-api-core-plasma-protun-secret >= 1
-Requires:       proton-keyring-secret-service-provider-agnostic >= 1
+Requires:       proton-keyring-secret-service-owner-pinned >= 1
 Requires:       qt6-qtdeclarative
 
 %description
@@ -54,22 +61,30 @@ Plasma VPN is an unofficial native Qt 6 and Kirigami frontend compatible with
 Proton VPN. It reuses Proton's official Python VPN core. VPN protocols,
 NetworkManager integration, kill-switch behavior, split tunneling, and session
 persistence remain owned by the official core. The separately packaged,
-version-pinned API-Core overlay changes only Protun's secret ownership inside
-its existing unsaved NetworkManager profile so Plasma does not require a
-missing Protun secret plugin. The frontend has no direct GTK or GNOME Keyring
-dependency and uses the Freedesktop Secret Service provider selected by the
-desktop session. The official API Core package may retain its own desktop
-integration dependencies.
+version-pinned API-Core overlay keeps Protun's secret inside its existing
+unsaved NetworkManager profile so Plasma does not require a missing Protun
+secret plugin. That same audited rebuild carries the project's independently
+tested server-string memory reductions and an upstream diagnostic cleanup; its
+Protun capability gates only the required connection semantic. The frontend
+has no direct GTK or GNOME Keyring dependency and uses the Freedesktop Secret
+Service provider selected by the desktop session. The official API Core
+package may retain its own desktop integration dependencies.
 
 %prep
 %autosetup -n %{name}-%{version}
+cp -p .source-commit SOURCE_COMMIT
 
 %build
+# RPM's changelog epoch has day precision. Give Qt resources the archive's
+# exact commit timestamp so same-day upgrades invalidate cached QML.
+# RCC gives SOURCE_DATE_EPOCH precedence over QT_RCC_SOURCE_DATE_OVERRIDE.
+export SOURCE_DATE_EPOCH="$(stat -c %Y .source-commit)"
 %cmake \
     -DBUILD_TESTING=ON \
     -DCMAKE_INSTALL_LIBEXECDIR=%{_libexecdir} \
     -DKDE_INSTALL_LIBEXECDIR=%{_libexecdir} \
     -DKDE_INSTALL_SBINDIR=%{_sbindir} \
+    -DPROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR=%{_datadir}/proton-vpn-kde/translations \
     -DPROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION=OFF \
     -DPROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION=OFF \
 %if %{without kstatusnotifier}
@@ -88,19 +103,19 @@ desktop-file-validate \
     %{buildroot}%{_datadir}/applications/proton-vpn-kde.desktop
 
 %post
-%systemd_user_post proton-vpn-kde-backend.service proton-vpn-kde-agent.service
+%systemd_user_post proton-vpn-kde-backend.service proton-vpn-kde-agent.service proton-vpn-kde-control-center.service
 
 %preun
-%systemd_user_preun proton-vpn-kde-backend.service proton-vpn-kde-agent.service
+%systemd_user_preun proton-vpn-kde-backend.service proton-vpn-kde-agent.service proton-vpn-kde-control-center.service
 
 %posttrans
-%systemd_user_posttrans_with_restart proton-vpn-kde-backend.service proton-vpn-kde-agent.service
+%systemd_user_posttrans_with_restart proton-vpn-kde-backend.service proton-vpn-kde-agent.service proton-vpn-kde-control-center.service
 
 %files
 %defattr(-,root,root,-)
 %license LICENSE COPYING.md
 %doc README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md SUPPORT.md
-%doc THIRD_PARTY_NOTICES.md docs
+%doc THIRD_PARTY_NOTICES.md docs SOURCE_COMMIT
 %{_bindir}/proton-vpn-kde
 %{_bindir}/proton-vpn-kde-agent
 %{_bindir}/proton-vpn-kde-backend
@@ -114,6 +129,7 @@ desktop-file-validate \
 %{_datadir}/dbus-1/interfaces/quest.entropy.PlasmaVPN.Agent1.xml
 %{_datadir}/dbus-1/interfaces/quest.entropy.PlasmaVPN.ControlCenter1.xml
 %{_datadir}/icons/hicolor/scalable/apps/plasma-vpn.svg
+%{_datadir}/icons/hicolor/scalable/apps/quest.entropy.PlasmaVPN.svg
 %{_datadir}/icons/hicolor/scalable/apps/plasma-vpn-light.svg
 %{_datadir}/icons/hicolor/scalable/apps/plasma-vpn-dark.svg
 %{_datadir}/knotifications6/proton-vpn-kde.notifyrc
@@ -122,8 +138,201 @@ desktop-file-validate \
 %{_qt6_plugindir}/plasma/kcms/systemsettings/kcm_proton_vpn_kde.so
 %{_userunitdir}/proton-vpn-kde-backend.service
 %{_userunitdir}/proton-vpn-kde-agent.service
+%{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sun Sep 13 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-1
+- Publish the 0.13 Plasma interface and lifecycle release
+- Ship the verified keyring and API Core integration requirements
+- Use concise current-state engineering and release documentation
+
+* Sat Sep 12 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.10
+- Complete SPDX provenance for installed Python templates and strict JSON sources
+- Separate signed Core package identity from public source-tag provenance
+- Align public/internal release history and refresh the application gallery
+- Make clean source CI declare visual inputs and full-history test requirements
+- Deduplicate PR CI and reserve repeated RPM builds for explicit release runs
+- Keep manual retries outside the concurrency identity of their original run
+
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.9
+- Keep ordinary startup failures visible without repeated Secret Service prompts
+- Distinguish restored sessions from failed VPN connector initialization
+
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.8
+- Normalize inherited native loader settings before direct GUI/agent startup
+- Preserve backend sender authorization and add kernel-environment regressions
+
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.7
+- Point translation tests at build-owned catalogs and isolate fallback paths.
+- Declare the Breeze schemes and KDE platform theme used by visual fixtures.
+- Keep application translation paths, UI and networking unchanged.
+
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.6
+- Isolate test desktop directories before Core imports and cache-path capture.
+- Use explicit fake route/session probes and bounded fixture waits in tests.
+- Add cold-import regression coverage; application runtime sources are unchanged.
+
+* Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.5
+- Consume startup auto-connect intent once and finish tray activation before exit.
+- Report rejected preference writes and retain the actual stored UI state.
+- Render confirmation data literally and repair offline benchmark fixtures.
+- Include focused regression coverage and the bounded review evidence.
+
+* Tue Sep 08 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.4
+- Add opt-in login launch and shared window/tray and auto-connect settings.
+- Smooth split-route graphics and improve text contrast and keyboard feedback.
+- Simplify release highlights and refresh the project presentation.
+- Stamp Qt resources with the source commit epoch to invalidate stale QML caches.
+
+* Tue Sep 08 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.3
+- Fit the window to the layout; disable manual resizing and maximizing.
+- Center the horizontal route, group VPN facts and curve the outside-VPN fork.
+
+* Tue Sep 08 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.2
+- Integrate split routing into the connection graphic and contain the report form.
+- Use an unambiguous desktop icon name across Plasma icon themes.
+- Add compact, large-text and RTL presentation regressions.
+
+* Thu Sep 03 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.1
+- Begin the presentation-only progressive Plasma interface cycle.
+- Add a CI gate that freezes the accepted 0.12.0 runtime mechanics.
+- Make in-app release history concise and progressively disclosed.
+- Fence asynchronous replies and side effects to their owning account,
+  operation, settings, capture, survey, and connection generations.
+- Retire manual and automatic connection owners before superseding operations,
+  including Core 5.6.10 executor-backed NetworkManager work.
+- Drain Core 5.6.10 queued replacement targets to confirmed Disconnected state
+  and fail closed when the stable Down sequence cannot complete.
+- Declare Core 5.6.10 as the package runtime floor; keep 5.5.6 static-only.
+- Bound orderly and completion-unknown backend teardown with fail-closed
+  systemd restart behavior.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.29
+- Suppress pre-readiness adapter snapshots during Core initialization.
+- Publish one authoritative state after session services are ready.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.28
+- Bound Core connector restoration while capture recovery is pending.
+- Retain the journal for nonzero retry when a system D-Bus dependency stalls.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.27
+- Retain capture recovery when Core cannot restore a logged-in session.
+- Reject Core's synthetic logged-out disconnected recovery state.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.26
+- Bound Secret Service restoration while packet-capture recovery is pending.
+- Preserve durable recovery for nonzero systemd retry after provider timeout.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.25
+- Recover unconfirmed packet capture before interactive session restoration.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.24
+- Prevent idle startup from abandoning packet-capture recovery.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.23
+- Preserve unconfirmed packet-capture supervision across backend replacement.
+- Retry bounded Core stop calls until capture completion is confirmed.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.22
+- Reject D-Bus authorization when owner loss races identity verification.
+- Preserve the signed-out state when settings writes encounter session expiry.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.21
+- Reconcile ambiguous login, connection, and settings completion from Core.
+- Compensate partially committed settings writes before resuming operation.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.20
+- Keep build-tree paths out of installed translation lookup metadata.
+- Compare clean package rebuilds under one normalized RPM build path.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.19
+- Normalize RPM header build time and host metadata.
+- Compare complete output sets from two independent package builds.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.18
+- Publish the backend D-Bus name only after its authorization ingress and
+  exported service object are ready.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.17
+- Remove remote Control Center shutdown and authorize agent shutdown.
+- Export only explicitly allowlisted native frontend slots.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.16
+- Reject mixed overlay patch line endings and truncated hunk content.
+- Reapply a partially persisted kill-switch disable operation on retry.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.15
+- Parse overlay patch bytes only on LF boundaries.
+- Reject bare carriage returns while accepting ordinary CRLF patches.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.14
+- Parse unified-diff hunk sizes in the overlay whitespace gate.
+- Cover headers, context, normal additions, and ++-prefixed target content.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.13
+- Distinguish required unified-diff context markers from target whitespace.
+- Check overlay-added target lines with a dedicated source gate.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.12
+- Keep capture setup inactive when Core rejects the selected destination.
+- Sanitize provider assignment failures and preserve immediate retryability.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.11
+- Bound every Proton Core packet-capture stop attempt.
+- Keep the original capture watchdog armed during compensation.
+- Prove a non-returning Core stop cannot indefinitely block backend shutdown.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.10
+- Compensate cancelled and completion-unknown packet-capture starts.
+- Keep reconnection enablement transactional and cleanup failure-safe.
+- Preserve non-missing route-probe failures for bounded retry diagnostics.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.9
+- Sanitize the Control Center environment before D-Bus activation.
+- Pin System Settings, Control Center, and resident-agent launch paths.
+- Remove the route-probe executable preflight race.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.8
+- Pin project-owned helper commands to their packaged Fedora paths.
+- Ignore the demo-only idle-timeout override in production backend mode.
+- Refresh the exact security-gate evidence and hostile PATH regression.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.7
+- Sanitize native-loader and runtime search overrides before backend imports.
+- Generate service, launcher, client, and package policy from one contract.
+- Document process-identity checks within a realistic same-user threat boundary.
+
+* Tue Sep 01 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.6
+- Reconcile late authentication, cancellation, and logout/reconnect races.
+- Recover same-owner operation timeouts without declaring the backend dead.
+- Bind binary/source artifacts and translations to exact reviewed inputs.
+
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.5
+- Reconcile partial authentication and logout failures with persisted Core state.
+- Require the runtime iproute command used by reconnect readiness probes.
+- Enforce exact snapshot, translation, overlay, and source-RPM provenance.
+
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.4
+- Support Secret Service providers started by desktop autostart.
+- Require same-user provider selection and unique-owner pinning.
+
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.3
+- Recover from transient same-owner snapshot timeouts without false offline state.
+- Fence account reads and session startup across logout and partial failures.
+- Confirm tray and global-shortcut connection changes in the Control Center.
+- Require a same-user, uniquely pinned Secret Service provider overlay.
+
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.2
+- Bind asynchronous frontend replies to the authenticated backend generation.
+- Keep readiness-probe failures retryable and add backend-replacement tests.
+- Refresh exact shared translations and candidate review evidence.
+
+* Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.12.0-0.1
+- Add an on-demand, read-only Connection Inspector using existing Core state.
+- Replace periodic backend ownership polling with D-Bus owner-loss events and
+  a one-shot idle deadline.
+- Begin the local 0.12.0 feature soak without changing Proton Core networking.
+
 * Mon Aug 31 2026 uglyegg <uglyegg@entropy.quest> - 0.11.3-1
 - Recover Protun reconnects without a Plasma NetworkManager secret plugin.
 - Clear stale signed-in state when the backend stops and expose a bounded

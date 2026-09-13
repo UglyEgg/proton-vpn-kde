@@ -15,12 +15,25 @@ Kirigami.ScrollablePage {
     property var customDns: vpnController.customDns
     property var vpnSettings: vpnController.settings
 
-    Component.onCompleted: {
-        if (vpnController.loggedIn && !vpnSettings.loaded) {
+    function ensureModels() {
+        if (vpnController.ready && vpnController.loggedIn
+                && !vpnSettings.loaded && !vpnSettings.busy) {
             vpnController.loadSettings()
         }
-        if (vpnController.loggedIn && !customDns.loaded) {
+        if (vpnController.ready && vpnController.loggedIn
+                && !customDns.loaded && !customDns.busy) {
             vpnController.loadCustomDns()
+        }
+    }
+
+    Component.onCompleted: page.ensureModels()
+
+    Connections {
+        target: vpnController
+        function onSnapshotChanged() {
+            if (vpnController.ready && vpnController.loggedIn) {
+                Qt.callLater(page.ensureModels)
+            }
         }
     }
 
@@ -79,6 +92,7 @@ Kirigami.ScrollablePage {
         }
 
         SectionCard {
+            enabled: vpnController.ready
             title: qsTr("DNS servers")
             description: qsTr("Proton's networking core applies enabled addresses when it creates the next VPN connection.")
             iconName: "network-server-database"
@@ -184,7 +198,7 @@ Kirigami.ScrollablePage {
                         onClicked: vpnController.removeCustomDnsServer(
                             serverDelegate.modelData.address)
 
-                        Controls.ToolTip.visible: hovered
+                        Controls.ToolTip.visible: hovered || activeFocus
                         Controls.ToolTip.text: text
                     }
                 }

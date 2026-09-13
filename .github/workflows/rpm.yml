@@ -4,26 +4,32 @@
 name: RPM Package
 
 on:
-  push:
   pull_request:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: rpm-${{ github.ref }}
+  group: rpm-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}
   cancel-in-progress: true
 
 jobs:
   fedora-rpm:
     name: Fedora 44 RPM
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     container: fedora:44
     env:
       RPM_TOPDIR: ${{ github.workspace }}/rpm-build
+      RPM_REPRO_TOPDIR: ${{ github.workspace }}/rpm-repro-build
+      RPM_REPRO_WORKDIR: /tmp/proton-vpn-kde-rpmbuild
       KEYRING_RPM_TOPDIR: ${{ github.workspace }}/keyring-rpm-build
       API_CORE_RPM_TOPDIR: ${{ github.workspace }}/api-core-rpm-build
+      API_CORE_RPM_REPRO_TOPDIR: ${{ github.workspace }}/api-core-rpm-repro-build
       RELEASE_ARTIFACT_DIR: ${{ github.workspace }}/release-artifacts
 
     steps:
@@ -33,6 +39,7 @@ jobs:
             cmake cpio curl dbus-daemon desktop-file-utils \
             extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
             NetworkManager-libnm \
+            plasma-breeze-common plasma-integration \
             pyproject-rpm-macros python3-cryptography python3-dbus-fast \
             python3-coverage python3-devel python3-distro python3-fido2 \
             python3-gobject python3-jinja2 python3-keyring python3-mypy \
@@ -83,6 +90,8 @@ jobs:
         run: |
           useradd --create-home ci-builder
           chown -R ci-builder:ci-builder "$GITHUB_WORKSPACE"
+          install -d -m 0755 -o ci-builder -g ci-builder \
+            "$RPM_REPRO_WORKDIR/BUILD" "$RPM_REPRO_WORKDIR/TMP"
 
       - name: Build provider-neutral keyring overlay
         run: |
@@ -97,6 +106,16 @@ jobs:
               '' "$API_CORE_RPM_TOPDIR" \
               /tmp/protonvpn-fedora-44-public-key.asc
 
+      - name: Verify API Core overlay reproducibility
+        if: github.event_name != 'pull_request'
+        run: |
+          runuser --user ci-builder -- \
+            packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
+              '' "$API_CORE_RPM_REPRO_TOPDIR" \
+              /tmp/protonvpn-fedora-44-public-key.asc
+          scripts/check-rpm-reproducibility.sh \
+            "$API_CORE_RPM_TOPDIR" "$API_CORE_RPM_REPRO_TOPDIR"
+
       - name: Create source archive
         run: |
           runuser --user ci-builder -- \
@@ -104,14 +123,34 @@ jobs:
 
       - name: Build source and binary RPMs
         env:
-          TMPDIR: ${{ env.RPM_TOPDIR }}/TMP
+          TMPDIR: ${{ env.RPM_REPRO_WORKDIR }}/TMP
         run: |
           runuser --user ci-builder -- \
             rpmbuild \
               --define "_topdir $RPM_TOPDIR" \
-              --define "_tmppath $RPM_TOPDIR/TMP" \
+              --define "_builddir $RPM_REPRO_WORKDIR/BUILD" \
+              --define "_sourcedir $RPM_TOPDIR/SOURCES" \
+              --define "_tmppath $RPM_REPRO_WORKDIR/TMP" \
               --define "_smp_build_ncpus 2" \
               -ba "$RPM_TOPDIR/SPECS/proton-vpn-kde.spec"
+
+      - name: Verify package reproducibility
+        if: github.event_name != 'pull_request'
+        env:
+          TMPDIR: ${{ env.RPM_REPRO_WORKDIR }}/TMP
+        run: |
+          runuser --user ci-builder -- \
+            packaging/fedora/prepare-rpmbuild-tree.sh "$RPM_REPRO_TOPDIR"
+          runuser --user ci-builder -- \
+            rpmbuild \
+              --define "_topdir $RPM_REPRO_TOPDIR" \
+              --define "_builddir $RPM_REPRO_WORKDIR/BUILD" \
+              --define "_sourcedir $RPM_TOPDIR/SOURCES" \
+              --define "_tmppath $RPM_REPRO_WORKDIR/TMP" \
+              --define "_smp_build_ncpus 2" \
+              -ba "$RPM_REPRO_TOPDIR/SPECS/proton-vpn-kde.spec"
+          scripts/check-rpm-reproducibility.sh \
+            "$RPM_TOPDIR" "$RPM_REPRO_TOPDIR"
 
       - name: Inspect package artifacts
         run: |
@@ -143,17 +182,20 @@ jobs:
           )
           [[ ${#api_core_rpms[@]} -eq 1 ]]
           [[ ${#api_core_source_rpms[@]} -eq 1 ]]
-          scripts/check-rpm-artifact.sh "${binary_rpms[0]}"
+          scripts/check-rpm-artifact.sh \
+            "${binary_rpms[0]}" "${source_rpms[0]}"
           packaging/fedora/keyring-overlay/check_overlay_rpm.sh \
             "${keyring_rpms[0]}"
-          rpm -qpi "${source_rpms[0]}"
-          rpm -qpi "${keyring_source_rpms[0]}"
-          rpm -qpi "${api_core_source_rpms[0]}"
+          dnf install -y --downloadonly \
+            --setopt=install_weak_deps=False \
+            "${keyring_rpms[0]}" "${api_core_rpms[0]}" \
+            "${binary_rpms[0]}"
           rpm -Uvh --test --nodeps --ignoresize \
             "${keyring_rpms[0]}" "${api_core_rpms[0]}" \
             "${binary_rpms[0]}"
 
       - name: Stage release artifacts
+        if: github.event_name != 'pull_request'
         run: |
           mapfile -t binary_rpms < <(
             find "$RPM_TOPDIR/RPMS" -type f -name 'proton-vpn-kde-[0-9]*.rpm' -print
@@ -183,6 +225,12 @@ jobs:
           [[ ${#keyring_source_rpms[@]} -eq 1 ]]
           [[ ${#api_core_rpms[@]} -eq 1 ]]
           [[ ${#api_core_source_rpms[@]} -eq 1 ]]
+          if [[ -e "$RELEASE_ARTIFACT_DIR" ]] \
+              && find "$RELEASE_ARTIFACT_DIR" -mindepth 1 -print -quit \
+                  | grep -q .; then
+            echo "Release artifact directory is not empty" >&2
+            exit 1
+          fi
           install -d -m 0755 "$RELEASE_ARTIFACT_DIR"
           install -m 0644 \
             "${binary_rpms[0]}" \
@@ -193,11 +241,15 @@ jobs:
             "${api_core_source_rpms[0]}" \
             "$RELEASE_ARTIFACT_DIR/"
           [[ $(find "$RELEASE_ARTIFACT_DIR" -maxdepth 1 -type f -name '*.rpm' | wc -l) -eq 6 ]]
+          python3 scripts/create-release-artifact-manifest.py \
+            "$RELEASE_ARTIFACT_DIR" --commit "$GITHUB_SHA"
+          test -f "$RELEASE_ARTIFACT_DIR/artifact-manifest.json"
 
       - name: Upload RPM artifacts
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: proton-vpn-kde-fedora-44
+          name: proton-vpn-kde-fedora-44-${{ github.sha }}
           path: ${{ env.RELEASE_ARTIFACT_DIR }}
           if-no-files-found: error
           compression-level: 0

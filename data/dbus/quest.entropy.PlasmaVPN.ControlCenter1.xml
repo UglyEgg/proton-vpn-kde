@@ -8,7 +8,6 @@
   <interface name="quest.entropy.PlasmaVPN.ControlCenter1">
     <annotation name="quest.entropy.PlasmaVPN.BusName"
                 value="quest.entropy.PlasmaVPN.ControlCenter"/>
-    <method name="Quit"/>
     <method name="RequestRunnerAction">
       <arg name="action" direction="in" type="s"/>
       <arg name="argument" direction="in" type="s"/>

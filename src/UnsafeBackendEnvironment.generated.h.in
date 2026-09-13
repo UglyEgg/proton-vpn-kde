@@ -1,0 +1,12 @@
+// SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#pragma once
+
+#include <string_view>
+
+namespace ProtonVpnKde
+{
+inline constexpr std::string_view kUnsafeBackendEnvironmentPrefixes[]{
+@PROTON_VPN_KDE_UNSAFE_ENVIRONMENT_CXX@};
+}

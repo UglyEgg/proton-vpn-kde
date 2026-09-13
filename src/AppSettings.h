@@ -10,10 +10,13 @@
 #include <QUrl>
 #include <QVector>
 
+#include "AutostartSettings.h"
+
 class AppSettings final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool notificationsEnabled READ notificationsEnabled WRITE setNotificationsEnabled NOTIFY notificationsEnabledChanged)
+    Q_PROPERTY(AutostartSettings *autostart READ autostart CONSTANT)
     Q_PROPERTY(bool reconnectEnabled READ reconnectEnabled WRITE setReconnectEnabled NOTIFY reconnectEnabledChanged)
     Q_PROPERTY(bool startMinimized READ startMinimized WRITE setStartMinimized NOTIFY startMinimizedChanged)
     Q_PROPERTY(bool closeToTray READ closeToTray WRITE setCloseToTray NOTIFY closeToTrayChanged)
@@ -23,6 +26,7 @@ class AppSettings final : public QObject
     Q_PROPERTY(QString packetCaptureDirectory READ packetCaptureDirectory WRITE setPacketCaptureDirectory NOTIFY packetCaptureDirectoryChanged)
     Q_PROPERTY(QString iconStyle READ iconStyle WRITE setIconStyle NOTIFY iconStyleChanged)
     Q_PROPERTY(QStringList fastestFeatures READ fastestFeatures WRITE setFastestFeatures NOTIFY fastestFeaturesChanged)
+    Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
 
 public:
     struct PinnedServerGroup {
@@ -34,10 +38,12 @@ public:
     };
 
     explicit AppSettings(QObject *parent = nullptr);
+    AutostartSettings *autostart();
 
     [[nodiscard]] bool notificationsEnabled() const;
     [[nodiscard]] bool reconnectEnabled() const;
     [[nodiscard]] bool startMinimized() const;
+    [[nodiscard]] bool startTrayOnly(bool openSettings, bool forceShow) const;
     [[nodiscard]] bool closeToTray() const;
     [[nodiscard]] QString autoConnectTarget() const;
     [[nodiscard]] QString pinnedServersText() const;
@@ -47,6 +53,7 @@ public:
     [[nodiscard]] QString packetCaptureDirectory() const;
     [[nodiscard]] QString iconStyle() const;
     [[nodiscard]] QStringList fastestFeatures() const;
+    [[nodiscard]] QString errorMessage() const { return m_errorMessage; }
 
     void setNotificationsEnabled(bool enabled);
     void setReconnectEnabled(bool enabled);
@@ -72,6 +79,7 @@ public:
                                               bool enabled);
 
 signals:
+    void errorMessageChanged();
     void notificationsEnabledChanged();
     void reconnectEnabledChanged();
     void startMinimizedChanged();
@@ -85,9 +93,7 @@ signals:
 
 private:
     void reloadSettings();
-    void writeSetting(const char *key, bool value);
-    void writeSetting(const char *key, const QString &value);
-    void writeSetting(const char *key, const QStringList &value);
+    template<typename T> void writeSetting(const char *key, const T &value);
     static QString normalizeConnectionTarget(const QString &target);
     static QStringList normalizePinnedServers(const QString &servers);
     static PinnedServerGroup normalizePinnedServerGroup(
@@ -101,6 +107,8 @@ private:
     static QStringList normalizeFastestFeatures(const QStringList &features);
 
     KSharedConfig::Ptr m_config;
+    QString m_errorMessage;
+    AutostartSettings *m_autostart = nullptr;
     KConfigWatcher::Ptr m_configWatcher;
     bool m_notificationsEnabled = true;
     bool m_reconnectEnabled = true;

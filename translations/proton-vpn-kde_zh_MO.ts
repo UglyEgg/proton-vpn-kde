@@ -35,6 +35,45 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>連線錯誤</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>關閉</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>標準</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>連接</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>協定</translation>
+        </message>
+        <message>
+            <source>Tor</source>
+            <translation>洋蔥路由器</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>緊急終止開關</translation>
+        </message>
+        <message>
+            <source>VPN Accelerator</source>
+            <translation>VPN 加速器</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>分隔通道</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Tor</source>
@@ -85,6 +124,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>帳號</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>登入</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>設定</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>版本資訊</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>回報問題</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>關於</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>連線錯誤：已達工作階段上限</translation>
@@ -165,30 +231,6 @@ Update your system time and try to connect again.</source>
             <source>Close</source>
             <translation>關閉</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>帳號</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>登入</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>設定</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>版本資訊</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>回報問題</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>關於</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -233,6 +275,13 @@ Update your system time and try to connect again.</source>
         </message>
     </context>
     <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>關閉</translation>
+        </message>
+    </context>
+    <context>
         <name>QObject</name>
         <message>
             <source>Kosovo</source>
@@ -258,6 +307,13 @@ Update your system time and try to connect again.</source>
         </message>
     </context>
     <context>
+        <name>ServerCapabilitySelector</name>
+        <message>
+            <source>Tor</source>
+            <translation>洋蔥路由器</translation>
+        </message>
+    </context>
+    <context>
         <name>ServersPage</name>
         <message>
             <source>Tor</source>
@@ -277,22 +333,6 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Settings</source>
             <translation>設定</translation>
-        </message>
-        <message>
-            <source>Off</source>
-            <translation>關閉</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>標準</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>分隔通道</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>測試版本存取</translation>
         </message>
     </context>
     <context>
@@ -324,6 +364,31 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Security key</source>
             <translation>安全性密鑰</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>分隔通道</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>測試版本存取</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>關閉</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>標準</translation>
         </message>
     </context>
     <context>

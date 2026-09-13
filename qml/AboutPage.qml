@@ -7,15 +7,55 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
 Kirigami.ScrollablePage {
-    title: qsTr("About")
+    id: page
+
+    objectName: "secondaryInformationHub"
+    title: qsTr("Help & information")
+    readonly property real maximumContentWidth: Kirigami.Units.gridUnit * 32
+    leftPadding: Math.max(Kirigami.Units.largeSpacing,
+                          (width - maximumContentWidth) / 2)
+    rightPadding: leftPadding
 
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
-        PageHeader {
+        IdentityStage {
             heading: qsTr("Plasma VPN")
             description: qsTr("Proton VPN-compatible community client · Version %1").arg(appVersion)
-            iconName: applicationWindow().appIconSource
+            iconSource: applicationWindow().appIconSource
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: true
+            type: Kirigami.MessageType.Information
+            text: qsTr("Independent community software—not developed, reviewed, sponsored, or endorsed by Proton AG.")
+        }
+
+        SectionCard {
+            title: qsTr("Help and project information")
+            description: qsTr("Open details only when you need them.")
+            iconName: "help-contents"
+
+            PlasmaListItem {
+                Layout.fillWidth: true
+                text: qsTr("Release notes")
+                subtitle: qsTr("What changed in this version and earlier releases")
+                icon.name: "view-pim-notes"
+                onClicked: applicationWindow().openOverviewDestination(
+                    "release-notes")
+            }
+
+            PlasmaListItem {
+                Layout.fillWidth: true
+                text: qsTr("Help and reporting")
+                subtitle: vpnController.supportReportSubmissionEnabled
+                          ? qsTr("Support and direct-reporting options")
+                          : qsTr("Community tracker · Direct Proton submission unavailable")
+                icon.name: "tools-report-bug"
+                onClicked: applicationWindow().openOverviewDestination(
+                    "report-issue")
+            }
         }
 
         SectionCard {
@@ -26,7 +66,7 @@ Kirigami.ScrollablePage {
             Controls.Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: qsTr("This client is independent community work and is not developed, reviewed, or endorsed by Proton AG. Networking, VPN protocols, account sessions, kill switch, and split tunneling remain provided by Proton's official open-source Linux core.")
+                text: qsTr("Networking, VPN protocols, account sessions, kill switch, and split tunneling remain provided by Proton's official open-source Linux core.")
             }
 
             RowLayout {
@@ -38,7 +78,7 @@ Kirigami.ScrollablePage {
                     onClicked: Qt.openUrlExternally("https://protonvpn.com/")
                 }
                 Controls.Button {
-                    text: qsTr("Support")
+                    text: qsTr("Proton service support")
                     icon.name: "help-contents"
                     onClicked: Qt.openUrlExternally(
                         "https://protonvpn.com/support-form")

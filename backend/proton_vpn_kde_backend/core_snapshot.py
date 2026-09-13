@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .controller import VpnSnapshot
+from .core_compatibility import cancellable_fido2_available
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +70,7 @@ def snapshot_from_state(state: Any, context: SnapshotContext) -> VpnSnapshot:
                 "fido_pin",
                 "fido_error",
             }
-            and bool(context.api.supports_fido2)
+            and cancellable_fido2_available(context.api)
         ),
         reconnect_enabled=context.reconnection_enabled,
         kill_switch=context.kill_switch,

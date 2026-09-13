@@ -81,7 +81,9 @@ fi
 install -m 0644 "$vendor_rpm" "$topdir/SOURCES/"
 install -m 0644 "$signing_key" "$topdir/SOURCES/"
 install -m 0644 "$manifest" "$topdir/SOURCES/"
+install -m 0644 "$manifest.license" "$topdir/SOURCES/"
 install -m 0755 "$overlay_dir/rebuild_overlay.py" "$topdir/SOURCES/"
+install -m 0644 "$overlay_dir/tests/test_killswitch_activation.py" "$topdir/SOURCES/"
 install -m 0644 "$overlay_dir/patches/"*.patch "$topdir/SOURCES/"
 install -m 0644 \
     "$overlay_dir/python3-proton-vpn-api-core-overlay.spec" \
@@ -92,12 +94,40 @@ rpmbuild -ba \
     --define "_tmppath $topdir/tmp" \
     "$topdir/SPECS/python3-proton-vpn-api-core-overlay.spec"
 
-overlay_rpm="$topdir/RPMS/x86_64/python3-proton-vpn-api-core-5.6.10-8.plasmavpn1.fc44.x86_64.rpm"
+overlay_nevra="$(python3 -c \
+    'import json,sys; print(json.load(open(sys.argv[1]))["overlay"]["nevra"])' \
+    "$manifest")"
+overlay_rpm="$topdir/RPMS/x86_64/$overlay_nevra.rpm"
 "$overlay_dir/rebuild_overlay.py" verify-rpm \
     --manifest "$overlay_dir/overlay-manifest.json" \
     --vendor-rpm "$vendor_rpm" \
     --signing-key "$signing_key" \
     --overlay-rpm "$overlay_rpm"
 
-sha256sum "$overlay_rpm"
-echo "$overlay_rpm"
+mapfile -t source_rpms < <(
+    find "$topdir/SRPMS" -type f \
+        -name 'python3-proton-vpn-api-core-*.src.rpm' -print
+)
+if [[ ${#source_rpms[@]} -ne 1 ]]; then
+    echo "Expected one source API Core overlay RPM" >&2
+    exit 1
+fi
+source_checks=(
+    "$vendor_rpm_name=$(realpath "$vendor_rpm")"
+    "overlay-manifest.json=$manifest"
+    "overlay-manifest.json.license=$manifest.license"
+    "rebuild_overlay.py=$overlay_dir/rebuild_overlay.py"
+    "test_killswitch_activation.py=$overlay_dir/tests/test_killswitch_activation.py"
+    "$signing_key_name=$(realpath "$signing_key")"
+)
+for patch_path in "$overlay_dir"/patches/*.patch; do
+    source_checks+=("$(basename "$patch_path")=$patch_path")
+done
+bash "$overlay_dir/../../../scripts/check-source-rpm-content.sh" \
+    "$overlay_rpm" \
+    "${source_rpms[0]}" \
+    "$overlay_dir/python3-proton-vpn-api-core-overlay.spec" \
+    "${source_checks[@]}"
+
+sha256sum "$overlay_rpm" "${source_rpms[0]}"
+printf '%s\n%s\n' "$overlay_rpm" "${source_rpms[0]}"

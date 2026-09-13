@@ -3,6 +3,7 @@
 
 #include "ShortcutIntegration.h"
 
+#include "AgentControl.h"
 #include "VpnConnectionController.h"
 
 #include <KGlobalAccel>
@@ -20,23 +21,30 @@ ShortcutIntegration::ShortcutIntegration(
 {
     QAction *toggleConnection = registerAction(
         QStringLiteral("toggle-connection"), tr("Toggle VPN connection"));
-    connect(toggleConnection, &QAction::triggered,
-            m_controller, &VpnConnectionController::activatePrimaryAction);
+    connect(toggleConnection, &QAction::triggered, this, [this] {
+        if (!m_controller->primaryActionEnabled()) {
+            return;
+        }
+        const QString action = m_controller->primaryActionDisconnects()
+            ? QStringLiteral("disconnect") : QStringLiteral("fastest");
+        ProtonVpnKde::requestConfirmedControlCenterAction(action);
+    });
 
     QAction *connectFastest = registerAction(
         QStringLiteral("connect-fastest"), tr("Connect to fastest VPN server"));
     connect(connectFastest, &QAction::triggered, this, [this] {
-        if (m_controller->state() == QStringLiteral("disconnected")) {
-            m_controller->connectTarget(QStringLiteral("FASTEST"));
+        if (m_controller->canConnect()) {
+            ProtonVpnKde::requestConfirmedControlCenterAction(
+                QStringLiteral("fastest"));
         }
     });
 
     QAction *disconnect = registerAction(
         QStringLiteral("disconnect"), tr("Disconnect VPN"));
     connect(disconnect, &QAction::triggered, this, [this] {
-        if (m_controller->state() == QStringLiteral("connected")
-            || m_controller->state() == QStringLiteral("connecting")) {
-            m_controller->activatePrimaryAction();
+        if (m_controller->canDisconnect()) {
+            ProtonVpnKde::requestConfirmedControlCenterAction(
+                QStringLiteral("disconnect"));
         }
     });
 

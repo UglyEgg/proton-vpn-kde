@@ -22,6 +22,12 @@ NotificationIntegration::NotificationIntegration(
 
 void NotificationIntegration::updateState()
 {
+    if (!m_controller->backendAvailable() || !m_controller->ready()) {
+        // Losing observation says nothing about the tunnel. The first healthy
+        // snapshot after a gap is a baseline, not a connection transition.
+        m_initialized = false;
+        return;
+    }
     const QString state = m_controller->state();
     const int forwardedPort = m_controller->forwardedPort();
     if (!m_initialized) {

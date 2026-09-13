@@ -25,10 +25,25 @@ class CustomDnsModelTest final : public QObject
 
 private slots:
     void appliesVersionedSettingsAtomically();
+    void dataReceiptPreservesRequestOwnership();
     void rejectsInvalidPayloadWithoutReplacingCurrentState();
     void normalizesAndFindsAddresses();
     void preservesExistingDuplicateEntries();
 };
+
+void CustomDnsModelTest::dataReceiptPreservesRequestOwnership()
+{
+    CustomDnsModel model;
+    model.setBusy(true);
+    model.setMessage(QStringLiteral("The current request is still completing"));
+    QVERIFY(model.applyJson(QString::fromUtf8(kValidSettings)));
+    QVERIFY(model.busy());
+    QCOMPARE(model.message(), QStringLiteral("The current request is still completing"));
+    QVERIFY(!model.applyJson(QStringLiteral("{}")));
+    QVERIFY(model.busy());
+    model.reset();
+    QVERIFY(!model.busy());
+}
 
 void CustomDnsModelTest::appliesVersionedSettingsAtomically()
 {

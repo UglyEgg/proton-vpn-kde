@@ -26,7 +26,6 @@ RowLayout {
     Controls.Label {
         Layout.fillWidth: true
         text: root.label
-        color: Kirigami.Theme.disabledTextColor
         wrapMode: Text.WordWrap
     }
 

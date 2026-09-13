@@ -29,8 +29,19 @@ AppSettings::AppSettings(QObject *parent)
 }
 
 bool AppSettings::notificationsEnabled() const { return m_notificationsEnabled; }
+AutostartSettings *AppSettings::autostart()
+{
+    if (!m_autostart) {
+        m_autostart = new AutostartSettings(this);
+    }
+    return m_autostart;
+}
 bool AppSettings::reconnectEnabled() const { return m_reconnectEnabled; }
 bool AppSettings::startMinimized() const { return m_startMinimized; }
+bool AppSettings::startTrayOnly(bool openSettings, bool forceShow) const
+{
+    return closeToTray() && startMinimized() && !openSettings && !forceShow;
+}
 bool AppSettings::closeToTray() const { return m_closeToTray; }
 QString AppSettings::autoConnectTarget() const { return m_autoConnectTarget; }
 QString AppSettings::pinnedServersText() const
@@ -63,9 +74,7 @@ void AppSettings::setNotificationsEnabled(bool enabled)
     if (m_notificationsEnabled == enabled) {
         return;
     }
-    m_notificationsEnabled = enabled;
     writeSetting("NotificationsEnabled", enabled);
-    emit notificationsEnabledChanged();
 }
 
 void AppSettings::setReconnectEnabled(bool enabled)
@@ -73,9 +82,7 @@ void AppSettings::setReconnectEnabled(bool enabled)
     if (m_reconnectEnabled == enabled) {
         return;
     }
-    m_reconnectEnabled = enabled;
     writeSetting("ReconnectEnabled", enabled);
-    emit reconnectEnabledChanged();
 }
 
 void AppSettings::setStartMinimized(bool enabled)
@@ -83,9 +90,7 @@ void AppSettings::setStartMinimized(bool enabled)
     if (m_startMinimized == enabled) {
         return;
     }
-    m_startMinimized = enabled;
     writeSetting("StartMinimized", enabled);
-    emit startMinimizedChanged();
 }
 
 void AppSettings::setCloseToTray(bool enabled)
@@ -93,9 +98,7 @@ void AppSettings::setCloseToTray(bool enabled)
     if (m_closeToTray == enabled) {
         return;
     }
-    m_closeToTray = enabled;
     writeSetting("CloseToTray", enabled);
-    emit closeToTrayChanged();
 }
 
 void AppSettings::setAutoConnectTarget(const QString &target)
@@ -104,9 +107,7 @@ void AppSettings::setAutoConnectTarget(const QString &target)
     if (m_autoConnectTarget == normalized) {
         return;
     }
-    m_autoConnectTarget = normalized;
     writeSetting("AutoConnectTarget", normalized);
-    emit autoConnectTargetChanged();
 }
 
 void AppSettings::setPinnedServersText(const QString &servers)
@@ -115,9 +116,7 @@ void AppSettings::setPinnedServersText(const QString &servers)
     if (m_pinnedServers == normalized) {
         return;
     }
-    m_pinnedServers = normalized;
     writeSetting("PinnedServers", normalized);
-    emit pinnedServersChanged();
 }
 
 bool AppSettings::isServerPinned(const QString &server) const
@@ -139,9 +138,7 @@ void AppSettings::togglePinnedServer(const QString &server)
         }
         updated.append(normalized);
     }
-    m_pinnedServers = updated;
     writeSetting("PinnedServers", updated);
-    emit pinnedServersChanged();
 }
 
 bool AppSettings::isServerGroupPinned(const QString &countryCode,
@@ -174,14 +171,12 @@ void AppSettings::togglePinnedServerGroup(const QString &countryCode,
         updated.removeAt(static_cast<qsizetype>(
             std::distance(updated.cbegin(), existing)));
     }
-    m_pinnedServerGroups = updated;
     QStringList encoded;
     encoded.reserve(updated.size());
     for (const PinnedServerGroup &group : updated) {
         encoded.append(encodePinnedServerGroup(group));
     }
     writeSetting("PinnedServerGroups", encoded);
-    emit pinnedServerGroupsChanged();
 }
 
 void AppSettings::setPacketCaptureDirectory(const QString &directory)
@@ -191,9 +186,7 @@ void AppSettings::setPacketCaptureDirectory(const QString &directory)
         || normalized.size() > 4096 || m_packetCaptureDirectory == normalized) {
         return;
     }
-    m_packetCaptureDirectory = normalized;
     writeSetting("PacketCaptureDirectory", normalized);
-    emit packetCaptureDirectoryChanged();
 }
 
 void AppSettings::setPacketCaptureDirectoryUrl(const QUrl &directory)
@@ -209,9 +202,7 @@ void AppSettings::setIconStyle(const QString &style)
     if (m_iconStyle == normalized) {
         return;
     }
-    m_iconStyle = normalized;
     writeSetting("IconStyle", normalized);
-    emit iconStyleChanged();
 }
 
 void AppSettings::setFastestFeatures(const QStringList &features)
@@ -220,9 +211,7 @@ void AppSettings::setFastestFeatures(const QStringList &features)
     if (m_fastestFeatures == normalized) {
         return;
     }
-    m_fastestFeatures = normalized;
     writeSetting("FastestFeatures", normalized);
-    emit fastestFeaturesChanged();
 }
 
 bool AppSettings::fastestFeatureEnabled(const QString &feature) const
@@ -309,25 +298,30 @@ void AppSettings::reloadSettings()
     }
 }
 
-void AppSettings::writeSetting(const char *key, bool value)
+template<typename T>
+void AppSettings::writeSetting(const char *key, const T &value)
 {
+    // Read desktop policy again before writing. Only confirmed stored values
+    // may notify consumers (including auto-connect and the resident agent).
+    m_config->reparseConfiguration();
     KConfigGroup group(m_config, QString::fromLatin1(kGeneralGroup));
-    group.writeEntry(key, value, KConfigBase::Notify);
-    m_config->sync();
-}
-
-void AppSettings::writeSetting(const char *key, const QString &value)
-{
-    KConfigGroup group(m_config, QString::fromLatin1(kGeneralGroup));
-    group.writeEntry(key, value, KConfigBase::Notify);
-    m_config->sync();
-}
-
-void AppSettings::writeSetting(const char *key, const QStringList &value)
-{
-    KConfigGroup group(m_config, QString::fromLatin1(kGeneralGroup));
-    group.writeEntry(key, value, KConfigBase::Notify);
-    m_config->sync();
+    bool saved = false;
+    if (!group.isEntryImmutable(key)) {
+        group.writeEntry(key, value, KConfigBase::Notify);
+        saved = m_config->sync();
+        if (!saved) {
+            m_config->markAsClean(); // Never retry an unacknowledged write later.
+        }
+        m_config->reparseConfiguration();
+        saved = saved && group.hasKey(key) && group.readEntry(key, T{}) == value;
+    }
+    const QString error = saved ? QString()
+        : tr("Unable to save the Plasma preference. Check file permissions or desktop policy; the stored setting remains in effect.");
+    if (m_errorMessage != error) {
+        m_errorMessage = error;
+        emit errorMessageChanged();
+    }
+    reloadSettings();
 }
 
 QString AppSettings::normalizeConnectionTarget(const QString &target)

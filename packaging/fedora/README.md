@@ -15,38 +15,55 @@ package contract; removing it requires separate upstream runtime evidence.
 The spec is the authoritative build and runtime dependency list. The principal
 native dependencies are Qt 6, KDE Frameworks 6, Kirigami, OpenSSL 3, and the
 system Python interpreter. Runtime integration additionally uses
-`python3-dbus-fast`, `python3-cryptography`, `python3-fido2`, and Proton VPN API
-Core 5.5.6 or newer. Session storage reaches Freedesktop Secret Service through
-Proton's separately packaged keyring adapter. Until the provider-neutral fixes
-are upstream, this repository builds a reviewable downstream adapter from
-Proton's pinned source and requires its explicit RPM capability. The verified
-KeePassXC stack and retirement policy are recorded in
+`python3-dbus-fast`, `python3-cryptography`, `python3-fido2`, and the reviewed
+Proton VPN API Core 5.6.20 overlay. The RPM retains 5.6.10 as its tested API
+floor and requires the overlay's separate Protun capability. The adapter also
+retains a static public-API floor check against 5.5.6, but that historical
+package is never imported or executed by the supported build. Session storage
+reaches Freedesktop Secret Service through Proton's separately packaged
+keyring adapter. Until the
+provider-neutral alias, stable-connection, and unique-owner-pinning fixes are
+upstream, this repository builds a reviewable downstream adapter from Proton's
+pinned source and requires its explicit owner-pinned RPM capability. The
+verified KeePassXC stack and retirement policy are recorded in
 [Compatibility](../../docs/COMPATIBILITY.md); the client RPM never overwrites
 an installed Python file outside package ownership.
 
 ## Build
 
-Create the source archive from the exact clean release tag:
+Create a fresh RPM top directory from the exact clean release tag. The helper
+adds the exact commit identity using normalized archive metadata:
 
 ```bash
-git archive \
-    --format=tar.gz \
-    --prefix=proton-vpn-kde-0.11.3/ \
-    --output="${HOME}/rpmbuild/SOURCES/proton-vpn-kde-0.11.3.tar.gz" \
-    v0.11.3
+version="$(sed -n 's/^Version:[[:space:]]*//p' \
+    packaging/fedora/proton-vpn-kde.spec | head -n 1)"
+topdir="$PWD/build-release"
+packaging/fedora/prepare-rpmbuild-tree.sh \
+    "$topdir" \
+    "$PWD/packaging/fedora/proton-vpn-kde.spec" \
+    "v${version}"
 ```
+
+For a local, untagged soak candidate, use the exact signed commit instead of
+`v${version}` and retain that commit identifier with the resulting artifacts.
 
 Build with the direct Plasma status-notifier integration:
 
 ```bash
-rpmbuild -ba packaging/fedora/proton-vpn-kde.spec
+rpmbuild \
+    --define "_topdir $topdir" \
+    --define "_tmppath $topdir/TMP" \
+    -ba "$topdir/SPECS/proton-vpn-kde.spec"
 ```
 
 For a development machine without `kf6-kstatusnotifieritem-devel`, the Qt
 system-tray fallback can be packaged explicitly:
 
 ```bash
-rpmbuild -ba --without kstatusnotifier packaging/fedora/proton-vpn-kde.spec
+rpmbuild \
+    --define "_topdir $topdir" \
+    --define "_tmppath $topdir/TMP" \
+    -ba --without kstatusnotifier "$topdir/SPECS/proton-vpn-kde.spec"
 ```
 
 The fallback remains a Qt/Plasma application and does not introduce GTK or
@@ -59,15 +76,27 @@ floor, and the full CTest suite in `%check`; it also disables direct Proton
 support-report and crash-report submission. A package is not releasable when
 `%check` is skipped or fails.
 
+Qt resource timestamps use the exact source commit epoch from the normalized
+`.source-commit` archive member, not the day-resolution RPM changelog epoch.
+This preserves repeatable resource metadata while invalidating older cached
+QML after same-day candidate upgrades. The KCM package test checks that
+embedded timestamp and uses disposable configuration and cache directories.
+
 Source CI additionally runs the complete backend suite under Python 3.11 with
 hash-pinned minimum direct dependencies and checks the adapter's consumed
-public API against Proton's exact SHA-256-pinned Fedora 44 Core 5.5.6 RPM.
+public API against Proton's exact SHA-256-pinned Fedora 44 Core 5.5.6 RPM. That
+is a secondary static compatibility-floor check; current runtime and packaging
+validation execute the pinned 5.6.20 overlay, including its queued-connection
+state-machine contract.
 
-The dedicated `RPM Package` CI workflow performs the same source and binary RPM
-build for every pushed commit and pull request. It first builds and tests the
+The dedicated `RPM Package` CI workflow performs one source and binary RPM
+build for every pull-request update. It first builds and tests the
 provider-neutral keyring RPM and the Plasma-compatible API-Core overlay from
-pinned Proton inputs, then builds the client, validates all three packages,
-and retains each source and binary artifact for review. Proton VPN API Core is
+pinned Proton inputs, validates all three packages, and checks their transaction
+boundary. Tag and explicit manual release runs additionally build the API-Core
+overlay twice in distinct clean top directories, build the client twice under a
+normalized RPM path, require byte-identical RPM/SRPM pairs, and retain all six
+artifacts for review. Proton VPN API Core is
 still a runtime rather than build dependency of the client: the isolated
 client test suite does not import or modify the installed Core, while the
 finished Fedora package requires the explicit keyring and Protun interoperability

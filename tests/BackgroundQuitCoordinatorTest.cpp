@@ -24,7 +24,11 @@ public:
     int forwardedPort() const override { return 0; }
     QString message() const override { return {}; }
     QString primaryActionText() const override { return {}; }
-    bool primaryActionEnabled() const override { return true; }
+    ProtonVpnKde::ConnectionActionCapabilities connectionCapabilities() const override
+    {
+        return ProtonVpnKde::connectionActionCapabilities(
+            backend, true, healthy, true, operationBusy, connectionState, u"signed_in");
+    }
 
     void activatePrimaryAction() override {}
     void connectTarget(const QString &) override {}
@@ -39,6 +43,7 @@ public:
     }
 
     bool backend = true;
+    bool healthy = true;
     bool operationBusy = false;
     int disconnectCalls = 0;
     QString connectionState = QStringLiteral("connected");
@@ -53,6 +58,9 @@ private slots:
     void waitsForConfirmedDisconnectBeforeQuitting();
     void waitsForDisconnectAlreadyInProgress();
     void quitsImmediatelyWhenAlreadyDisconnected();
+    void initialDisconnectedStillRequiresAnIdleAvailableBackend();
+    void unreadableStateCannotConfirmDisconnect_data();
+    void unreadableStateCannotConfirmDisconnect();
     void keepsControlsAliveWhenDisconnectTimesOut();
 };
 
@@ -119,6 +127,58 @@ void BackgroundQuitCoordinatorTest::keepsControlsAliveWhenDisconnectTimesOut()
 
     QTRY_COMPARE_WITH_TIMEOUT(timeoutSpy.count(), 1, 1000);
     QCOMPARE(readySpy.count(), 0);
+    QVERIFY(!coordinator.pending());
+}
+
+void BackgroundQuitCoordinatorTest::initialDisconnectedStillRequiresAnIdleAvailableBackend()
+{
+    for (const bool backendAvailable : {false, true}) {
+        FakeVpnController controller;
+        controller.connectionState = QStringLiteral("disconnected");
+        controller.backend = backendAvailable;
+        controller.operationBusy = backendAvailable;
+        BackgroundQuitCoordinator coordinator(&controller, 1000);
+        QSignalSpy readySpy(&coordinator, &BackgroundQuitCoordinator::readyToQuit);
+
+        coordinator.disconnectAndQuit();
+
+        QCOMPARE(readySpy.count(), 0);
+        QVERIFY(coordinator.pending());
+        controller.backend = true;
+        controller.publish(QStringLiteral("disconnected"), false);
+        QCOMPARE(readySpy.count(), 1);
+    }
+}
+
+void BackgroundQuitCoordinatorTest::unreadableStateCannotConfirmDisconnect_data()
+{
+    QTest::addColumn<bool>("initiallyUnreadable");
+    QTest::newRow("unreadable-on-entry") << true;
+    QTest::newRow("unreadable-while-waiting") << false;
+}
+
+void BackgroundQuitCoordinatorTest::unreadableStateCannotConfirmDisconnect()
+{
+    QFETCH(bool, initiallyUnreadable);
+    FakeVpnController controller;
+    if (initiallyUnreadable) {
+        controller.connectionState = QStringLiteral("disconnected");
+        controller.healthy = false;
+    }
+    BackgroundQuitCoordinator coordinator(&controller, 1000);
+    QSignalSpy readySpy(&coordinator, &BackgroundQuitCoordinator::readyToQuit);
+    coordinator.disconnectAndQuit();
+    QCOMPARE(readySpy.count(), 0);
+    QVERIFY(coordinator.pending());
+
+    controller.healthy = false;
+    controller.publish(QStringLiteral("disconnected"));
+    QCOMPARE(readySpy.count(), 0);
+    QVERIFY(coordinator.pending());
+
+    controller.healthy = true;
+    controller.publish(QStringLiteral("disconnected"));
+    QCOMPARE(readySpy.count(), 1);
     QVERIFY(!coordinator.pending());
 }
 

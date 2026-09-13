@@ -21,12 +21,25 @@ Kirigami.ScrollablePage {
         !splitSettings.enabled
         || (protocolCompatible && vpnSettings.killSwitch === 0)
 
-    Component.onCompleted: {
-        if (vpnController.loggedIn && !vpnSettings.loaded) {
+    function ensureModels() {
+        if (vpnController.ready && vpnController.loggedIn
+                && !vpnSettings.loaded && !vpnSettings.busy) {
             vpnController.loadSettings()
         }
-        if (vpnController.loggedIn && !splitSettings.loaded) {
+        if (vpnController.ready && vpnController.loggedIn
+                && !splitSettings.loaded && !splitSettings.busy) {
             vpnController.loadSplitTunneling()
+        }
+    }
+
+    Component.onCompleted: page.ensureModels()
+
+    Connections {
+        target: vpnController
+        function onSnapshotChanged() {
+            if (vpnController.ready && vpnController.loggedIn) {
+                Qt.callLater(page.ensureModels)
+            }
         }
     }
 
@@ -34,6 +47,7 @@ Kirigami.ScrollablePage {
 
     ListView {
         id: applicationList
+        enabled: vpnController.ready
         model: vpnController.applicationModel
         spacing: Kirigami.Units.smallSpacing
 
@@ -178,7 +192,7 @@ Kirigami.ScrollablePage {
                         onClicked: vpnController.removeSplitTunnelingIpRange(
                             selectedIpRangeDelegate.modelData)
 
-                        Controls.ToolTip.visible: hovered
+                        Controls.ToolTip.visible: hovered || activeFocus
                         Controls.ToolTip.text: text
                     }
                 }
@@ -260,7 +274,7 @@ Kirigami.ScrollablePage {
                         onClicked: vpnController.setSplitTunnelingApplication(
                             selectedApplicationDelegate.modelData, false)
 
-                        Controls.ToolTip.visible: hovered
+                        Controls.ToolTip.visible: hovered || activeFocus
                         Controls.ToolTip.text: text
                     }
                 }
@@ -311,7 +325,7 @@ Kirigami.ScrollablePage {
             onClicked: vpnController.setSplitTunnelingApplication(
                 applicationDelegate.executable, checked)
 
-            Controls.ToolTip.visible: hovered
+            Controls.ToolTip.visible: hovered || activeFocus
             Controls.ToolTip.text:
                 applicationDelegate.applicationComment.length > 0
                 ? applicationDelegate.applicationComment + "\n"

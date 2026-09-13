@@ -5,6 +5,7 @@
 #include "AgentVpnClient.h"
 #include "AppIcon.h"
 #include "AppSettings.h"
+#include "NativeStartup.h"
 #include "NotificationIntegration.h"
 #include "ShortcutIntegration.h"
 #include "TranslationLoader.h"
@@ -14,6 +15,7 @@
 
 int main(int argc, char *argv[])
 {
+    ProtonVpnKde::prepareNativeStartup(argv);
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("proton-vpn-kde"));
     QApplication::setApplicationDisplayName(QStringLiteral("Plasma VPN Agent"));

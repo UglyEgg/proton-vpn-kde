@@ -1,8 +1,10 @@
 # Third-party notices
 
-SPDX headers identify project-authored source and build files. They are not
-applied to Proton-derived patch payloads, imported translation catalogs,
-screenshots, or artwork; the provenance of those materials is recorded below.
+SPDX headers identify project-authored source and build files; sibling
+`.license` annotations cover strict JSON, which cannot carry comments. The
+community copyright line is not applied to Proton-derived patch payloads,
+imported translation catalogs, screenshots, or artwork; the provenance of
+those materials is recorded below.
 
 ## Proton VPN Linux Core
 
@@ -31,20 +33,31 @@ imported. See `translations/README.md` for the reproducible import process.
 Files under `packaging/fedora/api-core-overlay/patches/` are source patches for
 the separately packaged GPL-licensed Proton VPN API Core. The overlay build
 records the exact accepted upstream package version and patch digests. The
-overlay is optional and does not replace or redistribute the complete upstream
-source repository.
+Fedora client package requires this independently reviewable overlay because it
+supplies the Protun secret-handling capability used by the Plasma release. Its
+source RPM reconstructs Proton's signed binary payload with the recorded
+patches; it does not claim to be an official Proton build or redistribute the
+complete upstream source repository. Proton AG remains identified as the
+upstream author, while the rebuilt RPM identifies Plasma VPN contributors as
+its downstream vendor. Every modified upstream source retains Proton's
+copyright and GPL notice; these payload patches introduce no new source files.
 
 ## Proton keyring overlay patches
 
 Files under `packaging/fedora/keyring-overlay/patches/` modify the separately
-packaged, GPL-3.0-only Proton Linux keyring adapter. The repository records the
-exact upstream tag and commit, archive and patch digests, Fedora spec, focused
-tests, and downstream package identity. Release builds fetch the complete
-upstream source and publish a corresponding source RPM beside the binary RPM.
+packaged, GPL-3.0-or-later Proton Linux keyring adapter. The repository records
+the exact upstream tag and commit, archive and patch digests, Fedora spec,
+focused tests, and downstream package identity. Release builds fetch the
+complete upstream source and publish a corresponding source RPM beside the
+binary RPM.
 
 The modified adapter remains Proton-derived software under its upstream
 license. The downstream package and changes are unofficial and are not
 represented as authored, reviewed, supported, or endorsed by Proton AG.
+Existing source files retain their Proton notices. The new provider-neutral
+test module carries Proton's current 2026 copyright and GPL notice in the
+upstream-targeted patch, consistent with a contribution intended for copyright
+assignment to Proton AG.
 
 ## Names and marks
 

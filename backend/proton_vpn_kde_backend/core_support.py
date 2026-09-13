@@ -5,15 +5,20 @@
 
 from __future__ import annotations
 
-import asyncio
 from contextlib import ExitStack
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
 from . import __version__
+from .async_utils import await_owned, run_in_daemon_thread
 from .controller import NpsSurveyResponse, SupportReport
-from .errors import UserVisibleRuntimeError
+from .errors import (
+    NpsCompletionUnknownError,
+    UserVisibleRuntimeError,
+    is_proton_authentication_needed,
+)
 from .support import collect_support_logs
 
 
@@ -22,7 +27,9 @@ async def submit_support_report(api: Any, report: SupportReport) -> None:
 
     with TemporaryDirectory(prefix="proton-vpn-kde-support-") as directory:
         log_paths = (
-            await asyncio.to_thread(collect_support_logs, Path(directory))
+            await run_in_daemon_thread(
+                lambda: collect_support_logs(Path(directory))
+            )
             if report.include_logs
             else []
         )
@@ -40,7 +47,9 @@ async def submit_support_report(api: Any, report: SupportReport) -> None:
             )
             try:
                 await api.submit_bug_report(report_form)
-            except Exception:
+            except Exception as error:
+                if is_proton_authentication_needed(error):
+                    raise
                 raise UserVisibleRuntimeError(
                     "Proton could not submit the issue report"
                 ) from None
@@ -56,7 +65,15 @@ async def take_pending_nps_survey(api: Any) -> bool:
     while notifications:
         survey = notifications.pop()
         if not survey.seen and survey.is_active:
-            await asyncio.to_thread(api.set_notification_seen, survey.survey_id)
+            # Core writes its local JSON cache synchronously. Keep filesystem
+            # work off the D-Bus event loop, but retain task ownership through
+            # cancellation so teardown cannot overtake the cache mutation.
+            survey_id = survey.survey_id
+            await await_owned(
+                run_in_daemon_thread(
+                    partial(api.set_notification_seen, survey_id)
+                )
+            )
             return True
     return False
 
@@ -77,7 +94,9 @@ async def submit_nps_survey(api: Any, response: NpsSurveyResponse) -> None:
                 response_type=response_type,
             )
         )
-    except Exception:
-        raise UserVisibleRuntimeError(
-            "Proton could not submit the survey response"
+    except Exception as error:
+        if is_proton_authentication_needed(error):
+            raise
+        raise NpsCompletionUnknownError(
+            "Survey submission completion could not be confirmed"
         ) from None

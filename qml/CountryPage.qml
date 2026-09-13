@@ -18,6 +18,9 @@ Kirigami.ScrollablePage {
     property var serverContextGeneration: 0
 
     title: countryFlag + "  " + countryName
+    footer: ServerBrowserFeedback {
+        loadError: vpnController.serverGroupsError
+    }
 
     function groupSummary(serverCount, accessible, underMaintenance,
                           smartRouting, tor, p2p, streaming) {
@@ -59,7 +62,8 @@ Kirigami.ScrollablePage {
                        ? "network-connect" : "internet-web-browser"
             enabled: !page.countryUnderMaintenance
                      && (page.countryAccessible
-                         ? vpnController.primaryActionEnabled : true)
+                         ? applicationWindow().browserConnectionActionEnabled
+                         : true)
             onTriggered: {
                 if (page.countryAccessible) {
                     if (page.requiredCapabilities.length > 0) {
@@ -76,7 +80,7 @@ Kirigami.ScrollablePage {
         Kirigami.Action {
             text: qsTr("Refresh")
             icon.name: "view-refresh"
-            enabled: !vpnController.locationsBusy
+            enabled: vpnController.ready && !vpnController.locationsBusy
             onTriggered: vpnController.loadServerGroups(page.countryCode)
         }
     ]
@@ -99,6 +103,7 @@ Kirigami.ScrollablePage {
         Kirigami.PlaceholderMessage {
             anchors.centerIn: parent
             visible: groupList.count === 0
+                     && vpnController.serverGroupsError.length === 0
             text: vpnController.locationsBusy
                   ? qsTr("Loading locations…")
                   : page.requiredCapabilities.length > 0
@@ -154,7 +159,8 @@ Kirigami.ScrollablePage {
                     display: Controls.AbstractButton.IconOnly
                     enabled: !groupDelegate.underMaintenance
                              && (groupDelegate.accessible
-                                 ? vpnController.primaryActionEnabled : true)
+                                 ? applicationWindow().browserConnectionActionEnabled
+                                 : true)
                     onClicked: {
                         if (groupDelegate.accessible) {
                             vpnController.connectGroup(

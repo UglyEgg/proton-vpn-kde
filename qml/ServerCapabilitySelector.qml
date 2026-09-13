@@ -31,25 +31,41 @@ Flow {
 
     Controls.CheckBox {
         text: qsTr("P2P")
+        icon.name: "folder-network"
         checked: root.selectedFeatures.indexOf("p2p") >= 0
-        onToggled: root.updateFeature("p2p", checked)
+        onToggled: {
+            root.updateFeature("p2p", checked)
+            checked = Qt.binding(() => root.selectedFeatures.indexOf("p2p") >= 0)
+        }
     }
 
     Controls.CheckBox {
         text: qsTr("Streaming")
+        icon.name: "applications-multimedia"
         checked: root.selectedFeatures.indexOf("streaming") >= 0
-        onToggled: root.updateFeature("streaming", checked)
+        onToggled: {
+            root.updateFeature("streaming", checked)
+            checked = Qt.binding(() => root.selectedFeatures.indexOf("streaming") >= 0)
+        }
     }
 
     Controls.CheckBox {
         text: qsTr("Tor")
+        icon.name: "security-medium"
         checked: root.selectedFeatures.indexOf("tor") >= 0
-        onToggled: root.updateFeature("tor", checked)
+        onToggled: {
+            root.updateFeature("tor", checked)
+            checked = Qt.binding(() => root.selectedFeatures.indexOf("tor") >= 0)
+        }
     }
 
     Controls.CheckBox {
         text: qsTr("Secure Core")
+        icon.name: "security-high"
         checked: root.selectedFeatures.indexOf("secure-core") >= 0
-        onToggled: root.updateFeature("secure-core", checked)
+        onToggled: {
+            root.updateFeature("secure-core", checked)
+            checked = Qt.binding(() => root.selectedFeatures.indexOf("secure-core") >= 0)
+        }
     }
 }

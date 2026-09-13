@@ -35,6 +35,37 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Error de conexión</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Desactivada</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Estándar</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Conexión</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Protocolo</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>Interruptor de bloqueo</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Túnel dividido</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -81,6 +112,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Cuenta</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Iniciar sesión</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Ajustes</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Notas de la versión</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Informar de un problema</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>Acerca de</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Error de conexión: límite de sesiones alcanzado</translation>
@@ -165,30 +223,6 @@ Actualiza la hora del sistema e intenta conectarte de nuevo.</translation>
             <source>Close</source>
             <translation>Cerrar</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Cuenta</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Iniciar sesión</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Ajustes</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Notas de la versión</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Informar de un problema</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>Acerca de</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -229,6 +263,13 @@ Actualiza la hora del sistema e intenta conectarte de nuevo.</translation>
         </message>
     </context>
     <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Desactivada</translation>
+        </message>
+    </context>
+    <context>
         <name>ReleaseNotesPage</name>
         <message>
             <source>Release notes</source>
@@ -263,22 +304,6 @@ Actualiza la hora del sistema e intenta conectarte de nuevo.</translation>
             <source>Settings</source>
             <translation>Ajustes</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Desactivada</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Estándar</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Túnel dividido</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Acceso beta</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -309,6 +334,31 @@ Actualiza la hora del sistema e intenta conectarte de nuevo.</translation>
         <message>
             <source>Security key</source>
             <translation>Clave de seguridad</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Túnel dividido</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Acceso beta</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Desactivada</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Estándar</translation>
         </message>
     </context>
     <context>

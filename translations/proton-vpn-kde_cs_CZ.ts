@@ -31,6 +31,33 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Chyba připojení</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Vyp.</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standardní</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Připojení</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Protokol</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>Kill Switch</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -77,6 +104,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Účet</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Přihlásit se</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Nastavení</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Seznam změn</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Nahlásit problém</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>O aplikaci</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Chyba připojení: překročen limit aktivních zařízení</translation>
@@ -153,30 +207,6 @@ Aktualizujte svůj systémový čas a zkuste se připojit znovu.</translation>
             <source>Close</source>
             <translation>Zavřít</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Účet</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Přihlásit se</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Nastavení</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Seznam změn</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Nahlásit problém</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>O aplikaci</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -217,6 +247,13 @@ Aktualizujte svůj systémový čas a zkuste se připojit znovu.</translation>
         </message>
     </context>
     <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Vyp.</translation>
+        </message>
+    </context>
+    <context>
         <name>ReleaseNotesPage</name>
         <message>
             <source>Release notes</source>
@@ -251,18 +288,6 @@ Aktualizujte svůj systémový čas a zkuste se připojit znovu.</translation>
             <source>Settings</source>
             <translation>Nastavení</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Vyp.</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Standardní</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Beta přístup</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -293,6 +318,24 @@ Aktualizujte svůj systémový čas a zkuste se připojit znovu.</translation>
         <message>
             <source>Security key</source>
             <translation>Bezpečnostní klíč</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Beta přístup</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Vyp.</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standardní</translation>
         </message>
     </context>
     <context>

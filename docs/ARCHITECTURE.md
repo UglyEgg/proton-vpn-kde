@@ -1,231 +1,251 @@
 # Architecture
 
-## Design boundary
+## Boundaries
 
-Plasma VPN is a native KDE frontend around Proton's official Linux VPN Core.
-Its architecture follows five invariants:
+1. Proton Core owns VPN protocols, NetworkManager, routing, DNS, kill switch,
+   IPv6 leak protection, split tunneling, server scoring, VPN credentials, and
+   persisted Proton sessions.
+2. Community code owns the Plasma interface, validation, D-Bus policy,
+   lifecycle coordination, and the adapter around Core's public API.
+3. Authentication plaintext is excluded from D-Bus arguments, snapshots,
+   notifications, and logs.
+4. Closing the Control Center does not disconnect an active tunnel.
+5. The disconnected resident path does not load QML, Proton Core, or the
+   server model.
+6. Local authorization targets ordinary and sandboxed session peers, not
+   arbitrary native code already executing as the desktop user.
 
-1.  Proton Core owns VPN protocols, NetworkManager integration, kill switch,
-    IPv6 leak protection, split tunneling, server scoring, session persistence,
-    and packet-capture writing.
-2.  Community code owns presentation, Plasma integration, bounded validation,
-    lifecycle coordination, and a versioned adapter around Core's public API.
-3.  Plaintext credentials and second factors never appear in D-Bus arguments,
-    snapshots, notifications, or logs.
-4.  Closing or restarting the Control Center does not implicitly disconnect an
-    active tunnel.
-5.  The disconnected resident footprint does not include QML, Proton Core, or
-    the complete server model.
+The Fedora API-Core overlay is a declared downstream build, not an unmodified
+Proton binary. Release revision `5.6.20-3.plasmavpn1.fc44` carries five
+manifested patches, including Protun secret ownership and explicit activation
+of validated protection profiles. Core retains ownership of protection rules
+and connection state. See the [overlay manifest and policy](../packaging/fedora/api-core-overlay/README.md).
 
 ## Process model
 
 ```text
-┌───────────────────────────────────────┐
-│ proton-vpn-kde-agent                  │
-│ resident C++/Qt/KF6 process           │
-│ tray · shortcuts · notifications      │
-└───────────────────┬───────────────────┘
-                    │ observes; temporary lease for actions
-┌───────────────────▼───────────────────┐
-│ proton-vpn-kde                        │
-│ on-demand C++/Qt/Kirigami process     │
-│ Control Center · settings · sign-in   │
-└───────────────────┬───────────────────┘
-                    │ authenticated session D-Bus
-┌───────────────────▼───────────────────┐
-│ proton-vpn-kde-backend                │
-│ unprivileged Python/asyncio service   │
-│ bounded adapter · state · lifecycle   │
-└───────────────────┬───────────────────┘
-                    │ official public Python API
-┌───────────────────▼───────────────────┐
-│ python3-proton-vpn-api-core           │
-│ official Proton package               │
-│ protocols · NetworkManager · KS · ST  │
-└───────────────────────────────────────┘
+proton-vpn-kde-agent                  resident C++/Qt/KF6
+  tray · shortcuts · notifications
+                 │ observation and transient action lease
+proton-vpn-kde                        on-demand C++/Qt/Kirigami
+  Control Center · Inspector · settings
+                 │ authenticated session D-Bus
+proton-vpn-kde-backend                unprivileged Python/asyncio
+  validation · state · lifecycle · Core adapter
+                 │ public Python API
+python3-proton-vpn-api-core           Proton plus declared Fedora overlay
+  VPN protocols · NetworkManager · protection · sessions
 ```
-The official privileged split-tunneling daemon remains unchanged. KRunner is
-not shown as a backend client because the shared KRunner process is
-deliberately outside the trusted set; it sends bounded requests to the Control
-Center and requires confirmation there.
 
-## Responsibility map
+The privileged Proton split-tunneling daemon is unchanged. KRunner is not a
+backend client; it sends bounded requests to the Control Center for explicit
+confirmation.
 
+| Concern | Owner |
+| --- | --- |
+| Control Center, agent, KRunner, KCM, notifications | Community C++/Qt/KF6 |
+| Validation, public errors, lifecycle, reconnection | Community Python adapter |
+| Account authentication and session persistence | Proton SSO/Core and Secret Service |
+| Server construction, access checks, fastest scoring | Proton Core |
+| Protocols, profiles, routes, DNS, protection | Proton Core and Proton services |
+| UI preferences and pinned targets | KConfig |
+| VPN, DNS, and split-tunnel settings | Proton Core settings objects |
 
-|Concern|Owner|
-|-|-|
-|Control Center, tray, KRunner, KCM, shortcuts, and notifications|Community C++/Qt/KF6 code|
-|Input schemas, public error vocabulary, process lifetime, and reconnection scheduling|Community adapter|
-|Account authentication and persisted Proton session|Official Proton SSO/Core through Secret Service|
-|Server construction, feature flags, access checks, and fastest scoring|Official Proton Core|
-|VPN protocols, routes, DNS application, kill switch, IPv6 leak protection, and split tunneling|Official Proton Core and its packaged services|
-|User-interface preferences and pinned targets|KConfig|
-|VPN settings, custom DNS, and split-tunneling configuration|Official Core settings objects|
+`ProtonCoreAdapter` is the backend facade. Focused modules implement
+compatibility, protocol discovery, server projection, snapshots, support, and
+capture. `VpnController` is the single QML-facing native type; its actions,
+locations, settings, lifecycle, and snapshots are separate implementation
+units. QML pages own navigation and visual lifetime.
 
-The Python `ProtonCoreAdapter` remains the stable facade consumed by the
-backend controller. Provider-object translation, compatibility probes,
-protocol discovery, snapshot construction, support workflows, and the bounded
-packet-capture state machine live in focused modules behind that facade. The
-native `VpnController` similarly remains the single QML-facing type while its
-actions, location requests, settings, backend lifecycle, and snapshot handling
-are compiled as separate implementation units. QML pages own navigation and
-lifecycle; reusable dialogs and settings cards receive explicit controller or
-model inputs rather than reaching through implicit application state.
+## D-Bus contract
 
-## Session D-Bus contract
+The backend exports:
 
-The adapter exports:
-
-- bus name `quest.entropy.PlasmaVPN.Backend`;
-- object path `/quest/entropy/PlasmaVPN/Backend`; and
+- name `quest.entropy.PlasmaVPN.Backend`;
+- path `/quest/entropy/PlasmaVPN/Backend`; and
 - interface `quest.entropy.PlasmaVPN.Backend1`.
 
-The installed introspection XML under `data/dbus/` is the authoritative
-machine-readable contract for the backend, resident agent, and Control Center.
-Native endpoint, method, signal, and error constants and the Python contract and
-authorization definitions are generated from those files. Static analysis
-rejects stale generated output, and a backend test compares the Python service's
-live signatures with Backend1 before a contract change can merge.
+The XML under `data/dbus/` is authoritative. Native and Python constants,
+method classifications, signals, and errors are generated from it. CI rejects
+generated drift and compares the live Python signatures with the XML.
 
-The version-one contract groups operations into:
+Schema-1 operations cover snapshots, browsing, connection control, settings,
+authentication, account state, NPS, packet capture, authorization, and
+lifetime leases. Structured payloads are field-allowlisted, type/range checked,
+and size bounded. Incompatible changes require a new interface version.
 
-- non-sensitive snapshots and server browsing;
-- connection and reconnection control;
-- VPN settings, custom DNS, and split-tunneling settings;
-- sign-in, second-factor, FIDO2, logout, and the narrow signed-out kill-switch
-  recovery action;
-- NPS survey state;
-- bounded packet-capture lifecycle; and
-- client authorization and lifetime leases.
+The backend captures the actual message sender before dispatch. Protected
+methods require the current packaged client identity and recheck authorization
+before the operation body runs. Native clients independently verify and pin the
+backend's unique owner before calls or subscriptions. Owner loss revokes
+authorization, leases, and pending secret keys. Replies and signals from an
+obsolete owner generation are discarded.
 
-Structured payloads include a schema version. Input JSON is field-allowlisted,
-type-checked, range-checked, and bounded before it reaches Core. An
-incompatible contract change requires a new D-Bus interface version; additive
-version-one changes must preserve existing clients.
+All packaged processes are activated through dedicated systemd user services.
+Root-owned executable paths are fixed at build time. Their services, launchers,
+and native entry points apply the same generated denylist for dynamic-loader,
+OpenSSL-provider, GIO/GI, Python, Qt-plugin, and QML search overrides. A direct
+native launch re-executes `/proc/self/exe` before Qt initialization when cleanup
+was required. Failure exits before application startup.
 
-Read-only status remains separate from mutation authority. The backend captures
-the actual D-Bus sender before method dispatch and authenticates package-owned
-Control Center or resident-agent executables for protected methods. Claims in
-arguments never replace the actual sender. Authorization, leases, and one-use
-secret keys are revoked on owner loss. Native clients independently verify and
-pin the packaged backend's unique owner before sending operations or accepting
-signals.
+Discovery, activation, and identity verification are asynchronous. Individual
+discovery RPCs and the complete identity transaction have five-second bounds.
+Late callbacks are context- and generation-owned.
 
-The full authentication design is documented in
-[Authentication](AUTHENTICATION.md); deployment identity and systemd tradeoffs
-are documented in [Hardening](HARDENING.md).
+## Request ownership and evidence
+
+Every asynchronous request carries the minimum identities needed for its
+scope: backend owner, account session, foreground owner, operation, connection
+intent, or capture generation. A completion may mutate current state only while
+all applicable identities remain current.
+
+Observation, retirement, and acknowledgement are distinct:
+
+- a snapshot describes current state;
+- idle state may release an owned wait;
+- only the current request's normal reply acknowledges that request;
+- timeout means completion unknown, not failure or success; and
+- state matching a requested target does not prove which mutation produced it.
+
+| Operation | Completion rule |
+| --- | --- |
+| Connect/Disconnect | Reply acknowledges acceptance; state tracks tunnel outcome; timeout requires a fresh post-timeout read and explicit unconfirmed guidance |
+| Settings/DNS/split tunnel | Reply acknowledges the write; serialized readback refreshes values but cannot synthesize write success |
+| Capture Start | Active state does not erase an unconfirmed Start; Stop and shutdown retain cleanup ownership |
+| Capture Stop | Confirmed inactive state may satisfy the cleanup postcondition |
+| Agent lease/quit | Current authorized ready/idle state answers lifetime or absence requirements, not historical mutation success |
+| Auth, NPS, support, package switching | The operation's own provider result, authorized reply, or command exit is authoritative |
+
+Settings families use one write generation and typed state. Ambiguous writes
+block later writes until reconciliation. Reads and writes share Core's single
+settings object and completion-order lock. Successful DNS or split-tunnel
+mutation remains acknowledged if a secondary scalar refresh fails.
+
+Browsing and settings reads share eight backend admission slots. Cancelled
+provider reads retain their slot until their child exits. Native search keeps
+one request in flight and only the newest queued query.
 
 ## Backend lifecycle
 
-The backend is D-Bus activated and requests its well-known name without
-queueing. Only the primary owner initializes Proton Core, preventing duplicate
-refreshers, connectors, or SSO sessions.
+The backend requests its well-known name without queueing; only the primary
+owner initializes Core. The Control Center holds a lease while open. The agent
+normally observes without a lease and acquires one only for an explicit action.
+Owner-loss events release vanished clients without polling.
 
-The Control Center holds a lease while open. The resident agent observes
-without a lease and acquires one only while an explicit action is starting.
-With no live lease, the backend exits after a short grace period only when Core
-reports a fully disconnected, idle state. Active tunnels and packet captures
-keep it alive. Closing the Control Center during an unanswered Secret Service
-prompt therefore does not strand an initializing backend indefinitely, while a
-real frontend or tray action protects the prompt long enough to complete.
+With no lease, the backend exits after a short grace period only when Core is
+disconnected and idle. Active tunnels, operations, and capture recovery keep it
+alive. Ordinary initialization failure is published once and held for explicit
+retry; durable cleanup failure exits nonzero for supervised retry.
 
-If Core initialization fails, the backend publishes a fixed startup-failure
-state, releases D-Bus resources, and exits nonzero. The user service can
-recover transient Secret Service, NetworkManager, or Core failures through
-`Restart=on-failure` instead of retaining a permanently unready process.
+Shutdown closes admission and drains accepted work under one absolute deadline.
+It drops D-Bus, closes the event loop, and joins service-created non-daemon
+threads. Unretired provider work produces a nonzero terminal exit so an old,
+nameless process cannot mutate shared state beside its replacement. The systemd
+unit provides a longer outer stop bound.
 
-If the backend owner disappears while the Control Center remains open, the
-frontend requests bounded D-Bus reactivation and re-establishes its lease. A
-client-identity rejection is not retried: it fails closed with restart and
-reinstall guidance, which covers an executable left running across an RPM
-replacement without turning the backend into a restart loop.
+Core session prewarm and connector construction occur before public readiness.
+When capture recovery is pending, unanswered Secret Service or connector waits
+fail startup within a bound while retaining the recovery record. Clients receive
+one authoritative initial snapshot after authentication state, connector,
+refreshers, and recovery are initialized.
 
-## Authentication and account state
+If the backend owner disappears, an open client performs bounded reactivation,
+identity verification, and lease restoration. Explicit identity rejection is
+terminal and is not retried.
 
-The adapter calls Proton's public API facade for password login, TOTP and
-recovery codes, FIDO2, session retrieval, and logout. Proton SSO persists the
-session through whichever conforming Freedesktop Secret Service provider owns
-`org.freedesktop.secrets`.
+## Authentication and account lifecycle
 
-The frontend receives only minimum account display metadata. Authentication
-fields use a one-use encrypted and sealed descriptor transport, and provider
-exceptions are mapped to fixed public errors. Logout disconnects first and
-restores the previous Core kill-switch setting if any later step fails.
+The adapter uses Proton's public login, TOTP, recovery-code, FIDO2, session,
+and logout APIs. Authentication operations share one reentrant transition
+boundary. Account-scoped work captures an authentication epoch before entering
+Core and rechecks it afterward.
 
-## Server data and connection selection
+Once Core refreshers have run, replacement credentials require a fresh backend
+process. Sign-out writes a private non-secret handoff, quiesces reconnection,
+disconnects, and asks SSO to remove the session. Replacement startup verifies
+the outgoing process through pidfd and start time, clears any restored outgoing
+session, then admits login. Missing retirement evidence fails closed.
 
-Country, location-group, and exact-server reads are serialized at the frontend
-boundary. Requests carry generations so replies for obsolete navigation targets
-are discarded. A bounded retry covers Core's short topology-replacement window
-without turning a genuinely empty group into an infinite refresh loop.
+Logout restores the prior Core kill-switch setting if a later step fails.
+Session expiry retires account-scoped work without disconnecting an established
+tunnel automatically. NPS side effects are session-fenced and do not acquire
+the VPN-operation lock; cancellation joins any executor mutation before
+teardown.
 
-Global search uses an immutable scalar projection per Core topology generation.
-It stores normalized display fields but no Proton server objects. Current load,
-maintenance state, and account availability are resolved through current Core
-objects for matching records. Load-only updates do not rebuild the projection;
-topology or localized-name changes invalidate it for lazy reconstruction.
+FIDO2 is exposed only when Core guarantees cancellation across device
+selection, assertion, and PIN work. Core 5.6.20 does not meet that complete
+contract, so authenticator and recovery codes remain available but the unsafe
+security-key route is not advertised.
 
-Capability-aware selection accepts bounded combinations of P2P, Streaming, Tor,
-and Secure Core with AND semantics. The adapter asks Core to filter by the
-combined feature mask and delegates final selection to Core's fastest-server
-score. The frontend does not replace Proton's scoring with displayed load.
+Authentication payload details are in [Authentication](AUTHENTICATION.md).
+
+## Connection, browsing, and recovery
+
+Country, location, and server requests are serialized at the frontend and
+generation-bound. One bounded retry covers Core's topology-replacement window;
+a replacement target supersedes an older retry. Global search uses an immutable
+scalar projection per topology generation and resolves mutable load,
+maintenance, and availability through current Core objects.
+
+Capability filters combine P2P, Streaming, Tor, and Secure Core with AND
+semantics. Core applies the feature mask and remains responsible for final
+fastest-server scoring.
+
+Manual connections and automatic recovery share one connection-intent owner.
+Supersession, Disconnect, logout, session expiry, disabled recovery, or adapter
+close cancel and join older owners before proceeding. Because Core may continue
+executor-backed NetworkManager work after outer-task cancellation, the adapter
+shields and joins Core's call and compensates with public Down when required.
+Teardown crosses Core's public event barrier and verifies connection identity;
+observed `Disconnected` alone is not a universal teardown receipt.
+
+Background Core refresh errors are reduced to session-tagged failure kinds.
+Authentication failure uses session-expiry handling; ordinary refresh failure
+preserves the tunnel and publishes a persistent degraded-services state. Raw
+provider errors do not cross the public boundary.
 
 ## Settings and diagnostics
 
-Settings use Core's public settings objects and official save/apply paths.
-Protocol and kill-switch changes require a disconnected tunnel. Paid features
-respect account access, and custom-DNS or split-tunneling conflicts are shown
-to the user rather than resolved by silently changing another setting.
+Settings use Core's public objects and save/apply paths. The client enforces
+Core constraints for account access and connected state. DNS and split-tunnel
+conflicts require explicit user choice.
 
-The IPv6 setting controls whether supported IPv6 traffic is carried inside the
-VPN tunnel. It does not disable Core's separate connection-scoped IPv6 leak
-protection. NetworkManager may therefore show Core's `pvpn-killswitch-ipv6`
-connection while the general kill-switch setting is Off; Core removes that
-temporary protection after disconnecting.
+The Connection Inspector is an on-demand QML page backed by existing bounded
+state. It has no timer, traffic collector, history, telemetry, or networking
+authority. Closing it destroys the page. Direct Proton support and crash-report
+submission are independently disabled in the build, native controller, backend,
+and package policy.
 
-Packet capture remains an operation of the active official protocol. The
-adapter requires Core's reviewed byte ceiling and adds a 15-minute lifecycle
-watchdog, but it does not inspect, rename, upload, or rewrite PCAP data.
+Packet capture uses the active official protocol, requires Core's positive byte
+cap, and is supervised by a 15-minute generation-bound watchdog. Start failure
+or ambiguity compensates with Stop. A mode-restricted atomic recovery record
+preserves the original deadline across backend replacement. The client does not
+inspect, upload, rename, or rewrite capture output.
 
-Direct support submission and anonymous crash reporting to Proton are disabled
-in community builds through synchronized build, frontend, and backend gates.
-The retained support implementation is bounded and inactive unless an approved
-distribution deliberately enables it.
+The IPv6 preference controls tunneling of supported IPv6 traffic. It does not
+disable Core's connection-scoped IPv6 leak protection; NetworkManager may show
+`pvpn-killswitch-ipv6` while the general kill-switch preference is Off.
 
 ## Plasma integration
 
-The resident agent owns the status notifier, notifications, global shortcuts,
-pinned targets, and auto-connect behavior. The complete Kirigami Control Center
-starts on demand and exits when its window closes. Both are single-instance
-processes. Tray shutdown distinguishes leaving the Core-managed tunnel active
-from disconnecting it: the latter waits for a fully disconnected, idle Core
-snapshot before the agent exits and keeps supervision alive if confirmation
-times out.
+The resident agent owns the status notifier, notifications, shortcuts, pinned
+targets, and auto-connect. The Control Center is single-instance and on demand.
+Tray, shortcut, and KRunner mutations pass through validated confirmation in the
+Control Center. Disconnect-and-quit waits for confirmed idle/disconnected state;
+plain window close preserves the tunnel.
 
-KRunner recognizes only explicit VPN prefixes and validated connection targets.
-It addresses the Control Center activation service, never the backend. A modal
-confirmation is required before the Control Center's authenticated controller
-acts.
+KConfig change notifications synchronize the KCM, agent, and Control Center.
+System Settings owns only desktop preferences. Login launch is opt-in and writes
+a marked KDE autostart entry without shell use. Existing unmarked files and
+symlinks are not overwritten. Installation and viewing Settings never enable
+autostart.
 
-The System Settings module owns desktop preferences only: startup,
-auto-connect, drop recovery, window and tray behavior, notifications, pinned
-targets, icon style, and capture storage. Live Proton settings are not
-duplicated into a second controller. KConfig change notifications synchronize
-the KCM, agent, and Control Center.
+## Safety invariants
 
-## Safety rules
-
-- Demo mode is the default path for automated and visual tests and cannot
-  connect NetworkManager or a Proton account.
-- Real mutations are serialized, and connection actions are disabled while an
-  incompatible operation is active.
-- A signed-out client can disable permanent kill switch for login only through
-  one dedicated operation; it cannot reach general settings.
-- Closing the Control Center never disconnects an active tunnel.
-- KRunner and other shared plugin hosts are not trusted backend clients.
-- The GUI never issues direct NetworkManager mutations.
-- Optional Core string-sharing optimizations never gate VPN or account
-  behavior. The separately verified Fedora Core overlay also changes Protun's
-  transient-key ownership inside its existing unsaved NetworkManager profile;
-  that Plasma interoperability behavior is version-pinned and tested rather
-  than described as representation-only.
+- Automated and visual tests default to a non-networking demo backend.
+- Mutations are serialized or explicitly preemptible by risk-reducing cleanup.
+- Signed-out users can disable permanent kill switch only through the dedicated
+  login-recovery operation.
+- Shared desktop brokers are not trusted backend clients.
+- The GUI never mutates NetworkManager directly.
+- Optional memory optimizations never gate VPN or account behavior.

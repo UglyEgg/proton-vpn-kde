@@ -19,6 +19,7 @@ public:
                             QObject *parent = nullptr);
 
 private:
+    friend class NotificationIntegrationTest;
     void updateState();
 
     VpnConnectionController *m_controller = nullptr;

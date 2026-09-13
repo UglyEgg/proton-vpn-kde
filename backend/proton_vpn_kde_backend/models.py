@@ -12,6 +12,7 @@ import re
 from typing import Callable, TypeAlias, TypeVar
 
 from .errors import UserVisibleValueError
+from .snapshot_contract import SNAPSHOT_SCHEMA_VERSION, validate_snapshot_payload
 
 SUPPORTED_SERVER_FEATURES = (
     "p2p",
@@ -44,7 +45,7 @@ def normalize_server_features(features: list[str] | tuple[str, ...]) -> tuple[st
 class VpnSnapshot:
     """Non-sensitive state exposed to frontend processes."""
 
-    schema_version: int = 1
+    schema_version: int = SNAPSHOT_SCHEMA_VERSION
     ready: bool = False
     startup_compatible: bool = True
     logged_in: bool = False
@@ -98,6 +99,7 @@ class VpnSnapshot:
         payload["packetCaptureActive"] = payload.pop("packet_capture_active")
         payload["coreMemoryOptimized"] = payload.pop("core_memory_optimized")
         payload["coreVersion"] = payload.pop("core_version")
+        validate_snapshot_payload(payload)
         return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
 

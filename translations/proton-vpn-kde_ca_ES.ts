@@ -35,6 +35,29 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Error de connexió</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Desactivada</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Estàndard</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Connexió</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Tunelització dividida</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Upgrade</source>
@@ -77,6 +100,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Compte</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Inicia la sessió</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Preferències</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Notes de la versió</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Informar d'un problema</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>Quant a</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Error de connexió: s'ha assolit el límit de la sessió</translation>
@@ -161,30 +211,6 @@ Actualitzeu l'hora del sistema i torneu-ho a provar.</translation>
             <source>Close</source>
             <translation>Tancar-ho</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Compte</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Inicia la sessió</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Preferències</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Notes de la versió</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Informar d'un problema</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>Quant a</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -225,6 +251,13 @@ Actualitzeu l'hora del sistema i torneu-ho a provar.</translation>
         </message>
     </context>
     <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Desactivada</translation>
+        </message>
+    </context>
+    <context>
         <name>ReleaseNotesPage</name>
         <message>
             <source>Release notes</source>
@@ -259,22 +292,6 @@ Actualitzeu l'hora del sistema i torneu-ho a provar.</translation>
             <source>Settings</source>
             <translation>Preferències</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Desactivada</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Estàndard</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Tunelització dividida</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Accés beta</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -305,6 +322,31 @@ Actualitzeu l'hora del sistema i torneu-ho a provar.</translation>
         <message>
             <source>Security key</source>
             <translation>Clau de seguretat</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Tunelització dividida</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Accés beta</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Desactivada</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Estàndard</translation>
         </message>
     </context>
     <context>

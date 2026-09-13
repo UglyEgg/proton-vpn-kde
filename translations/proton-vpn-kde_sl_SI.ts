@@ -35,6 +35,41 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Napaka povezave</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Izključeno</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standardni</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Povezava</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Protokol</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>Odklopno stikalo</translation>
+        </message>
+        <message>
+            <source>VPN Accelerator</source>
+            <translation>VPN pospeševalnik</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Razdeljeno tuneliranje</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -81,6 +116,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Račun</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Prijava</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Nastavitve</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Opombe k izdaji</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Prijavi težavo</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>O programu</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Napaka pri povezavi: dosežena omejitev seje</translation>
@@ -157,30 +219,6 @@ Posodobite sistemski čas in se poskusite znova povezati.</translation>
             <source>Close</source>
             <translation>Zapri</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Račun</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Prijava</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Nastavitve</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Opombe k izdaji</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Prijavi težavo</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>O programu</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -221,6 +259,13 @@ Posodobite sistemski čas in se poskusite znova povezati.</translation>
         </message>
     </context>
     <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Izključeno</translation>
+        </message>
+    </context>
+    <context>
         <name>ReleaseNotesPage</name>
         <message>
             <source>Release notes</source>
@@ -255,22 +300,6 @@ Posodobite sistemski čas in se poskusite znova povezati.</translation>
             <source>Settings</source>
             <translation>Nastavitve</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Izključeno</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Standardni</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Razdeljeno tuneliranje</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Beta dostop</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -301,6 +330,31 @@ Posodobite sistemski čas in se poskusite znova povezati.</translation>
         <message>
             <source>Security key</source>
             <translation>Varnostni ključ</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Razdeljeno tuneliranje</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Beta dostop</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Izključeno</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standardni</translation>
         </message>
     </context>
     <context>

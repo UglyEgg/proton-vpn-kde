@@ -75,17 +75,40 @@ def check() -> None:
         ):
             fail(f"minimum test must pin {name}=={version}")
 
-    manifest = json.loads(
+    floor_manifest = json.loads(
         (PROJECT_DIR / "packaging/fedora/core-compatibility.json").read_text(
             encoding="utf-8"
         )
     )
-    core_version = manifest["minimum"]["version"]
+    static_floor = floor_manifest["staticApiFloor"]["version"]
+    runtime_floor = floor_manifest["runtimeFloor"]["version"]
+    overlay_manifest = json.loads(
+        (
+            PROJECT_DIR
+            / "packaging/fedora/api-core-overlay/overlay-manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    overlay_version = overlay_manifest["vendor"]["version"]
+    if normalized_version(static_floor) > normalized_version(runtime_floor):
+        fail("static Core API floor is newer than the runtime floor")
+    if normalized_version(runtime_floor) > normalized_version(overlay_version):
+        fail("Core runtime floor is newer than the packaged overlay")
+
+    overlay_spec = (
+        PROJECT_DIR
+        / "packaging/fedora/api-core-overlay/"
+        "python3-proton-vpn-api-core-overlay.spec"
+    )
+    require_text(
+        overlay_spec,
+        rf"^Version:\s+{re.escape(overlay_version)}$",
+        "Core overlay vendor version",
+    )
 
     spec = PROJECT_DIR / "packaging/fedora/proton-vpn-kde.spec"
     require_text(
         spec,
-        rf"^Requires:\s+python3-proton-vpn-api-core >= {re.escape(core_version)}$",
+        rf"^Requires:\s+python3-proton-vpn-api-core >= {re.escape(runtime_floor)}$",
         "Core runtime floor",
     )
     for name, version in EXPECTED_DEPENDENCIES.items():

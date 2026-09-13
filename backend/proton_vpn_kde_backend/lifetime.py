@@ -19,6 +19,7 @@ from .errors import UserVisibleValueError
 
 NameOwnerProbe = Callable[[str], Awaitable[bool]]
 _UNIQUE_BUS_NAME = re.compile(r"^:[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$")
+DEFAULT_REGISTRATION_TIMEOUT_SECONDS = 5.0
 
 
 async def name_has_owner(bus, name: str) -> bool:
@@ -45,10 +46,12 @@ class BackendLifetime:
     """Keep the backend alive only while it owns useful session state.
 
     Native frontends register their unique D-Bus names as leases. A vanished
-    frontend is detected even when it cannot unregister cleanly. With no live
-    frontend, the service exits only from the fully disconnected, idle state;
-    active tunnels and packet captures therefore remain supervised. The same
-    grace period also abandons an initialization whose activating frontend has
+    frontend is removed through the authorizer's D-Bus owner-loss event even
+    when it cannot unregister cleanly. Ownership is probed once when acquiring
+    a lease; no periodic wakeup is required afterward. With no live frontend,
+    the service exits only from the fully disconnected, idle state; active
+    tunnels and packet captures therefore remain supervised. The same grace
+    period also abandons an initialization whose activating frontend has
     disappeared while a desktop Secret Service prompt is still open.
     """
 
@@ -59,14 +62,19 @@ class BackendLifetime:
         owner_probe: NameOwnerProbe,
         *,
         idle_timeout: float = 10.0,
-        poll_interval: float = 2.0,
+        registration_timeout: float = DEFAULT_REGISTRATION_TIMEOUT_SECONDS,
     ) -> None:
         self._controller = controller
         self._stopped = stopped
         self._owner_probe = owner_probe
         self._idle_timeout = max(0.0, idle_timeout)
-        self._poll_interval = max(0.01, poll_interval)
+        self._registration_timeout = max(0.0, registration_timeout)
         self._clients: set[str] = set()
+        # RegisterClient verifies ownership asynchronously.  Remember a
+        # per-name retirement generation so an UnregisterClient that overtakes
+        # that probe cannot be undone when the older registration resumes.
+        self._client_generations: dict[str, int] = {}
+        self._pending_client_registrations: dict[str, int] = {}
         self._changed = asyncio.Event()
         self._idle_since: float | None = None
         controller.subscribe(self._on_snapshot)
@@ -76,22 +84,89 @@ class BackendLifetime:
         return frozenset(self._clients)
 
     async def register_client(self, unique_name: str) -> None:
+        generation = self.registration_generation(unique_name)
+        try:
+            try:
+                owned = await asyncio.wait_for(
+                    self._owner_probe(unique_name),
+                    timeout=self._registration_timeout,
+                )
+            except TimeoutError:
+                raise UserVisibleValueError(
+                    "The frontend D-Bus owner could not be confirmed"
+                ) from None
+            if not owned:
+                raise UserVisibleValueError(
+                    "The frontend D-Bus name has no owner"
+                )
+        except BaseException:
+            self.cancel_registration(unique_name, generation)
+            raise
+        self.register_authorized_client(unique_name, generation)
+
+    def registration_generation(self, unique_name: str) -> int:
+        """Capture the retirement generation before an asynchronous probe."""
         self._validate_unique_name(unique_name)
-        if not await self._owner_probe(unique_name):
-            raise UserVisibleValueError("The frontend D-Bus name has no owner")
+        self._pending_client_registrations[unique_name] = (
+            self._pending_client_registrations.get(unique_name, 0) + 1
+        )
+        # Authorization is part of lease acquisition.  Treat it as
+        # provisional ownership so the idle deadline cannot overtake a valid
+        # client while its D-Bus identity is still being verified.
+        self._idle_since = None
+        self._changed.set()
+        return self._client_generations.get(unique_name, 0)
+
+    def cancel_registration(self, unique_name: str, generation: int) -> None:
+        """Release tracking for a registration that never reached commit."""
+        self._validate_unique_name(unique_name)
+        self._finish_registration(unique_name)
+
+    def register_authorized_client(
+        self, unique_name: str, generation: int | None = None
+    ) -> None:
+        """Add a lease whose owner was verified by the ingress authorizer."""
+        self._validate_unique_name(unique_name)
+        if generation is not None:
+            current = generation == self._client_generations.get(unique_name, 0)
+            self._finish_registration(unique_name)
+            if not current:
+                return
         self._clients.add(unique_name)
         self._idle_since = None
         self._changed.set()
 
     def unregister_client(self, unique_name: str) -> None:
         self._validate_unique_name(unique_name)
-        self._clients.discard(unique_name)
+        if self._pending_client_registrations.get(unique_name, 0):
+            self._client_generations[unique_name] = (
+                self._client_generations.get(unique_name, 0) + 1
+            )
+            self._idle_since = None
+            self._changed.set()
+        else:
+            self._client_generations.pop(unique_name, None)
+        if unique_name not in self._clients:
+            return
+        self._clients.remove(unique_name)
+        self._idle_since = None
+        self._changed.set()
+
+    def _finish_registration(self, unique_name: str) -> None:
+        pending = self._pending_client_registrations.get(unique_name, 0)
+        if pending <= 1:
+            self._pending_client_registrations.pop(unique_name, None)
+            self._client_generations.pop(unique_name, None)
+        else:
+            self._pending_client_registrations[unique_name] = pending - 1
+        # A failed or tombstoned final registration starts a fresh full idle
+        # grace.  Never resume the deadline that existed before acquisition.
         self._idle_since = None
         self._changed.set()
 
     async def run(self) -> None:
         while not self._stopped.is_set():
-            await self._prune_clients()
+            self._changed.clear()
             now = monotonic()
             if self._may_exit(self._controller.snapshot):
                 if self._idle_since is None:
@@ -100,34 +175,24 @@ class BackendLifetime:
                 if remaining <= 0:
                     self._stopped.set()
                     return
-                delay = min(self._poll_interval, remaining)
             else:
                 self._idle_since = None
-                delay = self._poll_interval
+                await self._changed.wait()
+                continue
 
-            self._changed.clear()
             try:
-                await asyncio.wait_for(self._changed.wait(), timeout=delay)
+                await asyncio.wait_for(self._changed.wait(), timeout=remaining)
             except TimeoutError:
                 pass
 
-    async def _prune_clients(self) -> None:
-        for client in tuple(self._clients):
-            try:
-                alive = await self._owner_probe(client)
-            except Exception:
-                # A transient bus failure must never terminate a service that
-                # may still be supervising a live VPN connection.
-                continue
-            if not alive:
-                self._clients.discard(client)
-                self._idle_since = None
-
     def _may_exit(self, snapshot: VpnSnapshot) -> bool:
-        if self._clients:
+        if self._clients or self._pending_client_registrations:
             return False
         if not snapshot.ready:
-            return snapshot.state == "starting"
+            return (
+                snapshot.state in {"starting", "error"}
+                and not self._controller.has_pending_startup_recovery()
+            )
         return (
             snapshot.state == "disconnected"
             and not snapshot.busy

@@ -27,7 +27,8 @@ SectionCard {
             textRole: "name"
             valueRole: "id"
             currentIndex: vpnSettings.protocolIndex
-            enabled: vpnSettings.loaded && !vpnSettings.busy
+            enabled: vpnController.ready
+                     && vpnSettings.loaded && !vpnSettings.busy
                      && vpnSettings.protocolEditable
             onActivated: vpnController.updateSetting("protocol", currentValue)
         }
@@ -37,24 +38,6 @@ SectionCard {
             wrapMode: Text.WordWrap
             visible: vpnSettings.loaded && !vpnSettings.protocolEditable
             text: qsTr("Disconnect the VPN to change protocols.")
-            color: Kirigami.Theme.disabledTextColor
-        }
-
-        Controls.TextField {
-            Kirigami.FormData.label: qsTr("Auto connect:")
-            Layout.fillWidth: true
-            text: appSettings.autoConnectTarget
-            placeholderText: qsTr("Off, FASTEST, US, or CH#101")
-            onEditingFinished: {
-                appSettings.autoConnectTarget = text
-                text = appSettings.autoConnectTarget
-            }
-        }
-
-        Controls.Label {
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
-            wrapMode: Text.WordWrap
-            text: qsTr("Connect to the fastest server, a country, or an exact server when the app starts.")
             color: Kirigami.Theme.disabledTextColor
         }
 
@@ -69,7 +52,8 @@ SectionCard {
             textRole: "name"
             valueRole: "id"
             currentIndex: vpnSettings.killSwitch
-            enabled: vpnSettings.loaded && !vpnSettings.busy
+            enabled: vpnController.ready
+                     && vpnSettings.loaded && !vpnSettings.busy
                      && vpnSettings.killSwitchEditable
             onActivated: vpnController.updateSetting("killSwitch", currentValue)
         }
@@ -86,7 +70,10 @@ SectionCard {
             Kirigami.FormData.label: qsTr("Recovery:")
             text: qsTr("Reconnect dropped VPN tunnels")
             checked: appSettings.reconnectEnabled
-            onToggled: appSettings.reconnectEnabled = checked
+            onToggled: {
+                appSettings.reconnectEnabled = checked
+                checked = Qt.binding(() => appSettings.reconnectEnabled)
+            }
         }
 
         Controls.Label {

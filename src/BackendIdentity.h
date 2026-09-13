@@ -3,10 +3,13 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QString>
 #include <QStringList>
+#include <functional>
 
 class QDBusConnection;
+class QObject;
 
 namespace ProtonVpnKde
 {
@@ -19,6 +22,11 @@ struct BackendIdentityResult
 
 [[nodiscard]] bool isRootOwnedImmutableFile(const QString &path);
 [[nodiscard]] bool areRootOwnedImmutableFiles(const QStringList &paths);
-[[nodiscard]] BackendIdentityResult
-verifyBackendIdentity(const QDBusConnection &bus, const QString &wellKnownName);
+[[nodiscard]] bool isBackendEnvironmentSafe(const QByteArray &environment);
+void verifyBackendIdentity(const QDBusConnection &bus, const QString &wellKnownName,
+                           QObject *context,
+                           std::function<void(BackendIdentityResult)> completed);
+void discoverBackendService(const QDBusConnection &bus, const QString &wellKnownName,
+                            bool activate, QObject *context,
+                            std::function<void(bool)> completed);
 }

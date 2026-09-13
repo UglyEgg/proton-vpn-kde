@@ -8,15 +8,28 @@ import org.kde.kirigami as Kirigami
 
 Kirigami.ScrollablePage {
     id: page
-    title: qsTr("Sign in")
+    title: page.preparingSignIn ? qsTr("Starting Plasma VPN") : qsTr("Sign in")
     readonly property real maximumFormWidth: Kirigami.Units.gridUnit * 26
     leftPadding: Math.max(Kirigami.Units.largeSpacing,
                           (width - maximumFormWidth) / 2)
     rightPadding: leftPadding
 
+    readonly property int preparingStep: 0
+    readonly property int recoveryStep: 1
+    readonly property int signingInStep: 2
+    readonly property int credentialStep: 3
+    readonly property int twoFactorStep: 4
+    readonly property int securityKeyStep: 5
+    readonly property int securityKeyPinStep: 6
+
     readonly property bool preparingSignIn: !vpnController.ready
-    readonly property bool credentialsVisible: preparingSignIn || [
-        "signed_out", "signing_in", "human_verification", "expired"
+    readonly property bool startupFailed: page.preparingSignIn
+                                          && vpnController.state === "error"
+    readonly property bool terminalBackendFailure:
+        page.preparingSignIn && !vpnController.backendRestartAllowed
+    readonly property bool recoveryRequired: [
+        "authentication_unknown", "settings_unavailable", "protection_unknown",
+        "expired", "account_restart_required"
     ].includes(vpnController.authState)
     readonly property bool twoFactorVisible: [
         "two_factor", "fido_error"
@@ -24,9 +37,140 @@ Kirigami.ScrollablePage {
     readonly property bool fidoPromptVisible: [
         "fido_waiting", "fido_touch", "fido_select"
     ].includes(vpnController.authState)
+    readonly property int activeStep: {
+        if (page.preparingSignIn) {
+            return page.preparingStep
+        }
+        if (page.recoveryRequired) {
+            return page.recoveryStep
+        }
+        if (vpnController.authState === "signing_in") {
+            return page.signingInStep
+        }
+        if (page.twoFactorVisible) {
+            return page.twoFactorStep
+        }
+        if (page.fidoPromptVisible) {
+            return page.securityKeyStep
+        }
+        if (vpnController.authState === "fido_pin") {
+            return page.securityKeyPinStep
+        }
+        return page.credentialStep
+    }
+    readonly property bool credentialsVisible:
+        page.activeStep === page.credentialStep
+    readonly property string activeStepIcon: {
+        if (page.activeStep === page.preparingStep) {
+            return page.terminalBackendFailure || page.startupFailed ? "dialog-error"
+                                               : "view-refresh"
+        }
+        if (page.activeStep === page.recoveryStep) {
+            return "dialog-warning"
+        }
+        if (page.activeStep === page.signingInStep) {
+            return "document-encrypt"
+        }
+        if (page.activeStep === page.securityKeyStep) {
+            return "auth-sim-locked"
+        }
+        if (page.activeStep === page.securityKeyPinStep) {
+            return "password-show-off"
+        }
+        if (page.activeStep === page.twoFactorStep) {
+            return "document-encrypt"
+        }
+        return applicationWindow().appIconSource
+    }
+    readonly property string activeStepHeading: {
+        if (page.activeStep === page.preparingStep) {
+            if (page.startupFailed) {
+                return qsTr("VPN service could not start")
+            }
+            return page.terminalBackendFailure
+                   ? qsTr("Sign-in unavailable")
+                   : qsTr("Starting Plasma VPN")
+        }
+        if (page.activeStep === page.recoveryStep) {
+            if (vpnController.authState === "expired") {
+                return qsTr("Prepare to sign in again")
+            }
+            if (vpnController.authState === "account_restart_required") {
+                return qsTr("Finish signing out")
+            }
+            return qsTr("Account state unavailable")
+        }
+        if (page.activeStep === page.signingInStep) {
+            return qsTr("Signing in")
+        }
+        if (page.activeStep === page.twoFactorStep) {
+            return qsTr("Two-factor authentication")
+        }
+        if (page.activeStep === page.securityKeyStep) {
+            return qsTr("Use your security key")
+        }
+        if (page.activeStep === page.securityKeyPinStep) {
+            return qsTr("Enter your security-key PIN")
+        }
+        if (vpnController.authState === "human_verification") {
+            return qsTr("Verify your Proton account")
+        }
+        if (vpnController.authState === "expired") {
+            return qsTr("Sign in again")
+        }
+        return qsTr("Sign in to Proton VPN")
+    }
+    readonly property string activeStepDescription: {
+        if (page.activeStep === page.preparingStep) {
+            if (page.terminalBackendFailure || page.startupFailed) {
+                return vpnController.message.length > 0
+                       ? vpnController.message
+                       : qsTr("The local client could not be authorized.")
+            }
+            return vpnController.backendAvailable
+                   ? qsTr("Confirming the saved account and protection state.")
+                   : qsTr("Starting the local Proton VPN service.")
+        }
+        if (page.activeStep === page.recoveryStep) {
+            return vpnController.message.length > 0
+                   ? vpnController.message
+                   : qsTr("Restart the local service before authentication can safely continue.")
+        }
+        if (page.activeStep === page.signingInStep) {
+            return qsTr("Completing authentication and preparing your Proton VPN session.")
+        }
+        if (page.activeStep === page.twoFactorStep) {
+            return qsTr("Complete the additional security check for this account.")
+        }
+        if (page.activeStep === page.securityKeyStep) {
+            return vpnController.message.length > 0
+                   ? vpnController.message
+                   : qsTr("Follow the prompt from your security key to continue.")
+        }
+        if (page.activeStep === page.securityKeyPinStep) {
+            return qsTr("Your PIN is sent only to the waiting local security-key flow.")
+        }
+        if (vpnController.authState === "human_verification") {
+            return qsTr("Complete the requested check in your Proton account, then try again.")
+        }
+        if (vpnController.authState === "expired") {
+            return qsTr("Your saved session expired. Enter your Proton account details to continue.")
+        }
+        return qsTr("Use your Proton account to access VPN servers.")
+    }
+
     property string previousAuthState: vpnController.authState
     property bool secretStoreHintVisible: false
     property bool backendRetryVisible: false
+    property Kirigami.Action retryBackendAction: Kirigami.Action {
+        text: qsTr("Retry service")
+        icon.name: "view-refresh"
+        onTriggered: {
+            page.backendRetryVisible = false
+            vpnController.restartBackend()
+            page.updateBackendRetry()
+        }
+    }
 
     function updateSecretStoreHint() {
         const waiting = vpnController.busy
@@ -42,7 +186,13 @@ Kirigami.ScrollablePage {
     }
 
     function updateBackendRetry() {
-        const waiting = page.preparingSignIn && vpnController.backendAvailable
+        if (page.startupFailed && vpnController.backendRestartAllowed) {
+            backendRetryTimer.stop()
+            backendRetryVisible = true
+            return
+        }
+        const waiting = page.preparingSignIn
+                        && vpnController.backendRestartAllowed
         if (waiting) {
             if (!backendRetryVisible && !backendRetryTimer.running) {
                 backendRetryTimer.start()
@@ -89,7 +239,7 @@ Kirigami.ScrollablePage {
         function onSnapshotChanged() {
             page.updateSecretStoreHint()
             page.updateBackendRetry()
-            if (vpnController.loggedIn
+            if (vpnController.ready && vpnController.loggedIn
                     && applicationWindow().pageStack.currentItem === page) {
                 applicationWindow().showOverview()
             } else if (page.previousAuthState !== vpnController.authState) {
@@ -122,7 +272,8 @@ Kirigami.ScrollablePage {
         interval: 10000
         repeat: false
         onTriggered: {
-            if (page.preparingSignIn && vpnController.backendAvailable) {
+            if (page.preparingSignIn
+                    && vpnController.backendRestartAllowed) {
                 page.backendRetryVisible = true
             }
         }
@@ -148,42 +299,27 @@ Kirigami.ScrollablePage {
             ]
         }
 
-        Kirigami.InlineMessage {
-            Layout.fillWidth: true
-            visible: page.preparingSignIn
-                     && vpnController.state !== "error"
-            type: Kirigami.MessageType.Information
-            text: vpnController.backendAvailable
-                  ? qsTr("Preparing Proton sign-in. Your desktop secret store may ask for access before the account state is available.")
-                  : qsTr("Starting the Proton VPN service…")
-
-            actions: [
-                Kirigami.Action {
-                    text: qsTr("Retry service")
-                    icon.name: "view-refresh"
-                    visible: page.backendRetryVisible
-                    onTriggered: {
-                        page.backendRetryVisible = false
-                        vpnController.restartBackend()
-                        page.updateBackendRetry()
-                    }
-                }
-            ]
-        }
-
-        PageHeader {
-            heading: page.twoFactorVisible || !page.credentialsVisible
-                     ? qsTr("Two-factor authentication")
-                     : qsTr("Sign in to Proton VPN")
-            description: page.credentialsVisible
-                         ? qsTr("Use your Proton account to access VPN servers.")
-                         : qsTr("Complete the security check for this account.")
-            iconName: applicationWindow().appIconSource
+        IdentityStage {
+            id: authenticationStage
+            objectName: "authenticationStage"
+            iconSource: page.activeStepIcon
+            heading: page.activeStepHeading
+            description: page.activeStepDescription
+            accentColor: page.activeStep === page.recoveryStep
+                         || vpnController.authState === "human_verification"
+                         || vpnController.authState === "expired"
+                         ? Kirigami.Theme.neutralTextColor
+                         : Kirigami.Theme.highlightColor
         }
 
         Kirigami.InlineMessage {
+            objectName: "backendStartupDiagnostic"
             Layout.fillWidth: true
             visible: vpnController.message.length > 0
+                     && page.activeStep !== page.securityKeyStep
+                     && page.activeStep !== page.recoveryStep
+                     && !page.terminalBackendFailure
+                     && !page.startupFailed
             type: vpnController.authState === "human_verification"
                   || vpnController.authState === "fido_error"
                   ? Kirigami.MessageType.Warning
@@ -191,161 +327,223 @@ Kirigami.ScrollablePage {
             text: vpnController.message
         }
 
-        Kirigami.InlineMessage {
+        ColumnLayout {
+            objectName: "preparingAuthenticationStep"
             Layout.fillWidth: true
-            visible: page.secretStoreHintVisible
-            type: Kirigami.MessageType.Information
-            text: qsTr("Still signing in. Your desktop secret store may be waiting for access approval; check for a prompt to continue.")
+            visible: page.activeStep === page.preparingStep
+            spacing: Kirigami.Units.largeSpacing
+
+            Controls.BusyIndicator {
+                objectName: "backendPreparationProgress"
+                Layout.alignment: Qt.AlignHCenter
+                visible: running
+                running: parent.visible
+                         && vpnController.backendRestartAllowed
+                         && !page.startupFailed
+            }
+
+            Controls.Button {
+                Layout.alignment: Qt.AlignHCenter
+                visible: page.backendRetryVisible
+                text: page.retryBackendAction.text
+                icon.name: page.retryBackendAction.icon.name
+                onClicked: page.retryBackendAction.trigger()
+            }
         }
 
-        SectionCard {
+        ColumnLayout {
+            objectName: "authenticationRecoveryStep"
             Layout.fillWidth: true
-            visible: page.credentialsVisible
+            visible: page.activeStep === page.recoveryStep
+            spacing: Kirigami.Units.largeSpacing
+
+            Kirigami.InlineMessage {
+                Layout.fillWidth: true
+                visible: parent.visible
+                type: Kirigami.MessageType.Warning
+                objectName: "accountRecoveryNotice"
+                text: vpnController.authState === "expired"
+                      ? qsTr("Preparing sign-in disconnects any remaining tunnel and restarts the local service before accepting account details.")
+                      : qsTr("Sign-in is paused until the service has restarted. Follow the guidance above before reconnecting.")
+            }
+
+            Controls.Button {
+                Layout.alignment: Qt.AlignHCenter
+                text: vpnController.authState === "expired"
+                      ? qsTr("Prepare sign-in") : qsTr("Restart service")
+                enabled: !vpnController.busy
+                icon.name: "view-refresh"
+                highlighted: true
+                onClicked: vpnController.restartBackend()
+            }
+        }
+
+        ColumnLayout {
+            objectName: "signingInStep"
+            Layout.fillWidth: true
+            visible: page.activeStep === page.signingInStep
+            spacing: Kirigami.Units.largeSpacing
+
+            Controls.BusyIndicator {
+                objectName: "authenticationProgress"
+                Layout.alignment: Qt.AlignHCenter
+                running: parent.visible && vpnController.busy
+            }
+
+            Kirigami.InlineMessage {
+                Layout.fillWidth: true
+                visible: page.secretStoreHintVisible
+                type: Kirigami.MessageType.Information
+                text: qsTr("If your desktop Secret Service requests access, approve it in KeePassXC, KWallet, or your configured provider.")
+            }
+        }
+
+        Kirigami.AbstractCard {
+            objectName: "credentialAuthenticationStep"
+            Layout.fillWidth: true
+            visible: page.activeStep === page.credentialStep
             enabled: vpnController.ready && !vpnController.busy
                      && vpnController.killSwitch !== 2
-            title: qsTr("Proton account")
-            iconName: "user-identity"
 
-            Controls.TextField {
-                id: usernameField
-                Layout.fillWidth: true
-                placeholderText: qsTr("Proton username or email")
-                inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
-                activeFocusOnTab: true
-                KeyNavigation.tab: passwordField
-                Accessible.name: qsTr("Proton username or email")
-                Accessible.description: qsTr("Username field for Proton VPN sign-in")
-                onAccepted: passwordField.forceActiveFocus()
-            }
+            contentItem: ColumnLayout {
+                spacing: Kirigami.Units.largeSpacing
 
-            Controls.TextField {
-                id: passwordField
-                Layout.fillWidth: true
-                placeholderText: qsTr("Password")
-                echoMode: TextInput.Password
-                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhHiddenText
-                                  | Qt.ImhNoPredictiveText
-                activeFocusOnTab: true
-                KeyNavigation.backtab: usernameField
-                Accessible.name: qsTr("Proton password")
-                Accessible.description: qsTr("Password field for Proton VPN sign-in")
-                onAccepted: page.submitCredentials()
-            }
-
-            Controls.Button {
-                Layout.alignment: Qt.AlignHCenter
-                text: vpnController.busy ? qsTr("Signing in…") : qsTr("Sign in")
-                icon.name: "document-encrypt"
-                highlighted: true
-                enabled: usernameField.text.trim().length > 0
-                         && passwordField.text.length > 0
-                         && vpnController.ready
-                         && !vpnController.busy
-                onClicked: page.submitCredentials()
-            }
-
-            Controls.Button {
-                Layout.alignment: Qt.AlignHCenter
-                visible: vpnController.authState === "human_verification"
-                text: qsTr("Open Proton account")
-                icon.name: "internet-web-browser"
-                onClicked: Qt.openUrlExternally(
-                    "https://account.protonvpn.com/account")
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Controls.Button {
-                    flat: true
-                    text: qsTr("Create Account")
-                    onClicked: Qt.openUrlExternally(
-                        "https://account.protonvpn.com/signup?ref=linux")
-                }
-
-                Item {
+                Controls.TextField {
+                    id: usernameField
                     Layout.fillWidth: true
+                    placeholderText: qsTr("Proton username or email")
+                    inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
+                    activeFocusOnTab: true
+                    KeyNavigation.tab: passwordField
+                    Accessible.name: qsTr("Proton username or email")
+                    Accessible.description: qsTr("Username field for Proton VPN sign-in")
+                    onAccepted: passwordField.forceActiveFocus()
+                }
+
+                Controls.TextField {
+                    id: passwordField
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("Password")
+                    echoMode: TextInput.Password
+                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhHiddenText
+                                      | Qt.ImhNoPredictiveText
+                    activeFocusOnTab: true
+                    KeyNavigation.backtab: usernameField
+                    Accessible.name: qsTr("Proton password")
+                    Accessible.description: qsTr("Password field for Proton VPN sign-in")
+                    onAccepted: page.submitCredentials()
                 }
 
                 Controls.Button {
-                    flat: true
-                    text: qsTr("Need Help?")
+                    Layout.alignment: Qt.AlignHCenter
+                    text: vpnController.busy ? qsTr("Signing in…") : qsTr("Sign in")
+                    icon.name: "document-encrypt"
+                    highlighted: true
+                    enabled: usernameField.text.trim().length > 0
+                             && passwordField.text.length > 0
+                             && vpnController.ready
+                             && !vpnController.busy
+                    onClicked: page.submitCredentials()
+                }
+
+                Controls.Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: vpnController.authState === "human_verification"
+                    text: qsTr("Open Proton account")
+                    icon.name: "internet-web-browser"
                     onClicked: Qt.openUrlExternally(
-                        "https://protonvpn.com/support")
+                        "https://account.protonvpn.com/account")
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    Controls.Button {
+                        flat: true
+                        text: qsTr("Create Account")
+                        onClicked: Qt.openUrlExternally(
+                            "https://account.protonvpn.com/signup?ref=linux")
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    Controls.Button {
+                        flat: true
+                        text: qsTr("Need Help?")
+                        onClicked: Qt.openUrlExternally(
+                            "https://protonvpn.com/support")
+                    }
                 }
             }
-
         }
 
-        SectionCard {
+        Kirigami.AbstractCard {
+            objectName: "twoFactorAuthenticationStep"
             Layout.fillWidth: true
-            visible: page.twoFactorVisible
-            title: qsTr("Authentication code")
-            iconName: "document-encrypt"
+            visible: page.activeStep === page.twoFactorStep
 
-            Controls.Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: qsTr("Enter the six-digit code from your authenticator, or an eight-character recovery code.")
-            }
+            contentItem: ColumnLayout {
+                spacing: Kirigami.Units.largeSpacing
 
-            Controls.TextField {
-                id: twoFactorField
-                Layout.fillWidth: true
-                placeholderText: qsTr("Authentication or recovery code")
-                echoMode: TextInput.Password
-                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhHiddenText
-                                  | Qt.ImhNoPredictiveText
-                enabled: !vpnController.busy
-                activeFocusOnTab: true
-                Accessible.name: qsTr("Authentication or recovery code")
-                onAccepted: page.submitCode()
-            }
+                Controls.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Enter the six-digit code from your authenticator, or an eight-character recovery code.")
+                }
 
-            Controls.Button {
-                Layout.alignment: Qt.AlignHCenter
-                text: qsTr("Authenticate")
-                highlighted: true
-                enabled: (twoFactorField.text.trim().length === 6
-                          || twoFactorField.text.trim().length === 8)
-                         && !vpnController.busy
-                onClicked: page.submitCode()
-            }
+                Controls.TextField {
+                    id: twoFactorField
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("Authentication or recovery code")
+                    echoMode: TextInput.Password
+                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhHiddenText
+                                      | Qt.ImhNoPredictiveText
+                    enabled: !vpnController.busy
+                    activeFocusOnTab: true
+                    Accessible.name: qsTr("Authentication or recovery code")
+                    onAccepted: page.submitCode()
+                }
 
-            Controls.Button {
-                Layout.alignment: Qt.AlignHCenter
-                visible: vpnController.fido2Available
-                text: qsTr("Use a security key")
-                icon.name: "auth-sim-locked"
-                enabled: !vpnController.busy
-                onClicked: vpnController.beginFido2()
-            }
+                Controls.Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr("Authenticate")
+                    highlighted: true
+                    enabled: (twoFactorField.text.trim().length === 6
+                              || twoFactorField.text.trim().length === 8)
+                             && !vpnController.busy
+                    onClicked: page.submitCode()
+                }
 
-            Controls.Button {
-                Layout.alignment: Qt.AlignHCenter
-                text: qsTr("Cancel sign-in")
-                onClicked: vpnController.cancelLogin()
+                Controls.Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: vpnController.fido2Available
+                    text: qsTr("Use a security key")
+                    icon.name: "auth-sim-locked"
+                    enabled: !vpnController.busy
+                    onClicked: vpnController.beginFido2()
+                }
+
+                Controls.Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr("Cancel sign-in")
+                    onClicked: vpnController.cancelLogin()
+                }
             }
         }
 
-        SectionCard {
+        ColumnLayout {
+            objectName: "securityKeyAuthenticationStep"
             Layout.fillWidth: true
-            visible: page.fidoPromptVisible
-            title: qsTr("Security key")
-            iconName: "auth-sim-locked"
+            visible: page.activeStep === page.securityKeyStep
+            spacing: Kirigami.Units.largeSpacing
 
             Controls.BusyIndicator {
                 Layout.alignment: Qt.AlignHCenter
                 running: parent.visible
             }
 
-            Controls.Label {
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
-                text: vpnController.message
-            }
-
             Controls.Button {
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("Cancel security key")
@@ -353,47 +551,51 @@ Kirigami.ScrollablePage {
             }
         }
 
-        SectionCard {
+        Kirigami.AbstractCard {
+            objectName: "securityKeyPinAuthenticationStep"
             Layout.fillWidth: true
-            visible: vpnController.authState === "fido_pin"
-            title: qsTr("Security-key PIN")
-            iconName: "password-show-off"
+            visible: page.activeStep === page.securityKeyPinStep
 
-            Controls.TextField {
-                id: fidoPinField
-                Layout.fillWidth: true
-                placeholderText: qsTr("Security-key PIN")
-                echoMode: TextInput.Password
-                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhHiddenText
-                                  | Qt.ImhNoPredictiveText
-                activeFocusOnTab: true
-                Accessible.name: qsTr("Security-key PIN")
-                onAccepted: {
-                    vpnController.submitFido2Pin(text)
-                    clear()
+            contentItem: ColumnLayout {
+                spacing: Kirigami.Units.largeSpacing
+
+                Controls.TextField {
+                    id: fidoPinField
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("Security-key PIN")
+                    echoMode: TextInput.Password
+                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhHiddenText
+                                      | Qt.ImhNoPredictiveText
+                    activeFocusOnTab: true
+                    Accessible.name: qsTr("Security-key PIN")
+                    onAccepted: {
+                        vpnController.submitFido2Pin(text)
+                        clear()
+                    }
                 }
-            }
 
-            Controls.Button {
-                Layout.alignment: Qt.AlignHCenter
-                text: qsTr("Continue")
-                highlighted: true
-                enabled: fidoPinField.text.length > 0
-                onClicked: {
-                    vpnController.submitFido2Pin(fidoPinField.text)
-                    fidoPinField.clear()
+                Controls.Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr("Continue")
+                    highlighted: true
+                    enabled: fidoPinField.text.length > 0
+                    onClicked: {
+                        vpnController.submitFido2Pin(fidoPinField.text)
+                        fidoPinField.clear()
+                    }
                 }
-            }
 
-            Controls.Button {
-                Layout.alignment: Qt.AlignHCenter
-                text: qsTr("Cancel security key")
-                onClicked: vpnController.cancelFido2()
+                Controls.Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr("Cancel security key")
+                    onClicked: vpnController.cancelFido2()
+                }
             }
         }
 
         Controls.Label {
             Layout.fillWidth: true
+            visible: page.activeStep === page.credentialStep
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
             text: qsTr("Credentials are encrypted for the local backend, transferred through a sealed one-use memory file, and never included in D-Bus message data or settings.")

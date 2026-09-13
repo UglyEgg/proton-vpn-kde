@@ -31,6 +31,29 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Verbindingsfout</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Uit</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standaard</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Connectie</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>IP-beveiliging</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Upgrade</source>
@@ -69,6 +92,29 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Sign in</source>
+            <translation>Inloggen</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Instellingen</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Uitgave opmerkingen</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Meld een probleem</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>Over</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Verbindingsfout: sessielimiet bereikt</translation>
@@ -145,26 +191,6 @@ Pas uw systeemtijd aan en probeer opnieuw verbinding te maken.</translation>
             <source>Close</source>
             <translation>Sluit</translation>
         </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Inloggen</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Instellingen</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Uitgave opmerkingen</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Meld een probleem</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>Over</translation>
-        </message>
     </context>
     <context>
         <name>OverviewPage</name>
@@ -195,6 +221,13 @@ Pas uw systeemtijd aan en probeer opnieuw verbinding te maken.</translation>
         <message>
             <source>Sign in</source>
             <translation>Inloggen</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Uit</translation>
         </message>
     </context>
     <context>
@@ -232,18 +265,6 @@ Pas uw systeemtijd aan en probeer opnieuw verbinding te maken.</translation>
             <source>Settings</source>
             <translation>Instellingen</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Uit</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Standaard</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Bèta-toegang</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -274,6 +295,24 @@ Pas uw systeemtijd aan en probeer opnieuw verbinding te maken.</translation>
         <message>
             <source>Security key</source>
             <translation>Beveiligingssleutel</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Bèta-toegang</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Uit</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Standaard</translation>
         </message>
     </context>
     <context>

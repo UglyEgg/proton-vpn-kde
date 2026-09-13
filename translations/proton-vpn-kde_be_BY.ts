@@ -35,6 +35,37 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Памылка падключэння</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Выключана</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Стандартны</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Падключэнне</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Пратакол</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>Kill Switch</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Split Tunneling</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -81,6 +112,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Уліковы запіс</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Увайсці</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Налады</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Нататкі да выпуску</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Паведаміць аб праблеме</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>Аб праграме</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Памылка падключэння: дасягнута абмежаванне па колькасці сеансаў</translation>
@@ -165,30 +223,6 @@ Update your system time and try to connect again.</source>
             <source>Close</source>
             <translation>Закрыць</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Уліковы запіс</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Увайсці</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Налады</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Нататкі да выпуску</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Паведаміць аб праблеме</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>Аб праграме</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -226,6 +260,13 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Sign in</source>
             <translation>Увайсці</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Выключана</translation>
         </message>
     </context>
     <context>
@@ -270,22 +311,6 @@ Update your system time and try to connect again.</source>
             <source>Settings</source>
             <translation>Налады</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Выключана</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Стандартны</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Split Tunneling</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Доступ да бэта-версіі</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -316,6 +341,31 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Security key</source>
             <translation>Ключ бяспекі</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Split Tunneling</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Доступ да бэта-версіі</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Выключана</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Стандартны</translation>
         </message>
     </context>
     <context>

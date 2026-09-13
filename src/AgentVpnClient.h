@@ -4,7 +4,9 @@
 #pragma once
 
 #include "VpnConnectionController.h"
+#include "OperationCompletion.h"
 
+#include <QDBusContext>
 #include <QString>
 #include <QStringList>
 #include <QtTypes>
@@ -12,8 +14,10 @@
 
 class QDBusPendingCallWatcher;
 class QDBusServiceWatcher;
+class QTimer;
 
-class AgentVpnClient final : public VpnConnectionController
+class AgentVpnClient final : public VpnConnectionController,
+                             protected QDBusContext
 {
     Q_OBJECT
 
@@ -30,7 +34,8 @@ public:
     [[nodiscard]] int forwardedPort() const override;
     [[nodiscard]] QString message() const override;
     [[nodiscard]] QString primaryActionText() const override;
-    [[nodiscard]] bool primaryActionEnabled() const override;
+    [[nodiscard]] ProtonVpnKde::ConnectionActionCapabilities
+    connectionCapabilities() const override;
 
     void setReconnectionEnabled(bool enabled);
     void setFastestFeatures(const QStringList &features);
@@ -54,10 +59,16 @@ private slots:
 
 private:
     void setBackendAvailable(bool available);
+    void stampBackendRequest(QDBusPendingCallWatcher *watcher) const;
+    [[nodiscard]] bool backendReplyIsCurrent(
+        const QDBusPendingCallWatcher *watcher) const;
+    [[nodiscard]] bool backendSignalIsCurrent() const;
     void connectBackendSignals();
     void disconnectBackendSignals();
     void authorizeClient();
-    void requestSnapshot(bool allowActivation = false);
+    void scheduleRecoveryRead();
+    void requestSnapshot(bool allowActivation = false,
+                         quint64 operationGeneration = 0);
     void applySnapshot(const QString &snapshotJson);
     void applyReconnectionPreference();
     void acquireTransientLease();
@@ -72,20 +83,33 @@ private:
     void handleOperationReply(QDBusPendingCallWatcher *watcher);
 
     QDBusServiceWatcher *m_serviceWatcher = nullptr;
+    QTimer *m_recoveryRetryTimer = nullptr;
+    int m_recoveryRetryCount = 0;
+    bool m_authorizationRejected = false;
+    bool m_discoveryPending = false;
+    bool m_identityPending = false;
     bool m_backendAvailable = false;
     QString m_backendDestination;
     bool m_authorizationPending = false;
     bool m_ready = false;
+    bool m_snapshotHealthy = false;
     bool m_loggedIn = false;
     bool m_busy = false;
     bool m_reconnectionEnabled = true;
     bool m_reconnectionApplied = false;
+    bool m_reconnectionPending = false;
+    ProtonVpnKde::OperationCompletion m_operationCompletion;
+    quint64 m_connectionIntentGeneration = 0;
+    quint64 m_transientLeaseRequestGeneration = 0;
     bool m_transientLeasePending = false;
     bool m_transientLeaseActive = false;
+    bool m_transientLeaseMayExist = false;
     quint64 m_serviceGeneration = 0;
+    quint64 m_reconnectionRequestGeneration = 0;
     int m_killSwitch = 0;
     int m_forwardedPort = 0;
-    QString m_state = QStringLiteral("disconnected");
+    QString m_state = QStringLiteral("unavailable");
+    QString m_authState = QStringLiteral("signed_out");
     QString m_serverName;
     QString m_message;
     QStringList m_fastestFeatures;

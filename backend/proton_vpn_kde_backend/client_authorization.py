@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 from collections.abc import Awaitable, Callable, Iterable
 import os
@@ -23,6 +24,7 @@ from .dbus_contract import (
     SECRET_DESCRIPTOR_METHODS,
     Error,
 )
+from .environment_contract import UNSAFE_ENVIRONMENT_PREFIXES
 
 
 BACKEND_OBJECT_PATH = OBJECT_PATH
@@ -33,13 +35,14 @@ INVALID_SECRET_ERROR = Error.INVALID_SECRET_PAYLOAD
 INVALID_SECRET_MESSAGE = "The protected payload is invalid or no longer valid"
 INVALID_ARGUMENTS_ERROR = "org.freedesktop.DBus.Error.InvalidArgs"
 INVALID_ARGUMENTS_MESSAGE = "Unexpected Unix file descriptors"
+DEFAULT_AUTHORIZATION_TIMEOUT_SECONDS = 5.0
 _NAME_OWNER_MATCH = (
     "sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',"
     "path='/org/freedesktop/DBus',member='NameOwnerChanged'"
 )
 
 _request_sender: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "proton_vpn_kde_request_sender", default=":direct.test"
+    "proton_vpn_kde_request_sender", default=""
 )
 IdentityProbe = Callable[[str], Awaitable[bool]]
 OwnerProbe = Callable[[str], Awaitable[bool]]
@@ -59,6 +62,15 @@ def close_unix_fds(file_descriptors: Iterable[int]) -> None:
             pass
 
 
+def process_environment_is_safe(entries: Iterable[bytes]) -> bool:
+    """Reject packaged peers whose environment can redirect native loading."""
+    return not any(
+        entry.startswith(prefix)
+        for entry in entries
+        for prefix in UNSAFE_ENVIRONMENT_PREFIXES
+    )
+
+
 class ClientAuthorizer:
     """Authenticate native clients and reject unauthorized state changes."""
 
@@ -70,6 +82,7 @@ class ClientAuthorizer:
         enforce_identity: bool = True,
         identity_probe: IdentityProbe | None = None,
         owner_probe: OwnerProbe | None = None,
+        authorization_timeout: float = DEFAULT_AUTHORIZATION_TIMEOUT_SECONDS,
     ) -> None:
         self._bus = bus
         self._trusted_executables = frozenset(
@@ -78,8 +91,25 @@ class ClientAuthorizer:
         self._enforce_identity = enforce_identity
         self._identity_probe = identity_probe or self._probe_identity
         self._owner_probe = owner_probe or self._name_has_owner
+        self._authorization_timeout = max(0.0, authorization_timeout)
         self._authorized: set[str] = set()
+        self._pending_authorizations: dict[str, int] = {}
+        self._revoked_while_pending: set[str] = set()
         self._revocation_callbacks: list[Callable[[str], None]] = []
+        self._ingress_closed = False
+
+    def close_ingress(self) -> None:
+        """Stop adoption before unexporting, but retain bus-wide FD cleanup."""
+        self._ingress_closed = True
+
+    def open_ingress(self) -> None:
+        """Allow service adoption only once the exported consumers exist."""
+        self._ingress_closed = False
+
+    @staticmethod
+    def _discard_descriptors(message: Message) -> None:
+        descriptors, message.unix_fds = message.unix_fds, []
+        close_unix_fds(descriptors)
 
     @property
     def authorized_senders(self) -> frozenset[str]:
@@ -123,12 +153,29 @@ class ClientAuthorizer:
         sender = current_request_sender()
         if not sender.startswith(":") or claimed_sender != sender:
             raise PermissionError(UNAUTHORIZED_MESSAGE)
-        if self._enforce_identity:
-            if not await self._identity_probe(sender):
+        self._pending_authorizations[sender] = (
+            self._pending_authorizations.get(sender, 0) + 1
+        )
+        try:
+            if self._enforce_identity:
+                try:
+                    async with asyncio.timeout(self._authorization_timeout):
+                        if not await self._identity_probe(sender):
+                            raise PermissionError(UNAUTHORIZED_MESSAGE)
+                        if not await self._owner_probe(sender):
+                            raise PermissionError(UNAUTHORIZED_MESSAGE)
+                except TimeoutError:
+                    raise PermissionError(UNAUTHORIZED_MESSAGE) from None
+            if sender in self._revoked_while_pending:
                 raise PermissionError(UNAUTHORIZED_MESSAGE)
-            if not await self._owner_probe(sender):
-                raise PermissionError(UNAUTHORIZED_MESSAGE)
-        self._authorized.add(sender)
+            self._authorized.add(sender)
+        finally:
+            pending = self._pending_authorizations[sender] - 1
+            if pending:
+                self._pending_authorizations[sender] = pending
+            else:
+                self._pending_authorizations.pop(sender, None)
+                self._revoked_while_pending.discard(sender)
 
     def require_authorized_sender(self) -> str:
         sender = current_request_sender()
@@ -137,6 +184,12 @@ class ClientAuthorizer:
         return sender
 
     def revoke(self, sender: str) -> None:
+        if sender in self._pending_authorizations:
+            # A unique D-Bus name cannot be reused during a bus lifetime. Keep
+            # a bounded tombstone only while its asynchronous identity probe
+            # is in flight so a loss signal cannot be followed by stale
+            # authorization.
+            self._revoked_while_pending.add(sender)
         if sender not in self._authorized:
             return
         self._authorized.discard(sender)
@@ -145,6 +198,14 @@ class ClientAuthorizer:
 
     def message_handler(self, message: Message) -> Message | bool | None:
         """Capture the real sender and enforce the complete method policy."""
+        # This connection's only descriptor consumers are protected methods
+        # on the exported object. Ignored messages and scalar RPC replies still
+        # need cleanup; leave them unhandled so normal bus dispatch continues.
+        if (
+            message.message_type is not MessageType.METHOD_CALL
+            or message.path != BACKEND_OBJECT_PATH
+        ):
+            self._discard_descriptors(message)
         if (
             message.message_type is MessageType.SIGNAL
             and message.sender == "org.freedesktop.DBus"
@@ -160,12 +221,23 @@ class ClientAuthorizer:
         if (
             message.message_type is not MessageType.METHOD_CALL
             or message.path != BACKEND_OBJECT_PATH
-            or message.interface != BACKEND_INTERFACE
         ):
             return None
 
         sender = message.sender or ""
         _request_sender.set(sender)
+        if self._ingress_closed:
+            self._discard_descriptors(message)
+            return Message.new_error(message, UNAUTHORIZED_ERROR, UNAUTHORIZED_MESSAGE)
+        # The dispatcher also accepts interface-less exported calls. Standard
+        # interfaces remain available, but cannot adopt ancillary descriptors.
+        if message.interface not in {None, BACKEND_INTERFACE}:
+            if message.unix_fds:
+                self._discard_descriptors(message)
+                return Message.new_error(
+                    message, INVALID_ARGUMENTS_ERROR, INVALID_ARGUMENTS_MESSAGE
+                )
+            return None
         member = message.member or ""
         if member in SECRET_DESCRIPTOR_METHODS:
             valid_descriptor_call = (
@@ -176,7 +248,7 @@ class ClientAuthorizer:
                 and len(message.unix_fds) == 1
             )
             if not valid_descriptor_call:
-                close_unix_fds(message.unix_fds)
+                self._discard_descriptors(message)
                 return Message.new_error(
                     message,
                     INVALID_SECRET_ERROR,
@@ -187,7 +259,7 @@ class ClientAuthorizer:
             # declared method signature. No ordinary method adopts them, so
             # reject and close them before dbus-fast dispatch can lose track
             # of their ownership.
-            close_unix_fds(message.unix_fds)
+            self._discard_descriptors(message)
             return Message.new_error(
                 message,
                 INVALID_ARGUMENTS_ERROR,
@@ -205,7 +277,7 @@ class ClientAuthorizer:
 
         # Unknown future exports are protected by default. The descriptors have
         # already crossed the process boundary, so rejection owns their cleanup.
-        close_unix_fds(message.unix_fds)
+        self._discard_descriptors(message)
         return Message.new_error(
             message,
             UNAUTHORIZED_ERROR,
@@ -227,19 +299,7 @@ class ClientAuthorizer:
             if metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
                 return False
             environment = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
-            blocked = (
-                b"LD_PRELOAD=",
-                b"LD_AUDIT=",
-                b"LD_LIBRARY_PATH=",
-                b"KDE_PLUGIN_PATH=",
-                b"QT_PLUGIN_PATH=",
-                b"QT_QPA_PLATFORM_PLUGIN_PATH=",
-                b"QML_IMPORT_PATH=",
-                b"QML2_IMPORT_PATH=",
-            )
-            return not any(
-                entry.startswith(prefix) for entry in environment for prefix in blocked
-            )
+            return process_environment_is_safe(environment)
         except (OSError, ValueError, TypeError):
             return False
 

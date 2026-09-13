@@ -65,6 +65,7 @@ class Error:
     INVALID_SETTINGS = "quest.entropy.PlasmaVPN.Error.InvalidSettings"
     INVALID_SPLIT_TUNNELING = "quest.entropy.PlasmaVPN.Error.InvalidSplitTunneling"
     INVALID_SUPPORT_REPORT = "quest.entropy.PlasmaVPN.Error.InvalidSupportReport"
+    NPS_COMPLETION_UNKNOWN = "quest.entropy.PlasmaVPN.Error.NpsCompletionUnknown"
     OPERATION_FAILED = "quest.entropy.PlasmaVPN.Error.OperationFailed"
     UNAUTHORIZED = "quest.entropy.PlasmaVPN.Error.Unauthorized"
 

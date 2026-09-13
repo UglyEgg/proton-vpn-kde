@@ -31,6 +31,33 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Σφάλμα σύνδεσης</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Ανενεργό</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Τυπικό</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Σύνδεση</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Πρωτόκολλο</translation>
+        </message>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Διαίρεση σήραγγας</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Via Secure Core</source>
@@ -77,6 +104,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Λογαριασμός</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Σύνδεση</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Ρυθμίσεις</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Σημειώσεις έκδοσης</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Αναφορά προβλήματος</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>Σχετικά</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Σφάλμα σύνδεσης: συμπληρώθηκε το όριο περιόδου σύνδεσης</translation>
@@ -161,30 +215,6 @@ Update your system time and try to connect again.</source>
             <source>Close</source>
             <translation>Κλείσιμο</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Λογαριασμός</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Σύνδεση</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Ρυθμίσεις</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Σημειώσεις έκδοσης</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Αναφορά προβλήματος</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>Σχετικά</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -222,6 +252,13 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Sign in</source>
             <translation>Σύνδεση</translation>
+        </message>
+    </context>
+    <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Ανενεργό</translation>
         </message>
     </context>
     <context>
@@ -266,22 +303,6 @@ Update your system time and try to connect again.</source>
             <source>Settings</source>
             <translation>Ρυθμίσεις</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Ανενεργό</translation>
-        </message>
-        <message>
-            <source>Standard</source>
-            <translation>Τυπικό</translation>
-        </message>
-        <message>
-            <source>Split tunneling</source>
-            <translation>Διαίρεση σήραγγας</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Πρόσβαση Beta</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -312,6 +333,31 @@ Update your system time and try to connect again.</source>
         <message>
             <source>Security key</source>
             <translation>Κλειδί ασφαλείας</translation>
+        </message>
+    </context>
+    <context>
+        <name>SplitTunnelingSettingsSection</name>
+        <message>
+            <source>Split tunneling</source>
+            <translation>Διαίρεση σήραγγας</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Πρόσβαση Beta</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Ανενεργό</translation>
+        </message>
+        <message>
+            <source>Standard</source>
+            <translation>Τυπικό</translation>
         </message>
     </context>
     <context>

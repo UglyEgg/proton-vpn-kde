@@ -14,11 +14,24 @@ The patch set is provider-neutral:
 - reuse one serialized D-Bus connection per backend, without caching plaintext;
 - close that connection explicitly or through a finalizer; and
 - treat an already-absent keyring entry as a normal `KeyError`, without an
-  error-level traceback.
+  error-level traceback;
+- require the selected provider to run as the session user before sending it
+  secret data;
+- support both D-Bus-activated providers and providers that already own the
+  service name after desktop autostart; and
+- pin every Secret Service call, reply, and prompt signal to that provider's
+  unique D-Bus owner, rejecting owner replacement.
 
 GNOME Keyring remains a supported provider, but it is a suggestion rather than
-a runtime requirement. KeePassXC and other conforming Freedesktop Secret
-Service implementations use the same code path.
+a runtime requirement. KeePassXC, KWallet, GNOME Keyring, and other conforming
+Freedesktop Secret Service implementations use the same code path. The desktop-
+selected same-user provider is a trusted dependency: D-Bus exposes its unique
+owner and Unix user but does not portably attest its executable, especially
+when a provider deliberately runs as a non-dumpable process.
+
+An activation response that says the service is not activatable is tolerated
+only long enough to resolve the current owner. If no provider is actually
+running, owner resolution still fails closed before any secret operation.
 
 ## Rebuild
 
@@ -41,15 +54,24 @@ packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
 An already downloaded archive can be supplied as the first argument. Neither
 the downloaded archive nor built RPMs belong in Git.
 
-The resulting package provides
-`proton-keyring-secret-service-provider-agnostic = 1`. The Plasma client RPM
-requires that capability until an equivalent implementation is verified in an
-upstream package and the dependency can be retired.
+The resulting package provides both the compatibility capability
+`proton-keyring-secret-service-provider-agnostic = 1` and the stronger
+`proton-keyring-secret-service-owner-pinned = 1`. The Plasma client RPM
+requires the stronger capability until an equivalent implementation is
+verified in an upstream package and the dependency can be retired.
 
 ## Upstream boundary
 
-The first patch combines the default-alias compatibility and stable-client
-identity changes because they modify one small backend implementation and share
-the same focused test module. The missing-entry logging patch remains separate
-and can be proposed independently. No VPN networking, session format, or secret
-storage schema is changed.
+The first patch combines the default-alias compatibility and stable-connection
+changes because they modify one small backend implementation and share the same
+focused test module. The missing-entry logging and provider-owner-pinning
+patches remain separate and can be proposed independently. No VPN networking,
+session format, or secret storage schema is changed.
+
+Existing source files retain Proton's copyright and GPL notices. The new test
+module in patch 0001 uses Proton's current 2026 notice and GPL boilerplate.
+This prepares the source form for Proton's contribution policy; keeping the
+patch locally does not itself assign copyright or constitute Proton review.
+Before submission, the human contributor must review every line and determine
+that they can truthfully accept Proton's copyright-assignment and sole-creation
+terms.

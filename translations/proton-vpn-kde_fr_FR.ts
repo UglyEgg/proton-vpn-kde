@@ -31,6 +31,29 @@
         </message>
     </context>
     <context>
+        <name>ConnectionInspectorPage</name>
+        <message>
+            <source>Connection error</source>
+            <translation>Erreur de connexion</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Désactivé</translation>
+        </message>
+        <message>
+            <source>Connection</source>
+            <translation>Connexion</translation>
+        </message>
+        <message>
+            <source>Protocol</source>
+            <translation>Protocole</translation>
+        </message>
+        <message>
+            <source>Kill switch</source>
+            <translation>Arrêt d'urgence (kill switch)</translation>
+        </message>
+    </context>
+    <context>
         <name>CountryPage</name>
         <message>
             <source>Upgrade</source>
@@ -73,6 +96,33 @@
     </context>
     <context>
         <name>Main</name>
+        <message>
+            <source>Account</source>
+            <translation>Compte</translation>
+        </message>
+        <message>
+            <source>Sign in</source>
+            <translation>Se connecter</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Paramètres</translation>
+        </message>
+        <message>
+            <source>Release notes</source>
+            <translation>Notes de mise à jour</translation>
+        </message>
+        <message>
+            <source>Report an issue</source>
+            <translation>Signaler un problème</translation>
+        </message>
+        <message>
+            <source>About</source>
+            <translation>À propos</translation>
+        </message>
+    </context>
+    <context>
+        <name>MainDialogs</name>
         <message>
             <source>Connection error: session limit reached</source>
             <translation>Erreur de connexion : limite de session atteinte</translation>
@@ -155,30 +205,6 @@ Mettez à jour l'heure de votre système et réessayez de vous connecter.</trans
             <source>Close</source>
             <translation>Fermer</translation>
         </message>
-        <message>
-            <source>Account</source>
-            <translation>Compte</translation>
-        </message>
-        <message>
-            <source>Sign in</source>
-            <translation>Se connecter</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Paramètres</translation>
-        </message>
-        <message>
-            <source>Release notes</source>
-            <translation>Notes de mise à jour</translation>
-        </message>
-        <message>
-            <source>Report an issue</source>
-            <translation>Signaler un problème</translation>
-        </message>
-        <message>
-            <source>About</source>
-            <translation>À propos</translation>
-        </message>
     </context>
     <context>
         <name>NotificationIntegration</name>
@@ -219,6 +245,13 @@ Mettez à jour l'heure de votre système et réessayez de vous connecter.</trans
         </message>
     </context>
     <context>
+        <name>ProtectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Désactivé</translation>
+        </message>
+    </context>
+    <context>
         <name>ReleaseNotesPage</name>
         <message>
             <source>Release notes</source>
@@ -253,14 +286,6 @@ Mettez à jour l'heure de votre système et réessayez de vous connecter.</trans
             <source>Settings</source>
             <translation>Paramètres</translation>
         </message>
-        <message>
-            <source>Off</source>
-            <translation>Désactivé</translation>
-        </message>
-        <message>
-            <source>Beta access</source>
-            <translation>Accès à la version bêta</translation>
-        </message>
     </context>
     <context>
         <name>SignInPage</name>
@@ -291,6 +316,20 @@ Mettez à jour l'heure de votre système et réessayez de vous connecter.</trans
         <message>
             <source>Security key</source>
             <translation>Clé de sécurité</translation>
+        </message>
+    </context>
+    <context>
+        <name>UpdateSettingsSection</name>
+        <message>
+            <source>Beta access</source>
+            <translation>Accès à la version bêta</translation>
+        </message>
+    </context>
+    <context>
+        <name>VpnConnectionSettingsSection</name>
+        <message>
+            <source>Off</source>
+            <translation>Désactivé</translation>
         </message>
     </context>
     <context>

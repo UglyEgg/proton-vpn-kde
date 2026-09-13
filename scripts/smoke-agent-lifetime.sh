@@ -30,7 +30,6 @@ trap cleanup EXIT
 
 PYTHONPATH="$project_dir/backend" \
     PROTON_VPN_KDE_IDLE_TIMEOUT_SECONDS=2 \
-    PROTON_VPN_KDE_CLIENT_POLL_SECONDS=0.05 \
     python3 -m proton_vpn_kde_backend --demo \
     >"$staging_dir/backend.log" 2>&1 &
 backend_pid=$!

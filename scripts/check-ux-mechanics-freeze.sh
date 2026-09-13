@@ -1,0 +1,291 @@
+#!/usr/bin/bash
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+set -euo pipefail
+
+project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+baseline_commit="ec27fdce4967325d0f5e604c135caa23f5158474"
+
+cd "$project_dir"
+
+# A diff cannot seal untracked source. Require explicit staging before this
+# gate is used locally; CI's clean checkout naturally satisfies the condition.
+untracked_files="$(git ls-files --others --exclude-standard)"
+if [[ -n "$untracked_files" ]]; then
+    echo "Stage or remove untracked files before sealing the candidate:" >&2
+    printf '  %s\n' "$untracked_files" >&2
+    exit 1
+fi
+
+if ! git cat-file -e "${baseline_commit}^{commit}" 2>/dev/null; then
+    echo "The 0.13 UX mechanics baseline is unavailable: $baseline_commit" >&2
+    echo "Fetch complete Git history before running this release gate." >&2
+    exit 1
+fi
+
+changed_files="$({
+    git diff --no-renames --name-only --diff-filter=ACDMRTUXB \
+        "$baseline_commit" HEAD
+    git diff --no-renames --name-only --diff-filter=ACDMRTUXB
+    git diff --cached --no-renames --name-only --diff-filter=ACDMRTUXB
+} | LC_ALL=C sort -u)"
+
+diff_hash() {
+    git \
+        -c color.ui=false \
+        -c core.abbrev=40 \
+        -c diff.algorithm=myers \
+        -c diff.context=3 \
+        -c diff.indentHeuristic=false \
+        -c diff.mnemonicPrefix=false \
+        -c diff.noprefix=false \
+        -c diff.renames=false \
+        diff --no-ext-diff --no-textconv --no-color --no-renames --binary \
+        --full-index --abbrev=40 --diff-algorithm=myers \
+        --no-indent-heuristic --unified=3 --src-prefix=a/ --dst-prefix=b/ \
+        --output-indicator-new=+ --output-indicator-old=- \
+        --output-indicator-context=' ' -O/dev/null \
+        "$baseline_commit" -- "$@" | sha256sum | cut -d' ' -f1
+}
+
+assert_diff_hash() {
+    local expected="$1"
+    local label="$2"
+    shift 2
+    local actual
+    actual="$(diff_hash "$@")"
+    if [[ "$actual" != "$expected" ]]; then
+        echo "The recorded 0.13 $label delta changed:" >&2
+        printf '  expected %s\n  actual   %s\n' "$expected" "$actual" >&2
+        exit 1
+    fi
+}
+
+violations=()
+while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+
+    case "$path" in
+        .github/workflows/ci.yml|CHANGELOG.md|CONTRIBUTING.md|README.md|\
+        SECURITY.md|THIRD_PARTY_NOTICES.md|docs/*|\
+        packaging/fedora/README.md|packaging/fedora/api-core-overlay/README.md|\
+        qml/*)
+            ;;
+        .editorconfig|.gitattributes|.gitignore|\
+        CMakeLists.txt|.github/workflows/rpm.yml|kcm/CMakeLists.txt|backend/pyproject.toml|\
+        backend/proton-vpn-kde-backend.in|\
+        backend/proton_vpn_kde_backend/__init__.py|\
+        backend/proton_vpn_kde_backend/__main__.py|\
+        backend/proton_vpn_kde_backend/_build_features.py.in|\
+        backend/proton_vpn_kde_backend/adapters.py|\
+        backend/proton_vpn_kde_backend/account_transition.py|\
+        backend/proton_vpn_kde_backend/async_utils.py|\
+        backend/proton_vpn_kde_backend/client_authorization.py|\
+        backend/proton_vpn_kde_backend/controller.py|\
+        backend/proton_vpn_kde_backend/demo_adapter.py|\
+        backend/proton_vpn_kde_backend/core_compatibility.py|\
+        backend/proton_vpn_kde_backend/core_snapshot.py|\
+        backend/proton_vpn_kde_backend/core_support.py|\
+        backend/proton_vpn_kde_backend/dbus_contract.py|\
+        backend/proton_vpn_kde_backend/dbus_service.py|\
+        backend/proton_vpn_kde_backend/errors.py|\
+        backend/proton_vpn_kde_backend/fido_interaction.py|\
+        backend/proton_vpn_kde_backend/lifetime.py|\
+        backend/proton_vpn_kde_backend/packet_capture.py|\
+        backend/proton_vpn_kde_backend/reconnector.py|\
+        backend/proton_vpn_kde_backend/refresher_events.py|\
+        backend/proton_vpn_kde_backend/task_scope.py|\
+        backend/tests/test_account_transition.py|\
+        backend/tests/test_async_utils.py|\
+        backend/tests/test_client_authorization.py|\
+        backend/tests/test_controller.py|\
+        backend/tests/test_core_lifecycle_conformance.py|\
+        backend/tests/test_dbus_contract.py|\
+        backend/tests/test_dbus_service.py|\
+        backend/tests/test_lifetime.py|\
+        backend/tests/test_main.py|\
+        backend/tests/test_proton_core_adapter.py|\
+        backend/tests/test_reconnector.py|\
+        backend/tests/test_refresher_events.py|\
+        backend/tests/test_search_projection.py|\
+        backend/tests/test_task_scope.py|\
+        data/proton-vpn-kde-backend.service.in|\
+        data/snapshot-schema-v1.json.license|\
+        data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
+        packaging/fedora/api-core-overlay/rebuild_overlay.py|\
+        packaging/fedora/api-core-overlay/build_overlay_rpm.sh|\
+        packaging/fedora/api-core-overlay/overlay-manifest.json|\
+        packaging/fedora/api-core-overlay/overlay-manifest.json.license|\
+        packaging/fedora/api-core-overlay/python3-proton-vpn-api-core-overlay.spec|\
+        packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch|\
+        packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py|\
+        packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py|\
+        packaging/fedora/core-compatibility.json|\
+        packaging/fedora/core-compatibility.json.license|\
+        packaging/fedora/keyring-overlay/README.md|\
+        packaging/fedora/keyring-overlay/build_overlay_rpm.sh|\
+        packaging/fedora/keyring-overlay/check_overlay_rpm.sh|\
+        packaging/fedora/keyring-overlay/overlay-manifest.json|\
+        packaging/fedora/keyring-overlay/overlay-manifest.json.license|\
+        packaging/fedora/keyring-overlay/patches/0001-provider-agnostic-secret-service.patch|\
+        packaging/fedora/keyring-overlay/patches/0003-pin-secret-service-provider.patch|\
+        packaging/fedora/keyring-overlay/python3-proton-keyring-linux.spec|\
+        packaging/fedora/proton-vpn-kde.spec|\
+        kcm/kcm_proton_vpn_kde.json.license|\
+        runner/proton-vpn-kde-runner.json.in.license|\
+        src/AgentVpnClient.cpp|src/AgentVpnClient.h|src/TrayIntegration.cpp|\
+        src/BackendIdentity.cpp|src/BackendIdentity.h|\
+        src/NotificationIntegration.cpp|src/NotificationIntegration.h|\
+        src/AppSettings.cpp|src/AppSettings.h|kcm/ui/main.qml|\
+        src/AgentControl.cpp|src/AgentControl.h|\
+        src/AutostartSettings.cpp|src/AutostartSettings.h|\
+        src/BackendCallPolicy.h|src/BackgroundQuitCoordinator.cpp|\
+        src/ConnectionAction.h|src/OperationCompletion.h|src/ShortcutIntegration.cpp|\
+        src/SettingsRequestState.h|src/VpnSettingsModel.cpp|\
+        src/SplitTunnelingModel.cpp|src/CustomDnsModel.cpp|\
+        src/VpnConnectionController.h|\
+        src/DbusContract.h|\
+        src/VpnController.cpp|src/VpnController.h|\
+        src/VpnControllerActions.cpp|\
+        src/VpnControllerLifecycle.cpp|src/VpnControllerLocations.cpp|\
+        src/VpnControllerSettings.cpp|src/VpnControllerSnapshot.cpp|\
+        src/main.cpp|src/agent_main.cpp|src/NativeStartup.cpp|src/NativeStartup.h|\
+        tests/NativeStartupProbe.cpp|\
+        tests/AgentVpnClientTest.cpp|tests/GroupedNavigationTest.cpp|\
+        tests/BackendIdentityTest.cpp|tests/NotificationIntegrationTest.cpp|\
+        tests/AppSettingsTest.cpp|\
+        tests/ControlCenterControlTest.cpp|\
+        tests/ProtonVpnKcmTest.cpp|\
+        tests/PresentationLayoutTest.cpp|\
+        tests/BackendCallPolicyTest.cpp|tests/BackgroundQuitCoordinatorTest.cpp|\
+        tests/ConnectionActionTest.cpp|\
+        tests/VpnSettingsModelTest.cpp|tests/SplitTunnelingModelTest.cpp|\
+        tests/CustomDnsModelTest.cpp|\
+        tests/SignInPresentationTest.cpp)
+            # Exact candidate deltas are checked below; this is not approval.
+            ;;
+        data/proton-vpn-kde.desktop.in|\
+        scripts/auth-dbus-client.py|scripts/capture-qml-page.sh|\
+        scripts/check-ci-policy.sh|scripts/test-ci-policy-negative.sh|\
+        scripts/check-qml-ui-hygiene.sh|scripts/check-qml-visual-matrix.sh|\
+        scripts/check-compatibility-metadata.py|scripts/check-spdx-headers.py|\
+        scripts/check-core-compatibility.sh|\
+        scripts/check-core-contract.py|\
+        scripts/check-native-startup.py|\
+        scripts/smoke-control-center-activation.sh|\
+        scripts/check-release-metadata.sh|scripts/check-rpm-artifact.sh|\
+        scripts/check-rpm-reproducibility.sh|\
+        scripts/check-ux-mechanics-freeze.sh|\
+        scripts/benchmark-search.py|\
+        scripts/smoke-qml-diagnostics.sh|scripts/smoke-qml-layout-variants.sh|\
+        scripts/smoke-settings-route.sh|scripts/smoke-staged-install.sh|\
+        scripts/test-ux-mechanics-freeze-negative.sh|\
+        translations/provenance.json.license)
+            # Presentation verification and its hermetic test drivers.
+            ;;
+        *)
+            violations+=("$path")
+            ;;
+    esac
+done <<<"$changed_files"
+
+if ((${#violations[@]} > 0)); then
+    echo "Files outside the reviewed 0.13 change boundary changed:" >&2
+    printf '  %s\n' "${violations[@]}" >&2
+    echo "Move behavioral work to a separate release or deliberately rebaseline after review." >&2
+    exit 1
+fi
+
+assert_diff_hash \
+    "53c240f870e585f66ea3e192873071f074b67e547be28252ae5eac8b686417c1" \
+    "build-system" CMakeLists.txt
+assert_diff_hash \
+    "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
+    "backend version-only" \
+    backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
+assert_diff_hash \
+    "ac1288800548f94a2e10f0c36bf701d589e565a6dfa24532ac74f594daba1675" \
+    "backend ownership and recovery" \
+    backend/proton_vpn_kde_backend backend/tests
+assert_diff_hash \
+    "91c1832d2a8dbe5083c6555d9250c1ca1ac76393b722cc737bd7fb58ae4c4149" \
+    "current Core runtime contract" \
+    packaging/fedora/api-core-overlay/rebuild_overlay.py \
+    packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
+    packaging/fedora/core-compatibility.json \
+    scripts/check-compatibility-metadata.py \
+    scripts/check-core-compatibility.sh scripts/check-core-contract.py
+# START-02 explicitly authorizes this separate Core activation overlay. The
+# exact-delta seal records scope, not independent review or installed acceptance.
+assert_diff_hash \
+    "6b3b30d3909a142c05d526cea640b3e15609e9c040e3c128b17a6f023fb6bbd3" \
+    "protection activation overlay" \
+    packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
+    packaging/fedora/api-core-overlay/overlay-manifest.json \
+    packaging/fedora/api-core-overlay/python3-proton-vpn-api-core-overlay.spec \
+    packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch \
+    packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py
+assert_diff_hash \
+    "bc8919bb31d33cf967c48472656f217a0d7de017f4fb0c20ed1ff0aeb2095c97" \
+    "finite process-stop packaging" \
+    data/proton-vpn-kde-backend.service.in \
+    scripts/check-rpm-artifact.sh scripts/smoke-staged-install.sh
+assert_diff_hash \
+    "f3dca36c733c8e515912de42c91c4c7c2faea9f1412ebcc5184b6c1bd8b19bff" \
+    "D-Bus completion-classification contract" \
+    data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
+    backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
+assert_diff_hash \
+    "5ee0594cd9199df4c9e8ba4dae56e42b01570f373bb3e7bc94d30e576e126991" \
+    "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
+assert_diff_hash \
+    "b97187b4c217c1673e959608012e29a6e3226eee78a1d752fcfe5c63cd41e96c" \
+    "RPM test dependencies" .github/workflows/rpm.yml \
+    scripts/check-rpm-reproducibility.sh
+assert_diff_hash \
+    "2f08d0a8b048d8a85a93e812432b8d4872babc3aa998558606eadee38176769d" \
+    "CI" .github/workflows/ci.yml
+assert_diff_hash \
+    "9ac9373715719f7942d8fb463b1319f92df5960c3b592a4730eaa391640de817" \
+    "frontend presentation contract" \
+    src runner kcm tests
+assert_diff_hash \
+    "298fe3ed74b0d6ff0d6e16dba499ca1bac6b28d593797a9f06e521426a9e6a1a" \
+    "QML presentation" qml
+
+assert_diff_hash \
+    "5ee2d9a7750117b46e018437e6e49218a7b7a1958ad3065b912dd4bedc2af6d9" \
+    "licensing and upstream provenance" \
+    .editorconfig .gitattributes .gitignore \
+    backend/proton-vpn-kde-backend.in \
+    backend/proton_vpn_kde_backend/_build_features.py.in \
+    data/snapshot-schema-v1.json.license \
+    kcm/kcm_proton_vpn_kde.json.license \
+    packaging/fedora/api-core-overlay/overlay-manifest.json.license \
+    packaging/fedora/core-compatibility.json.license \
+    packaging/fedora/keyring-overlay \
+    runner/proton-vpn-kde-runner.json.in.license \
+    scripts/check-spdx-headers.py \
+    translations/provenance.json.license
+
+# RC1–RC6: explicitly authorized startup/persistence/presentation corrections
+# and offline measurement fixtures. These seals still do not grant approval.
+# START-01 additionally admits direct native startup normalization and its
+# kernel-environment regression probe; backend authorization stays unchanged.
+# START-02 preserves restored session state on connector failure and holds an
+# ordinary failed startup for explicit retry without dropping durable recovery.
+assert_diff_hash \
+    "0b9bc3a05869509205d9dbfe761bf4e9eb9ccd1a423c07d9d41603e353c0cc12" \
+    "native startup regression" scripts/check-native-startup.py \
+    scripts/smoke-control-center-activation.sh
+
+assert_diff_hash \
+    "2307b7ff215dd918276e71decb16703f3120702aee1ff6a61fa46c993ea9a3e6" \
+    "offline search measurement" scripts/benchmark-search.py
+
+assert_diff_hash \
+    "5bfd83782480c0976b1b3cfe6ea8dd84d099329137b1b0f46c80acb4dde2f48a" \
+    "unambiguous desktop icon" data/proton-vpn-kde.desktop.in
+
+echo "0.13 change boundary matches baseline $baseline_commit plus recorded candidate deltas (not review approval)"

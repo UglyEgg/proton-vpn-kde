@@ -5,6 +5,8 @@
 #include "AppIcon.h"
 #include "AppSettings.h"
 #include "BackendIdentity.h"
+#include "ConnectionAction.h"
+#include "NativeStartup.h"
 #include "TranslationLoader.h"
 #include "UpdateChannel.h"
 #include "VpnController.h"
@@ -13,15 +15,77 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QDebug>
+#include <QEvent>
+#include <QFile>
 #include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QScreen>
 #include <QTimer>
 #include <QVariant>
 
+#include <memory>
+#include <optional>
+
+namespace
+{
+struct ProcessMemorySample {
+    quint64 pssKiB = 0;
+    quint64 privateKiB = 0;
+};
+
+std::optional<ProcessMemorySample> selfMemorySample()
+{
+    QFile rollup(QStringLiteral("/proc/self/smaps_rollup"));
+    if (!rollup.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return std::nullopt;
+    }
+    ProcessMemorySample sample;
+    bool foundPss = false;
+    bool foundPrivateClean = false;
+    bool foundPrivateDirty = false;
+    const QList<QByteArray> lines = rollup.readAll().split('\n');
+    for (const QByteArray &line : lines) {
+        const bool isPss = line.startsWith("Pss:");
+        const bool isPrivateClean = line.startsWith("Private_Clean:");
+        const bool isPrivateDirty = line.startsWith("Private_Dirty:");
+        if (!isPss && !isPrivateClean && !isPrivateDirty) {
+            continue;
+        }
+        const QList<QByteArray> fields = line.simplified().split(' ');
+        bool valid = false;
+        const quint64 value = fields.size() >= 2
+            ? fields.at(1).toULongLong(&valid) : 0;
+        if (!valid) {
+            return std::nullopt;
+        }
+        if (isPss) {
+            sample.pssKiB = value;
+            foundPss = true;
+        } else {
+            sample.privateKiB += value;
+            foundPrivateClean = foundPrivateClean || isPrivateClean;
+            foundPrivateDirty = foundPrivateDirty || isPrivateDirty;
+        }
+    }
+    if (!foundPss || !foundPrivateClean || !foundPrivateDirty) {
+        return std::nullopt;
+    }
+    return sample;
+}
+
+struct InspectorRetentionSamples {
+    ProcessMemorySample baseline;
+    ProcessMemorySample firstOpen;
+    ProcessMemorySample firstClosed;
+    ProcessMemorySample secondOpen;
+};
+}
+
 int main(int argc, char *argv[])
 {
+    ProtonVpnKde::prepareNativeStartup(argv);
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("proton-vpn-kde"));
     QApplication::setApplicationDisplayName(QStringLiteral("Plasma VPN"));
@@ -60,12 +124,16 @@ int main(int argc, char *argv[])
         QStringLiteral("visual-page"),
         QStringLiteral("Page used with --visual-snapshot"),
         QStringLiteral("page"), QStringLiteral("overview"));
+    const QCommandLineOption inspectorRetentionOption(
+        QStringLiteral("inspector-retention-smoke"),
+        QStringLiteral("Measure repeated Inspector retention (internal test option)"));
     commandLine.addOption(settingsOption);
     commandLine.addOption(diagnosticSmokeOption);
     commandLine.addOption(settingsRouteSmokeOption);
     commandLine.addOption(showOption);
     commandLine.addOption(visualSnapshotOption);
     commandLine.addOption(visualPageOption);
+    commandLine.addOption(inspectorRetentionOption);
     commandLine.process(app);
     const bool openSettings = commandLine.isSet(settingsOption);
     const bool diagnosticSmoke = commandLine.isSet(diagnosticSmokeOption);
@@ -73,8 +141,9 @@ int main(int argc, char *argv[])
     const bool forceShow = commandLine.isSet(showOption);
     const QString visualSnapshotPath = commandLine.value(visualSnapshotOption);
     const bool visualSnapshot = !visualSnapshotPath.isEmpty();
+    const bool inspectorRetention = commandLine.isSet(inspectorRetentionOption);
     const bool internalTest = diagnosticSmoke || settingsRouteSmoke
-                              || visualSnapshot;
+                              || visualSnapshot || inspectorRetention;
 
     if (internalTest
         && ProtonVpnKde::isRootOwnedImmutableFile(
@@ -95,20 +164,32 @@ int main(int argc, char *argv[])
     }
 
     if (!internalTest) {
+        if (settings.startTrayOnly(openSettings, forceShow)) {
+            // A windowless launcher must keep its event loop alive until the
+            // bounded activation attempt and any detached fallback settle.
+            QTimer::singleShot(0, &app, [] {
+                ProtonVpnKde::ensureAgentRunning([](bool started) {
+                    QCoreApplication::exit(started ? 0 : 1);
+                });
+            });
+            return app.exec();
+        }
         ProtonVpnKde::setAgentEnabled(settings.closeToTray());
         QObject::connect(&settings, &AppSettings::closeToTrayChanged,
                          &app, [&settings] {
             ProtonVpnKde::setAgentEnabled(settings.closeToTray());
         });
-        if (settings.closeToTray() && settings.startMinimized()
-            && !openSettings && !forceShow) {
-            return 0;
-        }
     }
 
     UpdateChannel updateChannel;
     VpnController controller;
-    bool startupActionHandled = false;
+    QString startupTarget = settings.closeToTray() ? QString()
+                                                  : settings.autoConnectTarget();
+    const auto retireStartup = [&startupTarget] { startupTarget.clear(); };
+    QObject::connect(&settings, &AppSettings::closeToTrayChanged, &app, retireStartup);
+    QObject::connect(&settings, &AppSettings::autoConnectTargetChanged, &app, retireStartup);
+    QObject::connect(&controller, &VpnController::connectionOperationStarted,
+                     &app, retireStartup);
     controller.setReconnectionEnabled(settings.reconnectEnabled());
     controller.setFastestFeatures(settings.fastestFeatures());
     QObject::connect(&settings, &AppSettings::reconnectEnabledChanged,
@@ -120,20 +201,18 @@ int main(int argc, char *argv[])
         controller.setFastestFeatures(settings.fastestFeatures());
     });
     QObject::connect(&controller, &VpnController::snapshotChanged,
-                     &app, [&controller, &settings, &startupActionHandled] {
-        if (settings.closeToTray() || startupActionHandled
-            || !controller.ready()) {
-            return;
-        }
-        startupActionHandled = true;
-        if (controller.loggedIn()
-            && controller.state() == QStringLiteral("disconnected")
-            && !settings.autoConnectTarget().isEmpty()) {
-            controller.connectTarget(settings.autoConnectTarget());
+                     &app, [&controller, &startupTarget] {
+        const QString target = ProtonVpnKde::takeStartupConnectionTarget(
+            startupTarget, controller.ready(), controller.loggedIn(),
+            controller.state(), controller.canConnect());
+        if (!target.isEmpty()) {
+            controller.connectTarget(target);
         }
     });
 
     QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("availableScreen"), app.primaryScreen());
     engine.rootContext()->setContextProperty(
         QStringLiteral("vpnController"), &controller);
     engine.rootContext()->setContextProperty(
@@ -174,6 +253,12 @@ int main(int argc, char *argv[])
     }
 
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("availableScreen"), window->screen());
+    QObject::connect(window, &QWindow::screenChanged, engine.rootContext(),
+                     [context = engine.rootContext()](QScreen *screen) {
+        context->setContextProperty(QStringLiteral("availableScreen"), screen);
+    });
     window->setIcon(ProtonVpnKde::applicationIcon(settings.iconStyle()));
     QObject::connect(&settings, &AppSettings::iconStyleChanged,
                      window, [&settings, window] {
@@ -196,6 +281,8 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, window, [window] {
         QMetaObject::invokeMethod(window, "prepareForQuit");
     });
+    QObject::connect(&controller, &VpnController::shutdownReady,
+                     &app, [] { QCoreApplication::quit(); });
     if (visualSnapshot) {
         const int requestedDelay = qEnvironmentVariableIntValue(
             "PROTON_KDE_SNAPSHOT_DELAY_MS");
@@ -214,6 +301,121 @@ int main(int argc, char *argv[])
             }
             qInfo() << "Saved visual snapshot to" << visualSnapshotPath;
             app.quit();
+        });
+    }
+    if (inspectorRetention) {
+        auto samples = std::make_shared<InspectorRetentionSamples>();
+        if (!QMetaObject::invokeMethod(window, "showOverview")) {
+            qCritical() << "Unable to prepare the Inspector measurement";
+            return 1;
+        }
+        QTimer::singleShot(2000, window,
+                           [window, &engine, &app, samples] {
+            const auto baseline = selfMemorySample();
+            if (!baseline) {
+                qCritical() << "Unable to read the baseline Inspector PSS";
+                app.exit(1);
+                return;
+            }
+            if (!QMetaObject::invokeMethod(
+                    window, "openOverviewDestination",
+                    Q_ARG(QVariant, QVariant(QStringLiteral("inspector"))))) {
+                qCritical() << "Unable to open the Inspector measurement";
+                app.exit(1);
+                return;
+            }
+            samples->baseline = *baseline;
+            QTimer::singleShot(2000, window,
+                               [window, &engine, &app, samples] {
+                const auto firstOpen = selfMemorySample();
+                if (!firstOpen
+                    || !QMetaObject::invokeMethod(
+                        window, "closeOverviewDestination")) {
+                    qCritical() << "Unable to close the Inspector measurement";
+                    app.exit(1);
+                    return;
+                }
+                samples->firstOpen = *firstOpen;
+                QCoreApplication::sendPostedEvents(nullptr,
+                                                   QEvent::DeferredDelete);
+                engine.collectGarbage();
+                QTimer::singleShot(2000, window,
+                                   [window, &engine, &app, samples] {
+                    const auto firstClosed = selfMemorySample();
+                    if (!firstClosed
+                        || !QMetaObject::invokeMethod(
+                            window, "openOverviewDestination",
+                            Q_ARG(QVariant,
+                                  QVariant(QStringLiteral("inspector"))))) {
+                        qCritical() << "Unable to repeat Inspector measurement";
+                        app.exit(1);
+                        return;
+                    }
+                    samples->firstClosed = *firstClosed;
+                    QTimer::singleShot(2000, window,
+                                       [window, &engine, &app, samples] {
+                        const auto secondOpen = selfMemorySample();
+                        if (!secondOpen
+                            || !QMetaObject::invokeMethod(
+                                window, "closeOverviewDestination")) {
+                            qCritical() << "Unable to finish Inspector measurement";
+                            app.exit(1);
+                            return;
+                        }
+                        samples->secondOpen = *secondOpen;
+                        QCoreApplication::sendPostedEvents(
+                            nullptr, QEvent::DeferredDelete);
+                        engine.collectGarbage();
+                        QTimer::singleShot(2000, window,
+                                           [&app, samples] {
+                            const auto secondClosed = selfMemorySample();
+                            if (!secondClosed) {
+                                qCritical() << "Unable to read Inspector retention";
+                                app.exit(1);
+                                return;
+                            }
+                            const qint64 firstPssRetained =
+                                static_cast<qint64>(samples->firstClosed.pssKiB)
+                                - static_cast<qint64>(samples->baseline.pssKiB);
+                            const qint64 repeatPssRetained =
+                                static_cast<qint64>(secondClosed->pssKiB)
+                                - static_cast<qint64>(samples->firstClosed.pssKiB);
+                            const qint64 firstPrivateRetained =
+                                static_cast<qint64>(samples->firstClosed.privateKiB)
+                                - static_cast<qint64>(samples->baseline.privateKiB);
+                            const qint64 repeatPrivateRetained =
+                                static_cast<qint64>(secondClosed->privateKiB)
+                                - static_cast<qint64>(samples->firstClosed.privateKiB);
+                            qInfo().noquote()
+                                << QStringLiteral(
+                                    "inspector-retention: {"
+                                    "\"baselinePssKiB\":%1,\"firstOpenPssKiB\":%2,"
+                                    "\"firstClosedPssKiB\":%3,\"secondOpenPssKiB\":%4,"
+                                    "\"secondClosedPssKiB\":%5,\"firstPssRetainedKiB\":%6,"
+                                    "\"repeatPssRetainedKiB\":%7,\"baselinePrivateKiB\":%8,"
+                                    "\"firstOpenPrivateKiB\":%9,\"firstClosedPrivateKiB\":%10,"
+                                    "\"secondOpenPrivateKiB\":%11,\"secondClosedPrivateKiB\":%12,"
+                                    "\"firstPrivateRetainedKiB\":%13,"
+                                    "\"repeatPrivateRetainedKiB\":%14}")
+                                       .arg(samples->baseline.pssKiB)
+                                       .arg(samples->firstOpen.pssKiB)
+                                       .arg(samples->firstClosed.pssKiB)
+                                       .arg(samples->secondOpen.pssKiB)
+                                       .arg(secondClosed->pssKiB)
+                                       .arg(firstPssRetained)
+                                       .arg(repeatPssRetained)
+                                       .arg(samples->baseline.privateKiB)
+                                       .arg(samples->firstOpen.privateKiB)
+                                       .arg(samples->firstClosed.privateKiB)
+                                       .arg(samples->secondOpen.privateKiB)
+                                       .arg(secondClosed->privateKiB)
+                                       .arg(firstPrivateRetained)
+                                       .arg(repeatPrivateRetained);
+                            app.quit();
+                        });
+                    });
+                });
+            });
         });
     }
     return app.exec();
