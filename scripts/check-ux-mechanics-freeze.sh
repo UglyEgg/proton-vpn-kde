@@ -72,6 +72,13 @@ while IFS= read -r path; do
         packaging/fedora/README.md|packaging/fedora/api-core-overlay/README.md|\
         qml/*)
             ;;
+        .github/workflows/deb.yml|debian/*|packaging/debian/*|\
+        scripts/check-static-analysis.sh|\
+        scripts/create-release-artifact-manifest.py|\
+        tests/xdg/menus/applications.menu)
+            # Distribution packaging and hermetic package-test infrastructure.
+            # Its own artifact, provenance, and transaction gates own this scope.
+            ;;
         .editorconfig|.gitattributes|.gitignore|\
         CMakeLists.txt|.github/workflows/rpm.yml|kcm/CMakeLists.txt|\
         backend/pyproject.toml|backend/requirements-minimum.txt|\
@@ -199,21 +206,21 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "53c240f870e585f66ea3e192873071f074b67e547be28252ae5eac8b686417c1" \
+    "f9182efffcbce4edda01a00b284ccb35c20decf1514dba942322e7dc229c86aa" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
     "Python dependency floor" backend/requirements-minimum.txt
 assert_diff_hash \
-    "881e2c53b4ecff144f182ee2616257553ac58045267f50f09b9d8d74af78545a" \
+    "67c55f6641a57e3e9f1e1dff10e7e1ee948ce58c0d1e827ce0d54c57ffb0475f" \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "ac1288800548f94a2e10f0c36bf701d589e565a6dfa24532ac74f594daba1675" \
+    "bb49aeaf08404367f14092aed44dac4e6745ad3559aab761189f297998dbcefa" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
-    "125ae543fc957e0f99ed7166c9d473b7f9eedaf4e1a831afe1a8c0bc9191b0f4" \
+    "9c08cf2882e3b0c4c40e7388a7bf1fbf25c11c6650ce19cfd2c262d898abeaa3" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
@@ -241,25 +248,25 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "c31570161fc5bc353bf6df251b54e2b6bea46acf9df619e982618b1fd4d8daff" \
+    "47dc6ac73305616ceca2870a8abdee94f79c8a9c1ca5c854a63b9e158fd4adbb" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "b97187b4c217c1673e959608012e29a6e3226eee78a1d752fcfe5c63cd41e96c" \
     "RPM test dependencies" .github/workflows/rpm.yml \
     scripts/check-rpm-reproducibility.sh
 assert_diff_hash \
-    "2f08d0a8b048d8a85a93e812432b8d4872babc3aa998558606eadee38176769d" \
+    "ce63768d7d8770b6d719d45233954afa1c6cf33307d503bc53743c5b594aaae6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "9ac9373715719f7942d8fb463b1319f92df5960c3b592a4730eaa391640de817" \
+    "19047cce63ee49851db9c29ff1504ceeaa3a520d420cb068a784cedd548fcc89" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "298fe3ed74b0d6ff0d6e16dba499ca1bac6b28d593797a9f06e521426a9e6a1a" \
+    "2d2fdaaeb2c70d92e428ab35debb8fe79c22b2e6e533a902b9511adc08416fba" \
     "QML presentation" qml
 
 assert_diff_hash \
-    "5ee2d9a7750117b46e018437e6e49218a7b7a1958ad3065b912dd4bedc2af6d9" \
+    "2d758de8857d1afe443e00f216a6e11c0f5c8a797ea2bec52f2a3d0e24b285ea" \
     "licensing and upstream provenance" \
     .editorconfig .gitattributes .gitignore \
     backend/proton-vpn-kde-backend.in \
@@ -272,6 +279,14 @@ assert_diff_hash \
     runner/proton-vpn-kde-runner.json.in.license \
     scripts/check-spdx-headers.py \
     translations/provenance.json.license
+
+assert_diff_hash \
+    "7c9c59c2d3e28817f2a2aec96fcbe79ce85b24cf8047314b2380f1ff254999ac" \
+    "Ubuntu packaging" \
+    .github/workflows/deb.yml debian packaging/debian \
+    scripts/check-static-analysis.sh \
+    scripts/create-release-artifact-manifest.py \
+    tests/xdg/menus/applications.menu
 
 # RC1–RC6: explicitly authorized startup/persistence/presentation corrections
 # and offline measurement fixtures. These seals still do not grant approval.
