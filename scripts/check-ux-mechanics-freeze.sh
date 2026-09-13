@@ -5,7 +5,7 @@
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-baseline_commit="ec27fdce4967325d0f5e604c135caa23f5158474"
+baseline_commit="f0f6960bf7b5dcd176ef8e804d4d49a059e37a5f"
 
 cd "$project_dir"
 
@@ -19,8 +19,12 @@ if [[ -n "$untracked_files" ]]; then
 fi
 
 if ! git cat-file -e "${baseline_commit}^{commit}" 2>/dev/null; then
-    echo "The 0.13 UX mechanics baseline is unavailable: $baseline_commit" >&2
+    echo "The published 0.13.0 baseline is unavailable: $baseline_commit" >&2
     echo "Fetch complete Git history before running this release gate." >&2
+    exit 1
+fi
+if ! git merge-base --is-ancestor "$baseline_commit" HEAD; then
+    echo "The candidate does not descend from published 0.13.0." >&2
     exit 1
 fi
 
@@ -206,31 +210,29 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "f9182efffcbce4edda01a00b284ccb35c20decf1514dba942322e7dc229c86aa" \
+    "5099eaec1373003d355aa2e4ac5a671158928ab5dabf68ff8e2c1ef9ac97b89e" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
     "Python dependency floor" backend/requirements-minimum.txt
 assert_diff_hash \
-    "67c55f6641a57e3e9f1e1dff10e7e1ee948ce58c0d1e827ce0d54c57ffb0475f" \
+    "33e47856bc6318f949b520a787b98d7e9689bdb1cd7db3dab2b728eaf83fe754" \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "bb49aeaf08404367f14092aed44dac4e6745ad3559aab761189f297998dbcefa" \
+    "d31d11592c1475f937af240d49ed7f48ab4636c031e8b66a3035726e8ba98790" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
-    "9c08cf2882e3b0c4c40e7388a7bf1fbf25c11c6650ce19cfd2c262d898abeaa3" \
+    "343f5c4f7f02f92493baff7f087baa3aa684700984477c956ad61103bd7138be" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
-# START-02 explicitly authorizes this separate Core activation overlay. The
-# exact-delta seal records scope, not independent review or installed acceptance.
 assert_diff_hash \
-    "6b3b30d3909a142c05d526cea640b3e15609e9c040e3c128b17a6f023fb6bbd3" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "protection activation overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -238,35 +240,35 @@ assert_diff_hash \
     packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch \
     packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py
 assert_diff_hash \
-    "bc8919bb31d33cf967c48472656f217a0d7de017f4fb0c20ed1ff0aeb2095c97" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "finite process-stop packaging" \
     data/proton-vpn-kde-backend.service.in \
     scripts/check-rpm-artifact.sh scripts/smoke-staged-install.sh
 assert_diff_hash \
-    "f3dca36c733c8e515912de42c91c4c7c2faea9f1412ebcc5184b6c1bd8b19bff" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "D-Bus completion-classification contract" \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "47dc6ac73305616ceca2870a8abdee94f79c8a9c1ca5c854a63b9e158fd4adbb" \
+    "368a1168421a46ce5b84dc0253ead13922a640f55de2c5f8803681f9c28d2db9" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
-    "b97187b4c217c1673e959608012e29a6e3226eee78a1d752fcfe5c63cd41e96c" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "RPM test dependencies" .github/workflows/rpm.yml \
     scripts/check-rpm-reproducibility.sh
 assert_diff_hash \
-    "ce63768d7d8770b6d719d45233954afa1c6cf33307d503bc53743c5b594aaae6" \
+    "f3b160619e649871b9450995ef5b65024aa8838a5437368888a64bb20138567d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "19047cce63ee49851db9c29ff1504ceeaa3a520d420cb068a784cedd548fcc89" \
+    "8bdddf9767e2b95aeddefabeb2303134b2766175b258954fe2732ad0c339c947" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "2d2fdaaeb2c70d92e428ab35debb8fe79c22b2e6e533a902b9511adc08416fba" \
+    "b2d3b66467ce0284c2739f848a81d3e91b2e3a80c5db40a2ad50229bc4197975" \
     "QML presentation" qml
 
 assert_diff_hash \
-    "2d758de8857d1afe443e00f216a6e11c0f5c8a797ea2bec52f2a3d0e24b285ea" \
+    "8ab84aa0ea1f21a3007c55b8ffeda538dc2f29cdb11ce6018b562cfde63de501" \
     "licensing and upstream provenance" \
     .editorconfig .gitattributes .gitignore \
     backend/proton-vpn-kde-backend.in \
@@ -288,23 +290,18 @@ assert_diff_hash \
     scripts/create-release-artifact-manifest.py \
     tests/xdg/menus/applications.menu
 
-# RC1–RC6: explicitly authorized startup/persistence/presentation corrections
-# and offline measurement fixtures. These seals still do not grant approval.
-# START-01 additionally admits direct native startup normalization and its
-# kernel-environment regression probe; backend authorization stays unchanged.
-# START-02 preserves restored session state on connector failure and holds an
-# ordinary failed startup for explicit retry without dropping durable recovery.
+# Empty hashes explicitly prohibit post-0.13.0 changes in these scopes.
 assert_diff_hash \
-    "0b9bc3a05869509205d9dbfe761bf4e9eb9ccd1a423c07d9d41603e353c0cc12" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "native startup regression" scripts/check-native-startup.py \
     scripts/smoke-control-center-activation.sh
 
 assert_diff_hash \
-    "2307b7ff215dd918276e71decb16703f3120702aee1ff6a61fa46c993ea9a3e6" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "offline search measurement" scripts/benchmark-search.py
 
 assert_diff_hash \
-    "5bfd83782480c0976b1b3cfe6ea8dd84d099329137b1b0f46c80acb4dde2f48a" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "unambiguous desktop icon" data/proton-vpn-kde.desktop.in
 
-echo "0.13 change boundary matches baseline $baseline_commit plus recorded candidate deltas (not review approval)"
+echo "0.13 release-line candidate matches published baseline $baseline_commit plus recorded deltas (not review approval)"
