@@ -17,7 +17,7 @@
 
 The distribution API-Core overlays are declared downstream builds, not
 unmodified Proton binaries. Fedora revision `5.6.20-3.plasmavpn1.fc44` and the
-Ubuntu candidate `5.6.10-12plasmavpn1` carry the same five manifested patches,
+Ubuntu package `5.6.10-12plasmavpn1` carry the same five manifested patches,
 including Protun secret ownership and explicit activation of validated
 protection profiles. Core retains ownership of protection rules and connection
 state. See the [Fedora](../packaging/fedora/api-core-overlay/README.md) and

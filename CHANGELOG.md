@@ -4,7 +4,7 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 ## [Unreleased]
 
-Target release: 0.13.1.
+## [0.13.1] - 2026-09-13
 
 ### Packaging
 
