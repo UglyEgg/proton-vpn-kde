@@ -27,6 +27,7 @@ jobs:
           dnf install -y \
             ShellCheck cmake cpio curl dbus-daemon desktop-file-utils libxml2 rpm \
             extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
+            plasma-breeze-common plasma-integration \
             procps-ng python3-coverage python3-cryptography python3-dbus-fast \
             python3-mypy ripgrep ruff shadow-utils \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
@@ -87,6 +88,7 @@ jobs:
           dnf install -y \
             clang clang-tools-extra cmake compiler-rt dbus-daemon \
             extra-cmake-modules git ninja-build openssl-devel \
+            plasma-breeze-common plasma-integration \
             procps-ng python3-cryptography python3-dbus-fast ripgrep \
             shadow-utils \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
@@ -97,6 +99,8 @@ jobs:
 
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
 
       - name: Trust the container workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"

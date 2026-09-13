@@ -31,7 +31,10 @@ the inherited Qt plugin-path condition. This verifies that boundary, not the
 entire saved-session/connection workflow.
 
 The working tree now reserves client RPM revision `0.10` for SPDX/provenance
-corrections and release-documentation presentation changes. It has not been
+corrections, release-documentation presentation changes, and hermetic source-CI
+fixtures. The CI correction declares the Plasma visual inputs, retains full Git
+history for history-sensitive negative tests, and lets optional Core overlay
+tests import and skip before NetworkManager GI is available. It has not been
 built or installed and does not extend the recorded `0.9` runtime acceptance
 evidence.
 

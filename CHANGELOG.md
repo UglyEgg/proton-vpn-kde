@@ -10,6 +10,9 @@ All notable user-visible changes are recorded here. The project follows
 Version 0.13.0 is the next public release after 0.11.3. Version 0.12.0 was an
 accepted internal development milestone, not a tagged or published release.
 
+- Make clean Fedora source CI declare its visual fixture inputs, retain the
+  history needed by negative mechanics tests, and let optional Core overlay
+  tests skip before importing unavailable NetworkManager GI bindings.
 - Separate the signed Proton Fedora Core `5.6.20` package identity from the
   latest public source reference (`v5.6.10`) in overlay metadata, add Proton's
   upstream copyright notice to the new keyring test module, and close SPDX

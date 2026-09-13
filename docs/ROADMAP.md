@@ -196,8 +196,11 @@ acceptance; it does not substitute for unperformed controlled-failure tests.
 
 The later working-tree `0.13.0-0.10.fc44` revision is reserved for provenance
 and SPDX corrections plus release-documentation alignment, including refreshed
-demo captures and unambiguous public/internal release labels. It remains unbuilt
-and uninstalled and does not replace the `0.9` UAT record.
+demo captures and unambiguous public/internal release labels. It also makes the
+source-CI environment explicit: both Fedora jobs install the Plasma visual
+fixtures, retain the history required by negative mechanics tests, and permit
+optional Core overlay tests to import and skip without NetworkManager GI. It
+remains unbuilt and uninstalled and does not replace the `0.9` UAT record.
 
 Still required: exact-candidate review, signed/reproducible package validation,
 the remaining START-02 unavailable-activation/explicit-retry check, final independent

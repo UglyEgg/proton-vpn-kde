@@ -6,6 +6,37 @@ set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 qml_dir="$project_dir/qml"
+ci_workflow="$project_dir/.github/workflows/ci.yml"
+
+ci_job_block() {
+    local job_name="$1"
+    awk -v header="  $job_name:" '
+        $0 == header { in_job = 1; seen_header = 1 }
+        in_job && seen_header && $0 != header && \
+            $0 ~ /^  [[:alnum:]_-]+:/ { exit }
+        in_job { print }
+    ' "$ci_workflow"
+}
+
+for ci_job in fedora native-analysis; do
+    job_block="$(ci_job_block "$ci_job")"
+    if [[ -z "$job_block" ]]; then
+        echo "Source CI job '$ci_job' is missing" >&2
+        exit 1
+    fi
+    for dependency in plasma-breeze-common plasma-integration; do
+        if ! grep -Eq \
+                "(^|[[:space:]])$dependency([[:space:]\\\\]|$)" \
+                <<<"$job_block"; then
+            echo "Source CI job '$ci_job' must install $dependency" >&2
+            exit 1
+        fi
+    done
+    if ! grep -Fq 'fetch-depth: 0' <<<"$job_block"; then
+        echo "Source CI job '$ci_job' must use a full Git checkout for history-sensitive tests" >&2
+        exit 1
+    fi
+done
 
 if ! rg -q '^BuildRequires:[[:space:]]+ripgrep[[:space:]]*$' \
         "$project_dir/packaging/fedora/proton-vpn-kde.spec"; then

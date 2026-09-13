@@ -208,7 +208,7 @@ assert_diff_hash \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
-    "bbd017a744153feb8fba668f8d49fd84c06b2a7b12d7c70f883c5ed51d223542" \
+    "91c1832d2a8dbe5083c6555d9250c1ca1ac76393b722cc737bd7fb58ae4c4149" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
@@ -218,7 +218,7 @@ assert_diff_hash \
 # START-02 explicitly authorizes this separate Core activation overlay. The
 # exact-delta seal records scope, not independent review or installed acceptance.
 assert_diff_hash \
-    "bca85d67aaee0014b04f5f82cab1920d818f5f1d9f9ec2a7ebf31f449ad82f30" \
+    "6b3b30d3909a142c05d526cea640b3e15609e9c040e3c128b17a6f023fb6bbd3" \
     "protection activation overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -236,14 +236,14 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "5ba3cfbe26cc399fd7c30fe1f83042d81b30ea70a5b41fac1d8790d548017f3f" \
+    "6dc3113886ed3b53aac572e4dccb1ccc0a99ad4b2eb51c6ce7e4e7dcf5abf5cb" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "13dc9a8269e46d978f0b3ad88c06a09f5bf17d0647c973e34f75aa0644f0ba02" \
     "RPM test dependencies" .github/workflows/rpm.yml \
     scripts/check-rpm-reproducibility.sh
 assert_diff_hash \
-    "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
+    "d8963283873631813a5cb128df72bb27206f64d6a249fd4f5c38abb42b5ad1ff" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
     "9ac9373715719f7942d8fb463b1319f92df5960c3b592a4730eaa391640de817" \

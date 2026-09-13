@@ -11,6 +11,7 @@ feedback_fixture_dir="$fixture_root/feedback-repository"
 busy_fixture_dir="$fixture_root/busy-repository"
 controller_fixture_dir="$fixture_root/controller-repository"
 rpm_fixture_dir="$fixture_root/rpm-repository"
+ci_fixture_dir="$fixture_root/ci-repository"
 trap 'rm -rf -- "$fixture_root"' EXIT
 
 git clone --quiet --no-hardlinks "$project_dir" "$fixture_dir"
@@ -126,3 +127,39 @@ if ! rg -q 'RPM %check requires ripgrep' "$rpm_output"; then
     exit 1
 fi
 echo "The QML gate rejects an undeclared RPM test dependency"
+
+git clone --quiet --no-hardlinks "$project_dir" "$ci_fixture_dir"
+cp -- "$project_dir/.github/workflows/ci.yml" \
+    "$ci_fixture_dir/.github/workflows/ci.yml"
+cp -- "$project_dir/scripts/check-qml-ui-hygiene.sh" \
+    "$ci_fixture_dir/scripts/check-qml-ui-hygiene.sh"
+sed -i '/plasma-breeze-common/d' \
+    "$ci_fixture_dir/.github/workflows/ci.yml"
+ci_output="$fixture_root/ci-output"
+if "$ci_fixture_dir/scripts/check-qml-ui-hygiene.sh" \
+        >"$ci_output" 2>&1; then
+    echo "The QML gate accepted CI without its visual fixture packages" >&2
+    exit 1
+fi
+if ! rg -q "must install plasma-breeze-common" "$ci_output"; then
+    echo "The CI dependency fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$ci_output" >&2
+    exit 1
+fi
+echo "The QML gate rejects missing CI visual fixture packages"
+
+cp -- "$project_dir/.github/workflows/ci.yml" \
+    "$ci_fixture_dir/.github/workflows/ci.yml"
+sed -i '/fetch-depth: 0/d' "$ci_fixture_dir/.github/workflows/ci.yml"
+history_output="$fixture_root/ci-history-output"
+if "$ci_fixture_dir/scripts/check-qml-ui-hygiene.sh" \
+        >"$history_output" 2>&1; then
+    echo "The QML gate accepted a shallow history-sensitive CI checkout" >&2
+    exit 1
+fi
+if ! rg -q "must use a full Git checkout" "$history_output"; then
+    echo "The CI history fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$history_output" >&2
+    exit 1
+fi
+echo "The QML gate rejects shallow history-sensitive CI checkouts"

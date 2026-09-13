@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -28,6 +29,33 @@ def sha256(path: Path) -> str:
 
 
 class OverlayBoundaryTests(unittest.TestCase):
+    def test_killswitch_test_imports_without_optional_gi_bindings(self):
+        test_path = SCRIPT.parent / "tests" / "test_killswitch_activation.py"
+        with tempfile.TemporaryDirectory() as directory:
+            stub_root = Path(directory)
+            gi_stub = stub_root / "gi"
+            gi_stub.mkdir()
+            (gi_stub / "__init__.py").write_text("", encoding="utf-8")
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = str(stub_root)
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import runpy,sys; "
+                        "runpy.run_path(sys.argv[1], run_name='overlay_test_import')"
+                    ),
+                    str(test_path),
+                ],
+                check=False,
+                capture_output=True,
+                env=environment,
+                text=True,
+            )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+
     def test_manifest_separates_vendor_version_from_public_source(self):
         manifest = rebuild_overlay._load_manifest(
             SCRIPT.parent / "overlay-manifest.json"

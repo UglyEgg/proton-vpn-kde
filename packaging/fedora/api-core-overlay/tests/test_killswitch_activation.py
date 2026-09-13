@@ -18,9 +18,19 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-import gi
-gi.require_version("NM", "1.0")
-from gi.repository import NM  # noqa: E402 - require the introspection version first
+try:
+    import gi
+
+    require_version = getattr(gi, "require_version", None)
+    if not callable(require_version):
+        raise ImportError("PyGObject does not provide gi.require_version")
+    require_version("NM", "1.0")
+    from gi.repository import NM
+except (ImportError, ValueError) as error:
+    NM = None
+    NM_IMPORT_ERROR = error
+else:
+    NM_IMPORT_ERROR = None
 
 MODULE = None
 
@@ -47,7 +57,11 @@ def profile(uuid="c4c15886-3df0-42e6-8d24-623b449dafbf"):
 
 
 class ActiveConnection:
-    def __init__(self, connection, state=NM.ActiveConnectionState.ACTIVATING):
+    def __init__(self, connection, state=None):
+        if state is None:
+            if NM is None:
+                raise RuntimeError("NetworkManager GI bindings are unavailable")
+            state = NM.ActiveConnectionState.ACTIVATING
         self.connection = connection
         self.state = state
         self.handlers = {}
@@ -139,6 +153,8 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         if MODULE is None:
             self.skipTest("Explicit Core helper required; RPM %check runs this file with --root")
+        if NM is None:
+            self.fail(f"NetworkManager GI bindings are unavailable: {NM_IMPORT_ERROR}")
         self.nm = FakeNetworkManager()
         self.client = MODULE.NMClient.__new__(MODULE.NMClient)
         self.client._nm_client = self.nm
@@ -316,6 +332,8 @@ if __name__ == "__main__":
     source.add_argument("--root", type=Path)
     source.add_argument("--module", type=Path)
     options, remaining = parser.parse_known_args()
+    if NM is None:
+        parser.error(f"NetworkManager GI bindings are unavailable: {NM_IMPORT_ERROR}")
     path = options.module or options.root / (
         "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/"
         "killswitch/wireguard/nmclient.py"

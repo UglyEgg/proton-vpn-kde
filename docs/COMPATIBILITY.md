@@ -157,8 +157,9 @@ root-side payload verification and the installed source marker matched.
 The working tree declares client RPM revision `0.13.0-0.10.fc44` so the
 installed Python-template SPDX additions cannot produce a second package under
 the `0.9` identity. This source/package-identity revision also aligns the public
-release history and refreshes the application gallery. It has not been built or
-installed and carries no additional runtime UAT claim.
+release history, refreshes the application gallery, and makes source CI declare
+its visual fixtures, full-history requirement, and optional GI import boundary.
+It has not been built or installed and carries no additional runtime UAT claim.
 
 | Component | Current installed package (2026-09-12 readback) |
 | --- | --- |
