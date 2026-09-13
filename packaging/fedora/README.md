@@ -89,13 +89,14 @@ is a secondary static compatibility-floor check; current runtime and packaging
 validation execute the pinned 5.6.20 overlay, including its queued-connection
 state-machine contract.
 
-The dedicated `RPM Package` CI workflow performs the same source and binary RPM
-build for every pushed commit and pull request. It first builds and tests the
+The dedicated `RPM Package` CI workflow performs one source and binary RPM
+build for every pull-request update. It first builds and tests the
 provider-neutral keyring RPM and the Plasma-compatible API-Core overlay from
-pinned Proton inputs. It builds the API-Core overlay twice in distinct clean
-top directories and requires both RPM and SRPM to be byte-identical, then
-builds the client twice under a normalized RPM build path, validates all three
-packages, and retains each source and binary artifact for review. Proton VPN API Core is
+pinned Proton inputs, validates all three packages, and checks their transaction
+boundary. Tag and explicit manual release runs additionally build the API-Core
+overlay twice in distinct clean top directories, build the client twice under a
+normalized RPM path, require byte-identical RPM/SRPM pairs, and retain all six
+artifacts for review. Proton VPN API Core is
 still a runtime rather than build dependency of the client: the isolated
 client test suite does not import or modify the installed Core, while the
 finished Fedora package requires the explicit keyring and Protun interoperability

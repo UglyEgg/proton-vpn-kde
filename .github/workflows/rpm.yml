@@ -4,14 +4,17 @@
 name: RPM Package
 
 on:
-  push:
   pull_request:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: rpm-${{ github.ref }}
+  group: rpm-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -104,6 +107,7 @@ jobs:
               /tmp/protonvpn-fedora-44-public-key.asc
 
       - name: Verify API Core overlay reproducibility
+        if: github.event_name != 'pull_request'
         run: |
           runuser --user ci-builder -- \
             packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
@@ -131,6 +135,7 @@ jobs:
               -ba "$RPM_TOPDIR/SPECS/proton-vpn-kde.spec"
 
       - name: Verify package reproducibility
+        if: github.event_name != 'pull_request'
         env:
           TMPDIR: ${{ env.RPM_REPRO_WORKDIR }}/TMP
         run: |
@@ -190,6 +195,7 @@ jobs:
             "${binary_rpms[0]}"
 
       - name: Stage release artifacts
+        if: github.event_name != 'pull_request'
         run: |
           mapfile -t binary_rpms < <(
             find "$RPM_TOPDIR/RPMS" -type f -name 'proton-vpn-kde-[0-9]*.rpm' -print
@@ -240,6 +246,7 @@ jobs:
           test -f "$RELEASE_ARTIFACT_DIR/artifact-manifest.json"
 
       - name: Upload RPM artifacts
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: proton-vpn-kde-fedora-44-${{ github.sha }}

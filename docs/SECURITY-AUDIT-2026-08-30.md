@@ -34,7 +34,10 @@ The working tree now reserves client RPM revision `0.10` for SPDX/provenance
 corrections, release-documentation presentation changes, and hermetic source-CI
 fixtures. The CI correction declares the Plasma visual inputs, retains full Git
 history for history-sensitive negative tests, and lets optional Core overlay
-tests import and skip before NetworkManager GI is available. It has not been
+tests import and skip before NetworkManager GI is available. Feature-branch
+pushes no longer duplicate pull-request workflows; PRs retain one complete RPM
+build and inspection, while repeated reproducibility builds and artifact
+retention remain mandatory for tag or explicit release runs. It has not been
 built or installed and does not extend the recorded `0.9` runtime acceptance
 evidence.
 

@@ -200,7 +200,10 @@ demo captures and unambiguous public/internal release labels. It also makes the
 source-CI environment explicit: both Fedora jobs install the Plasma visual
 fixtures, retain the history required by negative mechanics tests, and permit
 optional Core overlay tests to import and skip without NetworkManager GI. It
-remains unbuilt and uninstalled and does not replace the `0.9` UAT record.
+also eliminates duplicate feature-branch runs and reserves the second RPM
+reproducibility build and artifact retention for tag or explicit release runs;
+every PR still receives one complete package build and inspection. It remains
+unbuilt and uninstalled and does not replace the `0.9` UAT record.
 
 Still required: exact-candidate review, signed/reproducible package validation,
 the remaining START-02 unavailable-activation/explicit-retry check, final independent

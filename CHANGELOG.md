@@ -13,6 +13,9 @@ accepted internal development milestone, not a tagged or published release.
 - Make clean Fedora source CI declare its visual fixture inputs, retain the
   history needed by negative mechanics tests, and let optional Core overlay
   tests skip before importing unavailable NetworkManager GI bindings.
+- Eliminate duplicate feature-branch CI runs and reserve repeated RPM
+  reproducibility builds and artifact uploads for tags or explicit release
+  runs while retaining a complete single-build package check on every PR.
 - Separate the signed Proton Fedora Core `5.6.20` package identity from the
   latest public source reference (`v5.6.10`) in overlay metadata, add Proton's
   upstream copyright notice to the new keyring test module, and close SPDX

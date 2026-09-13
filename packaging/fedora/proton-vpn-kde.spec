@@ -146,6 +146,7 @@ desktop-file-validate \
 - Separate signed Core package identity from public source-tag provenance
 - Align public/internal release history and refresh the application gallery
 - Make clean source CI declare visual inputs and full-history test requirements
+- Deduplicate PR CI and reserve repeated RPM builds for explicit release runs
 
 * Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.9
 - Keep ordinary startup failures visible without repeated Secret Service prompts

@@ -117,17 +117,14 @@ For a tagged release, replace `HEAD` with the verified signed `vVERSION` tag.
 The resulting build is not releasable if `%check` is skipped or reports a
 failure.
 
-The `RPM Package` GitHub Actions workflow repeats all three builds from every
-pushed commit and pull request. It inspects the main package's identity,
-dependency boundary, required payload, ownership, permissions, community
-reporting feature gates, digest, and transaction validity; it also verifies
-the keyring and API-Core overlays, rebuilds the complete client RPM/SRPM output
-set in a second clean top directory under the same normalized RPM build path,
-requires byte-identical results, and performs an isolated transaction with the
-complete six-artifact set. All binary and source RPMs are retained as CI
-artifacts for 14 days. These unsigned CI artifacts are review evidence, not
-published releases and not a substitute for the clean-environment live
-acceptance below.
+The `RPM Package` GitHub Actions workflow performs one complete build and
+package-policy inspection for each pull-request update. Feature-branch pushes
+do not launch a duplicate workflow. A signed release tag or explicit manual
+run additionally rebuilds the API-Core overlay and complete client RPM/SRPM
+output set in a second clean top directory under the same normalized RPM build
+path, requires byte-identical results, and retains the complete six-artifact
+set for 14 days. These unsigned CI artifacts are review evidence, not published
+releases and not a substitute for the clean-environment live acceptance below.
 
 ## 4. Inspect artifacts and complete acceptance
 

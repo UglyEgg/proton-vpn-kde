@@ -946,6 +946,14 @@ if(BUILD_TESTING)
         NAME qml-ui-hygiene
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-qml-ui-hygiene.sh
     )
+    add_test(
+        NAME ci-policy
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-ci-policy.sh
+    )
+    add_test(
+        NAME ci-policy-negative
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test-ci-policy-negative.sh
+    )
     # This fixture clones history to mutate a reviewed delta. Release archives
     # have no .git directory, so package %check keeps only hermetic tests.
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")

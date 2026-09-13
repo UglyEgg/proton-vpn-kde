@@ -167,6 +167,7 @@ while IFS= read -r path; do
             ;;
         data/proton-vpn-kde.desktop.in|\
         scripts/auth-dbus-client.py|scripts/capture-qml-page.sh|\
+        scripts/check-ci-policy.sh|scripts/test-ci-policy-negative.sh|\
         scripts/check-qml-ui-hygiene.sh|scripts/check-qml-visual-matrix.sh|\
         scripts/check-compatibility-metadata.py|scripts/check-spdx-headers.py|\
         scripts/check-core-compatibility.sh|\
@@ -197,7 +198,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "e49b26e7ad802eaf97a718469b3a6a83c6ee586f180a7f04dc1108dcb82014fb" \
+    "53c240f870e585f66ea3e192873071f074b67e547be28252ae5eac8b686417c1" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
@@ -236,14 +237,14 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "6dc3113886ed3b53aac572e4dccb1ccc0a99ad4b2eb51c6ce7e4e7dcf5abf5cb" \
+    "8ce504808024446bb111242b08fbd222db99a5d1ac35e6a0462671fd1c469b08" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
-    "13dc9a8269e46d978f0b3ad88c06a09f5bf17d0647c973e34f75aa0644f0ba02" \
+    "1f437c0b7aa62ad5d2e90c07de21248e8c08bf513485beb09d4d5098423c155d" \
     "RPM test dependencies" .github/workflows/rpm.yml \
     scripts/check-rpm-reproducibility.sh
 assert_diff_hash \
-    "d8963283873631813a5cb128df72bb27206f64d6a249fd4f5c38abb42b5ad1ff" \
+    "6cb1eb83d2d20ff75e2547ac35757f93e9a865411e4de2adf1196e7618b1e831" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
     "9ac9373715719f7942d8fb463b1319f92df5960c3b592a4730eaa391640de817" \
