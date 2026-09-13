@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.13.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -34,7 +34,7 @@ BuildRequires:  openssl-devel
 BuildRequires:  plasma-breeze-common
 BuildRequires:  plasma-integration
 BuildRequires:  python3-coverage
-BuildRequires:  python3-cryptography >= 45.0.1
+BuildRequires:  python3-cryptography >= 50.0.0
 BuildRequires:  python3-dbus-fast
 BuildRequires:  python3-devel
 BuildRequires:  python3-mypy
@@ -48,7 +48,7 @@ Requires:       kf6-kglobalaccel
 Requires:       kf6-kcmutils
 Requires:       kf6-krunner
 Requires:       /usr/bin/ip
-Requires:       python3-cryptography >= 45.0.1
+Requires:       python3-cryptography >= 50.0.0
 Requires:       python3-dbus-fast
 Requires:       python3-fido2
 Requires:       python3-proton-vpn-api-core >= 5.6.10
@@ -141,6 +141,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sun Sep 13 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-2
+- Raise the tested cryptography floor to 50.0.0 and CFFI to 2.0.0
+- Retain hash-pinned Python 3.11 Linux x86_64 compatibility coverage
+
 * Sun Sep 13 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-1
 - Publish the 0.13 Plasma interface and lifecycle release
 - Ship the verified keyring and API Core integration requirements

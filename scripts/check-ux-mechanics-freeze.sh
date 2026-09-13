@@ -73,7 +73,8 @@ while IFS= read -r path; do
         qml/*)
             ;;
         .editorconfig|.gitattributes|.gitignore|\
-        CMakeLists.txt|.github/workflows/rpm.yml|kcm/CMakeLists.txt|backend/pyproject.toml|\
+        CMakeLists.txt|.github/workflows/rpm.yml|kcm/CMakeLists.txt|\
+        backend/pyproject.toml|backend/requirements-minimum.txt|\
         backend/proton-vpn-kde-backend.in|\
         backend/proton_vpn_kde_backend/__init__.py|\
         backend/proton_vpn_kde_backend/__main__.py|\
@@ -201,15 +202,18 @@ assert_diff_hash \
     "53c240f870e585f66ea3e192873071f074b67e547be28252ae5eac8b686417c1" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
-    "2dc4dcb0671bfff07c756cdcd9ef0fb9af76e822e8177d3a4a1fd6d94bc95bee" \
-    "backend version-only" \
+    "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
+    "Python dependency floor" backend/requirements-minimum.txt
+assert_diff_hash \
+    "881e2c53b4ecff144f182ee2616257553ac58045267f50f09b9d8d74af78545a" \
+    "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
     "ac1288800548f94a2e10f0c36bf701d589e565a6dfa24532ac74f594daba1675" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
-    "91c1832d2a8dbe5083c6555d9250c1ca1ac76393b722cc737bd7fb58ae4c4149" \
+    "125ae543fc957e0f99ed7166c9d473b7f9eedaf4e1a831afe1a8c0bc9191b0f4" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
@@ -237,7 +241,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "5ee0594cd9199df4c9e8ba4dae56e42b01570f373bb3e7bc94d30e576e126991" \
+    "c31570161fc5bc353bf6df251b54e2b6bea46acf9df619e982618b1fd4d8daff" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "b97187b4c217c1673e959608012e29a6e3226eee78a1d752fcfe5c63cd41e96c" \

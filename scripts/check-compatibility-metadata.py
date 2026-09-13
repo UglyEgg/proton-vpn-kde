@@ -15,7 +15,7 @@ import tomllib
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 EXPECTED_PYTHON = "3.11"
 EXPECTED_DEPENDENCIES = {
-    "cryptography": "45.0.1",
+    "cryptography": "50.0.0",
     "dbus-fast": "2.20",
 }
 
