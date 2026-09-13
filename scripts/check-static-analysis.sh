@@ -12,11 +12,19 @@ python3 scripts/check-patch-whitespace.py
 python3 scripts/generate-dbus-contracts.py --check
 python3 scripts/generate-snapshot-contract.py --check
 python3 scripts/check-compatibility-metadata.py
-ruff check backend packaging/fedora/api-core-overlay scripts
+ruff check \
+    backend \
+    packaging/debian/api-core-overlay \
+    packaging/fedora/api-core-overlay \
+    scripts
 shellcheck \
     scripts/*.sh \
+    packaging/debian/*.sh \
+    packaging/debian/api-core-overlay/*.sh \
+    packaging/debian/keyring-overlay/*.sh \
     packaging/fedora/api-core-overlay/*.sh \
-    packaging/fedora/keyring-overlay/*.sh
+    packaging/fedora/keyring-overlay/*.sh \
+    debian/tests/installed-layout
 desktop_validation_file="$(mktemp --suffix=.desktop)"
 trap 'rm -f -- "$desktop_validation_file"' EXIT
 sed 's|@CMAKE_INSTALL_FULL_BINDIR@|/usr/bin|g' \
@@ -28,6 +36,8 @@ xmllint --noout data/plasma-vpn.svg \
 python3 -m json.tool kcm/kcm_proton_vpn_kde.json >/dev/null
 python3 -m json.tool \
     packaging/fedora/keyring-overlay/overlay-manifest.json >/dev/null
+python3 -m json.tool \
+    packaging/debian/api-core-overlay/overlay-manifest.json >/dev/null
 python3 -m json.tool packaging/fedora/core-compatibility.json >/dev/null
 python3 -m json.tool data/snapshot-schema-v1.json >/dev/null
 python3 -m json.tool translations/provenance.json >/dev/null

@@ -12,6 +12,9 @@ cmake_version="$(sed -n \
 release_version_pattern="${cmake_version//./\\.}"
 spec_version="$(sed -n 's/^Version:[[:space:]]*//p' \
     "$project_dir/packaging/fedora/proton-vpn-kde.spec" | head -n 1)"
+debian_version="$(sed -n \
+    '1s/^proton-vpn-kde (\([^-]*\)-[^)]*).*/\1/p' \
+    "$project_dir/debian/changelog")"
 python_project_version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' \
     "$project_dir/backend/pyproject.toml" | head -n 1)"
 python_runtime_version="$(sed -n \
@@ -32,13 +35,15 @@ fi
 
 for version_source in \
         "$spec_version" \
+        "$debian_version" \
         "$python_project_version" \
         "$python_runtime_version" \
         "$release_notes_version"; do
     if [[ "$version_source" != "$cmake_version" ]]; then
         echo "Release metadata does not match version $cmake_version" >&2
-        printf 'spec=%s python-project=%s python-runtime=%s release-notes=%s\n' \
+        printf 'spec=%s debian=%s python-project=%s python-runtime=%s release-notes=%s\n' \
             "$spec_version" \
+            "$debian_version" \
             "$python_project_version" \
             "$python_runtime_version" \
             "$release_notes_version" >&2

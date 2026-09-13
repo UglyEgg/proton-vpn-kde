@@ -7,8 +7,8 @@
 %global _buildhost reproducible.invalid
 
 Name:           proton-vpn-kde
-Version:        0.13.0
-Release:        2%{?dist}
+Version:        0.13.1
+Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -141,6 +141,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sun Sep 13 2026 uglyegg <uglyegg@entropy.quest> - 0.13.1-1
+- Add Ubuntu 26.04 binary and source package production
+- Preserve the reviewed keyring and API-Core overlay boundaries across formats
+- Add Debian package lifecycle, policy, and release-artifact validation
+
 * Sun Sep 13 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-2
 - Raise the tested cryptography floor to 50.0.0 and CFFI to 2.0.0
 - Retain hash-pinned Python 3.11 Linux x86_64 compatibility coverage

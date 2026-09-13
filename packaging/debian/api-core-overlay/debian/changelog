@@ -1,0 +1,8 @@
+proton-vpn-api-core (5.6.10-12plasmavpn1) resolute; urgency=medium
+
+  * Reconstruct Proton's exact Ubuntu 5.6.10 package with the reviewed Plasma
+    VPN API-Core overlay.
+  * Preserve the compiled networking payload and upstream maintainer behavior.
+  * Expose the Protun transient-secret capability required by Plasma VPN.
+
+ -- uglyegg <uglyegg@entropy.quest>  Sun, 13 Sep 2026 00:00:00 -0500

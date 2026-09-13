@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.13.0 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.13.1 LANGUAGES CXX)
 set(PROJECT_HOMEPAGE_URL "https://github.com/uglyegg/proton-vpn-kde")
 
 option(
@@ -1003,6 +1003,12 @@ if(BUILD_TESTING)
         NAME api-core-overlay-tests
         COMMAND ${Python3_EXECUTABLE} -m unittest discover
             -s ${CMAKE_CURRENT_SOURCE_DIR}/packaging/fedora/api-core-overlay/tests
+            -v
+    )
+    add_test(
+        NAME debian-api-core-overlay-tests
+        COMMAND ${Python3_EXECUTABLE} -m unittest discover
+            -s ${CMAKE_CURRENT_SOURCE_DIR}/packaging/debian/api-core-overlay/tests
             -v
     )
     add_test(

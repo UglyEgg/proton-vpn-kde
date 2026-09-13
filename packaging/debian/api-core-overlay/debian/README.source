@@ -1,0 +1,9 @@
+The public Proton VPN API-Core tag does not include the complete source needed
+to rebuild its compiled Protun dependency. This source package therefore
+contains Proton's exact repository-distributed 5.6.10 amd64 binary package as
+a pinned upstream component.
+
+`rebuild_overlay.py` verifies that package and its control scripts, extracts
+the payload, translates only the distribution-specific Python path in the five
+shared patches, and rejects any installed change outside the six manifest
+entries. The compiled networking payload is copied byte-for-byte.

@@ -21,7 +21,7 @@ privileged attestation and would materially change the desktop architecture.
 ## Deployment controls
 
 The backend, Control Center, and agent are unprivileged D-Bus-activated systemd
-user services. Fedora units and launchers provide:
+user services. Distribution packages and launchers provide:
 
 - root-owned absolute executable paths;
 - `NoNewPrivileges=true`;

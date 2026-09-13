@@ -103,7 +103,7 @@ class OverlayBoundaryTests(unittest.TestCase):
     def test_behavior_verification_uses_a_private_runtime_directory(self):
         observed = {}
 
-        def capture_runtime(_root):
+        def capture_runtime(_root, _site_packages_relative):
             runtime = Path(os.environ["XDG_RUNTIME_DIR"])
             observed["path"] = runtime
             observed["exists"] = runtime.is_dir()

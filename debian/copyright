@@ -1,0 +1,45 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Plasma VPN
+Upstream-Contact: uglyegg <uglyegg@entropy.quest>
+Source: https://github.com/UglyEgg/proton-vpn-kde
+
+Files: *
+Copyright: 2026 Plasma VPN contributors
+License: GPL-3+
+
+Files: translations/*
+Copyright: 2023 Proton AG
+License: GPL-3+
+ The catalogs contain exact matching translations imported from Proton's
+ GPL-licensed Linux application. See translations/README.md for provenance.
+
+Files: packaging/fedora/keyring-overlay/patches/*
+Copyright: 2026 Proton AG and Plasma VPN contributors
+License: GPL-3
+ These patches modify Proton's GPL-3.0-only Linux keyring adapter. Detailed
+ upstream identities and patch provenance are recorded in
+ packaging/fedora/keyring-overlay/overlay-manifest.json.
+
+Files: packaging/fedora/api-core-overlay/patches/*
+Copyright: 2026 Proton AG and Plasma VPN contributors
+License: GPL-3
+ These patches modify Proton's GPL-licensed VPN API Core. Detailed upstream
+ package identities and patch provenance are recorded under
+ packaging/fedora/api-core-overlay/.
+
+License: GPL-3+
+ This program is free software: you can redistribute it and/or modify it under
+ the terms of the GNU General Public License as published by the Free Software
+ Foundation, either version 3 of the License, or (at your option) any later
+ version.
+ .
+ On Debian systems, the complete license text is available in
+ /usr/share/common-licenses/GPL-3.
+
+License: GPL-3
+ This program is free software: you can redistribute it and/or modify it under
+ the terms of the GNU General Public License version 3 as published by the Free
+ Software Foundation.
+ .
+ On Debian systems, the complete license text is available in
+ /usr/share/common-licenses/GPL-3.

@@ -51,7 +51,7 @@ jobs:
           useradd --create-home ci-builder
           chown -R ci-builder:ci-builder "$GITHUB_WORKSPACE"
 
-      - name: Enforce the 0.13 presentation-only boundary
+      - name: Enforce the reviewed 0.13 change boundary
         run: runuser --user ci-builder -- scripts/check-ux-mechanics-freeze.sh
 
       - name: Run static checks

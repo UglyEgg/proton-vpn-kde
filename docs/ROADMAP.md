@@ -30,8 +30,8 @@ compatibility matrix, and release workflow rather than duplicated here.
 1. Triage 0.13 reports against the documented support and Core boundaries.
 2. Require a regression for each accepted defect before changing behavior.
 3. Revalidate on every Proton Core, Fedora, Qt, or KDE Frameworks update.
-4. Add an independently tested second Plasma distribution before claiming
-   broader Linux support.
+4. Collect Ubuntu 26.04 Plasma field reports before promoting the packages
+   from package-validated to live-supported.
 5. Obtain independent review of authentication transport, D-Bus identity, and
    sender authorization before using a security-reviewed or stable label.
 6. Translate Plasma-specific strings without guessing or obscuring provenance.
@@ -49,7 +49,7 @@ Potential later integrations require a separate design review:
 - native NetworkManager status correlation without duplicating Core ownership;
 - richer read-only connection telemetry without traffic history;
 - desktop power/network transition observability; and
-- distribution-native packaging beyond Fedora.
+- distribution-native packaging beyond Fedora and Ubuntu 26.04.
 
 ## Upstream opportunities
 

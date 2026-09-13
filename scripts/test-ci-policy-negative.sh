@@ -17,6 +17,8 @@ reset_workflows() {
         "$fixture_dir/.github/workflows/ci.yml"
     cp -- "$project_dir/.github/workflows/rpm.yml" \
         "$fixture_dir/.github/workflows/rpm.yml"
+    cp -- "$project_dir/.github/workflows/deb.yml" \
+        "$fixture_dir/.github/workflows/deb.yml"
 }
 
 expect_rejection() {
@@ -49,6 +51,12 @@ expect_rejection 'once per pull request'
 echo "CI policy rejects duplicate feature-branch triggers"
 
 reset_workflows
+sed -i '/^[[:space:]]*shell: bash$/d' \
+    "$fixture_dir/.github/workflows/deb.yml"
+expect_rejection 'explicitly with Bash'
+echo "CI policy rejects an implicit Ubuntu run-shell"
+
+reset_workflows
 sed -i 's/-${{ github.run_attempt }}//' \
     "$fixture_dir/.github/workflows/ci.yml"
 expect_rejection 'without blocking manual retries'
@@ -59,3 +67,9 @@ sed -i "/if: github.event_name != 'pull_request'/d" \
     "$fixture_dir/.github/workflows/rpm.yml"
 expect_rejection 'must remain release-only'
 echo "CI policy reserves repeated RPM builds for release runs"
+
+reset_workflows
+sed -i "/if: github.event_name != 'pull_request'/d" \
+    "$fixture_dir/.github/workflows/deb.yml"
+expect_rejection 'must remain release-only'
+echo "CI policy reserves repeated DEB builds for release runs"

@@ -15,11 +15,13 @@
 6. Local authorization targets ordinary and sandboxed session peers, not
    arbitrary native code already executing as the desktop user.
 
-The Fedora API-Core overlay is a declared downstream build, not an unmodified
-Proton binary. Release revision `5.6.20-3.plasmavpn1.fc44` carries five
-manifested patches, including Protun secret ownership and explicit activation
-of validated protection profiles. Core retains ownership of protection rules
-and connection state. See the [overlay manifest and policy](../packaging/fedora/api-core-overlay/README.md).
+The distribution API-Core overlays are declared downstream builds, not
+unmodified Proton binaries. Fedora revision `5.6.20-3.plasmavpn1.fc44` and the
+Ubuntu candidate `5.6.10-12plasmavpn1` carry the same five manifested patches,
+including Protun secret ownership and explicit activation of validated
+protection profiles. Core retains ownership of protection rules and connection
+state. See the [Fedora](../packaging/fedora/api-core-overlay/README.md) and
+[Debian](../packaging/debian/api-core-overlay/README.md) overlay policies.
 
 ## Process model
 
@@ -33,7 +35,7 @@ proton-vpn-kde                        on-demand C++/Qt/Kirigami
 proton-vpn-kde-backend                unprivileged Python/asyncio
   validation · state · lifecycle · Core adapter
                  │ public Python API
-python3-proton-vpn-api-core           Proton plus declared Fedora overlay
+python3-proton-vpn-api-core           Proton plus declared distribution overlay
   VPN protocols · NetworkManager · protection · sessions
 ```
 

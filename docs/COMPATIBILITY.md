@@ -2,24 +2,27 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.13.0 supports the following tested stack:
+Plasma VPN 0.13.1 is the unreleased package update for the baselines below.
+Ubuntu 26.04 remains package-validated rather than live-supported until
+community Plasma field reports establish its live lifecycle.
 
-| Component | Supported baseline |
-| --- | --- |
-| Distribution | Fedora 44 x86_64 |
-| Desktop | KDE Plasma 6 with systemd user services |
-| Qt / KDE | Qt 6.8 or newer; KDE Frameworks 6 |
-| Python | 3.11 or newer with `os.pidfd_open` |
-| Proton VPN API Core | 5.6.10 API floor; release overlay 5.6.20-3.plasmavpn1 |
-| Proton keyring adapter | Release overlay 0.2.3-9.plasmavpn1 |
-| Secret Service | Freedesktop Secret Service; KeePassXC verified |
-| Network control | NetworkManager through Proton Core |
+| Component | Fedora 44 | Ubuntu 26.04 candidate |
+| --- | --- | --- |
+| Architecture | x86_64 | amd64 |
+| Desktop | KDE Plasma 6 with systemd user services | KDE Plasma 6 with systemd user services |
+| Qt / KDE | Qt 6.8+; KDE Frameworks 6 | Qt 6.10.2; KDE Frameworks 6.24 |
+| Python | 3.14 with `os.pidfd_open` | 3.14 with `os.pidfd_open` |
+| Proton VPN API Core | 5.6.20-3.plasmavpn1 | 5.6.10-12plasmavpn1 |
+| Proton keyring adapter | 0.2.3-9.plasmavpn1 | 0.2.3-9plasmavpn1 |
+| Secret Service | Freedesktop Secret Service; KeePassXC verified | Freedesktop Secret Service; live provider UAT pending |
+| Package evidence | Clean builds and installed UAT | Clean-container build/install/reinstall/autopkgtest |
 
-Required source dependencies include C++20, CMake 3.24, OpenSSL 3,
-`cryptography` 50.0.0, and `dbus-fast` 2.20. The Fedora install prefix is
-`/usr`; custom-prefix runtime layouts are not supported.
+Required source dependencies include C++20, CMake 3.24, OpenSSL 3, and
+`dbus-fast` 2.20. Fedora's tested `cryptography` floor is 50.0.0; Ubuntu 26.04
+ships 46.0.5, which passes the complete backend suite. Both packages install
+under `/usr`; custom-prefix runtime layouts are not supported.
 
-The client RPM requires both explicit downstream capabilities:
+Both client packages require explicit downstream capabilities:
 
 ```text
 proton-vpn-api-core-plasma-protun-secret >= 1
@@ -58,6 +61,22 @@ The 5.5.6 compatibility fixture is static public-API lint only. It extracts a
 SHA-256-pinned RPM but never imports Core, reads credentials, or touches
 networking. Behavioral claims use 5.6.20 or installed UAT, not 5.5.6.
 
+### Ubuntu reconstruction
+
+The Debian source package pins Proton's signed Ubuntu
+`python3-proton-vpn-api-core_5.6.10_amd64.deb` by SHA-256. Proton's public
+5.6.10 tag does not contain the complete generated Protun build inputs, so the
+source package carries the vendor binary as a declared upstream component. The
+rebuild preserves Proton's compiled payload and maintainer-script behavior,
+applies the same five patches, and permits changes only to six manifested
+Python sources under `/usr/lib/python3/dist-packages`.
+
+The Ubuntu package set contains three binary packages and their corresponding
+`.dsc`, original source archive, Debian delta, build information, and changes
+file. CI validates package metadata, root ownership, file modes, disabled
+reporting features, exact overlay deltas, installation, reinstallation,
+autopkgtest, and the client-removal boundary.
+
 ## Keyring overlay
 
 The release keyring package reconstructs Proton's 0.2.3 source with three
@@ -94,6 +113,7 @@ the old backend process is dead.
 | START-02 recovery | Installed Core revision 12 reused and activated one retained protection profile without duplicates or backend restarts |
 | Core 5.6.20 install | Runtime-equivalent overlay revision 2 installed; revision 3 verified as provenance-only |
 | Clean package builds | Client and both overlay package pairs pass policy, transaction, and reproducibility checks |
+| Ubuntu 26.04 package candidate | Client and both overlay `.deb`/source sets pass clean-container policy and lifecycle checks; community Plasma field acceptance pending |
 
 The release client revision changes package metadata, documentation, screenshots,
 and CI policy after the installed `0.9` build; it does not change client runtime
@@ -111,8 +131,8 @@ code. Core overlay revision 3 is runtime-identical to installed revision 2.
 - Missing required Core behavior fails with bounded guidance; the adapter does
   not infer networking semantics from private implementation details.
 - Optional memory optimizations never gate VPN behavior.
-- Other distributions remain community experiments until their packaging,
-  activation, and live lifecycle receive independent acceptance evidence.
+- A distribution is live-supported only after package, activation, and live
+  lifecycle acceptance. Ubuntu remains package-validated pending field reports.
 
 Version bounds describe tested compatibility, not a security-support promise
 for Proton's services or future packages.

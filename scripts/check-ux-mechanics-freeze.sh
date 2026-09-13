@@ -5,7 +5,7 @@
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-baseline_commit="ec27fdce4967325d0f5e604c135caa23f5158474"
+baseline_commit="f0f6960bf7b5dcd176ef8e804d4d49a059e37a5f"
 
 cd "$project_dir"
 
@@ -19,8 +19,12 @@ if [[ -n "$untracked_files" ]]; then
 fi
 
 if ! git cat-file -e "${baseline_commit}^{commit}" 2>/dev/null; then
-    echo "The 0.13 UX mechanics baseline is unavailable: $baseline_commit" >&2
+    echo "The published 0.13.0 baseline is unavailable: $baseline_commit" >&2
     echo "Fetch complete Git history before running this release gate." >&2
+    exit 1
+fi
+if ! git merge-base --is-ancestor "$baseline_commit" HEAD; then
+    echo "The candidate does not descend from published 0.13.0." >&2
     exit 1
 fi
 
@@ -71,6 +75,13 @@ while IFS= read -r path; do
         SECURITY.md|THIRD_PARTY_NOTICES.md|docs/*|\
         packaging/fedora/README.md|packaging/fedora/api-core-overlay/README.md|\
         qml/*)
+            ;;
+        .github/workflows/deb.yml|debian/*|packaging/debian/*|\
+        scripts/check-static-analysis.sh|\
+        scripts/create-release-artifact-manifest.py|\
+        tests/xdg/menus/applications.menu)
+            # Distribution packaging and hermetic package-test infrastructure.
+            # Its own artifact, provenance, and transaction gates own this scope.
             ;;
         .editorconfig|.gitattributes|.gitignore|\
         CMakeLists.txt|.github/workflows/rpm.yml|kcm/CMakeLists.txt|\
@@ -199,31 +210,29 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "53c240f870e585f66ea3e192873071f074b67e547be28252ae5eac8b686417c1" \
+    "5099eaec1373003d355aa2e4ac5a671158928ab5dabf68ff8e2c1ef9ac97b89e" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
     "Python dependency floor" backend/requirements-minimum.txt
 assert_diff_hash \
-    "881e2c53b4ecff144f182ee2616257553ac58045267f50f09b9d8d74af78545a" \
+    "33e47856bc6318f949b520a787b98d7e9689bdb1cd7db3dab2b728eaf83fe754" \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "ac1288800548f94a2e10f0c36bf701d589e565a6dfa24532ac74f594daba1675" \
+    "d31d11592c1475f937af240d49ed7f48ab4636c031e8b66a3035726e8ba98790" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
-    "125ae543fc957e0f99ed7166c9d473b7f9eedaf4e1a831afe1a8c0bc9191b0f4" \
+    "343f5c4f7f02f92493baff7f087baa3aa684700984477c956ad61103bd7138be" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
-# START-02 explicitly authorizes this separate Core activation overlay. The
-# exact-delta seal records scope, not independent review or installed acceptance.
 assert_diff_hash \
-    "6b3b30d3909a142c05d526cea640b3e15609e9c040e3c128b17a6f023fb6bbd3" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "protection activation overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -231,35 +240,35 @@ assert_diff_hash \
     packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch \
     packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py
 assert_diff_hash \
-    "bc8919bb31d33cf967c48472656f217a0d7de017f4fb0c20ed1ff0aeb2095c97" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "finite process-stop packaging" \
     data/proton-vpn-kde-backend.service.in \
     scripts/check-rpm-artifact.sh scripts/smoke-staged-install.sh
 assert_diff_hash \
-    "f3dca36c733c8e515912de42c91c4c7c2faea9f1412ebcc5184b6c1bd8b19bff" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "D-Bus completion-classification contract" \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "c31570161fc5bc353bf6df251b54e2b6bea46acf9df619e982618b1fd4d8daff" \
+    "368a1168421a46ce5b84dc0253ead13922a640f55de2c5f8803681f9c28d2db9" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
-    "b97187b4c217c1673e959608012e29a6e3226eee78a1d752fcfe5c63cd41e96c" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "RPM test dependencies" .github/workflows/rpm.yml \
     scripts/check-rpm-reproducibility.sh
 assert_diff_hash \
-    "2f08d0a8b048d8a85a93e812432b8d4872babc3aa998558606eadee38176769d" \
+    "f3b160619e649871b9450995ef5b65024aa8838a5437368888a64bb20138567d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "9ac9373715719f7942d8fb463b1319f92df5960c3b592a4730eaa391640de817" \
+    "8bdddf9767e2b95aeddefabeb2303134b2766175b258954fe2732ad0c339c947" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "298fe3ed74b0d6ff0d6e16dba499ca1bac6b28d593797a9f06e521426a9e6a1a" \
+    "b2d3b66467ce0284c2739f848a81d3e91b2e3a80c5db40a2ad50229bc4197975" \
     "QML presentation" qml
 
 assert_diff_hash \
-    "5ee2d9a7750117b46e018437e6e49218a7b7a1958ad3065b912dd4bedc2af6d9" \
+    "8ab84aa0ea1f21a3007c55b8ffeda538dc2f29cdb11ce6018b562cfde63de501" \
     "licensing and upstream provenance" \
     .editorconfig .gitattributes .gitignore \
     backend/proton-vpn-kde-backend.in \
@@ -273,23 +282,26 @@ assert_diff_hash \
     scripts/check-spdx-headers.py \
     translations/provenance.json.license
 
-# RC1–RC6: explicitly authorized startup/persistence/presentation corrections
-# and offline measurement fixtures. These seals still do not grant approval.
-# START-01 additionally admits direct native startup normalization and its
-# kernel-environment regression probe; backend authorization stays unchanged.
-# START-02 preserves restored session state on connector failure and holds an
-# ordinary failed startup for explicit retry without dropping durable recovery.
 assert_diff_hash \
-    "0b9bc3a05869509205d9dbfe761bf4e9eb9ccd1a423c07d9d41603e353c0cc12" \
+    "85768fcaa9ca126053c3fa62db22e8b62e26db6a624188bc3ff47aea60a9d153" \
+    "Ubuntu packaging" \
+    .github/workflows/deb.yml debian packaging/debian \
+    scripts/check-static-analysis.sh \
+    scripts/create-release-artifact-manifest.py \
+    tests/xdg/menus/applications.menu
+
+# Empty hashes explicitly prohibit post-0.13.0 changes in these scopes.
+assert_diff_hash \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "native startup regression" scripts/check-native-startup.py \
     scripts/smoke-control-center-activation.sh
 
 assert_diff_hash \
-    "2307b7ff215dd918276e71decb16703f3120702aee1ff6a61fa46c993ea9a3e6" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "offline search measurement" scripts/benchmark-search.py
 
 assert_diff_hash \
-    "5bfd83782480c0976b1b3cfe6ea8dd84d099329137b1b0f46c80acb4dde2f48a" \
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "unambiguous desktop icon" data/proton-vpn-kde.desktop.in
 
-echo "0.13 change boundary matches baseline $baseline_commit plus recorded candidate deltas (not review approval)"
+echo "0.13 release-line candidate matches published baseline $baseline_commit plus recorded deltas (not review approval)"

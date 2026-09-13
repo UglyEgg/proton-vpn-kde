@@ -1,0 +1,2 @@
+Tests: installed-layout
+Depends: @, dbus-daemon, libglib2.0-bin, procps
