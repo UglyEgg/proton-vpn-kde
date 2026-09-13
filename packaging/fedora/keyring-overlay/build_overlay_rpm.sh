@@ -53,6 +53,8 @@ fi
 
 install -m 0644 "$archive" "$topdir/SOURCES/$archive_name"
 install -m 0644 "$manifest" "$topdir/SOURCES/overlay-manifest.json"
+install -m 0644 "$manifest.license" \
+    "$topdir/SOURCES/overlay-manifest.json.license"
 install -m 0644 "$overlay_dir/README.md" \
     "$topdir/SOURCES/keyring-overlay-README.md"
 install -m 0644 "$overlay_dir/patches/"*.patch "$topdir/SOURCES/"
@@ -118,6 +120,7 @@ fi
 source_checks=(
     "$archive_name=$(realpath "$archive")"
     "overlay-manifest.json=$manifest"
+    "overlay-manifest.json.license=$manifest.license"
     "keyring-overlay-README.md=$overlay_dir/README.md"
 )
 for patch_path in "$overlay_dir"/patches/*.patch; do

@@ -94,5 +94,8 @@ By submitting a contribution, you agree to license it under
 not assigned to this project maintainer.
 
 New project-authored source and build files must carry the repository's SPDX
-copyright and license identifiers. Do not apply the community copyright line
-to Proton-derived patches, imported translations, or third-party material.
+copyright and license identifiers. Put them in the file's leading comments
+when its format permits comments; use a sibling `.license` annotation for
+strict JSON and other formats that do not. Do not apply the community
+copyright line to Proton-derived patches, imported translation catalogs, or
+third-party material.

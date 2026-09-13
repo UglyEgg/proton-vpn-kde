@@ -5,6 +5,18 @@ All notable user-visible changes are recorded here. The project follows
 
 ## [Unreleased]
 
+### 0.13.0 — next public release
+
+Version 0.13.0 is the next public release after 0.11.3. Version 0.12.0 was an
+accepted internal development milestone, not a tagged or published release.
+
+- Separate the signed Proton Fedora Core `5.6.20` package identity from the
+  latest public source reference (`v5.6.10`) in overlay metadata, add Proton's
+  upstream copyright notice to the new keyring test module, and close SPDX
+  coverage gaps for project templates, configuration, and strict JSON.
+- Clarify that 0.12.0 was an unpublished development milestone, keep the
+  in-client history aligned with the public release sequence, and refresh the
+  README gallery from the current 0.13 interface.
 - Rebase the Fedora API Core overlay onto Proton's signed 5.6.20 package so
   Fedora can upgrade Core without losing the Plasma Protun capability. Retain
   the five bounded patches, adopt Proton's updated dependency and scriptlet
@@ -246,6 +258,28 @@ All notable user-visible changes are recorded here. The project follows
   attribution, and licensing behind one graphical Help & information
   destination. Keep the connection Inspector contextual and remove redundant
   project routes from the home gear menu.
+- Serialize every authentication transition at the Core boundary and give
+  account-scoped adapter work an authentication epoch. A late settings,
+  topology, or connection authentication failure from an obsolete session can
+  no longer sign out or tear down its replacement account.
+- Serialize overlapping Disconnect scopes through automatic-reconnect
+  suspension and drain an accepted Disconnect before backend teardown. One
+  caller can no longer resume retry work while another Disconnect is active.
+- Give the resident agent's queued actions and transient leases one monotonic
+  connection-intent identity. Disconnect now supersedes a queued Connect even
+  before the first connecting snapshot, and a delayed lease reply either serves
+  the current intent or releases itself without dispatching abandoned work.
+- Put settings, split-tunneling, and custom-DNS reads and writes in one
+  completion order, drain accepted settings access at shutdown, and publish
+  change signals only for successful mutations. An older read can no longer
+  repaint clients after a newer write.
+
+## 0.12.0 — internal development milestone
+
+This locally accepted mechanics baseline was completed on 2026-09-01 but was
+never tagged or published. Its changes are included in the forthcoming 0.13.0
+release and remain recorded separately to preserve the review boundary.
+
 - Add an on-demand Connection Inspector for live server capabilities,
   protection configuration, and local runtime state using only existing
   non-sensitive Core snapshots.
@@ -271,21 +305,6 @@ All notable user-visible changes are recorded here. The project follows
 - Fence countries, groups, servers, load, search, and NPS reads to the account
   session that requested them; make post-login refresher and reconnector startup
   transactional so a partial failure cannot publish a signed-in state.
-- Serialize every authentication transition at the Core boundary and give
-  account-scoped adapter work an authentication epoch. A late settings,
-  topology, or connection authentication failure from an obsolete session can
-  no longer sign out or tear down its replacement account.
-- Serialize overlapping Disconnect scopes through automatic-reconnect
-  suspension and drain an accepted Disconnect before backend teardown. One
-  caller can no longer resume retry work while another Disconnect is active.
-- Give the resident agent's queued actions and transient leases one monotonic
-  connection-intent identity. Disconnect now supersedes a queued Connect even
-  before the first connecting snapshot, and a delayed lease reply either serves
-  the current intent or releases itself without dispatching abandoned work.
-- Put settings, split-tunneling, and custom-DNS reads and writes in one
-  completion order, drain accepted settings access at shutdown, and publish
-  change signals only for successful mutations. An older read can no longer
-  repaint clients after a newer write.
 - Retry a transient same-owner snapshot timeout without falsely marking the
   authenticated backend offline.
 - Route tray and global-shortcut connection changes through the same validated,

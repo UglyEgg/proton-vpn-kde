@@ -8,7 +8,7 @@
 
 Name:           python3-proton-vpn-api-core
 Version:        5.6.20
-Release:        2.plasmavpn1%{?dist}
+Release:        3.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
@@ -18,6 +18,7 @@ Source1:        overlay-manifest.json
 Source2:        rebuild_overlay.py
 Source3:        protonvpn-fedora-44-public-key.asc
 Source4:        test_killswitch_activation.py
+Source5:        overlay-manifest.json.license
 Patch0:         0001-share-repeated-server-endpoint-strings.patch
 Patch1:         0002-share-server-strings-during-cache-decoding.patch
 Patch2:         0003-avoid-deprecated-fido2-capability-query.patch
@@ -131,6 +132,10 @@ cp -a overlay-rootfs/. "$RPM_BUILD_ROOT/"
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
+* Sat Sep 12 2026 uglyegg <uglyegg@entropy.quest> - 5.6.20-3.plasmavpn1
+- Separate signed vendor-package identity from public source-tag provenance
+- Record SPDX provenance for the strict-JSON overlay manifest
+
 * Sat Sep 12 2026 uglyegg <uglyegg@entropy.quest> - 5.6.20-2.plasmavpn1
 - Rebase the verified overlay onto Proton's signed Fedora 5.6.20 payload
 - Preserve Proton's updated dependency and package-script contracts

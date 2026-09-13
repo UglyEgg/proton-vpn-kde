@@ -3,10 +3,11 @@
 ## Corrected offline benchmark — 2026-09-09
 
 **Current status:** RC6 is corrected in signed commit `17791c7`; the latest
-local package source is `4eebc3f` (`0.13.0-0.7.fc44`). Subsequent changes isolate
-test inputs and declare build dependencies, not search or authentication
-behavior. They add no new performance measurement. Both benchmark passes use
-a shared offline authenticated fixture, not a real account session. A
+package measured by this benchmark is `4eebc3f` (`0.13.0-0.7.fc44`). Later
+client and overlay corrections do not include a replacement performance
+measurement, so these results are not attributed to the current
+`0.13.0-0.10.fc44` candidate or Core 5.6.20. Both benchmark passes use a shared
+offline authenticated fixture, not a real account session. A
 synthetic-cache regression explicitly prohibits
 initialization, login and socket creation and checks both passes. Production
 authentication checks and the search implementation are unchanged.

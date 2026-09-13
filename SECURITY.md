@@ -10,6 +10,11 @@ tagged minor release.
 | 0.11.x | Supported |
 | 0.10.x and earlier | Unsupported |
 
+Version 0.13.0 is unreleased and does not enter the supported-version table
+until publication. Version 0.12.0 was an internal development milestone, not a
+public release. When 0.13.0 is published, support moves to 0.13.x and 0.11.x
+becomes unsupported.
+
 ## Report a vulnerability privately
 
 Do not open a public issue for a suspected vulnerability.
@@ -137,8 +142,7 @@ The following are outside this repository's disclosure scope:
 - theoretical hardening suggestions without a reproducible exploit path.
 
 Findings exclusively affecting Proton should be reported through Proton's
-official security response process:
-https://proton.me/security/response-center
+official [security response process](https://proton.me/security/response-center).
 
 ## Coordinated disclosure
 

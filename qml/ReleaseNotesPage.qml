@@ -110,23 +110,25 @@ Kirigami.ScrollablePage {
             Layout.alignment: Qt.AlignLeft
             checkable: true
             text: checked
-                ? qsTr("Hide previous releases")
-                : qsTr("Show previous releases")
+                ? qsTr("Hide earlier versions")
+                : qsTr("Show earlier versions")
             icon.name: checked ? "go-up-symbolic" : "go-down-symbolic"
-            Accessible.description: qsTr("Expand or collapse release notes for versions before 0.13.0")
+            Accessible.description: qsTr("Expand or collapse notes for earlier releases and development milestones")
         }
 
         SectionCard {
             objectName: "previousReleaseHistory"
             visible: previousReleasesToggle.checked
-            title: qsTr("Previous releases")
-            description: qsTr("Earlier user-facing changes. The complete engineering history remains in CHANGELOG.md.")
+            title: qsTr("Earlier versions")
+            description: qsTr("Development milestones and published releases. The complete engineering history remains in CHANGELOG.md.")
             iconName: "view-history"
 
             ReleaseNoteGroup {
-                heading: "0.12.0"
+                heading: qsTr("0.12.0 development milestone")
                 headingLevel: 3
-                notes: []
+                notes: [
+                    qsTr("Accepted locally but never tagged or published. Its changes are included in 0.13.0, the next public release after 0.11.3.")
+                ]
             }
 
             ReleaseNoteGroup {

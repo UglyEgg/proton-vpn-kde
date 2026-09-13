@@ -23,20 +23,26 @@ the new package and installed evidence; the earlier
 retains the `0.7` evidence separately from failed `0.5` and `0.6` attempts.
 
 The latest client installation is `0.13.0-0.9.fc44` from `f6e12d0`, with
-root-side payload/source verification complete on 2026-09-09 and Core overlay
-revision `12` installed; keyring is unchanged. START-01's first-launch authorization failure no longer reproduces
+root-side payload/source verification complete on 2026-09-09. Core overlay
+`5.6.20-2.plasmavpn1.fc44` and keyring `0.2.3-8.plasmavpn1.fc44` are currently
+installed. START-01's first-launch authorization failure no longer reproduces
 in the installed cold-launch probe: the exact registration call succeeds under
 the inherited Qt plugin-path condition. This verifies that boundary, not the
 entire saved-session/connection workflow.
+
+The working tree now reserves client RPM revision `0.10` for SPDX/provenance
+corrections and release-documentation presentation changes. It has not been
+built or installed and does not extend the recorded `0.9` runtime acceptance
+evidence.
 
 **Maintainer UAT: accepted on 2026-09-09 for installed client `0.9` / Core `12`.**
 The maintainer confirmed expected behavior and presentation. This is local
 acceptance, separate from independent review and controlled-failure evidence.
 
-**API Core 5.6.20 refresh: source/package verification passed on 2026-09-12;
-installation and UAT remain open.** Proton's signed Fedora
+**API Core 5.6.20 refresh: revision `2` is installed; provenance revision `3`
+has source/package verification only.** Proton's signed Fedora
 `python3-proton-vpn-api-core-5.6.20-1.fc44` package was verified and rebuilt as
-`5.6.20-2.plasmavpn1.fc44`, retaining all five bounded patches. They apply with
+`5.6.20-3.plasmavpn1.fc44`, retaining all five bounded patches. They apply with
 zero fuzz; only the manifest-listed six source files and twelve derived
 bytecode files differ. The output adopts Proton 5.6.20's dependency, conflict,
 obsolete and scriptlet sets. Fourteen protection-activation cases, seven
@@ -45,9 +51,11 @@ pass. Two distinct clean RPM top directories on the same Fedora 44 workstation
 produce byte-identical RPM and SRPM files. The reproducibility correction pins
 build time to the changelog epoch and prevents temporary top-directory paths
 from entering source-package metadata; CI now repeats the two-build check.
-These are unsigned local artifacts. The installed Core remains
-`5.6.10-12.plasmavpn1.fc44`; no VPN, Secret Service, NetworkManager, installed
-package, GitHub or publication state changed in this verification step.
+These are unsigned local artifacts. Runtime-equivalent revision
+`5.6.20-2.plasmavpn1.fc44` remains installed; revision `3` changes provenance,
+spec, and source-package metadata only. No VPN, Secret Service, NetworkManager,
+installed package, GitHub, or publication state changed in this verification
+step.
 
 **START-02 (P2 availability): installed failure containment, automatic recovery
 and normal disconnect/reconnect pass; the remaining controlled-failure check
@@ -76,9 +84,9 @@ later assessments. Both the previous R1–R8 corrections and the new RC1–RC6
 findings concern the unreleased branch; applicability to older public releases
 was not assessed in these bounded series.
 
-The accepted `0.12.0` mechanics add event-driven backend lifetime and an
-on-demand Connection Inspector. Their pre-final isolated reviews and standard
-security scans found lifecycle, error-class, Secret Service identity,
+The accepted, unpublished `0.12.0` mechanics milestone adds event-driven
+backend lifetime and an on-demand Connection Inspector. Its pre-final isolated
+reviews and standard security scans found lifecycle, error-class, Secret Service identity,
 desktop-action-broker, and inherited native-loader environment defects. The
 historical section below records each remediation and the final gate without
 presenting those closed findings as current vulnerabilities.

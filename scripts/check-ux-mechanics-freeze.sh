@@ -67,13 +67,17 @@ while IFS= read -r path; do
     [[ -n "$path" ]] || continue
 
     case "$path" in
-        .github/workflows/ci.yml|CHANGELOG.md|README.md|docs/*|\
+        .github/workflows/ci.yml|CHANGELOG.md|CONTRIBUTING.md|README.md|\
+        SECURITY.md|THIRD_PARTY_NOTICES.md|docs/*|\
         packaging/fedora/README.md|packaging/fedora/api-core-overlay/README.md|\
         qml/*)
             ;;
+        .editorconfig|.gitattributes|.gitignore|\
         CMakeLists.txt|.github/workflows/rpm.yml|kcm/CMakeLists.txt|backend/pyproject.toml|\
+        backend/proton-vpn-kde-backend.in|\
         backend/proton_vpn_kde_backend/__init__.py|\
         backend/proton_vpn_kde_backend/__main__.py|\
+        backend/proton_vpn_kde_backend/_build_features.py.in|\
         backend/proton_vpn_kde_backend/adapters.py|\
         backend/proton_vpn_kde_backend/account_transition.py|\
         backend/proton_vpn_kde_backend/async_utils.py|\
@@ -107,15 +111,29 @@ while IFS= read -r path; do
         backend/tests/test_search_projection.py|\
         backend/tests/test_task_scope.py|\
         data/proton-vpn-kde-backend.service.in|\
+        data/snapshot-schema-v1.json.license|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
         packaging/fedora/api-core-overlay/rebuild_overlay.py|\
         packaging/fedora/api-core-overlay/build_overlay_rpm.sh|\
         packaging/fedora/api-core-overlay/overlay-manifest.json|\
+        packaging/fedora/api-core-overlay/overlay-manifest.json.license|\
         packaging/fedora/api-core-overlay/python3-proton-vpn-api-core-overlay.spec|\
         packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch|\
+        packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py|\
         packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py|\
         packaging/fedora/core-compatibility.json|\
+        packaging/fedora/core-compatibility.json.license|\
+        packaging/fedora/keyring-overlay/README.md|\
+        packaging/fedora/keyring-overlay/build_overlay_rpm.sh|\
+        packaging/fedora/keyring-overlay/check_overlay_rpm.sh|\
+        packaging/fedora/keyring-overlay/overlay-manifest.json|\
+        packaging/fedora/keyring-overlay/overlay-manifest.json.license|\
+        packaging/fedora/keyring-overlay/patches/0001-provider-agnostic-secret-service.patch|\
+        packaging/fedora/keyring-overlay/patches/0003-pin-secret-service-provider.patch|\
+        packaging/fedora/keyring-overlay/python3-proton-keyring-linux.spec|\
         packaging/fedora/proton-vpn-kde.spec|\
+        kcm/kcm_proton_vpn_kde.json.license|\
+        runner/proton-vpn-kde-runner.json.in.license|\
         src/AgentVpnClient.cpp|src/AgentVpnClient.h|src/TrayIntegration.cpp|\
         src/BackendIdentity.cpp|src/BackendIdentity.h|\
         src/NotificationIntegration.cpp|src/NotificationIntegration.h|\
@@ -150,7 +168,7 @@ while IFS= read -r path; do
         data/proton-vpn-kde.desktop.in|\
         scripts/auth-dbus-client.py|scripts/capture-qml-page.sh|\
         scripts/check-qml-ui-hygiene.sh|scripts/check-qml-visual-matrix.sh|\
-        scripts/check-compatibility-metadata.py|\
+        scripts/check-compatibility-metadata.py|scripts/check-spdx-headers.py|\
         scripts/check-core-compatibility.sh|\
         scripts/check-core-contract.py|\
         scripts/check-native-startup.py|\
@@ -161,7 +179,8 @@ while IFS= read -r path; do
         scripts/benchmark-search.py|\
         scripts/smoke-qml-diagnostics.sh|scripts/smoke-qml-layout-variants.sh|\
         scripts/smoke-settings-route.sh|scripts/smoke-staged-install.sh|\
-        scripts/test-ux-mechanics-freeze-negative.sh)
+        scripts/test-ux-mechanics-freeze-negative.sh|\
+        translations/provenance.json.license)
             # Presentation verification and its hermetic test drivers.
             ;;
         *)
@@ -185,20 +204,21 @@ assert_diff_hash \
     "backend version-only" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "97cb52cf706b28a72abb079a475b72bab971b545477bd72359dfe3703d13ec5b" \
+    "ac1288800548f94a2e10f0c36bf701d589e565a6dfa24532ac74f594daba1675" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests
 assert_diff_hash \
-    "cb5d241402ae7ae06808dbd30a393b394e827df9a5b09f48472e2d203253f6c2" \
+    "bbd017a744153feb8fba668f8d49fd84c06b2a7b12d7c70f883c5ed51d223542" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
+    packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
 # START-02 explicitly authorizes this separate Core activation overlay. The
 # exact-delta seal records scope, not independent review or installed acceptance.
 assert_diff_hash \
-    "2d1476c739e25f65b4315e38df179eb9231890c2cf466b8fc45a7707915a3b48" \
+    "bca85d67aaee0014b04f5f82cab1920d818f5f1d9f9ec2a7ebf31f449ad82f30" \
     "protection activation overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -216,7 +236,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "f3162d807a00c9fe303440840fa26aba439b4974bc3853046025d5b8a8a2040d" \
+    "5ba3cfbe26cc399fd7c30fe1f83042d81b30ea70a5b41fac1d8790d548017f3f" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "13dc9a8269e46d978f0b3ad88c06a09f5bf17d0647c973e34f75aa0644f0ba02" \
@@ -226,12 +246,27 @@ assert_diff_hash \
     "52bd7d395a8e4023f9d21a6af85dee3d259ac134232dc4b6912766ed080873f6" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "f39a569a1785ca3109c6c97f0e538ed1e34cd881d7bce55bf862f1efec747ded" \
+    "9ac9373715719f7942d8fb463b1319f92df5960c3b592a4730eaa391640de817" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "f8f36ccb57f7250f0fdecf2bc7698065b05a5630afeaa3e43216d40234de0017" \
+    "acd060a0bc2cc667bc97e65c0d41e90f7d3b598c7fb71da2fe680d8c9a4aff2e" \
     "QML presentation" qml
+
+assert_diff_hash \
+    "5ee2d9a7750117b46e018437e6e49218a7b7a1958ad3065b912dd4bedc2af6d9" \
+    "licensing and upstream provenance" \
+    .editorconfig .gitattributes .gitignore \
+    backend/proton-vpn-kde-backend.in \
+    backend/proton_vpn_kde_backend/_build_features.py.in \
+    data/snapshot-schema-v1.json.license \
+    kcm/kcm_proton_vpn_kde.json.license \
+    packaging/fedora/api-core-overlay/overlay-manifest.json.license \
+    packaging/fedora/core-compatibility.json.license \
+    packaging/fedora/keyring-overlay \
+    runner/proton-vpn-kde-runner.json.in.license \
+    scripts/check-spdx-headers.py \
+    translations/provenance.json.license
 
 # RC1–RC6: explicitly authorized startup/persistence/presentation corrections
 # and offline measurement fixtures. These seals still do not grant approval.

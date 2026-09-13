@@ -88,13 +88,22 @@ def check() -> None:
             / "packaging/fedora/api-core-overlay/overlay-manifest.json"
         ).read_text(encoding="utf-8")
     )
-    overlay_version = overlay_manifest["overlay"]["upstreamBaseTag"].removeprefix(
-        "v"
-    )
+    overlay_version = overlay_manifest["vendor"]["version"]
     if normalized_version(static_floor) > normalized_version(runtime_floor):
         fail("static Core API floor is newer than the runtime floor")
     if normalized_version(runtime_floor) > normalized_version(overlay_version):
         fail("Core runtime floor is newer than the packaged overlay")
+
+    overlay_spec = (
+        PROJECT_DIR
+        / "packaging/fedora/api-core-overlay/"
+        "python3-proton-vpn-api-core-overlay.spec"
+    )
+    require_text(
+        overlay_spec,
+        rf"^Version:\s+{re.escape(overlay_version)}$",
+        "Core overlay vendor version",
+    )
 
     spec = PROJECT_DIR / "packaging/fedora/proton-vpn-kde.spec"
     require_text(

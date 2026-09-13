@@ -67,3 +67,11 @@ changes because they modify one small backend implementation and share the same
 focused test module. The missing-entry logging and provider-owner-pinning
 patches remain separate and can be proposed independently. No VPN networking,
 session format, or secret storage schema is changed.
+
+Existing source files retain Proton's copyright and GPL notices. The new test
+module in patch 0001 uses Proton's current 2026 notice and GPL boilerplate.
+This prepares the source form for Proton's contribution policy; keeping the
+patch locally does not itself assign copyright or constitute Proton review.
+Before submission, the human contributor must review every line and determine
+that they can truthfully accept Proton's copyright-assignment and sole-creation
+terms.

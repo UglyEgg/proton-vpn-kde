@@ -5,18 +5,18 @@
 Plasma VPN is a native KDE frontend around Proton's official Linux VPN Core.
 Its architecture follows six invariants:
 
-1.  Proton Core owns VPN protocols, NetworkManager integration, kill switch,
+1. Proton Core owns VPN protocols, NetworkManager integration, kill switch,
     IPv6 leak protection, split tunneling, server scoring, session persistence,
     and packet-capture writing.
-2.  Community code owns presentation, Plasma integration, bounded validation,
+2. Community code owns presentation, Plasma integration, bounded validation,
     lifecycle coordination, and a versioned adapter around Core's public API.
-3.  Plaintext credentials and second factors never appear in D-Bus arguments,
+3. Plaintext credentials and second factors never appear in D-Bus arguments,
     snapshots, notifications, or logs.
-4.  Closing or restarting the Control Center does not implicitly disconnect an
+4. Closing or restarting the Control Center does not implicitly disconnect an
     active tunnel.
-5.  The disconnected resident footprint does not include QML, Proton Core, or
+5. The disconnected resident footprint does not include QML, Proton Core, or
     the complete server model.
-6.  Session-bus authorization resists ordinary or sandboxed peers without
+6. Session-bus authorization resists ordinary or sandboxed peers without
     equivalent host-code execution; it does not claim to attest processes
     against arbitrary native code already running as the desktop user.
 
@@ -25,10 +25,11 @@ Its architecture follows six invariants:
 The Fedora Core package includes documented downstream patches; it is not an
 unmodified Proton binary. Alongside representation and Protun secret-ownership
 fixes, the current verified overlay candidate
-`5.6.20-2.plasmavpn1.fc44` explicitly activates and reuses matching protection
+`5.6.20-3.plasmavpn1.fc44` explicitly activates and reuses matching protection
 profiles after manual device disconnection. It rebases the same bounded
-behavior onto Proton's signed 5.6.20 Fedora payload; the last installed UAT
-used `5.6.10-12.plasmavpn1.fc44`. Core still owns the protection rules and
+behavior onto Proton's signed 5.6.20 Fedora payload; installed revision `2`
+has the same runtime file hashes, while revision `3` corrects only provenance
+and source-package metadata. Core still owns the protection rules and
 connection state machine. The
 [overlay scope](../packaging/fedora/api-core-overlay/README.md) separates this
 authorized integration correction from the community frontend and records its
@@ -59,13 +60,13 @@ tests and upstream status.
 │ protocols · NetworkManager · KS · ST  │
 └───────────────────────────────────────┘
 ```
+
 The official privileged split-tunneling daemon remains unchanged. KRunner is
 not shown as a backend client because the shared KRunner process is
 deliberately outside the trusted set; it sends bounded requests to the Control
 Center and requires confirmation there.
 
 ## Responsibility map
-
 
 |Concern|Owner|
 |-|-|

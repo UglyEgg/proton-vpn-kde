@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.13.0
-Release:        0.9%{?dist}
+Release:        0.10%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -141,6 +141,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sat Sep 12 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.10
+- Complete SPDX provenance for installed Python templates and strict JSON sources
+- Separate signed Core package identity from public source-tag provenance
+- Align public/internal release history and refresh the application gallery
+
 * Wed Sep 09 2026 uglyegg <uglyegg@entropy.quest> - 0.13.0-0.9
 - Keep ordinary startup failures visible without repeated Secret Service prompts
 - Distinguish restored sessions from failed VPN connector initialization

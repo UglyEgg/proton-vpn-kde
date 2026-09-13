@@ -2,8 +2,11 @@
 
 ## Supported baseline
 
-The first public alpha targets Fedora 44 with KDE Plasma 6, systemd user
-services, NetworkManager, and a session Freedesktop Secret Service provider.
+The current public release is 0.11.3. Version 0.12.0 was an accepted internal
+development milestone rather than a tagged release; unreleased 0.13.0 is the
+next public candidate. The supported baseline targets Fedora 44 with KDE Plasma
+6, systemd user services, NetworkManager, and a session Freedesktop Secret
+Service provider.
 
 The source build requires:
 
@@ -94,19 +97,33 @@ but that weaker capability cannot satisfy the owner-pinned client dependency. Th
 dependency can be retired after an equivalent upstream build is verified; it
 is not a claim that stock Proton 0.2.3 supports KeePassXC correctly.
 
+Working-tree revision `0.2.3-9.plasmavpn1.fc44` adds Proton's current
+copyright and GPL notice to the new upstream test module, corrects the RPM
+license expression to `GPL-3.0-or-later`, and carries the strict-JSON SPDX
+annotation into both binary and source packages. All 29 focused tests and the
+binary/source content checks pass. This is a provenance-only package revision;
+the installed package remains `0.2.3-8.plasmavpn1.fc44`.
+
 Proton API Core 5.6.20 exposes a cancellation event for FIDO2 assertions but
 does not apply it while choosing among multiple attached keys. The Plasma
 client therefore does not advertise FIDO2 on that version. Authenticator and
 recovery codes remain available. A future Core must explicitly guarantee
 cancellable multi-key selection before the security-key action is enabled.
 
-## Core 5.6.20 overlay refresh — package verification passed, install pending
+## Core 5.6.20 overlay — installed runtime, provenance revision built
 
 The working-tree overlay rebuilds Proton's signed Fedora
 `python3-proton-vpn-api-core-5.6.20-1.fc44` package as
-`5.6.20-2.plasmavpn1.fc44`. It provides the capability already required by the
+`5.6.20-3.plasmavpn1.fc44`. It provides the capability already required by the
 installed Plasma client, so it can replace both the older 5.6.10 overlay and
 Proton's stock 5.6.20 package without weakening the client's dependency.
+
+Revision `3` removes the incorrect implication that Proton published a public
+`v5.6.20` source tag. Manifest schema 2 records `5.6.20` as the signed Fedora
+vendor package version, records no corresponding public source tag, and pins
+public `v5.6.10` commit `f1d13b71c506bbd5f47351a9e4392572e21d0169`
+only as the latest reference verified on 2026-09-12. It changes no runtime
+patch or installed Python/bytecode hash from installed revision `2`.
 
 All five patches apply with zero fuzz. Exact tree verification permits only
 six Python sources and their twelve derived bytecode files to differ from the
@@ -120,15 +137,14 @@ Two builds in distinct clean RPM top directories on the same Fedora 44
 workstation produced byte-identical unsigned artifacts:
 
 ```text
-41d0cec651e62b82cda3ded36dd9633292edfde2f1cb2aaef16169861ec0f0e4  python3-proton-vpn-api-core-5.6.20-2.plasmavpn1.fc44.x86_64.rpm
-a08ea87c5ebbbad07d975535ac6c622c612a13a06f3c546c807816d13bf2b846  python3-proton-vpn-api-core-5.6.20-2.plasmavpn1.fc44.src.rpm
+7967a4323ee2202bc59ad466cf3cf4ee8ccba5b8a6c6f64b3294d943ad001c56  python3-proton-vpn-api-core-5.6.20-3.plasmavpn1.fc44.x86_64.rpm
+2ebba1f846ec16d236367a559aa68687d3fa8c04e524dd26371dcd110c756dbb  python3-proton-vpn-api-core-5.6.20-3.plasmavpn1.fc44.src.rpm
 ```
 
-This is source and package evidence only. The workstation still has
-`5.6.10-12.plasmavpn1.fc44` installed at this checkpoint; root-side package
-verification, saved-session startup, server browsing, connect/disconnect,
-retained protection recovery, and suspend/resume acceptance remain the next
-separate gate.
+The workstation has runtime-equivalent revision
+`5.6.20-2.plasmavpn1.fc44` installed. Revision `3` has source/package evidence
+only and has not been installed; its metadata and source-package changes do not
+create a new installed runtime UAT result.
 
 ## Current local candidate — maintainer UAT passed, release pending
 
@@ -138,16 +154,23 @@ The latest recorded installation is the maintainer-approved
 client RPM/SRPM passed two clean builds and exact artifact/source checks;
 root-side payload verification and the installed source marker matched.
 
-| Component | Installed package at that checkpoint |
+The working tree declares client RPM revision `0.13.0-0.10.fc44` so the
+installed Python-template SPDX additions cannot produce a second package under
+the `0.9` identity. This source/package-identity revision also aligns the public
+release history and refreshes the application gallery. It has not been built or
+installed and carries no additional runtime UAT claim.
+
+| Component | Current installed package (2026-09-12 readback) |
 | --- | --- |
 | Plasma client | 0.13.0-0.9.fc44 |
-| Proton VPN API Core overlay | 5.6.10-12.plasmavpn1.fc44 |
+| Proton VPN API Core overlay | 5.6.20-2.plasmavpn1.fc44 |
 | Proton keyring overlay | 0.2.3-8.plasmavpn1.fc44 |
 
-The maintainer accepted UAT for this installed pair on 2026-09-09, confirming
-expected operation and presentation after the recovery/disconnect/reconnect
-checks. This is local user acceptance, not independent review or proof of every
-fault-injection scenario.
+The maintainer accepted UAT for client `0.9` with Core
+`5.6.10-12.plasmavpn1.fc44` on 2026-09-09, confirming expected operation and
+presentation after the recovery/disconnect/reconnect checks. The later
+5.6.20 revision `2` entry above is installed-package readback, not a claim that
+the complete UAT battery was repeated after that upgrade.
 
 The upgrades changed the client and Core, leaving the keyring package unchanged.
 The [START-02 installation record](SECURITY-AUDIT-2026-08-30.md#start-02-inactive-leak-protection-device--2026-09-09)

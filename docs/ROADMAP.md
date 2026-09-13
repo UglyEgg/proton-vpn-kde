@@ -12,11 +12,12 @@ independent upstream contribution, not a hidden part of this client.
 
 ## 0.13.0: progressive Plasma experience
 
-Version 0.13.0 is a presentation-led release based on the accepted 0.12.0
-mechanics. Its design principle is progressive disclosure: begin with the one
-clear task or decision most people need, then reveal relevant depth in context
-as the person asks for it. The interface should feel simple on first use and
-grow with the user without creating separate novice and expert modes.
+Version 0.13.0 is a presentation-led release based on the accepted, unpublished
+0.12.0 mechanics milestone. Its design principle is progressive disclosure:
+begin with the one clear task or decision most people need, then reveal relevant
+depth in context as the person asks for it. The interface should feel simple on
+first use and grow with the user without creating separate novice and expert
+modes.
 
 This does not mean hiding operational truth. Connection and protection state,
 the consequences of an action, authentication requirements, errors, and the
@@ -51,8 +52,13 @@ Proton's Fedora repository advanced from API Core 5.6.10 to 5.6.20. The stock
 5.6.20 package cannot replace the installed Plasma overlay because it does not
 provide the client's explicit Protun interoperability capability. The bounded
 refresh rebuilds Proton's exact signed `5.6.20-1.fc44` payload as
-`5.6.20-2.plasmavpn1.fc44`, preserving the existing five patches and adopting
+`5.6.20-3.plasmavpn1.fc44`, preserving the existing five patches and adopting
 Proton's current dependency and package-script contracts.
+
+Revision `3` is a provenance-only follow-up: it records the absence of a
+public `v5.6.20` source tag separately from the signed vendor package and adds
+the source annotation to the SRPM. The runtime patch set and installed-file
+hashes are unchanged from installed revision `2`.
 
 The patch targets still apply with zero fuzz, and exact tree verification
 continues to permit only six Python sources and twelve derived bytecode files.
@@ -62,12 +68,9 @@ against the extracted 5.6.20 tree. Two clean builds in distinct RPM top
 directories produce byte-identical RPM/SRPM pairs. CI now repeats that
 overlay-specific reproducibility check.
 
-This closes source compatibility and package construction, not installed
-acceptance. The workstation remains on Core overlay
-`5.6.10-12.plasmavpn1.fc44` until the maintainer authorizes the separate
-installation gate. Root-side package verification and the existing startup,
-server-browser, connect/disconnect, retained-protection and suspend/resume
-checks must pass before 5.6.20 becomes the accepted local runtime.
+Revision `2` is installed and provides the current local 5.6.20 runtime. Revision
+`3` has passed source/package and reproducibility checks but remains uninstalled;
+it adds no new runtime acceptance evidence.
 
 ### Frozen release-candidate checkpoint — 2026-09-09
 
@@ -190,6 +193,11 @@ native-client rebuild or final independent approval.
 The maintainer accepted UAT for the installed `0.9` / Core `12` pair on
 2026-09-09, confirming expected behavior and presentation. This records user
 acceptance; it does not substitute for unperformed controlled-failure tests.
+
+The later working-tree `0.13.0-0.10.fc44` revision is reserved for provenance
+and SPDX corrections plus release-documentation alignment, including refreshed
+demo captures and unambiguous public/internal release labels. It remains unbuilt
+and uninstalled and does not replace the `0.9` UAT record.
 
 Still required: exact-candidate review, signed/reproducible package validation,
 the remaining START-02 unavailable-activation/explicit-retry check, final independent

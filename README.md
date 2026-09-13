@@ -34,7 +34,7 @@ It is not a new VPN implementation. Proton's installed Core continues to own pro
 
 | Server browser | Connection Inspector | Native settings |
 | :---: | :---: | :---: |
-| [![Capability-aware server browser](docs/images/locations.png)](docs/images/locations.png) | [![Read-only Connection Inspector](docs/images/inspector.png)](docs/images/inspector.png) | [![Native Plasma settings](docs/images/settings.png)](docs/images/settings.png) |
+| [<img src="docs/images/locations.png" width="280" alt="Capability-aware server browser">](docs/images/locations.png) | [<img src="docs/images/inspector.png" width="280" alt="Read-only Connection Inspector">](docs/images/inspector.png) | [<img src="docs/images/settings.png" width="280" alt="Native Plasma settings">](docs/images/settings.png) |
 
 These previews show the unreleased 0.13.0 interface in light and dark Plasma themes. They use the deterministic demo backend: the connection is simulated, with no Proton account, NetworkManager changes, or real VPN tunnel.
 
@@ -82,7 +82,7 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 The client has regression tests for asynchronous recovery and desktop integration, isolated demo captures for layout checks, and static-analysis and sanitizer gates. Fedora release checks cover binary/source package contents and reproducible builds.
 
-The unreleased 0.13.0 branch includes the bounded lifecycle corrections and subsequent interface polish. Corrections from its latest seven-perspective review are implemented and locally verified. The replacement candidate passes clean Fedora package tests, reproducibility checks, and isolated installation verification. Independent release approval, installed acceptance, and local soak remain required; passing package checks is not release approval.
+The unreleased 0.13.0 branch includes the bounded lifecycle corrections and subsequent interface polish. Corrections from its latest seven-perspective review are implemented and locally verified. The last installed candidate passed clean Fedora package tests, reproducibility checks, and isolated installation verification. The current 0.13.0-0.10 working-tree revision adds provenance and SPDX corrections, release-history clarification, and refreshed application captures; it remains unbuilt and uninstalled. Exact-candidate package validation, independent release approval, installed acceptance, and local soak remain required.
 
 Revision-specific results and remaining gates live in the [review and correction record](docs/SECURITY-AUDIT-2026-08-30.md#bounded-rc1rc6-remediation--2026-09-09) and [current development checkpoint](docs/ROADMAP.md#frozen-release-candidate-checkpoint--2026-09-09). Memory, CPU, and retention measurements are recorded with their scope and limitations in [Performance](docs/PERFORMANCE.md).
 
@@ -90,7 +90,7 @@ These are engineering checks, not certification. The project has received mainta
 
 ## Current status
 
-The first public alpha targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and the locally verified Proton VPN API Core 5.6.20 Plasma overlay candidate. The Fedora RPM retains 5.6.10 as its tested API floor; the current downstream overlay is rebuilt from Proton's signed 5.6.20 Fedora package. A separate 5.5.6 check is static legacy API lint only: it is never executed as the supported runtime or used to justify behavioral fixes. Other distributions may work but have not completed the packaged acceptance battery.
+The latest public release is [0.11.3](https://github.com/UglyEgg/proton-vpn-kde/releases/tag/v0.11.3). Version 0.12.0 was an accepted internal development milestone and was never tagged or published; 0.13.0 is the next public candidate. It targets Fedora 44, KDE Plasma 6, Qt 6.8 or newer, and the locally verified Proton VPN API Core 5.6.20 Plasma overlay candidate. The Fedora RPM retains 5.6.10 as its tested API floor; the current downstream overlay is rebuilt from Proton's signed 5.6.20 Fedora package. A separate 5.5.6 check is static legacy API lint only: it is never executed as the supported runtime or used to justify behavioral fixes. Other distributions may work but have not completed the packaged acceptance battery.
 
 > [!NOTE]
 > Verified KeePassXC support uses the separately packaged, provider-neutral Proton keyring rebuild recorded in [Compatibility](docs/COMPATIBILITY.md). The source, patches, tests, manifest, and Fedora spec are included under [`packaging/fedora/keyring-overlay`](packaging/fedora/keyring-overlay/); release CI builds its binary and source RPMs beside the client. The client RPM requires that explicit capability instead of silently replacing an installed Python file.

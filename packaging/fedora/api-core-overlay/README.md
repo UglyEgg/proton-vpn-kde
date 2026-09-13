@@ -46,6 +46,10 @@ are ignored beyond UUID/timestamp, and the caller's request is not mutated.
 - the vendor NEVRA, source RPM name, complete-RPM SHA-256, header SHA-256,
   payload SHA-256, signing-key fingerprint, official key URL, and complete
   signing-key SHA-256;
+- the signed vendor package version separately from the latest verified public
+  source tag and commit. Proton's Fedora `5.6.20` package has no corresponding
+  public source tag in the repository as verified on 2026-09-12; `v5.6.10` is
+  recorded only as the latest public reference, not as the overlay's source;
 - all five runtime patch hashes and their provenance;
 - every permitted changed installed path;
 - the before/after SHA-256 for six Python sources and their twelve derived
@@ -131,10 +135,12 @@ After the Plasma release, prepare source-level contributions separately:
 
 1. Recheck current Proton source and contribution rules. Drop changes already
    implemented upstream; do not mechanically rebase from an old API floor or
-   the Fedora installed paths. Keep original author/provenance records and
-   reconcile notices on newly introduced test files with their actual
-   authorship. Do not imply copyright assignment or Proton authorship merely
-   by exporting a patch.
+   the Fedora installed paths. Keep original author/provenance records. Proton's
+   contribution policy assigns submitted contributions to Proton AG and asks
+   the contributor to certify sole creation. Existing Proton files retain
+   their upstream notices, and newly introduced upstream files use Proton's
+   current copyright and GPL notice. A local patch export does not itself
+   perform that assignment or satisfy the contributor certification.
 2. Present string sharing as one dependency-ordered series, diagnostic cleanup
    independently, and Protun secret ownership and protection-profile activation
    as separate proposals. Do not

@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import py_compile
+import re
 import shutil
 import stat
 import subprocess
@@ -40,19 +41,66 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as error:
         raise OverlayError(f"Unable to read overlay manifest: {error}") from error
 
-    if manifest.get("schemaVersion") != 1:
+    if manifest.get("schemaVersion") != 2:
         raise OverlayError("Unsupported overlay manifest schema")
     if not isinstance(manifest.get("vendor"), dict):
         raise OverlayError("Overlay manifest has no vendor record")
+    vendor = manifest["vendor"]
+    vendor_version = vendor.get("version")
+    if not isinstance(vendor_version, str) or re.fullmatch(
+        r"[0-9]+(?:\.[0-9]+)+", vendor_version
+    ) is None:
+        raise OverlayError("Overlay manifest has no valid vendor version")
+    public_source_tag = vendor.get("publicSourceTag")
+    if public_source_tag is not None and public_source_tag != f"v{vendor_version}":
+        raise OverlayError("Vendor public source tag does not match its version")
     if not isinstance(manifest["vendor"].get("signingKey"), dict):
         raise OverlayError("Overlay manifest has no vendor signing-key record")
+    public_upstream = manifest.get("publicUpstream")
+    if not isinstance(public_upstream, dict):
+        raise OverlayError("Overlay manifest has no public upstream reference")
+    if public_upstream.get("repository") != (
+        "https://github.com/ProtonVPN/python-proton-vpn-api-core.git"
+    ):
+        raise OverlayError("Overlay manifest has an unexpected upstream repository")
+    latest_verified_tag = public_upstream.get("latestVerifiedTag")
+    if not isinstance(latest_verified_tag, str) or re.fullmatch(
+        r"v[0-9]+(?:\.[0-9]+)+", latest_verified_tag
+    ) is None:
+        raise OverlayError("Overlay manifest has no valid public upstream tag")
+    upstream_commit = public_upstream.get("commit")
+    if not isinstance(upstream_commit, str) or re.fullmatch(
+        r"[0-9a-f]{40}", upstream_commit
+    ) is None:
+        raise OverlayError("Overlay manifest has no valid public upstream commit")
+    verified_on = public_upstream.get("verifiedOn")
+    if not isinstance(verified_on, str) or re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}", verified_on
+    ) is None:
+        raise OverlayError("Overlay manifest has no valid upstream verification date")
     if not isinstance(manifest.get("overlay"), dict):
         raise OverlayError("Overlay manifest has no overlay record")
-    capability = manifest["overlay"].get("capability")
-    capability_patch = manifest["overlay"].get("capabilityPatch")
+    overlay = manifest["overlay"]
+    if "upstreamBaseTag" in overlay:
+        raise OverlayError("Deprecated upstreamBaseTag conflates package and source")
+    package_name = overlay.get("packageName")
+    if not isinstance(package_name, str) or not package_name:
+        raise OverlayError("Overlay manifest has no package name")
+    vendor_nevra = vendor.get("nevra")
+    if not isinstance(vendor_nevra, str) or not vendor_nevra.startswith(
+        f"{package_name}-{vendor_version}-"
+    ):
+        raise OverlayError("Vendor version does not match its NEVRA")
+    overlay_nevra = overlay.get("nevra")
+    if not isinstance(overlay_nevra, str) or not overlay_nevra.startswith(
+        f"{package_name}-{vendor_version}-"
+    ):
+        raise OverlayError("Overlay version does not match the vendor version")
+    capability = overlay.get("capability")
+    capability_patch = overlay.get("capabilityPatch")
     patch_files = {
         record.get("file")
-        for record in manifest["overlay"].get("patches", [])
+        for record in overlay.get("patches", [])
         if isinstance(record, dict)
     }
     if not isinstance(capability, str) or not capability:

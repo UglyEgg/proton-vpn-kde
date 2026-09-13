@@ -28,6 +28,9 @@ prerelease RPM suffix. Public-release metadata needs a dated version entry,
 the final Fedora release number, and a security-support table in `SECURITY.md`
 that matches the published versions. Prepare that metadata before freezing the
 release candidate; do not describe a local acceptance build as already released.
+Label accepted but unpublished version boundaries as internal development
+milestones; they must not appear as prior public releases in the README,
+changelog, in-app release notes, or security-support table.
 The synchronization check below verifies version consistency, not completion
 of those publication requirements.
 

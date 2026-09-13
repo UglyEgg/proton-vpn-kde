@@ -129,9 +129,9 @@ recognizable under any global color scheme.
 ## Editorial and maintenance rules
 
 Keep the current in-app release to three to five user-facing highlights;
-technical details belong in the changelog and previous versions remain
-collapsed. Setting explanations should appear beside the choice that needs
-them. Keep actionable protection and authentication guidance visible; omit
+technical details belong in the changelog and earlier versions and milestones
+remain collapsed. Setting explanations should appear beside the choice that
+needs them. Keep actionable protection and authentication guidance visible; omit
 implementation details such as process allocation from ordinary settings.
 Use normal text contrast for instructions, reserving disabled styling for
 unavailable controls rather than treating important guidance as unavailable.
@@ -172,8 +172,8 @@ names and descriptions, focus-visible tooltips, and mirrored focusable rows
 guarded by the source checks above.
 
 The 0.13 release also carries a CI mechanics-freeze gate. It compares runtime,
-service, integration, and Proton-overlay paths with the accepted 0.12.0
-revision. Narrow presentation-facing state and review-discovered ownership or
+service, integration, and Proton-overlay paths with the accepted, unpublished
+0.12.0 milestone revision. Narrow presentation-facing state and review-discovered ownership or
 recovery corrections are admitted only as exact-hashed, regression-tested
 deltas. Any other change outside those sealed paths must leave the UX release
 and receive an independent behavioral review.

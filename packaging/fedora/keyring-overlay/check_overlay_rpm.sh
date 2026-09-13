@@ -59,16 +59,21 @@ payload="$(rpm -qpl "$package_path")"
 grep -Eq '/proton/keyring_linux/core/keyring_linux\.py$' <<<"$payload"
 grep -Eq '/proton/keyring_linux/secretservice/secretservice_backend\.py$' <<<"$payload"
 grep -Eq '/doc/python3-proton-keyring-linux/overlay-manifest\.json$' <<<"$payload"
+grep -Eq '/doc/python3-proton-keyring-linux/overlay-manifest\.json\.license$' \
+    <<<"$payload"
 
 extract_dir="$(mktemp -d)"
 trap 'rm -rf "$extract_dir"' EXIT
 (
     cd "$extract_dir"
     rpm2cpio "$package_path" | cpio -id --quiet \
-        './usr/share/doc/python3-proton-keyring-linux/overlay-manifest.json'
+        './usr/share/doc/python3-proton-keyring-linux/overlay-manifest.json' \
+        './usr/share/doc/python3-proton-keyring-linux/overlay-manifest.json.license'
 )
 cmp --silent "$manifest" \
     "$extract_dir/usr/share/doc/python3-proton-keyring-linux/overlay-manifest.json"
+cmp --silent "$manifest.license" \
+    "$extract_dir/usr/share/doc/python3-proton-keyring-linux/overlay-manifest.json.license"
 
 rpmkeys --checksig "$package_path"
 echo "Keyring overlay RPM checks passed: $package_path"

@@ -81,6 +81,7 @@ fi
 install -m 0644 "$vendor_rpm" "$topdir/SOURCES/"
 install -m 0644 "$signing_key" "$topdir/SOURCES/"
 install -m 0644 "$manifest" "$topdir/SOURCES/"
+install -m 0644 "$manifest.license" "$topdir/SOURCES/"
 install -m 0755 "$overlay_dir/rebuild_overlay.py" "$topdir/SOURCES/"
 install -m 0644 "$overlay_dir/tests/test_killswitch_activation.py" "$topdir/SOURCES/"
 install -m 0644 "$overlay_dir/patches/"*.patch "$topdir/SOURCES/"
@@ -114,6 +115,7 @@ fi
 source_checks=(
     "$vendor_rpm_name=$(realpath "$vendor_rpm")"
     "overlay-manifest.json=$manifest"
+    "overlay-manifest.json.license=$manifest.license"
     "rebuild_overlay.py=$overlay_dir/rebuild_overlay.py"
     "test_killswitch_activation.py=$overlay_dir/tests/test_killswitch_activation.py"
     "$signing_key_name=$(realpath "$signing_key")"
