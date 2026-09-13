@@ -4,6 +4,11 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 ## [Unreleased]
 
+### Maintenance
+
+- Raise the supported `cryptography` floor to 50.0.0, including its CFFI 2.0.0
+  dependency, while retaining hash-pinned Python 3.11 Linux x86_64 coverage.
+
 ## [0.13.0] - 2026-09-13
 
 ### Plasma interface

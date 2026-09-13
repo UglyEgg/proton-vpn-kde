@@ -139,7 +139,7 @@ cp "$project_dir/SECURITY.md" "$release_fixture_dir/SECURITY.md"
 cp "$project_dir/docs/SECURITY-AUDIT-2026-08-30.md" \
     "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
 sed -i \
-    's/^Release:[[:space:]]*1%{?dist}$/Release:        0.10%{?dist}/' \
+    's/^Release:[[:space:]]*[1-9][0-9]*%{?dist}$/Release:        0.10%{?dist}/' \
     "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
 release_output="$fixture_root/release-output"
 if "$release_fixture_dir/scripts/check-release-metadata.sh" \

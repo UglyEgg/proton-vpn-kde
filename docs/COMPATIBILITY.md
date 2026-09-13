@@ -16,7 +16,7 @@ Plasma VPN 0.13.0 supports the following tested stack:
 | Network control | NetworkManager through Proton Core |
 
 Required source dependencies include C++20, CMake 3.24, OpenSSL 3,
-`cryptography` 45.0.1, and `dbus-fast` 2.20. The Fedora install prefix is
+`cryptography` 50.0.0, and `dbus-fast` 2.20. The Fedora install prefix is
 `/usr`; custom-prefix runtime layouts are not supported.
 
 The client RPM requires both explicit downstream capabilities:
