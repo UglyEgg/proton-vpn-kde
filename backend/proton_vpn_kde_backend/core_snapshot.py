@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import Any
 
 from .controller import VpnSnapshot
@@ -47,6 +48,7 @@ def snapshot_from_state(state: Any, context: SnapshotContext) -> VpnSnapshot:
     server_name = connection.server_name if connection else ""
     logical_server = _logical_server(context, server_name)
     forwarded_port = _forwarded_port(state) if current_state == "connected" else 0
+    addresses = _connection_addresses(state) if current_state == "connected" else ("", "", "")
     server = _server_metadata(logical_server)
     account = _account_metadata(context)
 
@@ -81,6 +83,9 @@ def snapshot_from_state(state: Any, context: SnapshotContext) -> VpnSnapshot:
         exit_country=server[1],
         entry_country=server[2],
         forwarded_port=forwarded_port,
+        vpn_exit_ipv4=addresses[0],
+        vpn_exit_ipv6=addresses[1],
+        device_ip_at_connect=addresses[2],
         secure_core=server[3],
         tor=server[4],
         p2p=server[5],
@@ -127,6 +132,32 @@ def _forwarded_port(state: Any) -> int:
     except Exception:
         return 0
     return candidate if type(candidate) is int and 0 < candidate <= 65535 else 0
+
+
+def _connection_addresses(state: Any) -> tuple[str, str, str]:
+    """Use the local-agent observation carried by the active Connected event.
+
+    The device address is observed when connecting; it is not a live probe of
+    traffic excluded by split-tunneling rules. Never substitute a server's
+    physical endpoint address for its reported VPN egress address.
+    """
+    event = getattr(getattr(state, "context", None), "event", None)
+    details = getattr(getattr(event, "context", None), "connection_details", None)
+
+    def valid_ip(value: Any, family: type[IPv4Address] | type[IPv6Address] | None = None) -> str:
+        if not isinstance(value, str):
+            return ""
+        try:
+            parsed = ip_address(value)
+        except ValueError:
+            return ""
+        return str(parsed) if family is None or isinstance(parsed, family) else ""
+
+    return (
+        valid_ip(getattr(details, "server_ipv4", None), IPv4Address),
+        valid_ip(getattr(details, "server_ipv6", None), IPv6Address),
+        valid_ip(getattr(details, "device_ip", None)),
+    )
 
 
 def _server_metadata(logical_server: Any) -> tuple[str, str, str, bool, bool, bool, bool, bool]:

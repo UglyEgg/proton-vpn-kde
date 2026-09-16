@@ -404,6 +404,8 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
                 loggedIn: true; ready: true; accountName: "demo-user"
                 destinationName: "Illinois"; destinationFlag: "US"
                 serverName: "US-IL#1018"; protocolName: "Smart"
+                vpnExitIpv4: "198.51.100.42"
+                deviceIpAtConnect: "203.0.113.9"
                 p2p: true; streaming: true
                 primaryText: testConnected ? "Disconnect" : "Connect"
                 primaryEnabled: true
@@ -425,6 +427,10 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
     QTRY_VERIFY(scene->height() > 0);
     QTest::qWait(50);
     QCOMPARE(cloud->isVisible(), connected && splitEnabled);
+    if (cloud->isVisible()) {
+        QVERIFY(cloud->property("detail").toString().contains(
+            QStringLiteral("203.0.113.9")));
+    }
     if (qEnvironmentVariableIntValue("PLASMA_VPN_EXPECT_CURVE_RENDERER") == 1) {
         QCOMPARE(routeShape->property("rendererType").toInt(),
                  renderer.keyToValue("CurveRenderer"));
@@ -446,6 +452,10 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
     auto *diagram = root->findChild<QQuickItem *>(QStringLiteral("connectionRouteDiagram"));
     auto *facts = root->findChild<QQuickItem *>(QStringLiteral("connectionFacts"));
     QVERIFY(device && vpn && group && diagram && facts);
+    if (connected) {
+        QVERIFY(vpn->property("detail").toString().contains(
+            QStringLiteral("198.51.100.42")));
+    }
     if (connected) {
         QCOMPARE(scene->property("stateColor").value<QColor>(),
                  vpn->property("accentColor").value<QColor>());

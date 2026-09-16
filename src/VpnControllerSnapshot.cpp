@@ -108,7 +108,7 @@ void VpnController::applySnapshot(const QString &snapshotJson,
         emit snapshotChanged();
         return;
     }
-    if (!ProtonVpnKde::validateSnapshotV1(snapshot)) {
+    if (!ProtonVpnKde::validateSnapshotV2(snapshot)) {
         m_message = tr("The backend returned an incomplete state snapshot");
         m_snapshotError = m_message;
         m_snapshotRestartAllowed = true;
@@ -166,6 +166,10 @@ void VpnController::applySnapshot(const QString &snapshotJson,
     m_entryCountry = snapshot.value(QStringLiteral("entryCountry")).toString();
     m_forwardedPort = std::clamp(
         snapshot.value(QStringLiteral("forwardedPort")).toInt(), 0, 65535);
+    m_vpnExitIpv4 = snapshot.value(QStringLiteral("vpnExitIpv4")).toString();
+    m_vpnExitIpv6 = snapshot.value(QStringLiteral("vpnExitIpv6")).toString();
+    m_deviceIpAtConnect = snapshot.value(
+        QStringLiteral("deviceIpAtConnect")).toString();
     m_secureCore = snapshot.value(QStringLiteral("secureCore")).toBool();
     m_tor = snapshot.value(QStringLiteral("tor")).toBool();
     m_p2p = snapshot.value(QStringLiteral("p2p")).toBool();

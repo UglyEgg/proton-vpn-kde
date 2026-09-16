@@ -140,7 +140,7 @@ Kirigami.ScrollablePage {
 
         PageHeader {
             heading: qsTr("Connection Inspector")
-            description: qsTr("Live, read-only details from the current Proton Core session")
+            description: qsTr("Read-only details from Proton Core; public IPs are observed at connection time")
             iconName: "view-statistics"
         }
 
@@ -171,6 +171,38 @@ Kirigami.ScrollablePage {
                 label: qsTr("Server")
                 value: vpnController.serverName
                 iconName: "network-server-database"
+            }
+
+            DetailRow {
+                visible: page.connected
+                label: qsTr("VPN exit IPv4")
+                value: vpnController.vpnExitIpv4.length > 0
+                       ? vpnController.vpnExitIpv4 : qsTr("Not reported")
+                iconName: "network-vpn"
+            }
+
+            DetailRow {
+                visible: page.connected && vpnController.vpnExitIpv6.length > 0
+                label: qsTr("VPN exit IPv6")
+                value: vpnController.vpnExitIpv6
+                iconName: "network-vpn"
+            }
+
+            DetailRow {
+                visible: page.connected && page.splitSettings.loaded
+                         && page.splitSettings.enabled
+                label: qsTr("Device IP at connect")
+                value: vpnController.deviceIpAtConnect.length > 0
+                       ? vpnController.deviceIpAtConnect : qsTr("Not reported")
+                iconName: "network-connect"
+            }
+
+            Kirigami.InlineMessage {
+                Layout.fillWidth: true
+                visible: page.connected && page.splitSettings.loaded
+                         && page.splitSettings.enabled
+                type: Kirigami.MessageType.Information
+                text: qsTr("The device IP is a connection-time observation, not a live verification of each app bypassing the VPN.")
             }
 
             DetailRow {

@@ -43,7 +43,7 @@ def normalize_server_features(features: list[str] | tuple[str, ...]) -> tuple[st
 
 @dataclass(frozen=True, slots=True)
 class VpnSnapshot:
-    """Non-sensitive state exposed to frontend processes."""
+    """Session state exposed on the user's D-Bus bus, including public IPs."""
 
     schema_version: int = SNAPSHOT_SCHEMA_VERSION
     ready: bool = False
@@ -65,6 +65,9 @@ class VpnSnapshot:
     exit_country: str = ""
     entry_country: str = ""
     forwarded_port: int = 0
+    vpn_exit_ipv4: str = ""
+    vpn_exit_ipv6: str = ""
+    device_ip_at_connect: str = ""
     secure_core: bool = False
     tor: bool = False
     p2p: bool = False
@@ -94,6 +97,9 @@ class VpnSnapshot:
         payload["exitCountry"] = payload.pop("exit_country")
         payload["entryCountry"] = payload.pop("entry_country")
         payload["forwardedPort"] = payload.pop("forwarded_port")
+        payload["vpnExitIpv4"] = payload.pop("vpn_exit_ipv4")
+        payload["vpnExitIpv6"] = payload.pop("vpn_exit_ipv6")
+        payload["deviceIpAtConnect"] = payload.pop("device_ip_at_connect")
         payload["secureCore"] = payload.pop("secure_core")
         payload["smartRouting"] = payload.pop("smart_routing")
         payload["packetCaptureActive"] = payload.pop("packet_capture_active")

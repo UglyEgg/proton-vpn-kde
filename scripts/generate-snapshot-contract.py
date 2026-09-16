@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_PATH = PROJECT_ROOT / "data" / "snapshot-schema-v1.json"
+SCHEMA_PATH = PROJECT_ROOT / "data" / "snapshot-schema-v2.json"
 PYTHON_OUTPUT = (
     PROJECT_ROOT / "backend" / "proton_vpn_kde_backend" / "snapshot_contract.py"
 )
@@ -109,7 +109,7 @@ def render_cpp(version: int, fields: list[tuple[str, str]]) -> str:
         [
             "}};",
             "",
-            "inline bool validateSnapshotV1(const QJsonObject &snapshot,",
+            f"inline bool validateSnapshotV{version}(const QJsonObject &snapshot,",
             "                               QString *errorMessage = nullptr)",
             "{",
             "    if (snapshot.size() != static_cast<qsizetype>(snapshotFields.size())) {",

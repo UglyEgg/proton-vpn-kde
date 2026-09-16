@@ -479,7 +479,7 @@ void AgentVpnClient::applySnapshot(const QString &snapshotJson)
         emit snapshotChanged();
         return;
     }
-    if (!ProtonVpnKde::validateSnapshotV1(snapshot)) {
+    if (!ProtonVpnKde::validateSnapshotV2(snapshot)) {
         m_message = tr("The backend returned an incomplete state snapshot");
         clearPendingConnection();
         releaseTransientLease();

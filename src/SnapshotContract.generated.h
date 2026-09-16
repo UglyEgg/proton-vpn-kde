@@ -11,10 +11,10 @@
 
 namespace ProtonVpnKde
 {
-inline constexpr int snapshotSchemaVersion = 1;
+inline constexpr int snapshotSchemaVersion = 2;
 enum class SnapshotFieldType { Boolean, Integer, String };
 struct SnapshotField { const char *name; SnapshotFieldType type; };
-inline constexpr std::array<SnapshotField, 29> snapshotFields{{
+inline constexpr std::array<SnapshotField, 32> snapshotFields{{
     {"schemaVersion", SnapshotFieldType::Integer},
     {"ready", SnapshotFieldType::Boolean},
     {"startupCompatible", SnapshotFieldType::Boolean},
@@ -35,6 +35,9 @@ inline constexpr std::array<SnapshotField, 29> snapshotFields{{
     {"exitCountry", SnapshotFieldType::String},
     {"entryCountry", SnapshotFieldType::String},
     {"forwardedPort", SnapshotFieldType::Integer},
+    {"vpnExitIpv4", SnapshotFieldType::String},
+    {"vpnExitIpv6", SnapshotFieldType::String},
+    {"deviceIpAtConnect", SnapshotFieldType::String},
     {"secureCore", SnapshotFieldType::Boolean},
     {"tor", SnapshotFieldType::Boolean},
     {"p2p", SnapshotFieldType::Boolean},
@@ -46,7 +49,7 @@ inline constexpr std::array<SnapshotField, 29> snapshotFields{{
     {"message", SnapshotFieldType::String},
 }};
 
-inline bool validateSnapshotV1(const QJsonObject &snapshot,
+inline bool validateSnapshotV2(const QJsonObject &snapshot,
                                QString *errorMessage = nullptr)
 {
     if (snapshot.size() != static_cast<qsizetype>(snapshotFields.size())) {

@@ -69,6 +69,9 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(QString exitCountry READ exitCountry NOTIFY snapshotChanged)
     Q_PROPERTY(QString entryCountry READ entryCountry NOTIFY snapshotChanged)
     Q_PROPERTY(int forwardedPort READ forwardedPort NOTIFY snapshotChanged)
+    Q_PROPERTY(QString vpnExitIpv4 READ vpnExitIpv4 NOTIFY snapshotChanged)
+    Q_PROPERTY(QString vpnExitIpv6 READ vpnExitIpv6 NOTIFY snapshotChanged)
+    Q_PROPERTY(QString deviceIpAtConnect READ deviceIpAtConnect NOTIFY snapshotChanged)
     Q_PROPERTY(bool secureCore READ secureCore NOTIFY snapshotChanged)
     Q_PROPERTY(bool tor READ tor NOTIFY snapshotChanged)
     Q_PROPERTY(bool p2p READ p2p NOTIFY snapshotChanged)
@@ -130,6 +133,9 @@ public:
     [[nodiscard]] QString exitCountry() const;
     [[nodiscard]] QString entryCountry() const;
     [[nodiscard]] int forwardedPort() const override;
+    [[nodiscard]] QString vpnExitIpv4() const;
+    [[nodiscard]] QString vpnExitIpv6() const;
+    [[nodiscard]] QString deviceIpAtConnect() const;
     [[nodiscard]] bool secureCore() const;
     [[nodiscard]] bool tor() const;
     [[nodiscard]] bool p2p() const;
@@ -395,6 +401,9 @@ private:
     QString m_exitCountry;
     QString m_entryCountry;
     int m_forwardedPort = 0;
+    QString m_vpnExitIpv4;
+    QString m_vpnExitIpv6;
+    QString m_deviceIpAtConnect;
     bool m_secureCore = false;
     bool m_tor = false;
     bool m_p2p = false;

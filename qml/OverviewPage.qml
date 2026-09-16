@@ -132,6 +132,9 @@ Kirigami.ScrollablePage {
             entryCountry: vpnController.entryCountry
             protocolName: page.protocolLabel()
             forwardedPort: vpnController.forwardedPort
+            vpnExitIpv4: vpnController.vpnExitIpv4
+            vpnExitIpv6: vpnController.vpnExitIpv6
+            deviceIpAtConnect: vpnController.deviceIpAtConnect
             portCopied: page.portCopied
             primaryText: vpnController.busy && !vpnController.primaryActionEnabled
                          ? qsTr("Working…") : vpnController.primaryActionText

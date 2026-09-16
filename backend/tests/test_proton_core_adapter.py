@@ -2433,8 +2433,41 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Chicago, IL", snapshot.server_location)
         connected = state_named("Connected")
         connected.forwarded_port = 43123
+        connected.context = SimpleNamespace(event=SimpleNamespace(
+            context=SimpleNamespace(connection_details=SimpleNamespace(
+                server_ipv4="198.51.100.42",
+                server_ipv6="2001:db8::42",
+                device_ip="203.0.113.9",
+            ))
+        ))
         snapshot = adapter._snapshot_from_state(connected)
         self.assertEqual(43123, snapshot.forwarded_port)
+        self.assertEqual("198.51.100.42", snapshot.vpn_exit_ipv4)
+        self.assertEqual("2001:db8::42", snapshot.vpn_exit_ipv6)
+        self.assertEqual("203.0.113.9", snapshot.device_ip_at_connect)
+
+        missing_details = adapter._snapshot_from_state(state_named("Connected"))
+        self.assertEqual("", missing_details.vpn_exit_ipv4)
+        self.assertEqual("", missing_details.device_ip_at_connect)
+        for disconnected_state in ("Connecting", "Disconnecting", "Disconnected", "Error"):
+            state = state_named(disconnected_state)
+            state.context = connected.context
+            stale = adapter._snapshot_from_state(state)
+            self.assertEqual("", stale.vpn_exit_ipv4)
+            self.assertEqual("", stale.device_ip_at_connect)
+
+        invalid_details = state_named("Connected")
+        invalid_details.context = SimpleNamespace(event=SimpleNamespace(
+            context=SimpleNamespace(connection_details=SimpleNamespace(
+                server_ipv4="2001:db8::42",
+                server_ipv6="198.51.100.42",
+                device_ip="not an IP",
+            ))
+        ))
+        invalid = adapter._snapshot_from_state(invalid_details)
+        self.assertEqual("", invalid.vpn_exit_ipv4)
+        self.assertEqual("", invalid.vpn_exit_ipv6)
+        self.assertEqual("", invalid.device_ip_at_connect)
         self.assertEqual("US", snapshot.exit_country)
         self.assertEqual("CA", snapshot.entry_country)
         self.assertTrue(snapshot.tor)

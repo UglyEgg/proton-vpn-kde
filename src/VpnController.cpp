@@ -180,6 +180,9 @@ QString VpnController::serverLocation() const { return m_serverLocation; }
 QString VpnController::exitCountry() const { return m_exitCountry; }
 QString VpnController::entryCountry() const { return m_entryCountry; }
 int VpnController::forwardedPort() const { return m_forwardedPort; }
+QString VpnController::vpnExitIpv4() const { return m_vpnExitIpv4; }
+QString VpnController::vpnExitIpv6() const { return m_vpnExitIpv6; }
+QString VpnController::deviceIpAtConnect() const { return m_deviceIpAtConnect; }
 bool VpnController::secureCore() const { return m_secureCore; }
 bool VpnController::tor() const { return m_tor; }
 bool VpnController::p2p() const { return m_p2p; }

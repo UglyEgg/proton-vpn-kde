@@ -642,7 +642,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot.ready)
         self.assertTrue(snapshot.logged_in)
         self.assertEqual("disconnected", snapshot.state)
-        self.assertEqual(1, snapshot.schema_version)
+        self.assertEqual(2, snapshot.schema_version)
 
     async def test_startup_failure_logs_only_exception_class(self):
         controller = BackendController(FailingInitializationAdapter())
@@ -693,10 +693,15 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         await self.controller.connect_fastest()
         self.assertEqual("connected", self.controller.snapshot.state)
         self.assertEqual("US-IL#600", self.controller.snapshot.server_name)
+        self.assertEqual("198.51.100.42", self.controller.snapshot.vpn_exit_ipv4)
+        self.assertEqual("2001:db8::42", self.controller.snapshot.vpn_exit_ipv6)
+        self.assertEqual("203.0.113.9", self.controller.snapshot.device_ip_at_connect)
 
         await self.controller.disconnect()
         self.assertEqual("disconnected", self.controller.snapshot.state)
         self.assertEqual("", self.controller.snapshot.server_name)
+        self.assertEqual("", self.controller.snapshot.vpn_exit_ipv4)
+        self.assertEqual("", self.controller.snapshot.device_ip_at_connect)
 
         states = [snapshot.state for snapshot in self.snapshots]
         self.assertIn("connecting", states)
@@ -827,11 +832,14 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def test_snapshot_json_uses_stable_external_field_names(self):
         payload = self.controller.snapshot.to_json()
 
-        self.assertIn('"schemaVersion":1', payload)
+        self.assertIn('"schemaVersion":2', payload)
         self.assertIn('"startupCompatible":true', payload)
         self.assertIn('"loggedIn":true', payload)
         self.assertIn('"serverName":""', payload)
         self.assertIn('"forwardedPort":0', payload)
+        self.assertIn('"vpnExitIpv4":""', payload)
+        self.assertIn('"vpnExitIpv6":""', payload)
+        self.assertIn('"deviceIpAtConnect":""', payload)
         self.assertIn('"packetCaptureActive":false', payload)
         self.assertIn('"coreMemoryOptimized":true', payload)
         self.assertIn('"coreVersion":"demo"', payload)

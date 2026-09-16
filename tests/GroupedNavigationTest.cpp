@@ -559,6 +559,7 @@ private slots:
     void ignoresOperationReplyFromReplacedBackend();
     void retriesSnapshotAfterTransientSameOwnerFailure();
     void invalidSnapshotOwnsGlobalHealthError();
+    void connectionAddressesFollowSnapshot();
     void loggedOutActiveTunnelCanBeDisconnected();
     void connectionAdmissionAcrossDirectRoutes_data();
     void connectionAdmissionAcrossDirectRoutes();
@@ -809,6 +810,33 @@ void GroupedNavigationTest::invalidSnapshotOwnsGlobalHealthError()
         QVERIFY(controller.primaryActionEnabled());
         QVERIFY(controller.snapshotError().isEmpty());
     }
+}
+
+void GroupedNavigationTest::connectionAddressesFollowSnapshot()
+{
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+
+    auto snapshot = QJsonDocument::fromJson(
+                        ProtonVpnKde::TestData::completeSnapshot(
+                            QStringLiteral("connected")).toUtf8())
+                        .object();
+    snapshot.insert(QStringLiteral("vpnExitIpv4"),
+                    QStringLiteral("198.51.100.42"));
+    snapshot.insert(QStringLiteral("vpnExitIpv6"),
+                    QStringLiteral("2001:db8::42"));
+    snapshot.insert(QStringLiteral("deviceIpAtConnect"),
+                    QStringLiteral("203.0.113.9"));
+    controller.applySnapshot(QString::fromUtf8(
+        QJsonDocument(snapshot).toJson(QJsonDocument::Compact)));
+    QCOMPARE(controller.vpnExitIpv4(), QStringLiteral("198.51.100.42"));
+    QCOMPARE(controller.vpnExitIpv6(), QStringLiteral("2001:db8::42"));
+    QCOMPARE(controller.deviceIpAtConnect(), QStringLiteral("203.0.113.9"));
+
+    controller.applySnapshot(ProtonVpnKde::TestData::completeSnapshot());
+    QVERIFY(controller.vpnExitIpv4().isEmpty());
+    QVERIFY(controller.vpnExitIpv6().isEmpty());
+    QVERIFY(controller.deviceIpAtConnect().isEmpty());
 }
 
 void GroupedNavigationTest::loggedOutActiveTunnelCanBeDisconnected()

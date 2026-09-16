@@ -25,6 +25,9 @@ Kirigami.AbstractCard {
     property string entryCountry
     property string protocolName
     property int forwardedPort: 0
+    property string vpnExitIpv4
+    property string vpnExitIpv6
+    property string deviceIpAtConnect
     property bool portCopied: false
     property string primaryText
     property string primaryIcon
@@ -128,6 +131,7 @@ Kirigami.AbstractCard {
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
             }
+
         }
     }
 
@@ -443,7 +447,11 @@ Kirigami.AbstractCard {
                     symbol: root.connected ? root.destinationFlag : qsTr("VPN")
                     heading: root.connected ? root.destinationName
                                             : qsTr("VPN server")
-                    detail: qsTr("Browse servers")
+                    detail: root.connected
+                            ? qsTr("VPN IP · %1").arg(
+                                root.vpnExitIpv4.length > 0
+                                ? root.vpnExitIpv4 : qsTr("Not reported"))
+                            : qsTr("Browse servers")
                     enabled: root.loggedIn
                     accentColor: root.connected
                         ? Kirigami.Theme.positiveTextColor
@@ -606,12 +614,16 @@ Kirigami.AbstractCard {
                 visible: root.splitRouteVisible
                 cloudSymbol: true
                 heading: qsTr("Internet")
-                detail: qsTr("Outside VPN")
+                detail: qsTr("Direct IP · %1").arg(
+                    root.deviceIpAtConnect.length > 0
+                    ? root.deviceIpAtConnect : qsTr("Not reported"))
                 accentColor: Kirigami.Theme.neutralTextColor
-                Accessible.description: qsTr("Open split-tunneling rules. Restart affected apps after changing rules.")
+                Accessible.description: qsTr("Device IP at connect: %1. Open split-tunneling rules. Restart affected apps after changing rules.")
+                    .arg(root.deviceIpAtConnect.length > 0
+                         ? root.deviceIpAtConnect : qsTr("Not reported"))
                 onClicked: root.navigateRequested("split-tunneling")
                 Controls.ToolTip.visible: hovered || activeFocus
-                Controls.ToolTip.text: qsTr("Split tunneling follows your app and IP rules. Restart affected apps after changing rules.")
+                Controls.ToolTip.text: qsTr("Device IP was observed when connecting, not verified for each bypassed app. Split tunneling follows your app and IP rules. Restart affected apps after changing rules.")
             }
         }
 

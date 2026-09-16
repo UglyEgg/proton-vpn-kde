@@ -218,6 +218,15 @@ authority. Closing it destroys the page. Direct Proton support and crash-report
 submission are independently disabled in the build, native controller, backend,
 and package policy.
 
+Snapshot contract v2 carries addresses from the active Core `Connected` event's
+local-agent connection details. `server_ipv4` and `server_ipv6` are displayed as
+the reported VPN exit addresses; `device_ip` is labeled as a device observation
+at connection time. Neither value is independently re-probed, and the device
+address does not attest the current route of every split-tunnel bypass app.
+Missing or malformed values remain explicitly unavailable. The fields clear
+outside `Connected`; the address-bearing snapshot is visible to processes on
+the user's session bus, so it must not be logged or added to crash reports.
+
 Packet capture uses the active official protocol, requires Core's positive byte
 cap, and is supervised by a 15-minute generation-bound watchdog. Start failure
 or ambiguity compensates with Stop. A mode-restricted atomic recovery record
