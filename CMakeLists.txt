@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.13.1 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.14.0 LANGUAGES CXX)
 set(PROJECT_HOMEPAGE_URL "https://github.com/uglyegg/proton-vpn-kde")
 
 option(
@@ -168,6 +168,12 @@ qt_add_executable(proton-vpn-kde
     src/CustomDnsModel.cpp
     src/CustomDnsModel.h
     src/ConnectionAction.h
+    src/CommunityReport.cpp
+    src/CommunityReport.h
+    src/CommunityReportFormat.cpp
+    src/CommunityReportFormat.h
+    src/DesktopReadiness.cpp
+    src/DesktopReadiness.h
     src/InstalledApplicationModel.cpp
     src/InstalledApplicationModel.h
     src/InstalledExecutablePaths.cpp
@@ -282,6 +288,7 @@ qt_add_qml_module(proton-vpn-kde
         qml/ProtectionSettingsSection.qml
         qml/ReportIssuePage.qml
         qml/ReleaseNotesPage.qml
+        qml/ReadinessPage.qml
         qml/SectionCard.qml
         qml/ServerCapabilitySelector.qml
         qml/ServerBrowserFeedback.qml
@@ -837,6 +844,19 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME secret-transport-tests COMMAND secret-transport-tests)
+
+    qt_add_executable(local-readiness-report-tests
+        tests/LocalReadinessReportTest.cpp
+        src/DesktopReadiness.cpp src/DesktopReadiness.h
+        src/CommunityReportFormat.cpp src/CommunityReportFormat.h
+    )
+    target_include_directories(local-readiness-report-tests PRIVATE src)
+    target_link_libraries(local-readiness-report-tests PRIVATE
+        Qt6::Core Qt6::DBus Qt6::Test)
+    target_compile_options(local-readiness-report-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>)
+    add_test(NAME local-readiness-report-tests
+        COMMAND local-readiness-report-tests)
 
     qt_add_executable(translation-loader-tests
         tests/TranslationLoaderTest.cpp

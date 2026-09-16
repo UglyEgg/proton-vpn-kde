@@ -71,13 +71,13 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("Ubuntu packages, with Proton Core still handling your VPN.")
+            description: qsTr("Unreleased 0.14.0 preview. Proton Core still handles your VPN.")
             iconName: "software-properties"
 
             Kirigami.Heading {
                 Layout.fillWidth: true
                 level: 3
-                text: "0.13.1"
+                text: "0.14.0"
             }
 
             ReleaseNoteGroup {
@@ -85,17 +85,17 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Highlights")
                 headingLevel: 4
                 notes: [
-                    qsTr("Add Ubuntu 26.04 packages for the Plasma client and both reviewed Proton compatibility overlays."),
-                    qsTr("Verify clean installation, reinstallation, source packages, and removal boundaries in Ubuntu CI."),
-                    qsTr("Keep Proton's daemon and networking ownership unchanged while making community field testing possible on Plasma.")
+                    qsTr("Show the VPN exit address reported at connection time, with the device-side address labeled separately when split tunneling is active."),
+                    qsTr("Check local Core, backend, package, and Secret Service readiness without opening your secret provider."),
+                    qsTr("Preview a small, privacy-bounded community diagnostic report before choosing to copy it; direct Proton submission remains disabled.")
                 ]
             }
 
             Controls.Button {
                 Layout.alignment: Qt.AlignLeft
-                text: qsTr("Full changelog (online)")
+                text: qsTr("Published 0.13.1 changelog (online)")
                 icon.name: "internet-web-browser"
-                Accessible.description: qsTr("Open the published source changelog in your browser")
+                Accessible.description: qsTr("Open the published 0.13.1 source changelog in your browser; preview changes are not published yet")
                 onClicked: Qt.openUrlExternally(
                     "https://github.com/UglyEgg/proton-vpn-kde/blob/main/CHANGELOG.md")
             }
@@ -120,6 +120,17 @@ Kirigami.ScrollablePage {
             title: qsTr("Earlier versions")
             description: qsTr("Development milestones and published releases. The complete engineering history remains in CHANGELOG.md.")
             iconName: "view-history"
+
+            ReleaseNoteGroup {
+                heading: "0.13.1"
+                headingLevel: 3
+                notes: [
+                    qsTr("Added Ubuntu 26.04 client and overlay packages with clean-container package and lifecycle checks."),
+                    qsTr("Kept Proton's daemon and VPN networking ownership unchanged.")
+                ]
+            }
+
+            Kirigami.Separator { Layout.fillWidth: true }
 
             ReleaseNoteGroup {
                 heading: "0.13.0"

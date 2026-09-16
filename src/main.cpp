@@ -6,6 +6,8 @@
 #include "AppSettings.h"
 #include "BackendIdentity.h"
 #include "ConnectionAction.h"
+#include "CommunityReport.h"
+#include "DesktopReadiness.h"
 #include "NativeStartup.h"
 #include "TranslationLoader.h"
 #include "UpdateChannel.h"
@@ -183,6 +185,9 @@ int main(int argc, char *argv[])
 
     UpdateChannel updateChannel;
     VpnController controller;
+    DesktopReadiness desktopReadiness;
+    CommunityReport communityReport(&controller, &desktopReadiness);
+    desktopReadiness.refresh();
     QString startupTarget = settings.closeToTray() ? QString()
                                                   : settings.autoConnectTarget();
     const auto retireStartup = [&startupTarget] { startupTarget.clear(); };
@@ -215,6 +220,10 @@ int main(int argc, char *argv[])
         QStringLiteral("availableScreen"), app.primaryScreen());
     engine.rootContext()->setContextProperty(
         QStringLiteral("vpnController"), &controller);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("desktopReadiness"), &desktopReadiness);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("communityReport"), &communityReport);
     engine.rootContext()->setContextProperty(
         QStringLiteral("appSettings"), &settings);
     engine.rootContext()->setContextProperty(

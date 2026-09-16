@@ -12,8 +12,13 @@ cmake_version="$(sed -n \
 release_version_pattern="${cmake_version//./\\.}"
 spec_version="$(sed -n 's/^Version:[[:space:]]*//p' \
     "$project_dir/packaging/fedora/proton-vpn-kde.spec" | head -n 1)"
+spec_release="$(sed -n 's/^Release:[[:space:]]*//p' \
+    "$project_dir/packaging/fedora/proton-vpn-kde.spec" | head -n 1)"
 debian_version="$(sed -n \
     '1s/^proton-vpn-kde (\([^-]*\)-[^)]*).*/\1/p' \
+    "$project_dir/debian/changelog")"
+debian_full_version="$(sed -n \
+    '1s/^proton-vpn-kde (\([^)]*\)).*/\1/p' \
     "$project_dir/debian/changelog")"
 python_project_version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' \
     "$project_dir/backend/pyproject.toml" | head -n 1)"
@@ -58,8 +63,7 @@ if grep -Eq "^## \[$release_version_pattern\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" \
         echo "Release-facing posture does not identify release $cmake_version" >&2
         exit 1
     fi
-    if [[ "$(sed -n 's/^Release:[[:space:]]*//p' \
-            "$project_dir/packaging/fedora/proton-vpn-kde.spec" | head -n 1)" == 0.* ]]; then
+    if [[ "$spec_release" == 0.* ]]; then
         echo "A dated public release requires a final Fedora release number" >&2
         exit 1
     fi
@@ -71,6 +75,11 @@ else
             exit 1
         fi
     done
+    if [[ "$spec_release" != 0.* \
+            || "$debian_full_version" != "$cmake_version"-0~* ]]; then
+        echo "An unreleased version needs pre-final Fedora and Debian package revisions" >&2
+        exit 1
+    fi
 fi
 
 echo "Release metadata matches version $cmake_version"

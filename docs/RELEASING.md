@@ -49,6 +49,11 @@ git diff --check
 git status --short
 ```
 
+The mechanics-freeze script seals the published 0.13 line only. It is expected
+to reject new 0.14 source on this preview branch; do not weaken or rebaseline
+it to make the preview appear release-ready. Establish a reviewed 0.14 change
+boundary and corresponding CI gate before a public 0.14 candidate.
+
 The tree must contain no build output, local packages, credentials, diagnostics,
 machine-specific paths, editor state, or unrelated changes.
 

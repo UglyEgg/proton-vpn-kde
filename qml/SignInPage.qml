@@ -327,6 +327,15 @@ Kirigami.ScrollablePage {
             text: vpnController.message
         }
 
+        Controls.Button {
+            Layout.alignment: Qt.AlignHCenter
+            visible: page.activeStep === page.preparingStep
+                     || page.activeStep === page.credentialStep
+            text: qsTr("Check local setup")
+            icon.name: "view-list-details"
+            onClicked: applicationWindow().openOverviewDestination("readiness")
+        }
+
         ColumnLayout {
             objectName: "preparingAuthenticationStep"
             Layout.fillWidth: true

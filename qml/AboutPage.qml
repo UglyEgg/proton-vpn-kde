@@ -21,7 +21,7 @@ Kirigami.ScrollablePage {
 
         IdentityStage {
             heading: qsTr("Plasma VPN")
-            description: qsTr("Proton VPN-compatible community client · Version %1").arg(appVersion)
+            description: qsTr("Proton VPN-compatible community client · Version %1 preview").arg(appVersion)
             iconSource: applicationWindow().appIconSource
         }
 
@@ -55,6 +55,15 @@ Kirigami.ScrollablePage {
                 icon.name: "tools-report-bug"
                 onClicked: applicationWindow().openOverviewDestination(
                     "report-issue")
+            }
+
+            PlasmaListItem {
+                Layout.fillWidth: true
+                text: qsTr("Check local setup")
+                subtitle: qsTr("Backend, Proton Core, and Secret Service availability")
+                icon.name: "view-list-details"
+                onClicked: applicationWindow().openOverviewDestination(
+                    "readiness")
             }
         }
 

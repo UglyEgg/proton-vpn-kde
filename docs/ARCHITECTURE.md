@@ -218,6 +218,14 @@ authority. Closing it destroys the page. Direct Proton support and crash-report
 submission are independently disabled in the build, native controller, backend,
 and package policy.
 
+The local setup view uses existing backend/Core state, fixed read-only package
+queries, and session-bus `ListNames`/`ListActivatableNames`; it never invokes
+or activates `org.freedesktop.secrets`. Package capabilities confirm installed
+metadata, not that a provider is unlocked or that a tunnel will connect.
+The community report formats only allowlisted version, availability, state,
+and error-code facts. It reads no logs or addresses, performs no network call,
+and copies the displayed preview only after an explicit user action.
+
 Snapshot contract v2 carries addresses from the active Core `Connected` event's
 local-agent connection details. `server_ipv4` and `server_ipv6` are displayed as
 the reported VPN exit addresses; `device_ip` is labeled as a device observation

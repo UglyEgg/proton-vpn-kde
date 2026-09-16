@@ -3,6 +3,8 @@
 ## Supported release baseline
 
 Plasma VPN 0.13.1 is the current public package release for the baselines below.
+The unreleased 0.14.0 preview retains those package dependencies but has not
+completed live or package acceptance for its new client code.
 Ubuntu 26.04 remains package-validated rather than live-supported until
 community Plasma field reports establish its live lifecycle.
 

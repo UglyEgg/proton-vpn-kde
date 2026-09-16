@@ -132,6 +132,8 @@ ContentSizedWindow {
             root.pushOverviewPage(releaseNotesPageComponent, "release-notes")
         } else if (destination === "report-issue") {
             root.pushOverviewPage(reportIssuePageComponent, "report-issue")
+        } else if (destination === "readiness") {
+            root.pushOverviewPage(readinessPageComponent, "readiness")
         } else if (destination === "about") {
             root.pushOverviewPage(aboutPageComponent, "about")
         } else if (destination === "close") {
@@ -195,6 +197,10 @@ ContentSizedWindow {
 
     function showReportIssue() {
         return root.showOverviewPage(reportIssuePageComponent, "report-issue")
+    }
+
+    function showReadiness() {
+        return root.showOverviewPage(readinessPageComponent, "readiness")
     }
 
     function showAbout() {
@@ -281,6 +287,8 @@ ContentSizedWindow {
             root.showAbout()
         } else if (initialPageName === "report-issue") {
             root.showReportIssue()
+        } else if (initialPageName === "readiness") {
+            root.showReadiness()
         } else if (initialPageName === "release-notes") {
             root.showReleaseNotes()
         } else if (!vpnController.ready || !vpnController.loggedIn) {
@@ -389,6 +397,11 @@ ContentSizedWindow {
     Component {
         id: reportIssuePageComponent
         ReportIssuePage { }
+    }
+
+    Component {
+        id: readinessPageComponent
+        ReadinessPage { }
     }
 
     Component {

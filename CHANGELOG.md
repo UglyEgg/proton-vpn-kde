@@ -4,6 +4,21 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 ## [Unreleased]
 
+### Connection insight
+
+- Show the VPN exit address reported at connection time in the Connection
+  view and Inspector. In split-tunnel mode, label the device-side address
+  separately; these are observations, not a live external-IP probe.
+
+### Setup and support
+
+- Add a read-only local setup view for backend/Core readiness, required Fedora
+  or Ubuntu package capabilities, and Secret Service advertisement. The check
+  does not activate or open the secret provider.
+- Add a previewable, allowlisted community diagnostics report with explicit
+  clipboard copy and a separate issue-tracker link. Direct Proton submission
+  remains disabled; its inactive form is retained behind disclosure.
+
 ## [0.13.1] - 2026-09-13
 
 ### Packaging

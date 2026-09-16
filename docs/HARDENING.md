@@ -90,6 +90,13 @@ accepted. Missing evidence blocks recovery.
 Direct Proton support and crash-report submission are disabled in community
 builds at UI, native, backend, and package-policy boundaries.
 
+Community diagnostics are separate from that dormant submission path. Their
+formatter accepts only fixed status values, recognized error codes, and
+bounded version/OS tokens. No account name, server, IP address, path, log, or
+provider exception is read. The user previews the exact text before an
+explicit clipboard copy; opening the community tracker sends none of it.
+Clipboard history and user-pasted issue text remain outside this boundary.
+
 The dormant support collector has:
 
 - fixed journal sources;

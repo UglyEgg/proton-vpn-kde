@@ -16,6 +16,15 @@ Kirigami.ScrollablePage {
     property bool submitting: false
     property bool submitted: false
     property string statusMessage: ""
+    property bool showInactiveForm: vpnController.supportReportSubmissionEnabled
+    property bool diagnosticsCopied: false
+    property bool waitingForInitialBackend: false
+    property bool waitingForSecretCheck: false
+
+    function refreshPreview() {
+        page.diagnosticsCopied = false
+        communityReport.refresh()
+    }
 
     function submitReport() {
         if (!vpnController.supportReportSubmissionEnabled) {
@@ -29,10 +38,33 @@ Kirigami.ScrollablePage {
     }
 
     Component.onCompleted: {
-        if (!vpnController.supportReportSubmissionEnabled) {
-            Qt.callLater(function () {
-                submissionUnavailableDialog.open();
-            });
+        page.waitingForInitialBackend = !vpnController.ready
+                                        && vpnController.state !== "error"
+        page.waitingForSecretCheck = desktopReadiness.secretServiceState
+                                     === "checking"
+        page.refreshPreview()
+    }
+
+    Connections {
+        target: vpnController
+        function onSnapshotChanged() {
+            if (page.waitingForInitialBackend
+                    && (vpnController.ready
+                        || vpnController.state === "error")) {
+                page.waitingForInitialBackend = false
+                page.refreshPreview()
+            }
+        }
+    }
+
+    Connections {
+        target: desktopReadiness
+        function onChanged() {
+            if (page.waitingForSecretCheck
+                    && desktopReadiness.secretServiceState !== "checking") {
+                page.waitingForSecretCheck = false
+                page.refreshPreview()
+            }
         }
     }
 
@@ -68,15 +100,89 @@ Kirigami.ScrollablePage {
 
         PageHeader {
             heading: qsTr("Report an issue")
-            description: vpnController.supportReportSubmissionEnabled ? qsTr("Send a report through Proton's official VPN API.") : qsTr("Preview the direct-reporting proof of concept.")
+            description: vpnController.supportReportSubmissionEnabled
+                         ? qsTr("Choose community or Proton support")
+                         : qsTr("Share a client problem with the community project")
             iconName: "tools-report-bug"
         }
 
-        Kirigami.InlineMessage {
-            Layout.fillWidth: true
+        SectionCard {
+            objectName: "communityReportCard"
+            title: qsTr("Community issue")
+            iconName: "tools-report-bug"
+
+            Controls.Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("Copy the reviewed local facts below, then open a new issue and paste only what you want to share. Nothing is sent automatically.")
+            }
+
+            Controls.ScrollView {
+                objectName: "communityReportPreviewScroll"
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                Layout.preferredHeight: Kirigami.Units.gridUnit * 12
+                contentWidth: availableWidth
+
+                Controls.TextArea {
+                    objectName: "communityReportPreview"
+                    implicitWidth: Kirigami.Units.gridUnit * 14
+                    text: communityReport.preview
+                    readOnly: true
+                    selectByMouse: true
+                    wrapMode: TextEdit.Wrap
+                    Accessible.name: qsTr("Community diagnostics preview")
+                }
+            }
+
+            Controls.Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("This preview excludes account details, server names, IP addresses, paths, and logs. Review it before pasting. Report suspected security issues privately, not in a public issue.")
+            }
+
+            Flow {
+                objectName: "communityReportActions"
+                Layout.fillWidth: true
+                Layout.preferredHeight: childrenRect.height
+                spacing: Kirigami.Units.smallSpacing
+
+                Controls.Button {
+                    text: qsTr("Refresh facts")
+                    icon.name: "view-refresh"
+                    onClicked: {
+                        page.waitingForSecretCheck = true
+                        desktopReadiness.refresh()
+                        page.refreshPreview()
+                    }
+                }
+
+                Controls.Button {
+                    objectName: "copyCommunityReport"
+                    text: page.diagnosticsCopied ? qsTr("Copied")
+                                                 : qsTr("Copy diagnostics")
+                    icon.name: page.diagnosticsCopied ? "dialog-ok" : "edit-copy"
+                    enabled: communityReport.preview.length > 0
+                    onClicked: page.diagnosticsCopied = communityReport.copyPreview()
+                }
+
+                Controls.Button {
+                    text: qsTr("Open issue tracker")
+                    icon.name: "tools-report-bug"
+                    onClicked: Qt.openUrlExternally(
+                        "https://github.com/uglyegg/proton-vpn-kde/issues/new/choose")
+                }
+            }
+        }
+
+        Controls.Button {
+            objectName: "inactiveProtonFormToggle"
+            Layout.alignment: Qt.AlignHCenter
             visible: !vpnController.supportReportSubmissionEnabled
-            type: Kirigami.MessageType.Warning
-            text: qsTr("Direct Proton submission is not enabled for this unofficial community client.")
+            text: page.showInactiveForm ? qsTr("Hide Proton report prototype")
+                                        : qsTr("Show disabled Proton report prototype")
+            icon.name: page.showInactiveForm ? "go-up" : "go-down"
+            onClicked: page.showInactiveForm = !page.showInactiveForm
         }
 
         Kirigami.InlineMessage {
@@ -89,6 +195,8 @@ Kirigami.ScrollablePage {
         SectionCard {
             id: reportCard
             objectName: "supportReportCard"
+            visible: vpnController.supportReportSubmissionEnabled
+                     || page.showInactiveForm
             title: qsTr("Support report")
             iconName: "mail-message-new"
 
