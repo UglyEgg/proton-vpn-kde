@@ -11,9 +11,9 @@
 class DesktopReadiness final : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QString secretServiceState READ secretServiceState NOTIFY changed)
-    Q_PROPERTY(QString coreCapabilityState READ coreCapabilityState NOTIFY changed)
-    Q_PROPERTY(QString keyringCapabilityState READ keyringCapabilityState NOTIFY changed)
+    Q_PROPERTY(QString secretServiceState READ secretServiceState NOTIFY secretServiceStateChanged)
+    Q_PROPERTY(QString coreCapabilityState READ coreCapabilityState NOTIFY packageCapabilityStatesChanged)
+    Q_PROPERTY(QString keyringCapabilityState READ keyringCapabilityState NOTIFY packageCapabilityStatesChanged)
 
 public:
     explicit DesktopReadiness(QObject *parent = nullptr);
@@ -23,6 +23,8 @@ public:
     [[nodiscard]] QString coreCapabilityState() const;
     [[nodiscard]] QString keyringCapabilityState() const;
     Q_INVOKABLE void refresh();
+    Q_INVOKABLE void refreshSecretService();
+    Q_INVOKABLE void refreshPackageCapabilities();
 
     [[nodiscard]] static QString classifySecretService(
         const QStringList &registeredNames,
@@ -31,14 +33,13 @@ public:
         const QByteArray &output, const QByteArray &capability);
 
 signals:
-    void changed();
+    void secretServiceStateChanged();
+    void packageCapabilityStatesChanged();
 
 private:
     void setSecretServiceState(const QString &state);
     void setPackageCapabilityStates(const QString &core,
                                     const QString &keyring);
-    void refreshPackageCapabilities();
-
     QString m_secretServiceState = QStringLiteral("unknown");
     QString m_coreCapabilityState = QStringLiteral("unknown");
     QString m_keyringCapabilityState = QStringLiteral("unknown");

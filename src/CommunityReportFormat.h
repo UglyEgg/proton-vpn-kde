@@ -19,7 +19,8 @@ struct CommunityReportFacts
     bool snapshotHealthy = false;
     bool startupCompatible = false;
     bool coreMemoryOptimized = false;
-    bool telemetryAvailable = false;
+    bool telemetryBuildEnabled = false;
+    bool telemetryRuntimeAvailable = false;
     bool telemetryPreferenceKnown = false;
     bool telemetryEnabled = false;
 };

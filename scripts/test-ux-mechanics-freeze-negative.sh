@@ -145,26 +145,32 @@ cp "$project_dir/packaging/fedora/proton-vpn-kde.spec" \
     "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
 cp "$project_dir/qml/ReleaseNotesPage.qml" \
     "$release_fixture_dir/qml/ReleaseNotesPage.qml"
+cp "$project_dir/qml/AboutPage.qml" \
+    "$release_fixture_dir/qml/AboutPage.qml"
 cp "$project_dir/CHANGELOG.md" "$release_fixture_dir/CHANGELOG.md"
 cp "$project_dir/README.md" "$release_fixture_dir/README.md"
 cp "$project_dir/SECURITY.md" "$release_fixture_dir/SECURITY.md"
 cp "$project_dir/docs/SECURITY-AUDIT-2026-08-30.md" \
     "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
+cp "$project_dir/docs/COMPATIBILITY.md" \
+    "$release_fixture_dir/docs/COMPATIBILITY.md"
 release_fixture_version="$(sed -n \
     's/^project(proton-vpn-kde VERSION \([^ ]*\) LANGUAGES CXX)$/\1/p' \
     "$project_dir/CMakeLists.txt")"
-release_fixture_version_pattern="${release_fixture_version//./\\.}"
 sed -i \
     "s/^## \\[Unreleased\\]$/## [$release_fixture_version] - 2099-01-01/" \
     "$release_fixture_dir/CHANGELOG.md"
 sed -i \
-    "s/The unreleased $release_fixture_version_pattern preview/The $release_fixture_version release/" \
+    "/^## Current status$/a Version $release_fixture_version is the current public release.\n" \
     "$release_fixture_dir/README.md"
 sed -i \
     "s/^Release: .*$/Release: $release_fixture_version/" \
     "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
 sed -i \
-    's/^Release:[[:space:]]*[1-9][0-9]*%{?dist}$/Release:        0.10%{?dist}/' \
+    "/^## Supported release baseline$/a Plasma VPN $release_fixture_version is the current public package release.\n" \
+    "$release_fixture_dir/docs/COMPATIBILITY.md"
+sed -i \
+    's/^Release:[[:space:]]*[1-9][0-9]*%{?dist}$/Release:        0%{?dist}/' \
     "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
 release_output="$fixture_root/release-output"
 if "$release_fixture_dir/scripts/check-release-metadata.sh" \
@@ -178,3 +184,99 @@ if ! rg -q 'final Fedora release number' "$release_output"; then
     exit 1
 fi
 echo "The release metadata gate rejects a prerelease RPM identity for a dated release"
+
+sed -i \
+    's/^Release:.*$/Release:        1%{?dist}/' \
+    "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted a prerelease Debian identity" >&2
+    exit 1
+fi
+if ! rg -q 'final Debian package revision' "$release_output"; then
+    echo "The Debian release fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects a prerelease Debian identity for a dated release"
+
+sed -i "1s/${release_fixture_version}-0~preview[0-9]*/${release_fixture_version}-1/" \
+    "$release_fixture_dir/debian/changelog"
+sed -i "1s/${release_fixture_version}-1plasmavpn1/${release_fixture_version}-1preview1/" \
+    "$release_fixture_dir/debian/changelog"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted a nonzero Debian prerelease identity" >&2
+    exit 1
+fi
+if ! rg -q 'final Debian package revision' "$release_output"; then
+    echo "The nonzero Debian prerelease fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects a nonzero Debian prerelease identity"
+
+sed -i "1s/${release_fixture_version}-1preview1/${release_fixture_version}-1plasmavpn1/" \
+    "$release_fixture_dir/debian/changelog"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted stale in-app preview metadata" >&2
+    exit 1
+fi
+if ! rg -q 'preview-facing in-app metadata' "$release_output"; then
+    echo "The in-app release fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects stale in-app preview metadata"
+
+sed -i \
+    -e 's/Version %1 preview/Version %1/' \
+    "$release_fixture_dir/qml/AboutPage.qml"
+sed -i \
+    -e "s/Unreleased ${release_fixture_version} preview\./${release_fixture_version} release./" \
+    -e 's/Published 0\.13\.1 changelog (online)/Published changelog (online)/' \
+    -e 's/Open the published 0\.13\.1 source changelog in your browser; preview changes are not published yet/Open the published source changelog in your browser/' \
+    "$release_fixture_dir/qml/ReleaseNotesPage.qml"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted contradictory README status" >&2
+    exit 1
+fi
+if ! rg -q 'contradictory README status' "$release_output"; then
+    echo "The README status fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects contradictory README status"
+
+perl -0pi -e \
+    "s/In the unreleased ${release_fixture_version} preview/In the ${release_fixture_version} release/g; s/The unreleased ${release_fixture_version} candidate has completed/The ${release_fixture_version} release has completed/g; s/its final corrected package still needs focused installed acceptance/its corrected package passed focused installed acceptance/g; s/Version 0\\.13\\.1 is the current public release; ${release_fixture_version} is an unreleased candidate, not yet a public package or support claim/Version ${release_fixture_version} is the current public release/g" \
+    "$release_fixture_dir/README.md"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted contradictory security status" >&2
+    exit 1
+fi
+if ! rg -q 'contradictory security status' "$release_output"; then
+    echo "The security status fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects contradictory security status"
+
+perl -0pi -e \
+    "s/Release: unreleased ${release_fixture_version} candidate/Release: ${release_fixture_version}/; s/for the ${release_fixture_version} candidate/for ${release_fixture_version}/g; s/The final corrected package still requires installed acceptance before publication\\./The corrected package passed installed acceptance./" \
+    "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted contradictory compatibility status" >&2
+    exit 1
+fi
+if ! rg -q 'contradictory compatibility status' \
+        "$release_output"; then
+    echo "The compatibility status fixture failed for an unexpected reason" >&2
+    sed -n '1,120p' "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects contradictory compatibility status"

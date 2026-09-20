@@ -25,9 +25,18 @@ The release branch passed the seven-perspective review and its bounded
 remediation series. Version-specific results are maintained in the assessment,
 compatibility matrix, and release workflow rather than duplicated here.
 
+## 0.14 release line
+
+0.14.1 adds connection-time address visibility, on-demand local readiness,
+privacy-bounded community diagnostics, and Fedora Core 5.7 compatibility. It
+keeps optional connection telemetry off in community packages and exposes the
+state without changing Proton Core's networking authority. Its seven-review
+battery and bounded remediation are complete; final package acceptance and
+publication remain release operations.
+
 ## Post-release priorities
 
-1. Triage 0.13 reports against the documented support and Core boundaries.
+1. Triage reports against the documented support and Core boundaries.
 2. Require a regression for each accepted defect before changing behavior.
 3. Revalidate on every Proton Core, Fedora, Qt, or KDE Frameworks update.
 4. Collect Ubuntu 26.04 Plasma field reports before promoting the packages

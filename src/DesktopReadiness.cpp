@@ -141,7 +141,7 @@ void DesktopReadiness::setSecretServiceState(const QString &state)
         return;
     }
     m_secretServiceState = state;
-    emit changed();
+    emit secretServiceStateChanged();
 }
 
 void DesktopReadiness::setPackageCapabilityStates(const QString &core,
@@ -152,7 +152,7 @@ void DesktopReadiness::setPackageCapabilityStates(const QString &core,
     }
     m_coreCapabilityState = core;
     m_keyringCapabilityState = keyring;
-    emit changed();
+    emit packageCapabilityStatesChanged();
 }
 
 void DesktopReadiness::refreshPackageCapabilities()
@@ -190,6 +190,11 @@ void DesktopReadiness::refreshPackageCapabilities()
 void DesktopReadiness::refresh()
 {
     refreshPackageCapabilities();
+    refreshSecretService();
+}
+
+void DesktopReadiness::refreshSecretService()
+{
     const quint64 generation = ++m_generation;
     const QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.isConnected()) {

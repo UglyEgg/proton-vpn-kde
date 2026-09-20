@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.14.1
-Release:        0.1%{?dist}
+Release:        0.2%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -142,6 +142,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 0.14.1-0.2
+- Drain queued telemetry events when policy is off and fail closed on incompatible Core controls
+- Preserve settings and snapshots across in-place frontend/backend upgrades
+- Make package readiness lazy and independent from Secret Service readiness
+
 * Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 0.14.1-0.1
 - Surface connection telemetry policy in Settings and community diagnostics
 - Keep fresh telemetry-capable profiles off until the user explicitly opts in

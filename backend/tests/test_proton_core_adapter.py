@@ -13,7 +13,7 @@ import tempfile
 import time
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 from core_fakes import core_module_fakes
 
@@ -248,6 +248,26 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             Path(self._runtime_directory.name) / f"account-{self._adapter_sequence}.json",
         )
         return ProtonCoreAdapter(api, **kwargs)
+
+    @staticmethod
+    def add_telemetry_queue(api, stored_settings=None):
+        state = SimpleNamespace(enabled=True)
+
+        def set_enabled(enabled):
+            state.enabled = enabled
+
+        queue = SimpleNamespace(
+            enable=Mock(side_effect=set_enabled),
+            flush_events=Mock(return_value=[]),
+            state=state,
+        )
+        api._telemetry_events = queue
+        api._settings_persistence = SimpleNamespace(
+            _cache_handler=SimpleNamespace(
+                load=Mock(return_value=stored_settings)
+            )
+        )
+        return queue
 
     async def test_connector_failure_is_not_a_credential_failure(self):
         for logged_in in (False, True):
@@ -3633,14 +3653,16 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, _ = self.make_api()
         persisted = api.load_settings.return_value
         persisted.telemetry = True
-        api._telemetry_events = SimpleNamespace(enable=Mock())
+        queue = self.add_telemetry_queue(api)
         adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
 
         await adapter.get_settings()
 
         self.assertFalse(persisted.telemetry)
-        api._telemetry_events.enable.assert_called_once_with(False)
+        self.assertEqual([call(False), call(False)], queue.enable.call_args_list)
+        self.assertEqual(2, queue.flush_events.call_count)
+        self.assertFalse(queue.state.enabled)
         api.save_settings.assert_not_awaited()
 
     async def test_legacy_core_without_telemetry_setting_remains_supported(self):
@@ -3657,37 +3679,169 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, _ = self.make_api()
         persisted = api.load_settings.return_value
         persisted.telemetry = True
-        api._telemetry_events = SimpleNamespace(enable=Mock())
+        queue = self.add_telemetry_queue(api, {"telemetry": True})
         adapter = self.make_adapter(api, telemetry_enabled=True)
         await adapter.initialize(Mock())
 
         await adapter.get_settings()
 
         self.assertTrue(persisted.telemetry)
-        api._telemetry_events.enable.assert_not_called()
+        queue.enable.assert_called_once_with(True)
+        queue.flush_events.assert_not_called()
         api.save_settings.assert_not_awaited()
 
     async def test_telemetry_capable_build_defaults_fresh_core_profile_off(self):
         api, _ = self.make_api()
         persisted = api.load_settings.return_value
         persisted.telemetry = True
-        api._settings_persistence = SimpleNamespace(_settings_are_default=True)
-        api._telemetry_events = SimpleNamespace(enable=Mock())
+        queue = self.add_telemetry_queue(api)
         adapter = self.make_adapter(api, telemetry_enabled=True)
         await adapter.initialize(Mock())
 
         current = await adapter.get_settings()
 
         self.assertFalse(current.telemetry)
-        api._telemetry_events.enable.assert_called_once_with(False)
+        self.assertEqual([call(False), call(False)], queue.enable.call_args_list)
+        self.assertEqual(2, queue.flush_events.call_count)
+        self.assertFalse(queue.state.enabled)
+        api.save_settings.assert_not_awaited()
+
+    async def test_telemetry_capable_build_treats_legacy_document_as_opted_out(self):
+        api, _ = self.make_api()
+        persisted = api.load_settings.return_value
+        persisted.telemetry = True
+        queue = self.add_telemetry_queue(api, {"ipv6": True})
+        adapter = self.make_adapter(api, telemetry_enabled=True)
+        await adapter.initialize(Mock())
+
+        current = await adapter.get_settings()
+
+        self.assertFalse(current.telemetry)
+        self.assertEqual([call(False), call(False)], queue.enable.call_args_list)
+        self.assertEqual(2, queue.flush_events.call_count)
+        self.assertFalse(queue.state.enabled)
+
+    async def test_telemetry_opt_out_discards_previously_queued_events(self):
+        api, _ = self.make_api()
+        persisted = api.load_settings.return_value
+        persisted.telemetry = False
+        queue = self.add_telemetry_queue(api, {"telemetry": False})
+        queue.flush_events.return_value = [{"event": "queued-before-opt-out"}]
+        adapter = self.make_adapter(api, telemetry_enabled=True)
+        await adapter.initialize(Mock())
+
+        current = await adapter.get_settings()
+
+        self.assertFalse(current.telemetry)
+        self.assertEqual([call(False), call(False)], queue.enable.call_args_list)
+        self.assertEqual(2, queue.flush_events.call_count)
+        self.assertFalse(queue.state.enabled)
+
+    async def test_explicit_telemetry_opt_out_drains_before_saving(self):
+        api, _ = self.make_api()
+        persisted = api.load_settings.return_value
+        persisted.telemetry = True
+        queue = self.add_telemetry_queue(api, {"telemetry": True})
+        queue.flush_events.return_value = [{"event": "queued-before-opt-out"}]
+        adapter = self.make_adapter(api, telemetry_enabled=True)
+        await adapter.initialize(Mock())
+
+        updated = await adapter.update_settings({"telemetry": False})
+
+        self.assertFalse(updated.telemetry)
+        self.assertFalse(api.save_settings.await_args.args[0].telemetry)
+        self.assertEqual([call(True), call(False)], queue.enable.call_args_list)
+        queue.flush_events.assert_called_once_with()
+        self.assertFalse(queue.state.enabled)
+
+    async def test_telemetry_policy_fails_closed_without_queue_control(self):
+        api, _ = self.make_api()
+        api.load_settings.return_value.telemetry = False
+        api._telemetry_events = SimpleNamespace(enable=Mock())
+        terminal_exit = Mock(side_effect=RuntimeError("recorded terminal exit"))
+        adapter = self.make_adapter(
+            api, telemetry_enabled=True, terminal_exit=terminal_exit
+        )
+        await adapter.initialize(Mock())
+
+        with self.assertLogs(
+            "proton_vpn_kde_backend.adapters", level="CRITICAL"
+        ), self.assertRaisesRegex(RuntimeError, "recorded terminal exit"):
+            await adapter.get_settings()
+
+        terminal_exit.assert_called_once_with(1)
+        api.load_settings.assert_not_awaited()
+        api.save_settings.assert_not_awaited()
+
+    async def test_telemetry_policy_fails_closed_without_queue_disable(self):
+        api, _ = self.make_api()
+        api.load_settings.return_value.telemetry = False
+        api._telemetry_events = SimpleNamespace(
+            flush_events=Mock(return_value=[])
+        )
+        terminal_exit = Mock(side_effect=RuntimeError("recorded terminal exit"))
+        adapter = self.make_adapter(
+            api, telemetry_enabled=True, terminal_exit=terminal_exit
+        )
+        await adapter.initialize(Mock())
+
+        with self.assertLogs(
+            "proton_vpn_kde_backend.adapters", level="CRITICAL"
+        ), self.assertRaisesRegex(RuntimeError, "recorded terminal exit"):
+            await adapter.get_settings()
+
+        terminal_exit.assert_called_once_with(1)
+        api._telemetry_events.flush_events.assert_not_called()
+        api.load_settings.assert_not_awaited()
+        api.save_settings.assert_not_awaited()
+
+    async def test_telemetry_policy_fails_closed_when_queue_disable_fails(self):
+        api, _ = self.make_api()
+        api.load_settings.return_value.telemetry = False
+        queue = self.add_telemetry_queue(api, {"telemetry": False})
+        queue.enable.side_effect = RuntimeError("disable failure")
+        terminal_exit = Mock(side_effect=RuntimeError("recorded terminal exit"))
+        adapter = self.make_adapter(
+            api, telemetry_enabled=True, terminal_exit=terminal_exit
+        )
+        await adapter.initialize(Mock())
+
+        with self.assertLogs(
+            "proton_vpn_kde_backend.adapters", level="CRITICAL"
+        ), self.assertRaisesRegex(RuntimeError, "recorded terminal exit"):
+            await adapter.get_settings()
+
+        terminal_exit.assert_called_once_with(1)
+        queue.flush_events.assert_not_called()
+        api.load_settings.assert_not_awaited()
+        api.save_settings.assert_not_awaited()
+
+    async def test_telemetry_policy_fails_closed_when_queue_drain_fails(self):
+        api, _ = self.make_api()
+        api.load_settings.return_value.telemetry = False
+        queue = self.add_telemetry_queue(api, {"telemetry": False})
+        queue.flush_events.side_effect = RuntimeError("queue failure")
+        terminal_exit = Mock(side_effect=RuntimeError("recorded terminal exit"))
+        adapter = self.make_adapter(
+            api, telemetry_enabled=True, terminal_exit=terminal_exit
+        )
+        await adapter.initialize(Mock())
+
+        with self.assertLogs(
+            "proton_vpn_kde_backend.adapters", level="CRITICAL"
+        ), self.assertRaisesRegex(RuntimeError, "recorded terminal exit"):
+            await adapter.get_settings()
+
+        terminal_exit.assert_called_once_with(1)
+        queue.enable.assert_called_once_with(False)
+        api.load_settings.assert_not_awaited()
         api.save_settings.assert_not_awaited()
 
     async def test_telemetry_capable_build_persists_explicit_user_opt_in(self):
         api, _ = self.make_api()
         persisted = api.load_settings.return_value
         persisted.telemetry = True
-        api._settings_persistence = SimpleNamespace(_settings_are_default=True)
-        api._telemetry_events = SimpleNamespace(enable=Mock())
+        queue = self.add_telemetry_queue(api)
         adapter = self.make_adapter(api, telemetry_enabled=True)
         await adapter.initialize(Mock())
 
@@ -3695,6 +3849,10 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(updated.telemetry)
         self.assertTrue(api.save_settings.await_args.args[0].telemetry)
+        self.assertEqual(
+            [call(False), call(False), call(True)], queue.enable.call_args_list
+        )
+        self.assertEqual(2, queue.flush_events.call_count)
 
     async def test_community_build_rejects_telemetry_enable(self):
         api, _ = self.make_api()
@@ -3733,7 +3891,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api, _ = self.make_api()
         api.load_settings.return_value.anonymous_crash_reports = True
         api.load_settings.return_value.telemetry = True
-        api._telemetry_events = SimpleNamespace(enable=Mock())
+        queue = self.add_telemetry_queue(api)
         api.usage_reporting.enabled = True
         adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
@@ -3743,7 +3901,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(api.usage_reporting.enabled)
         self.assertFalse(api.save_settings.await_args.args[0].anonymous_crash_reports)
         self.assertFalse(api.save_settings.await_args.args[0].telemetry)
-        api._telemetry_events.enable.assert_called_with(False)
+        queue.enable.assert_called_with(False)
+        self.assertGreaterEqual(queue.flush_events.call_count, 1)
 
     async def test_approved_build_preserves_crash_reporting_preference(self):
         api, _ = self.make_api()

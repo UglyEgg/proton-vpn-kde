@@ -49,10 +49,9 @@ git diff --check
 git status --short
 ```
 
-The mechanics-freeze script seals the published 0.13 line only. It is expected
-to reject new 0.14 source on this preview branch; do not weaken or rebaseline
-it to make the preview appear release-ready. Establish a reviewed 0.14 change
-boundary and corresponding CI gate before a public 0.14 candidate.
+The mechanics-freeze script seals the published 0.13 baseline plus the reviewed
+0.14.1 change boundary. Rebaseline only after the seven reviews, required
+corrections, focused regressions, and corrected-diff re-review complete.
 
 The tree must contain no build output, local packages, credentials, diagnostics,
 machine-specific paths, editor state, or unrelated changes.
@@ -130,6 +129,12 @@ in a clean target-distribution Plasma environment. Test:
 - full/split layouts, keyboard navigation, app-owned sizing, and monitor changes;
 - packet-capture stop and disconnected shutdown; and
 - disabled Proton support/crash submission.
+
+For in-place upgrades, verify that a new frontend accepts the immediately
+preceding settings/snapshot contracts and that an unsupported future contract
+produces bounded restart guidance. A package update must not strand an active
+tunnel merely because frontend and backend processes crossed the transaction
+boundary at different times.
 
 Installation must not enable autostart or overwrite custom autostart entries.
 Record exact versions and outcomes in [Compatibility](COMPATIBILITY.md).

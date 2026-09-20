@@ -67,8 +67,10 @@ QString formatCommunityReport(const CommunityReportFacts &facts)
     const QString errorCode = facts.errorCode.isEmpty()
         ? QStringLiteral("none")
         : safeState(facts.errorCode, errorCodes);
-    const QString telemetry = !facts.telemetryAvailable
+    const QString telemetry = !facts.telemetryBuildEnabled
         ? QStringLiteral("disabled by build policy")
+        : !facts.telemetryRuntimeAvailable
+        ? QStringLiteral("unavailable with installed Proton Core")
         : !facts.telemetryPreferenceKnown ? QStringLiteral("not checked")
         : facts.telemetryEnabled ? QStringLiteral("enabled by user")
                                  : QStringLiteral("disabled");

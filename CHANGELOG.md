@@ -16,6 +16,8 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 - Surface telemetry availability and state in Settings and copied community
   diagnostics. Telemetry-capable builds expose an explicit switch; fresh Core
   profiles remain off until the user opts in.
+- Drain already queued telemetry events on opt-out and fail closed when the
+  installed Core cannot enforce the requested policy.
 
 ### Connection insight
 
@@ -31,6 +33,10 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 - Add a previewable, allowlisted community diagnostics report with explicit
   clipboard copy and a separate issue-tracker link. Direct Proton submission
   remains disabled; its inactive form is retained behind disclosure.
+- Preserve the previous settings and snapshot contracts across an in-place
+  package upgrade, with explicit restart guidance for unknown future versions.
+- Run package-capability inspection only from Local setup and keep its result
+  independent from the Secret Service readiness signal.
 
 ## [0.13.1] - 2026-09-13
 

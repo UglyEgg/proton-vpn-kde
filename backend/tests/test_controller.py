@@ -1461,8 +1461,9 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             '{"netShield":2,"vpnAccelerator":false}'
         )
 
-        self.assertIn('"schemaVersion":1', initial)
+        self.assertIn('"schemaVersion":2', initial)
         self.assertIn('"protocols"', initial)
+        self.assertIn('"telemetryAvailable":true', initial)
         self.assertIn('"netShield":2', updated)
         self.assertIn('"vpnAccelerator":false', updated)
         self.assertEqual(2, events[-1].net_shield)

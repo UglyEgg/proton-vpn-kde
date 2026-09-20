@@ -68,9 +68,15 @@ void VpnController::updateSetting(const QString &name, const QVariant &value)
     }
     if (name == QStringLiteral("telemetry")
         && value.metaType().id() == QMetaType::Bool && value.toBool()
-        && !telemetryEnabled()) {
+        && !telemetryBuildEnabled()) {
         m_settings->setMessage(
             tr("Connection telemetry is disabled in this community build"));
+        return;
+    }
+    if (name == QStringLiteral("telemetry")
+        && !m_settings->telemetryAvailable()) {
+        m_settings->setMessage(
+            tr("Connection telemetry is unavailable with the installed Proton Core"));
         return;
     }
 

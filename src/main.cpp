@@ -187,7 +187,6 @@ int main(int argc, char *argv[])
     VpnController controller;
     DesktopReadiness desktopReadiness;
     CommunityReport communityReport(&controller, &desktopReadiness);
-    desktopReadiness.refresh();
     QString startupTarget = settings.closeToTray() ? QString()
                                                   : settings.autoConnectTarget();
     const auto retireStartup = [&startupTarget] { startupTarget.clear(); };

@@ -437,6 +437,7 @@ if(BUILD_TESTING)
         tests/SnapshotContractTest.cpp
         tests/SnapshotTestData.h
         src/SnapshotContract.generated.h
+        src/SnapshotCompatibility.h
     )
     target_include_directories(snapshot-contract-tests PRIVATE src tests)
     target_link_libraries(snapshot-contract-tests PRIVATE

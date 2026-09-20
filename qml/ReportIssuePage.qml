@@ -40,8 +40,8 @@ Kirigami.ScrollablePage {
     Component.onCompleted: {
         page.waitingForInitialBackend = !vpnController.ready
                                         && vpnController.state !== "error"
-        page.waitingForSecretCheck = desktopReadiness.secretServiceState
-                                     === "checking"
+        page.waitingForSecretCheck = true
+        desktopReadiness.refreshSecretService()
         page.refreshPreview()
     }
 
@@ -59,7 +59,7 @@ Kirigami.ScrollablePage {
 
     Connections {
         target: desktopReadiness
-        function onChanged() {
+        function onSecretServiceStateChanged() {
             if (page.waitingForSecretCheck
                     && desktopReadiness.secretServiceState !== "checking") {
                 page.waitingForSecretCheck = false
@@ -152,7 +152,7 @@ Kirigami.ScrollablePage {
                     icon.name: "view-refresh"
                     onClicked: {
                         page.waitingForSecretCheck = true
-                        desktopReadiness.refresh()
+                        desktopReadiness.refreshSecretService()
                         page.refreshPreview()
                     }
                 }

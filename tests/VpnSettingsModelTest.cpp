@@ -4,13 +4,15 @@
 #include "VpnSettingsModel.h"
 #include "SettingsRequestState.h"
 
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QtTest>
 
 namespace
 {
 const auto kValidSettings = R"json({
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "protocol": "wireguard",
     "protocols": [
         {"id": "wireguard", "name": "WireGuard"},
@@ -24,6 +26,7 @@ const auto kValidSettings = R"json({
     "ipv6": true,
     "anonymousCrashReports": false,
     "telemetry": true,
+    "telemetryAvailable": true,
     "paidFeaturesAvailable": true,
     "protocolEditable": true,
     "killSwitchEditable": true,
@@ -41,6 +44,7 @@ private slots:
     void appliesVersionedSettingsAtomically();
     void dataReceiptPreservesRequestOwnership();
     void requestStateRetainsUnknownWritesUntilReadback();
+    void acceptsLegacySettingsDuringPackageUpgrade();
     void rejectsInvalidPayloadWithoutReplacingCurrentState();
 };
 
@@ -107,9 +111,29 @@ void VpnSettingsModelTest::appliesVersionedSettingsAtomically()
     QVERIFY(model.vpnAccelerator());
     QVERIFY(!model.anonymousCrashReports());
     QVERIFY(model.telemetry());
+    QVERIFY(model.telemetryAvailable());
     QVERIFY(model.paidFeaturesAvailable());
     QVERIFY(model.packetCaptureSupported());
     QCOMPARE(changed.count(), 1);
+}
+
+void VpnSettingsModelTest::acceptsLegacySettingsDuringPackageUpgrade()
+{
+    QJsonObject legacy = QJsonDocument::fromJson(kValidSettings).object();
+    legacy.insert(QStringLiteral("schemaVersion"), 1);
+    legacy.remove(QStringLiteral("telemetryAvailable"));
+
+    VpnSettingsModel model;
+    QVERIFY(model.applyJson(QString::fromUtf8(
+        QJsonDocument(legacy).toJson(QJsonDocument::Compact))));
+    QVERIFY(!model.telemetry());
+    QVERIFY(!model.telemetryAvailable());
+
+    legacy.remove(QStringLiteral("telemetry"));
+    QVERIFY(model.applyJson(QString::fromUtf8(
+        QJsonDocument(legacy).toJson(QJsonDocument::Compact))));
+    QVERIFY(!model.telemetry());
+    QVERIFY(!model.telemetryAvailable());
 }
 
 void VpnSettingsModelTest::rejectsInvalidPayloadWithoutReplacingCurrentState()
@@ -120,6 +144,13 @@ void VpnSettingsModelTest::rejectsInvalidPayloadWithoutReplacingCurrentState()
 
     QVERIFY(!model.applyJson(
         QStringLiteral(R"({"schemaVersion":2,"protocol":"openvpn-udp"})"),
+        &error));
+
+    QJsonObject missingCapability =
+        QJsonDocument::fromJson(kValidSettings).object();
+    missingCapability.remove(QStringLiteral("telemetryAvailable"));
+    QVERIFY(!model.applyJson(QString::fromUtf8(
+        QJsonDocument(missingCapability).toJson(QJsonDocument::Compact)),
         &error));
 
     QVERIFY(!error.isEmpty());

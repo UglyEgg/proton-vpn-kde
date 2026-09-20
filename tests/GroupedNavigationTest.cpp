@@ -340,7 +340,7 @@ public slots:
             return {};
         }
         return QStringLiteral(R"json({
-            "schemaVersion":1,
+            "schemaVersion":2,
             "protocol":"wireguard",
             "protocols":[{"id":"wireguard","name":"WireGuard"}],
             "killSwitch":0,
@@ -351,6 +351,7 @@ public slots:
             "ipv6":true,
             "anonymousCrashReports":true,
             "telemetry":false,
+            "telemetryAvailable":true,
             "paidFeaturesAvailable":true,
             "protocolEditable":true,
             "killSwitchEditable":true,
@@ -2724,9 +2725,9 @@ void GroupedNavigationTest::crashReportSubmissionFollowsBuildPolicy()
 void GroupedNavigationTest::telemetryFollowsBuildPolicy()
 {
     VpnController controller(nullptr, false);
-    const bool telemetryEnabled = PROTON_VPN_KDE_TELEMETRY_ENABLED != 0;
-    QCOMPARE(controller.telemetryEnabled(), telemetryEnabled);
-    if (telemetryEnabled) {
+    const bool telemetryBuildEnabled = PROTON_VPN_KDE_TELEMETRY_ENABLED != 0;
+    QCOMPARE(controller.telemetryBuildEnabled(), telemetryBuildEnabled);
+    if (telemetryBuildEnabled) {
         return;
     }
 

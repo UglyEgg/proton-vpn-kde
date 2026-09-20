@@ -29,21 +29,23 @@ QString CommunityReport::preview() const
 void CommunityReport::refresh()
 {
     const CommunityReportFacts facts{
-        QCoreApplication::applicationVersion(),
-        m_controller->coreVersion(),
-        QSysInfo::productType(),
-        QString::fromLatin1(qVersion()),
-        m_readiness->secretServiceState(),
-        m_controller->state(),
-        m_controller->errorCode(),
-        m_controller->backendAvailable(),
-        m_controller->ready(),
-        m_controller->snapshotHealthy(),
-        m_controller->startupCompatible(),
-        m_controller->coreMemoryOptimized(),
-        m_controller->telemetryEnabled(),
-        m_controller->settings()->loaded(),
-        m_controller->settings()->telemetry(),
+        .clientVersion = QCoreApplication::applicationVersion(),
+        .coreVersion = m_controller->coreVersion(),
+        .osFamily = QSysInfo::productType(),
+        .qtVersion = QString::fromLatin1(qVersion()),
+        .secretServiceState = m_readiness->secretServiceState(),
+        .vpnState = m_controller->state(),
+        .errorCode = m_controller->errorCode(),
+        .backendAvailable = m_controller->backendAvailable(),
+        .backendReady = m_controller->ready(),
+        .snapshotHealthy = m_controller->snapshotHealthy(),
+        .startupCompatible = m_controller->startupCompatible(),
+        .coreMemoryOptimized = m_controller->coreMemoryOptimized(),
+        .telemetryBuildEnabled = m_controller->telemetryBuildEnabled(),
+        .telemetryRuntimeAvailable =
+            m_controller->settings()->telemetryAvailable(),
+        .telemetryPreferenceKnown = m_controller->settings()->loaded(),
+        .telemetryEnabled = m_controller->settings()->telemetry(),
     };
     m_preview = formatCommunityReport(facts);
     emit changed();

@@ -651,9 +651,12 @@ def _verify_behavior(root: Path, site_packages_relative: str) -> None:
 
         telemetry_events.enable(True)
         telemetry_events.submit(telemetry_event)
-        if len(telemetry_events.flush_events()) != 1:
-            raise OverlayError("Core telemetry fixture could not queue an event")
         telemetry_events.enable(False)
+        retained_events = telemetry_events.flush_events()
+        if len(retained_events) != 1:
+            raise OverlayError("Core telemetry fixture could not queue an event")
+        if telemetry_events.flush_events():
+            raise OverlayError("Core telemetry queue was not drained after opt-out")
 
     class CapturingConnection:
         def add_setting(self, setting):

@@ -170,7 +170,8 @@ async def main(stop_after_challenge: bool = False) -> None:
         raise AssertionError("an invalid country code was accepted")
 
     settings = json.loads(await interface.call_get_settings())
-    assert settings["schemaVersion"] == 1
+    assert settings["schemaVersion"] == 2
+    assert settings["telemetryAvailable"]
     assert settings["protocol"] == "wireguard"
     assert settings["protocols"][0]["name"] == "WireGuard"
 

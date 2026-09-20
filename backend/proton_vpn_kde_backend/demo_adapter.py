@@ -67,6 +67,7 @@ class DemoCoreAdapter:
             paid_features_available=logged_in,
             kill_switch=kill_switch,
             anonymous_crash_reports=False,
+            telemetry_available=True,
         )
         self._split_tunneling = SplitTunnelingSettings(
             available=True,

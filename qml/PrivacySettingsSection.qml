@@ -37,8 +37,11 @@ SectionCard {
             objectName: "connectionTelemetrySwitch"
             Kirigami.FormData.label: qsTr("Connection telemetry:")
             text: qsTr("Send connection outcome telemetry to Proton")
-            checked: vpnController.telemetryEnabled && vpnSettings.telemetry
-            enabled: vpnController.telemetryEnabled
+            checked: vpnController.telemetryBuildEnabled
+                     && vpnSettings.telemetryAvailable
+                     && vpnSettings.telemetry
+            enabled: vpnController.telemetryBuildEnabled
+                     && vpnSettings.telemetryAvailable
                      && vpnController.ready
                      && vpnSettings.loaded && !vpnSettings.busy
             onClicked: vpnController.updateSetting("telemetry", checked)
@@ -53,15 +56,25 @@ SectionCard {
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
-            visible: !vpnController.telemetryEnabled
+            visible: !vpnController.telemetryBuildEnabled
             type: Kirigami.MessageType.Information
             text: qsTr("Connection telemetry to Proton is disabled by this community build.")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: vpnController.telemetryBuildEnabled
+                     && vpnSettings.loaded
+                     && !vpnSettings.telemetryAvailable
+            type: Kirigami.MessageType.Information
+            text: qsTr("Connection telemetry controls are unavailable with the installed Proton Core.")
         }
 
         Controls.Label {
             Layout.maximumWidth: Kirigami.Units.gridUnit * 22
             wrapMode: Text.WordWrap
-            visible: vpnController.telemetryEnabled
+            visible: vpnController.telemetryBuildEnabled
+                     && vpnSettings.telemetryAvailable
             text: vpnSettings.telemetry
                   ? qsTr("Enabled by you. Proton Core may send optional connection outcome events to Proton.")
                   : qsTr("Optional connection outcome telemetry is off. You can enable it explicitly.")

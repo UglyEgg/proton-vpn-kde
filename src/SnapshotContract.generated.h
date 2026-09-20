@@ -14,7 +14,68 @@ namespace ProtonVpnKde
 inline constexpr int snapshotSchemaVersion = 2;
 enum class SnapshotFieldType { Boolean, Integer, String };
 struct SnapshotField { const char *name; SnapshotFieldType type; };
-inline constexpr std::array<SnapshotField, 32> snapshotFields{{
+
+inline constexpr std::array<SnapshotField, 29> snapshotFieldsV1{{
+    {"schemaVersion", SnapshotFieldType::Integer},
+    {"ready", SnapshotFieldType::Boolean},
+    {"startupCompatible", SnapshotFieldType::Boolean},
+    {"loggedIn", SnapshotFieldType::Boolean},
+    {"authState", SnapshotFieldType::String},
+    {"accountName", SnapshotFieldType::String},
+    {"planTitle", SnapshotFieldType::String},
+    {"userTier", SnapshotFieldType::Integer},
+    {"maxConnections", SnapshotFieldType::Integer},
+    {"fido2Available", SnapshotFieldType::Boolean},
+    {"reconnectEnabled", SnapshotFieldType::Boolean},
+    {"killSwitch", SnapshotFieldType::Integer},
+    {"busy", SnapshotFieldType::Boolean},
+    {"state", SnapshotFieldType::String},
+    {"errorCode", SnapshotFieldType::String},
+    {"serverName", SnapshotFieldType::String},
+    {"serverLocation", SnapshotFieldType::String},
+    {"exitCountry", SnapshotFieldType::String},
+    {"entryCountry", SnapshotFieldType::String},
+    {"forwardedPort", SnapshotFieldType::Integer},
+    {"secureCore", SnapshotFieldType::Boolean},
+    {"tor", SnapshotFieldType::Boolean},
+    {"p2p", SnapshotFieldType::Boolean},
+    {"streaming", SnapshotFieldType::Boolean},
+    {"smartRouting", SnapshotFieldType::Boolean},
+    {"packetCaptureActive", SnapshotFieldType::Boolean},
+    {"coreMemoryOptimized", SnapshotFieldType::Boolean},
+    {"coreVersion", SnapshotFieldType::String},
+    {"message", SnapshotFieldType::String},
+}};
+
+inline bool validateSnapshotV1(const QJsonObject &snapshot,
+                               QString *errorMessage = nullptr)
+{
+    if (snapshot.size() != static_cast<qsizetype>(snapshotFieldsV1.size())) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("Snapshot has missing or extra fields");
+        }
+        return false;
+    }
+    for (const auto &field : snapshotFieldsV1) {
+        const auto value = snapshot.value(QString::fromLatin1(field.name));
+        const bool valid = field.type == SnapshotFieldType::Boolean
+            ? value.isBool()
+            : field.type == SnapshotFieldType::String
+            ? value.isString()
+            : value.isDouble()
+                && std::trunc(value.toDouble()) == value.toDouble();
+        if (!valid) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("Missing or invalid snapshot field: %1")
+                                    .arg(QString::fromLatin1(field.name));
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
+inline constexpr std::array<SnapshotField, 32> snapshotFieldsV2{{
     {"schemaVersion", SnapshotFieldType::Integer},
     {"ready", SnapshotFieldType::Boolean},
     {"startupCompatible", SnapshotFieldType::Boolean},
@@ -52,13 +113,13 @@ inline constexpr std::array<SnapshotField, 32> snapshotFields{{
 inline bool validateSnapshotV2(const QJsonObject &snapshot,
                                QString *errorMessage = nullptr)
 {
-    if (snapshot.size() != static_cast<qsizetype>(snapshotFields.size())) {
+    if (snapshot.size() != static_cast<qsizetype>(snapshotFieldsV2.size())) {
         if (errorMessage) {
             *errorMessage = QStringLiteral("Snapshot has missing or extra fields");
         }
         return false;
     }
-    for (const auto &field : snapshotFields) {
+    for (const auto &field : snapshotFieldsV2) {
         const auto value = snapshot.value(QString::fromLatin1(field.name));
         const bool valid = field.type == SnapshotFieldType::Boolean
             ? value.isBool()
@@ -76,4 +137,5 @@ inline bool validateSnapshotV2(const QJsonObject &snapshot,
     }
     return true;
 }
+
 } // namespace ProtonVpnKde

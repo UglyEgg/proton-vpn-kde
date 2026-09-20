@@ -60,7 +60,7 @@ assert_diff_hash() {
     local actual
     actual="$(diff_hash "$@")"
     if [[ "$actual" != "$expected" ]]; then
-        echo "The recorded 0.13 $label delta changed:" >&2
+        echo "The recorded reviewed $label delta changed:" >&2
         printf '  expected %s\n  actual   %s\n' "$expected" "$actual" >&2
         exit 1
     fi
@@ -164,7 +164,7 @@ while IFS= read -r path; do
         src/CommunityReportFormat.cpp|src/CommunityReportFormat.h|\
         src/DesktopReadiness.cpp|src/DesktopReadiness.h|\
         src/SettingsRequestState.h|src/VpnSettingsModel.cpp|src/VpnSettingsModel.h|\
-        src/SnapshotContract.generated.h|\
+        src/SnapshotContract.generated.h|src/SnapshotCompatibility.h|\
         src/SplitTunnelingModel.cpp|src/CustomDnsModel.cpp|\
         src/VpnConnectionController.h|\
         src/DbusContract.h|\
@@ -223,7 +223,7 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "4f2d88b81dce5de8818f83df23f58c75e6f492b4e38d2187745810e4768dfe7f" \
+    "5ff1ab23cd2993728f02362fe67cd31985b64870dc8ed12680b879acbad20ed9" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
@@ -233,7 +233,7 @@ assert_diff_hash \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "d76c3cece4a6c943de660c45b6e648be7b8e8eaef301a9831d553a9a57bbe42a" \
+    "0b67b0c496bf17d67c67c94a5fcb9fb3c7ee6f886b4315f121cb64daa25d8e8e" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests \
     data/snapshot-schema-v2.json data/snapshot-schema-v2.json.license \
@@ -241,7 +241,7 @@ assert_diff_hash \
     src/SnapshotContract.generated.h tests/SnapshotContractTest.cpp \
     tests/SnapshotTestData.h
 assert_diff_hash \
-    "05de4ddc199b18b58565ff196fbc2c070f4a916c90f46884d0f098a9e0f65481" \
+    "08f5910cb946b223087e8e3c49724d18e202a4baf5407cbb0e73d008787181a3" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
     packaging/fedora/api-core-overlay/patches/0003-avoid-deprecated-fido2-capability-query.patch \
@@ -268,7 +268,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "5ab1513d3524b151f631078f436bd02630121ad94666fef785f0917f2dd5965f" \
+    "72ac6e8be104ee01a4a2e4886f59e22ce8361719a62f2461e1dbf3a10a5b9b16" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
@@ -278,11 +278,11 @@ assert_diff_hash \
     "f3b160619e649871b9450995ef5b65024aa8838a5437368888a64bb20138567d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "d5bb4925afb1f9f0b5937e61db7b073d34dd4773969e6121d29e158f6a80d21c" \
+    "a5cf6e091b90d281dced46ea7aa0876c46988be1178d643e6898e2ec4499b481" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "f91d716464dc5df5ab5f67dd894d5f01a750c5fb6a390fd2556564559a79fdb0" \
+    "56779137f054da36c46730764e2a5fcd59eef9a31689eb4a69e8af5ed9bd94b6" \
     "QML presentation" qml
 
 assert_diff_hash \
@@ -301,7 +301,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "fbb0c7e34d2848c67a735691b83ec01277f7a02cc3e20bdaecef5f1146528b7a" \
+    "a3341f1ba844a369ef0e82a462f4c811dc26eda33bceb55923d4389b45dde975" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \
@@ -322,4 +322,4 @@ assert_diff_hash \
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "unambiguous desktop icon" data/proton-vpn-kde.desktop.in
 
-echo "0.14 preview candidate matches published baseline $baseline_commit plus recorded deltas (not review approval)"
+echo "0.14.1 candidate matches published baseline $baseline_commit plus recorded reviewed deltas"

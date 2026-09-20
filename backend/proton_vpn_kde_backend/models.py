@@ -176,7 +176,7 @@ class ProtocolInfo:
 class VpnSettings:
     """Validated, non-sensitive subset of Proton's persisted settings."""
 
-    schema_version: int = 1
+    schema_version: int = 2
     protocol: str = "wireguard"
     protocols: tuple[ProtocolInfo, ...] = ()
     kill_switch: int = 0
@@ -187,6 +187,7 @@ class VpnSettings:
     ipv6: bool = True
     anonymous_crash_reports: bool = False
     telemetry: bool = False
+    telemetry_available: bool = False
     paid_features_available: bool = False
     protocol_editable: bool = True
     kill_switch_editable: bool = True
@@ -207,6 +208,7 @@ class VpnSettings:
             "ipv6": self.ipv6,
             "anonymousCrashReports": self.anonymous_crash_reports,
             "telemetry": self.telemetry,
+            "telemetryAvailable": self.telemetry_available,
             "paidFeaturesAvailable": self.paid_features_available,
             "protocolEditable": self.protocol_editable,
             "killSwitchEditable": self.kill_switch_editable,

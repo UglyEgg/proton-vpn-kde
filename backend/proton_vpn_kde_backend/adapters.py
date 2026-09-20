@@ -810,6 +810,7 @@ class ProtonCoreAdapter:
             if authentication_epoch is None
             else authentication_epoch
         )
+        self._preflight_telemetry_policy()
         try:
             settings = await self._api.load_settings()
         except Exception as error:
@@ -830,6 +831,29 @@ class ProtonCoreAdapter:
         self._apply_telemetry_policy(settings)
         return settings
 
+    def _preflight_telemetry_policy(self) -> None:
+        """Prove queue control before Core can mirror persisted settings."""
+        telemetry_events = getattr(self._api, "_telemetry_events", None)
+        if telemetry_events is None:
+            return
+
+        enable = getattr(telemetry_events, "enable", None)
+        flush_events = getattr(telemetry_events, "flush_events", None)
+        if not callable(enable) or not callable(flush_events):
+            self._terminate_telemetry_policy_failure("queue controls are unavailable")
+
+        stored_preference = self._stored_telemetry_preference()
+        effective_preference = bool(
+            self._telemetry_enabled and stored_preference is True
+        )
+        if effective_preference:
+            return
+        try:
+            enable(False)
+            flush_events()
+        except Exception:
+            self._terminate_telemetry_policy_failure("queue preflight failed")
+
     def _apply_telemetry_policy(
         self, settings: Any, *, explicit_preference: bool = False
     ) -> None:
@@ -837,23 +861,51 @@ class ProtonCoreAdapter:
         if not hasattr(settings, "telemetry"):
             return
 
-        if self._telemetry_enabled and explicit_preference:
-            return
-        if self._telemetry_enabled:
-            persistence = getattr(self._api, "_settings_persistence", None)
-            if getattr(persistence, "_settings_are_default", False) is False:
-                return
-
-        # Core 5.7 mirrors the stored value into its event queue while loading
-        # settings. A community build always disables it. A telemetry-capable
-        # build also projects a fresh Core profile as off until the first
-        # explicit settings write; existing persisted Proton preferences remain
-        # authoritative. Mutating this detached copy does not persist it.
-        settings.telemetry = False
         telemetry_events = getattr(self._api, "_telemetry_events", None)
         enable = getattr(telemetry_events, "enable", None)
-        if callable(enable):
-            enable(False)
+        flush_events = getattr(telemetry_events, "flush_events", None)
+        if not callable(enable) or not callable(flush_events):
+            self._terminate_telemetry_policy_failure("queue controls are unavailable")
+
+        preference_is_explicit = (
+            explicit_preference or self._stored_telemetry_preference() is not None
+        )
+        effective_preference = bool(
+            self._telemetry_enabled
+            and preference_is_explicit
+            and settings.telemetry
+        )
+        settings.telemetry = effective_preference
+        try:
+            enable(effective_preference)
+            if not effective_preference:
+                # Core documents that disabling stops new submissions but does
+                # not retire events collected before the opt-out.  Discard the
+                # bounded in-process queue before publishing the disabled state.
+                flush_events()
+        except Exception:
+            self._terminate_telemetry_policy_failure("queue enforcement failed")
+
+    def _stored_telemetry_preference(self) -> bool | None:
+        """Return an explicit persisted preference, or none for legacy state."""
+        persistence = getattr(self._api, "_settings_persistence", None)
+        cache_handler = getattr(persistence, "_cache_handler", None)
+        load = getattr(cache_handler, "load", None)
+        if not callable(load):
+            return None
+        try:
+            stored = load()
+        except Exception:
+            return None
+        if isinstance(stored, dict) and type(stored.get("telemetry")) is bool:
+            return stored["telemetry"]
+        return None
+
+    def _terminate_telemetry_policy_failure(self, reason: str) -> NoReturn:
+        """Retire Core when optional reporting cannot be proven quiescent."""
+        logger.critical("Forced backend exit: telemetry policy failed (%s)", reason)
+        self._terminal_exit(INCOMPLETE_CONNECTION_RETIREMENT_EXIT_CODE)
+        raise SystemExit(INCOMPLETE_CONNECTION_RETIREMENT_EXIT_CODE)
 
     async def _save_settings(
         self,
@@ -1597,6 +1649,7 @@ class ProtonCoreAdapter:
             packet_capture_supported=self._protocol_supports_packet_capture(
                 settings.protocol
             ),
+            telemetry_available=hasattr(settings, "telemetry"),
         )
         if not self._crash_report_submission_enabled:
             return replace(translated, anonymous_crash_reports=False)

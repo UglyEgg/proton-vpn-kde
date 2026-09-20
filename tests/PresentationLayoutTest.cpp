@@ -82,17 +82,30 @@ public:
 class ReadinessPreviewProbe final : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QString secretServiceState READ secretServiceState NOTIFY changed)
-    Q_PROPERTY(QString coreCapabilityState READ coreCapabilityState NOTIFY changed)
-    Q_PROPERTY(QString keyringCapabilityState READ keyringCapabilityState NOTIFY changed)
+    Q_PROPERTY(QString secretServiceState READ secretServiceState NOTIFY secretServiceStateChanged)
+    Q_PROPERTY(QString coreCapabilityState READ coreCapabilityState NOTIFY packageCapabilityStatesChanged)
+    Q_PROPERTY(QString keyringCapabilityState READ keyringCapabilityState NOTIFY packageCapabilityStatesChanged)
 public:
     QString secretServiceState() const { return QStringLiteral("missing"); }
     QString coreCapabilityState() const { return QStringLiteral("present"); }
     QString keyringCapabilityState() const { return QStringLiteral("present"); }
     int refreshes = 0;
-    Q_INVOKABLE void refresh() { ++refreshes; emit changed(); }
+    Q_INVOKABLE void refresh()
+    {
+        ++refreshes;
+        emit secretServiceStateChanged();
+        emit packageCapabilityStatesChanged();
+    }
+    Q_INVOKABLE void refreshSecretService()
+    {
+        ++secretRefreshes;
+        emit secretServiceStateChanged();
+    }
 Q_SIGNALS:
-    void changed();
+    void secretServiceStateChanged();
+    void packageCapabilityStatesChanged();
+public:
+    int secretRefreshes = 0;
 };
 
 class PresentationLayoutTest final : public QObject
@@ -404,7 +417,8 @@ void PresentationLayoutTest::reportStaysInsideCard()
     auto *dialog = root->findChild<QObject *>(QStringLiteral("reportUnavailableDialog"));
     QVERIFY(dialog);
     QVERIFY(!dialog->property("visible").toBool());
-    QCOMPARE(diagnostics.refreshes, 1);
+    QCOMPARE(probe.secretRefreshes, 1);
+    QCOMPARE(diagnostics.refreshes, 2);
     auto *communityCard = root->findChild<QQuickItem *>(QStringLiteral("communityReportCard"));
     auto *copy = root->findChild<QObject *>(QStringLiteral("copyCommunityReport"));
     QVERIFY(communityCard && copy);

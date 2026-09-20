@@ -86,7 +86,7 @@ class FakeVpnController final : public QObject
     Q_PROPERTY(QString packetCaptureError MEMBER packetCaptureError NOTIFY snapshotChanged)
     Q_PROPERTY(bool packetCaptureActive MEMBER packetCaptureActive NOTIFY snapshotChanged)
     Q_PROPERTY(bool crashReportSubmissionEnabled MEMBER crashReportSubmissionEnabled CONSTANT)
-    Q_PROPERTY(bool telemetryEnabled MEMBER telemetryEnabled CONSTANT)
+    Q_PROPERTY(bool telemetryBuildEnabled MEMBER telemetryBuildEnabled CONSTANT)
     Q_PROPERTY(bool shutdownPending MEMBER shutdownPending NOTIFY snapshotChanged)
     Q_PROPERTY(bool npsSurveySubmissionPending MEMBER npsSurveySubmissionPending NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy MEMBER locationsBusy NOTIFY snapshotChanged)
@@ -112,7 +112,7 @@ public:
     QString packetCaptureError;
     bool packetCaptureActive = false;
     bool crashReportSubmissionEnabled = false;
-    bool telemetryEnabled = false;
+    bool telemetryBuildEnabled = false;
     int captureStartCalls = 0;
     int captureStopCalls = 0;
     bool shutdownPending = false;
@@ -1094,20 +1094,23 @@ Local.PrivacySettingsSection {
 
 void SignInPresentationTest::telemetryControlFollowsCapability_data()
 {
-    QTest::addColumn<bool>("available");
+    QTest::addColumn<bool>("buildEnabled");
+    QTest::addColumn<bool>("runtimeAvailable");
     QTest::addColumn<bool>("preference");
-    QTest::newRow("build-disabled") << false << false;
-    QTest::newRow("available-off") << true << false;
-    QTest::newRow("available-on") << true << true;
+    QTest::newRow("build-disabled") << false << true << false;
+    QTest::newRow("core-unavailable") << true << false << false;
+    QTest::newRow("available-off") << true << true << false;
+    QTest::newRow("available-on") << true << true << true;
 }
 
 void SignInPresentationTest::telemetryControlFollowsCapability()
 {
-    QFETCH(bool, available);
+    QFETCH(bool, buildEnabled);
+    QFETCH(bool, runtimeAvailable);
     QFETCH(bool, preference);
     FakeVpnController controller;
     controller.loggedIn = true;
-    controller.telemetryEnabled = available;
+    controller.telemetryBuildEnabled = buildEnabled;
     QQmlEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("testController"),
                                              &controller);
@@ -1121,6 +1124,7 @@ Local.PrivacySettingsSection {
         property bool packetCaptureSupported: false
         property bool anonymousCrashReports: false
         property bool telemetry: %1
+        property bool telemetryAvailable: %2
         property bool loaded: true
         property bool busy: false
     }
@@ -1128,7 +1132,8 @@ Local.PrivacySettingsSection {
     pageWidth: 800
     width: 800
 }
-)qml").arg(preference ? QStringLiteral("true") : QStringLiteral("false")).toUtf8(),
+)qml").arg(preference ? QStringLiteral("true") : QStringLiteral("false"),
+             runtimeAvailable ? QStringLiteral("true") : QStringLiteral("false")).toUtf8(),
         QUrl::fromLocalFile(QStringLiteral(
             PROTON_VPN_KDE_SOURCE_DIR "/qml/TelemetryControlHarness.qml")));
     QScopedPointer<QObject> page(component.create());
@@ -1136,6 +1141,7 @@ Local.PrivacySettingsSection {
     QObject *toggle = page->findChild<QObject *>(
         QStringLiteral("connectionTelemetrySwitch"));
     QVERIFY(toggle);
+    const bool available = buildEnabled && runtimeAvailable;
     QCOMPARE(toggle->property("enabled").toBool(), available);
     QCOMPARE(toggle->property("checked").toBool(), available && preference);
     if (!available) {

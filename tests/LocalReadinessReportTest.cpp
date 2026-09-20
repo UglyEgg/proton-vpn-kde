@@ -4,6 +4,7 @@
 #include "CommunityReportFormat.h"
 #include "DesktopReadiness.h"
 
+#include <QMetaProperty>
 #include <QtTest>
 
 class LocalReadinessReportTest final : public QObject
@@ -12,10 +13,27 @@ class LocalReadinessReportTest final : public QObject
 
 private Q_SLOTS:
     void secretServiceClassification();
+    void readinessPropertiesHaveIndependentSignals();
     void packageCapabilityParsing();
     void reportContainsOnlyAllowlistedFacts();
     void unavailableStateDoesNotClaimCompatibility();
 };
+
+void LocalReadinessReportTest::readinessPropertiesHaveIndependentSignals()
+{
+    const QMetaObject &meta = DesktopReadiness::staticMetaObject;
+    const QMetaProperty secret = meta.property(
+        meta.indexOfProperty("secretServiceState"));
+    const QMetaProperty core = meta.property(
+        meta.indexOfProperty("coreCapabilityState"));
+    const QMetaProperty keyring = meta.property(
+        meta.indexOfProperty("keyringCapabilityState"));
+
+    QCOMPARE(secret.notifySignal().name(), QByteArray("secretServiceStateChanged"));
+    QCOMPARE(core.notifySignal().name(), QByteArray("packageCapabilityStatesChanged"));
+    QCOMPARE(keyring.notifySignal().name(), QByteArray("packageCapabilityStatesChanged"));
+    QVERIFY(secret.notifySignalIndex() != core.notifySignalIndex());
+}
 
 void LocalReadinessReportTest::secretServiceClassification()
 {
@@ -64,7 +82,8 @@ void LocalReadinessReportTest::reportContainsOnlyAllowlistedFacts()
     facts.snapshotHealthy = true;
     facts.startupCompatible = true;
     facts.coreMemoryOptimized = true;
-    facts.telemetryAvailable = true;
+    facts.telemetryBuildEnabled = true;
+    facts.telemetryRuntimeAvailable = true;
     facts.telemetryPreferenceKnown = true;
     facts.telemetryEnabled = false;
 
