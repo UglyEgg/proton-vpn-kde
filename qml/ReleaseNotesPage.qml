@@ -71,13 +71,13 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("Unreleased 0.14.0 preview. Proton Core still handles your VPN.")
+            description: qsTr("Unreleased 0.14.1 preview. Proton Core still handles your VPN.")
             iconName: "software-properties"
 
             Kirigami.Heading {
                 Layout.fillWidth: true
                 level: 3
-                text: "0.14.0"
+                text: "0.14.1"
             }
 
             ReleaseNoteGroup {
@@ -88,7 +88,8 @@ Kirigami.ScrollablePage {
                     qsTr("Show the VPN exit address reported at connection time, with the device-side address labeled separately when split tunneling is active."),
                     qsTr("Check local Core, backend, package, and Secret Service readiness without opening your secret provider."),
                     qsTr("Preview a small, privacy-bounded community diagnostic report before choosing to copy it; direct Proton submission remains disabled."),
-                    qsTr("Support Proton Core 5.7 on Fedora while keeping optional connection telemetry disabled by default.")
+                    qsTr("Support Proton Core 5.7 on Fedora while keeping optional connection telemetry disabled by default."),
+                    qsTr("Show connection telemetry policy in Settings and community diagnostics; capable builds retain an explicit user-controlled switch.")
                 ]
             }
 

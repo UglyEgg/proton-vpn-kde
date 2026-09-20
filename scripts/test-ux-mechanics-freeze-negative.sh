@@ -158,10 +158,10 @@ sed -i \
     "s/^## \\[Unreleased\\]$/## [$release_fixture_version] - 2099-01-01/" \
     "$release_fixture_dir/CHANGELOG.md"
 sed -i \
-    "s/The unreleased $release_fixture_version_pattern update/The $release_fixture_version release/" \
+    "s/The unreleased $release_fixture_version_pattern preview/The $release_fixture_version release/" \
     "$release_fixture_dir/README.md"
 sed -i \
-    "s/^Release: unreleased $release_fixture_version_pattern$/Release: $release_fixture_version/" \
+    "s/^Release: .*$/Release: $release_fixture_version/" \
     "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
 sed -i \
     's/^Release:[[:space:]]*[1-9][0-9]*%{?dist}$/Release:        0.10%{?dist}/' \

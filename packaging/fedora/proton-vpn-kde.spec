@@ -7,7 +7,7 @@
 %global _buildhost reproducible.invalid
 
 Name:           proton-vpn-kde
-Version:        0.14.0
+Version:        0.14.1
 Release:        0.1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
@@ -142,6 +142,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 0.14.1-0.1
+- Surface connection telemetry policy in Settings and community diagnostics
+- Keep fresh telemetry-capable profiles off until the user explicitly opts in
+
 * Wed Sep 16 2026 uglyegg <uglyegg@entropy.quest> - 0.14.0-0.1
 - Preview connection-time exit-address display and local setup checks
 - Add explicit, privacy-bounded community diagnostic previews

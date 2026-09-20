@@ -66,6 +66,13 @@ void VpnController::updateSetting(const QString &name, const QVariant &value)
             tr("Anonymous crash reporting is disabled in this unofficial community build"));
         return;
     }
+    if (name == QStringLiteral("telemetry")
+        && value.metaType().id() == QMetaType::Bool && value.toBool()
+        && !telemetryEnabled()) {
+        m_settings->setMessage(
+            tr("Connection telemetry is disabled in this community build"));
+        return;
+    }
 
     static const QSet<QString> booleanSettings{
         QStringLiteral("vpnAccelerator"),
@@ -73,6 +80,7 @@ void VpnController::updateSetting(const QString &name, const QVariant &value)
         QStringLiteral("portForwarding"),
         QStringLiteral("ipv6"),
         QStringLiteral("anonymousCrashReports"),
+        QStringLiteral("telemetry"),
     };
     static const QSet<QString> modeSettings{
         QStringLiteral("killSwitch"),

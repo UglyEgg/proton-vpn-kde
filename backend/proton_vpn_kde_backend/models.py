@@ -186,6 +186,7 @@ class VpnSettings:
     port_forwarding: bool = False
     ipv6: bool = True
     anonymous_crash_reports: bool = False
+    telemetry: bool = False
     paid_features_available: bool = False
     protocol_editable: bool = True
     kill_switch_editable: bool = True
@@ -205,6 +206,7 @@ class VpnSettings:
             "portForwarding": self.port_forwarding,
             "ipv6": self.ipv6,
             "anonymousCrashReports": self.anonymous_crash_reports,
+            "telemetry": self.telemetry,
             "paidFeaturesAvailable": self.paid_features_available,
             "protocolEditable": self.protocol_editable,
             "killSwitchEditable": self.kill_switch_editable,
@@ -367,6 +369,7 @@ _SETTING_TYPES: dict[str, type[str] | type[int] | type[bool]] = {
     "portForwarding": bool,
     "ipv6": bool,
     "anonymousCrashReports": bool,
+    "telemetry": bool,
 }
 
 

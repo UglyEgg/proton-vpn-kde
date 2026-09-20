@@ -92,7 +92,9 @@ builds at UI, native, backend, and package-policy boundaries. Optional Core
 connection telemetry is also a default-off build capability. On Core 5.7 the
 adapter disables the live event queue immediately after settings load and
 persists the preference as off on an explicit settings write; a settings read
-does not write the user's settings file.
+does not write the user's settings file. Settings and copied community
+diagnostics disclose the effective policy. A telemetry-capable build exposes
+an explicit preference, with fresh Core profiles projected off until opt-in.
 
 This reporting policy does not block traffic required to authenticate, refresh
 account and server state, establish or maintain a VPN connection, or perform an

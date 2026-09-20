@@ -3667,6 +3667,57 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         api._telemetry_events.enable.assert_not_called()
         api.save_settings.assert_not_awaited()
 
+    async def test_telemetry_capable_build_defaults_fresh_core_profile_off(self):
+        api, _ = self.make_api()
+        persisted = api.load_settings.return_value
+        persisted.telemetry = True
+        api._settings_persistence = SimpleNamespace(_settings_are_default=True)
+        api._telemetry_events = SimpleNamespace(enable=Mock())
+        adapter = self.make_adapter(api, telemetry_enabled=True)
+        await adapter.initialize(Mock())
+
+        current = await adapter.get_settings()
+
+        self.assertFalse(current.telemetry)
+        api._telemetry_events.enable.assert_called_once_with(False)
+        api.save_settings.assert_not_awaited()
+
+    async def test_telemetry_capable_build_persists_explicit_user_opt_in(self):
+        api, _ = self.make_api()
+        persisted = api.load_settings.return_value
+        persisted.telemetry = True
+        api._settings_persistence = SimpleNamespace(_settings_are_default=True)
+        api._telemetry_events = SimpleNamespace(enable=Mock())
+        adapter = self.make_adapter(api, telemetry_enabled=True)
+        await adapter.initialize(Mock())
+
+        updated = await adapter.update_settings({"telemetry": True})
+
+        self.assertTrue(updated.telemetry)
+        self.assertTrue(api.save_settings.await_args.args[0].telemetry)
+
+    async def test_community_build_rejects_telemetry_enable(self):
+        api, _ = self.make_api()
+        api.load_settings.return_value.telemetry = False
+        adapter = self.make_adapter(api)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "disabled in this community build"):
+            await adapter.update_settings({"telemetry": True})
+
+        api.load_settings.assert_not_awaited()
+        api.save_settings.assert_not_awaited()
+
+    async def test_legacy_core_rejects_telemetry_preference_update(self):
+        api, _ = self.make_api()
+        adapter = self.make_adapter(api, telemetry_enabled=True)
+        await adapter.initialize(Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "unavailable with the installed Proton Core"):
+            await adapter.update_settings({"telemetry": False})
+
+        api.save_settings.assert_not_awaited()
+
     async def test_unofficial_build_rejects_crash_reporting_enable(self):
         api, _ = self.make_api()
         adapter = self.make_adapter(api)

@@ -52,7 +52,7 @@ void LocalReadinessReportTest::packageCapabilityParsing()
 void LocalReadinessReportTest::reportContainsOnlyAllowlistedFacts()
 {
     CommunityReportFacts facts;
-    facts.clientVersion = QStringLiteral("0.14.0");
+    facts.clientVersion = QStringLiteral("0.14.1");
     facts.coreVersion = QStringLiteral("5.6.20\npassword=do-not-share");
     facts.osFamily = QStringLiteral("fedora\n/home/private");
     facts.qtVersion = QStringLiteral("6.10.2");
@@ -64,11 +64,15 @@ void LocalReadinessReportTest::reportContainsOnlyAllowlistedFacts()
     facts.snapshotHealthy = true;
     facts.startupCompatible = true;
     facts.coreMemoryOptimized = true;
+    facts.telemetryAvailable = true;
+    facts.telemetryPreferenceKnown = true;
+    facts.telemetryEnabled = false;
 
     const QString report = formatCommunityReport(facts);
-    QVERIFY(report.contains(QStringLiteral("Client version: 0.14.0")));
+    QVERIFY(report.contains(QStringLiteral("Client version: 0.14.1")));
     QVERIFY(report.contains(QStringLiteral("Core startup check: compatible")));
     QVERIFY(report.contains(QStringLiteral("Core memory overlay: detected")));
+    QVERIFY(report.contains(QStringLiteral("Connection telemetry: disabled")));
     QVERIFY(!report.contains(QStringLiteral("do-not-share")));
     QVERIFY(!report.contains(QStringLiteral("/home/private")));
     QVERIFY(!report.contains(QStringLiteral("203.0.113.8")));
@@ -82,7 +86,7 @@ void LocalReadinessReportTest::reportContainsOnlyAllowlistedFacts()
 void LocalReadinessReportTest::unavailableStateDoesNotClaimCompatibility()
 {
     CommunityReportFacts facts;
-    facts.clientVersion = QStringLiteral("0.14.0");
+    facts.clientVersion = QStringLiteral("0.14.1");
     facts.coreVersion = QStringLiteral("5.6.20");
     facts.osFamily = QStringLiteral("fedora");
     facts.qtVersion = QStringLiteral("6.10.2");
@@ -96,6 +100,8 @@ void LocalReadinessReportTest::unavailableStateDoesNotClaimCompatibility()
     QVERIFY(report.contains(QStringLiteral("Core startup check: not checked")));
     QVERIFY(report.contains(QStringLiteral("Core memory overlay: not checked")));
     QVERIFY(report.contains(QStringLiteral("Secret Service advertised: activatable")));
+    QVERIFY(report.contains(
+        QStringLiteral("Connection telemetry: disabled by build policy")));
 }
 
 QTEST_GUILESS_MAIN(LocalReadinessReportTest)

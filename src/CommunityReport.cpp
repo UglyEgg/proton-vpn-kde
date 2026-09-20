@@ -6,6 +6,7 @@
 #include "CommunityReportFormat.h"
 #include "DesktopReadiness.h"
 #include "VpnController.h"
+#include "VpnSettingsModel.h"
 
 #include <QClipboard>
 #include <QCoreApplication>
@@ -40,6 +41,9 @@ void CommunityReport::refresh()
         m_controller->snapshotHealthy(),
         m_controller->startupCompatible(),
         m_controller->coreMemoryOptimized(),
+        m_controller->telemetryEnabled(),
+        m_controller->settings()->loaded(),
+        m_controller->settings()->telemetry(),
     };
     m_preview = formatCommunityReport(facts);
     emit changed();

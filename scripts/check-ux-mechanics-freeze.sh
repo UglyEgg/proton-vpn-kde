@@ -72,7 +72,7 @@ while IFS= read -r path; do
 
     case "$path" in
         .github/workflows/ci.yml|CHANGELOG.md|CONTRIBUTING.md|README.md|\
-        SECURITY.md|THIRD_PARTY_NOTICES.md|docs/*|\
+        SECURITY.md|SUPPORT.md|THIRD_PARTY_NOTICES.md|docs/*|\
         packaging/fedora/README.md|packaging/fedora/api-core-overlay/README.md|\
         qml/*)
             ;;
@@ -95,6 +95,7 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/async_utils.py|\
         backend/proton_vpn_kde_backend/client_authorization.py|\
         backend/proton_vpn_kde_backend/controller.py|\
+        backend/proton_vpn_kde_backend/core_settings.py|\
         backend/proton_vpn_kde_backend/demo_adapter.py|\
         backend/proton_vpn_kde_backend/core_compatibility.py|\
         backend/proton_vpn_kde_backend/core_snapshot.py|\
@@ -102,11 +103,14 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/dbus_contract.py|\
         backend/proton_vpn_kde_backend/dbus_service.py|\
         backend/proton_vpn_kde_backend/errors.py|\
+        backend/proton_vpn_kde_backend/features.py|\
         backend/proton_vpn_kde_backend/fido_interaction.py|\
         backend/proton_vpn_kde_backend/lifetime.py|\
+        backend/proton_vpn_kde_backend/models.py|\
         backend/proton_vpn_kde_backend/packet_capture.py|\
         backend/proton_vpn_kde_backend/reconnector.py|\
         backend/proton_vpn_kde_backend/refresher_events.py|\
+        backend/proton_vpn_kde_backend/snapshot_contract.py|\
         backend/proton_vpn_kde_backend/task_scope.py|\
         backend/tests/test_account_transition.py|\
         backend/tests/test_async_utils.py|\
@@ -123,7 +127,8 @@ while IFS= read -r path; do
         backend/tests/test_search_projection.py|\
         backend/tests/test_task_scope.py|\
         data/proton-vpn-kde-backend.service.in|\
-        data/snapshot-schema-v1.json.license|\
+        data/snapshot-schema-v1.json.license|data/snapshot-schema-v2.json|\
+        data/snapshot-schema-v2.json.license|\
         data/dbus/quest.entropy.PlasmaVPN.Backend1.xml|\
         packaging/fedora/api-core-overlay/rebuild_overlay.py|\
         packaging/fedora/api-core-overlay/build_overlay_rpm.sh|\
@@ -131,6 +136,7 @@ while IFS= read -r path; do
         packaging/fedora/api-core-overlay/overlay-manifest.json.license|\
         packaging/fedora/api-core-overlay/python3-proton-vpn-api-core-overlay.spec|\
         packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch|\
+        packaging/fedora/api-core-overlay/patches/0003-avoid-deprecated-fido2-capability-query.patch|\
         packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py|\
         packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py|\
         packaging/fedora/core-compatibility.json|\
@@ -154,7 +160,11 @@ while IFS= read -r path; do
         src/AutostartSettings.cpp|src/AutostartSettings.h|\
         src/BackendCallPolicy.h|src/BackgroundQuitCoordinator.cpp|\
         src/ConnectionAction.h|src/OperationCompletion.h|src/ShortcutIntegration.cpp|\
-        src/SettingsRequestState.h|src/VpnSettingsModel.cpp|\
+        src/CommunityReport.cpp|src/CommunityReport.h|\
+        src/CommunityReportFormat.cpp|src/CommunityReportFormat.h|\
+        src/DesktopReadiness.cpp|src/DesktopReadiness.h|\
+        src/SettingsRequestState.h|src/VpnSettingsModel.cpp|src/VpnSettingsModel.h|\
+        src/SnapshotContract.generated.h|\
         src/SplitTunnelingModel.cpp|src/CustomDnsModel.cpp|\
         src/VpnConnectionController.h|\
         src/DbusContract.h|\
@@ -168,6 +178,8 @@ while IFS= read -r path; do
         tests/BackendIdentityTest.cpp|tests/NotificationIntegrationTest.cpp|\
         tests/AppSettingsTest.cpp|\
         tests/ControlCenterControlTest.cpp|\
+        tests/LocalReadinessReportTest.cpp|tests/SnapshotContractTest.cpp|\
+        tests/SnapshotTestData.h|\
         tests/ProtonVpnKcmTest.cpp|\
         tests/PresentationLayoutTest.cpp|\
         tests/BackendCallPolicyTest.cpp|tests/BackgroundQuitCoordinatorTest.cpp|\
@@ -184,6 +196,7 @@ while IFS= read -r path; do
         scripts/check-compatibility-metadata.py|scripts/check-spdx-headers.py|\
         scripts/check-core-compatibility.sh|\
         scripts/check-core-contract.py|\
+        scripts/generate-snapshot-contract.py|\
         scripts/check-native-startup.py|\
         scripts/smoke-control-center-activation.sh|\
         scripts/check-release-metadata.sh|scripts/check-rpm-artifact.sh|\
@@ -203,36 +216,41 @@ while IFS= read -r path; do
 done <<<"$changed_files"
 
 if ((${#violations[@]} > 0)); then
-    echo "Files outside the reviewed 0.13 change boundary changed:" >&2
+    echo "Files outside the reviewed 0.14 change boundary changed:" >&2
     printf '  %s\n' "${violations[@]}" >&2
     echo "Move behavioral work to a separate release or deliberately rebaseline after review." >&2
     exit 1
 fi
 
 assert_diff_hash \
-    "5099eaec1373003d355aa2e4ac5a671158928ab5dabf68ff8e2c1ef9ac97b89e" \
+    "4f2d88b81dce5de8818f83df23f58c75e6f492b4e38d2187745810e4768dfe7f" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
     "Python dependency floor" backend/requirements-minimum.txt
 assert_diff_hash \
-    "33e47856bc6318f949b520a787b98d7e9689bdb1cd7db3dab2b728eaf83fe754" \
+    "4b02e3bfd6f19af7466f46e0d0a7bc191eeb6ba35c8ece7f38d2578cf2862f4f" \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "d31d11592c1475f937af240d49ed7f48ab4636c031e8b66a3035726e8ba98790" \
+    "d76c3cece4a6c943de660c45b6e648be7b8e8eaef301a9831d553a9a57bbe42a" \
     "backend ownership and recovery" \
-    backend/proton_vpn_kde_backend backend/tests
+    backend/proton_vpn_kde_backend backend/tests \
+    data/snapshot-schema-v2.json data/snapshot-schema-v2.json.license \
+    scripts/generate-snapshot-contract.py \
+    src/SnapshotContract.generated.h tests/SnapshotContractTest.cpp \
+    tests/SnapshotTestData.h
 assert_diff_hash \
-    "343f5c4f7f02f92493baff7f087baa3aa684700984477c956ad61103bd7138be" \
+    "05de4ddc199b18b58565ff196fbc2c070f4a916c90f46884d0f098a9e0f65481" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
+    packaging/fedora/api-core-overlay/patches/0003-avoid-deprecated-fido2-capability-query.patch \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
 assert_diff_hash \
-    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
+    "5de064928602ca45f28c6c6a3b06e274d5b7b825c9d2d4cbeb7e61ced635753f" \
     "protection activation overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -240,7 +258,7 @@ assert_diff_hash \
     packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch \
     packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py
 assert_diff_hash \
-    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
+    "2767d7621c543ec536b3d9798a9e80b97c76dd061f7f46ffb41fc4dcefb49eb7" \
     "finite process-stop packaging" \
     data/proton-vpn-kde-backend.service.in \
     scripts/check-rpm-artifact.sh scripts/smoke-staged-install.sh
@@ -250,7 +268,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "368a1168421a46ce5b84dc0253ead13922a640f55de2c5f8803681f9c28d2db9" \
+    "5ab1513d3524b151f631078f436bd02630121ad94666fef785f0917f2dd5965f" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
@@ -260,15 +278,15 @@ assert_diff_hash \
     "f3b160619e649871b9450995ef5b65024aa8838a5437368888a64bb20138567d" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "8bdddf9767e2b95aeddefabeb2303134b2766175b258954fe2732ad0c339c947" \
+    "d5bb4925afb1f9f0b5937e61db7b073d34dd4773969e6121d29e158f6a80d21c" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "b2d3b66467ce0284c2739f848a81d3e91b2e3a80c5db40a2ad50229bc4197975" \
+    "f91d716464dc5df5ab5f67dd894d5f01a750c5fb6a390fd2556564559a79fdb0" \
     "QML presentation" qml
 
 assert_diff_hash \
-    "8ab84aa0ea1f21a3007c55b8ffeda538dc2f29cdb11ce6018b562cfde63de501" \
+    "ead5030950f649e7a5040b66cef6406c626f1966408a77c4aa71e58f917cf369" \
     "licensing and upstream provenance" \
     .editorconfig .gitattributes .gitignore \
     backend/proton-vpn-kde-backend.in \
@@ -283,7 +301,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "85768fcaa9ca126053c3fa62db22e8b62e26db6a624188bc3ff47aea60a9d153" \
+    "fbb0c7e34d2848c67a735691b83ec01277f7a02cc3e20bdaecef5f1146528b7a" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \
@@ -304,4 +322,4 @@ assert_diff_hash \
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "unambiguous desktop icon" data/proton-vpn-kde.desktop.in
 
-echo "0.13 release-line candidate matches published baseline $baseline_commit plus recorded deltas (not review approval)"
+echo "0.14 preview candidate matches published baseline $baseline_commit plus recorded deltas (not review approval)"

@@ -50,6 +50,7 @@ def vpn_settings_from_core(
         port_forwarding=bool(settings.features.port_forwarding),
         ipv6=bool(settings.ipv6),
         anonymous_crash_reports=bool(settings.anonymous_crash_reports),
+        telemetry=bool(getattr(settings, "telemetry", False)),
         paid_features_available=user_tier >= 1,
         protocol_editable=disconnected,
         kill_switch_editable=disconnected,

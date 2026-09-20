@@ -86,6 +86,7 @@ class FakeVpnController final : public QObject
     Q_PROPERTY(QString packetCaptureError MEMBER packetCaptureError NOTIFY snapshotChanged)
     Q_PROPERTY(bool packetCaptureActive MEMBER packetCaptureActive NOTIFY snapshotChanged)
     Q_PROPERTY(bool crashReportSubmissionEnabled MEMBER crashReportSubmissionEnabled CONSTANT)
+    Q_PROPERTY(bool telemetryEnabled MEMBER telemetryEnabled CONSTANT)
     Q_PROPERTY(bool shutdownPending MEMBER shutdownPending NOTIFY snapshotChanged)
     Q_PROPERTY(bool npsSurveySubmissionPending MEMBER npsSurveySubmissionPending NOTIFY snapshotChanged)
     Q_PROPERTY(bool locationsBusy MEMBER locationsBusy NOTIFY snapshotChanged)
@@ -111,6 +112,7 @@ public:
     QString packetCaptureError;
     bool packetCaptureActive = false;
     bool crashReportSubmissionEnabled = false;
+    bool telemetryEnabled = false;
     int captureStartCalls = 0;
     int captureStopCalls = 0;
     bool shutdownPending = false;
@@ -125,6 +127,9 @@ public:
     QStringList connectedGroup;
     QString serverFilter;
     QStringListModel emptyServerModel;
+    QString lastSetting;
+    QVariant lastSettingValue;
+    int settingsUpdateCalls = 0;
 
     [[nodiscard]] bool primaryActionEnabled() const
     {
@@ -172,6 +177,12 @@ public:
     Q_INVOKABLE void connectGroupWithFeatures(
         const QString &, const QString &, const QString &, const QStringList &) { }
     Q_INVOKABLE void connectServer(const QString &) { ++connectCalls; }
+    Q_INVOKABLE void updateSetting(const QString &name, const QVariant &value)
+    {
+        ++settingsUpdateCalls;
+        lastSetting = name;
+        lastSettingValue = value;
+    }
 
     [[nodiscard]] QAbstractItemModel *serverModel()
     {
@@ -225,6 +236,8 @@ private slots:
     void serverEmptyStateExplainsActiveFilters();
     void captureActionPreservesCleanupAdmission_data();
     void captureActionPreservesCleanupAdmission();
+    void telemetryControlFollowsCapability_data();
+    void telemetryControlFollowsCapability();
 
 private:
     QObject *createComponent(QQmlEngine &engine, FakeVpnController &controller,
@@ -1051,6 +1064,7 @@ Local.PrivacySettingsSection {
     vpnSettings: QtObject {
         property bool packetCaptureSupported: true
         property bool anonymousCrashReports: false
+        property bool telemetry: false
         property bool loaded: true
         property bool busy: false
     }
@@ -1076,6 +1090,63 @@ Local.PrivacySettingsSection {
     controller.backendAvailable = false;
     emit controller.snapshotChanged();
     QVERIFY(!button->property("enabled").toBool());
+}
+
+void SignInPresentationTest::telemetryControlFollowsCapability_data()
+{
+    QTest::addColumn<bool>("available");
+    QTest::addColumn<bool>("preference");
+    QTest::newRow("build-disabled") << false << false;
+    QTest::newRow("available-off") << true << false;
+    QTest::newRow("available-on") << true << true;
+}
+
+void SignInPresentationTest::telemetryControlFollowsCapability()
+{
+    QFETCH(bool, available);
+    QFETCH(bool, preference);
+    FakeVpnController controller;
+    controller.loggedIn = true;
+    controller.telemetryEnabled = available;
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty(QStringLiteral("testController"),
+                                             &controller);
+    QQmlComponent component(&engine);
+    component.setData(QStringLiteral(R"qml(
+import QtQuick
+import "." as Local
+Local.PrivacySettingsSection {
+    vpnController: testController
+    vpnSettings: QtObject {
+        property bool packetCaptureSupported: false
+        property bool anonymousCrashReports: false
+        property bool telemetry: %1
+        property bool loaded: true
+        property bool busy: false
+    }
+    appSettings: QtObject { property string packetCaptureDirectory: "/tmp" }
+    pageWidth: 800
+    width: 800
+}
+)qml").arg(preference ? QStringLiteral("true") : QStringLiteral("false")).toUtf8(),
+        QUrl::fromLocalFile(QStringLiteral(
+            PROTON_VPN_KDE_SOURCE_DIR "/qml/TelemetryControlHarness.qml")));
+    QScopedPointer<QObject> page(component.create());
+    QVERIFY2(page, qPrintable(component.errorString()));
+    QObject *toggle = page->findChild<QObject *>(
+        QStringLiteral("connectionTelemetrySwitch"));
+    QVERIFY(toggle);
+    QCOMPARE(toggle->property("enabled").toBool(), available);
+    QCOMPARE(toggle->property("checked").toBool(), available && preference);
+    if (!available) {
+        return;
+    }
+
+    toggle->setProperty("checked", !preference);
+    QVERIFY(QMetaObject::invokeMethod(toggle, "clicked"));
+    QCOMPARE(controller.settingsUpdateCalls, 1);
+    QCOMPARE(controller.lastSetting, QStringLiteral("telemetry"));
+    QCOMPARE(controller.lastSettingValue.toBool(), !preference);
 }
 
 QTEST_MAIN(SignInPresentationTest)

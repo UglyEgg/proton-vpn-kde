@@ -46,7 +46,7 @@ class ReportDiagnosticsPreview final : public QObject
     Q_OBJECT
     Q_PROPERTY(QString preview READ preview NOTIFY changed)
 public:
-    QString preview() const { return QStringLiteral("Plasma VPN community diagnostics\nClient version: 0.14.0"); }
+    QString preview() const { return QStringLiteral("Plasma VPN community diagnostics\nClient version: 0.14.1"); }
     int refreshes = 0;
     int copies = 0;
     Q_INVOKABLE void refresh() { ++refreshes; emit changed(); }

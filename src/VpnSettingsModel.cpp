@@ -54,6 +54,7 @@ bool VpnSettingsModel::moderateNat() const { return m_moderateNat; }
 bool VpnSettingsModel::portForwarding() const { return m_portForwarding; }
 bool VpnSettingsModel::ipv6() const { return m_ipv6; }
 bool VpnSettingsModel::anonymousCrashReports() const { return m_anonymousCrashReports; }
+bool VpnSettingsModel::telemetry() const { return m_telemetry; }
 bool VpnSettingsModel::paidFeaturesAvailable() const { return m_paidFeaturesAvailable; }
 bool VpnSettingsModel::protocolEditable() const { return m_protocolEditable; }
 bool VpnSettingsModel::killSwitchEditable() const { return m_killSwitchEditable; }
@@ -132,6 +133,7 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
     bool portForwarding = false;
     bool ipv6 = false;
     bool anonymousCrashReports = false;
+    bool telemetry = false;
     bool paidFeaturesAvailable = false;
     bool protocolEditable = false;
     bool killSwitchEditable = false;
@@ -145,6 +147,7 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
         || !readBoolean(object, QStringLiteral("portForwarding"), &portForwarding)
         || !readBoolean(object, QStringLiteral("ipv6"), &ipv6)
         || !readBoolean(object, QStringLiteral("anonymousCrashReports"), &anonymousCrashReports)
+        || !readBoolean(object, QStringLiteral("telemetry"), &telemetry)
         || !readBoolean(object, QStringLiteral("paidFeaturesAvailable"), &paidFeaturesAvailable)
         || !readBoolean(object, QStringLiteral("protocolEditable"), &protocolEditable)
         || !readBoolean(object, QStringLiteral("killSwitchEditable"), &killSwitchEditable)
@@ -164,6 +167,7 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
     m_portForwarding = portForwarding;
     m_ipv6 = ipv6;
     m_anonymousCrashReports = anonymousCrashReports;
+    m_telemetry = telemetry;
     m_paidFeaturesAvailable = paidFeaturesAvailable;
     m_protocolEditable = protocolEditable;
     m_killSwitchEditable = killSwitchEditable;

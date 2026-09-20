@@ -67,6 +67,11 @@ QString formatCommunityReport(const CommunityReportFacts &facts)
     const QString errorCode = facts.errorCode.isEmpty()
         ? QStringLiteral("none")
         : safeState(facts.errorCode, errorCodes);
+    const QString telemetry = !facts.telemetryAvailable
+        ? QStringLiteral("disabled by build policy")
+        : !facts.telemetryPreferenceKnown ? QStringLiteral("not checked")
+        : facts.telemetryEnabled ? QStringLiteral("enabled by user")
+                                 : QStringLiteral("disabled");
 
     return QStringList{
         QStringLiteral("Plasma VPN community diagnostics"),
@@ -81,5 +86,6 @@ QString formatCommunityReport(const CommunityReportFacts &facts)
         QStringLiteral("VPN state: %1").arg(safeState(facts.vpnState, vpnStates)),
         QStringLiteral("Error code: %1").arg(errorCode),
         QStringLiteral("Core memory overlay: %1").arg(memoryOverlay),
+        QStringLiteral("Connection telemetry: %1").arg(telemetry),
     }.join(QLatin1Char('\n'));
 }

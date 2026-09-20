@@ -3,7 +3,7 @@
 Last updated: 2026-09-13
 Release: 0.13.1
 
-The unreleased 0.14.0 preview is outside this release assessment. Its new
+The unreleased 0.14.1 preview is outside this release assessment. Its new
 connection-address presentation, local setup checks, and community diagnostic
 preview have focused tests, but have not completed the seven-perspective
 release review or installed acceptance.

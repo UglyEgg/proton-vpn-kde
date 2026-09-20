@@ -1660,6 +1660,23 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn('"anonymousCrashReports":true', updated)
 
+    async def test_community_build_rejects_telemetry_enable(self):
+        with self.assertRaisesRegex(RuntimeError, "disabled in this community build"):
+            await self.controller.update_settings_json('{"telemetry":true}')
+
+        unchanged = await self.controller.get_settings_json()
+        self.assertIn('"telemetry":false', unchanged)
+
+    async def test_telemetry_capable_build_allows_user_preference(self):
+        controller = BackendController(
+            DemoCoreAdapter(), telemetry_enabled=True
+        )
+        self.assertTrue(await controller.start())
+
+        updated = await controller.update_settings_json('{"telemetry":true}')
+
+        self.assertIn('"telemetry":true', updated)
+
     async def test_settings_patch_rejects_unknown_and_wrong_typed_values(self):
         with self.assertRaisesRegex(ValueError, "unsupported field"):
             settings_patch_from_json('{"password":"must-not-be-accepted"}')
@@ -1667,6 +1684,10 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             settings_patch_from_json('{"killSwitch":true}')
         with self.assertRaisesRegex(ValueError, "valid NetShield"):
             settings_patch_from_json('{"netShield":9}')
+        self.assertEqual(
+            {"telemetry": False},
+            settings_patch_from_json('{"telemetry":false}'),
+        )
 
     async def test_split_tunneling_payload_updates_and_syncs_scalar_settings(self):
         events = []

@@ -3,7 +3,7 @@
 ## Supported release baseline
 
 Plasma VPN 0.13.1 is the current public package release. The table tracks the
-unreleased 0.14.0 preview: Fedora now targets Proton API Core 5.7.0, while
+unreleased 0.14.1 preview: Fedora now targets Proton API Core 5.7.0, while
 Ubuntu retains its package-validated 5.6.10 baseline. The Fedora overlay has
 passed clean build and offline behavior checks but not installed acceptance.
 Ubuntu 26.04 remains package-validated rather than live-supported until
@@ -64,8 +64,11 @@ Core 5.7 adds connection-outcome telemetry and defaults its persisted setting
 to enabled. Community client builds default this optional reporting capability
 off, disable Core's live event queue immediately after every settings load,
 and persist the preference as off on the next explicit settings write. Pure
-reads do not rewrite the settings file. Required Proton service traffic is not
-disabled.
+reads do not rewrite the settings file. The policy is visible in Settings and
+copied community diagnostics. A telemetry-capable build exposes the Core
+preference as a user switch; fresh settings profiles remain off until the user
+explicitly opts in, while existing persisted Proton preferences are respected.
+Required Proton service traffic is not disabled.
 
 The 5.5.6 compatibility fixture is static public-API lint only. It extracts a
 SHA-256-pinned RPM but never imports Core, reads credentials, or touches

@@ -23,6 +23,7 @@ const auto kValidSettings = R"json({
     "portForwarding": false,
     "ipv6": true,
     "anonymousCrashReports": false,
+    "telemetry": true,
     "paidFeaturesAvailable": true,
     "protocolEditable": true,
     "killSwitchEditable": true,
@@ -105,6 +106,7 @@ void VpnSettingsModelTest::appliesVersionedSettingsAtomically()
     QCOMPARE(model.netShield(), 2);
     QVERIFY(model.vpnAccelerator());
     QVERIFY(!model.anonymousCrashReports());
+    QVERIFY(model.telemetry());
     QVERIFY(model.paidFeaturesAvailable());
     QVERIFY(model.packetCaptureSupported());
     QCOMPARE(changed.count(), 1);

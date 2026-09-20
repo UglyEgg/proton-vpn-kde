@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proton-vpn-kde-backend"
-version = "0.14.0"
+version = "0.14.1"
 description = "Headless Proton VPN core service for the KDE Plasma frontend"
 requires-python = ">=3.11"
 dependencies = ["cryptography>=50.0.0", "dbus-fast>=2.20"]

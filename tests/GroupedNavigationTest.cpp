@@ -350,6 +350,7 @@ public slots:
             "portForwarding":false,
             "ipv6":true,
             "anonymousCrashReports":true,
+            "telemetry":false,
             "paidFeaturesAvailable":true,
             "protocolEditable":true,
             "killSwitchEditable":true,
@@ -2725,6 +2726,18 @@ void GroupedNavigationTest::telemetryFollowsBuildPolicy()
     VpnController controller(nullptr, false);
     const bool telemetryEnabled = PROTON_VPN_KDE_TELEMETRY_ENABLED != 0;
     QCOMPARE(controller.telemetryEnabled(), telemetryEnabled);
+    if (telemetryEnabled) {
+        return;
+    }
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.settings()->loaded(), 2000);
+    controller.updateSetting(QStringLiteral("telemetry"), true);
+
+    QVERIFY(controller.settings()->message().contains(
+        QStringLiteral("disabled"), Qt::CaseInsensitive));
 }
 
 QTEST_MAIN(GroupedNavigationTest)

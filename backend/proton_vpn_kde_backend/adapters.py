@@ -559,7 +559,15 @@ class ProtonCoreAdapter:
             raise UserVisibleRuntimeError(
                 "Anonymous crash reporting is disabled in this unofficial community build"
             )
+        if patch.get("telemetry") is True and not self._telemetry_enabled:
+            raise UserVisibleRuntimeError(
+                "Connection telemetry is disabled in this community build"
+            )
         settings = await self._load_settings(authentication_epoch)
+        if "telemetry" in patch and not hasattr(settings, "telemetry"):
+            raise UserVisibleRuntimeError(
+                "Connection telemetry is unavailable with the installed Proton Core"
+            )
         state_name = type(self._connector.current_state).__name__.lower()
         if state_name != "disconnected" and ({"protocol", "killSwitch"} & set(patch)):
             raise UserVisibleRuntimeError(
@@ -617,6 +625,7 @@ class ProtonCoreAdapter:
             settings.features.port_forwarding,
             settings.ipv6,
             settings.anonymous_crash_reports,
+            getattr(settings, "telemetry", None),
         )
 
         def rollback() -> None:
@@ -629,7 +638,10 @@ class ProtonCoreAdapter:
                 settings.features.port_forwarding,
                 settings.ipv6,
                 settings.anonymous_crash_reports,
+                previous_telemetry,
             ) = previous_values
+            if previous_telemetry is not None:
+                settings.telemetry = previous_telemetry
 
         for key, value in patch.items():
             if key == "protocol":
@@ -648,6 +660,8 @@ class ProtonCoreAdapter:
                 settings.ipv6 = value
             elif key == "anonymousCrashReports":
                 settings.anonymous_crash_reports = value
+            elif key == "telemetry":
+                settings.telemetry = value
 
         self._require_authenticated_epoch(authentication_epoch)
         await self._save_settings_transactionally(
@@ -655,6 +669,7 @@ class ProtonCoreAdapter:
             rollback,
             protection_sensitive="killSwitch" in patch,
             authentication_epoch=authentication_epoch,
+            telemetry_explicit="telemetry" in patch,
         )
         self._kill_switch = self._kill_switch_value(settings)
         return self._settings_from_core(settings)
@@ -815,15 +830,25 @@ class ProtonCoreAdapter:
         self._apply_telemetry_policy(settings)
         return settings
 
-    def _apply_telemetry_policy(self, settings: Any) -> None:
+    def _apply_telemetry_policy(
+        self, settings: Any, *, explicit_preference: bool = False
+    ) -> None:
         """Keep optional Core telemetry off unless this client opts in."""
-        if self._telemetry_enabled or not hasattr(settings, "telemetry"):
+        if not hasattr(settings, "telemetry"):
             return
 
+        if self._telemetry_enabled and explicit_preference:
+            return
+        if self._telemetry_enabled:
+            persistence = getattr(self._api, "_settings_persistence", None)
+            if getattr(persistence, "_settings_are_default", False) is False:
+                return
+
         # Core 5.7 mirrors the stored value into its event queue while loading
-        # settings. Mutating this detached settings copy does not persist it;
-        # explicitly disable the queue as well so a read cannot enable
-        # connection-event reporting for the lifetime of this process.
+        # settings. A community build always disables it. A telemetry-capable
+        # build also projects a fresh Core profile as off until the first
+        # explicit settings write; existing persisted Proton preferences remain
+        # authoritative. Mutating this detached copy does not persist it.
         settings.telemetry = False
         telemetry_events = getattr(self._api, "_telemetry_events", None)
         enable = getattr(telemetry_events, "enable", None)
@@ -831,7 +856,11 @@ class ProtonCoreAdapter:
             enable(False)
 
     async def _save_settings(
-        self, settings: Any, authentication_epoch: int | None = None
+        self,
+        settings: Any,
+        authentication_epoch: int | None = None,
+        *,
+        telemetry_explicit: bool = False,
     ) -> None:
         request_epoch = (
             self._authentication_epoch
@@ -844,7 +873,9 @@ class ProtonCoreAdapter:
             # place to persist this community build's disabled-reporting
             # policy. Pure reads never write the whole Core settings object.
             settings.anonymous_crash_reports = False
-        self._apply_telemetry_policy(settings)
+        self._apply_telemetry_policy(
+            settings, explicit_preference=telemetry_explicit
+        )
         try:
             await self._api.save_settings(settings)
         except Exception as error:
@@ -862,6 +893,7 @@ class ProtonCoreAdapter:
         *,
         protection_sensitive: bool = False,
         authentication_epoch: int | None = None,
+        telemetry_explicit: bool = False,
     ) -> None:
         async with self._serialized_authentication_transition():
             await self._save_settings_transactionally_with_authentication_barrier(
@@ -869,6 +901,7 @@ class ProtonCoreAdapter:
                 rollback,
                 protection_sensitive=protection_sensitive,
                 authentication_epoch=authentication_epoch,
+                telemetry_explicit=telemetry_explicit,
             )
 
     async def _save_settings_transactionally_with_authentication_barrier(
@@ -878,11 +911,16 @@ class ProtonCoreAdapter:
         *,
         protection_sensitive: bool,
         authentication_epoch: int | None,
+        telemetry_explicit: bool,
     ) -> None:
         """Compensate a user setting write whose commit status is ambiguous."""
 
         save_task = self._create_owned_child_task(
-            self._save_settings(settings, authentication_epoch),
+            self._save_settings(
+                settings,
+                authentication_epoch,
+                telemetry_explicit=telemetry_explicit,
+            ),
             authentication=True,
         )
         original_error: BaseException | None = None
@@ -912,6 +950,7 @@ class ProtonCoreAdapter:
                 save_task,
                 protection_sensitive=protection_sensitive,
                 authentication_epoch=authentication_epoch,
+                telemetry_explicit=telemetry_explicit,
             ),
             authentication=True,
         )
@@ -945,6 +984,7 @@ class ProtonCoreAdapter:
         *,
         protection_sensitive: bool,
         authentication_epoch: int | None,
+        telemetry_explicit: bool,
     ) -> bool:
         completed, _ = await asyncio.wait(
             (save_task,), timeout=LOGOUT_RECOVERY_TIMEOUT_SECONDS
@@ -970,7 +1010,11 @@ class ProtonCoreAdapter:
         try:
             async with asyncio.timeout(LOGOUT_RECOVERY_TIMEOUT_SECONDS):
                 outcome = await join_owned(self._create_owned_child_task(
-                    self._save_settings(settings, authentication_epoch),
+                    self._save_settings(
+                        settings,
+                        authentication_epoch,
+                        telemetry_explicit=telemetry_explicit,
+                    ),
                     authentication=True,
                 ))
                 # Expiry reconciled by the write's owner stays authoritative

@@ -13,6 +13,9 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 - Keep Core 5.7's optional connection telemetry disabled by default in
   community builds, both in the live event queue and on explicit settings
   writes. Necessary Proton account, server, and VPN traffic is unchanged.
+- Surface telemetry availability and state in Settings and copied community
+  diagnostics. Telemetry-capable builds expose an explicit switch; fresh Core
+  profiles remain off until the user opts in.
 
 ### Connection insight
 

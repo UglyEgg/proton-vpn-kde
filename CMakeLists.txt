@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.14.0 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.14.1 LANGUAGES CXX)
 set(PROJECT_HOMEPAGE_URL "https://github.com/uglyegg/proton-vpn-kde")
 
 option(

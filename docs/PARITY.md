@@ -40,7 +40,7 @@ Proton's official core.
 | Troubleshooting capture | Choose folder and start/stop capture for supported protocols | Native folder chooser, consent warning, and official protocol capture implementation | Complete |
 | Issue reporting | Submit support form with optional logs | Reviewed Proton submission proof of concept retained behind a default-off build capability; a separate community flow previews and copies only allowlisted local diagnostics before opening the project tracker | Deliberately disabled for Proton; community flow available |
 | Anonymous crash reporting | Optional automatic reports to Proton's Sentry endpoint | Default-off build capability; community builds disable the runtime sender, always present the preference as off, persist it during explicit settings writes, and direct client crashes to the project tracker | Deliberately disabled |
-| Connection telemetry | Optional Core 5.7 connection-outcome events to Proton's stats endpoint | Default-off build capability; community builds disable Core's live event queue after each settings load and persist the preference as off during explicit settings writes | Deliberately disabled |
+| Connection telemetry | Optional Core 5.7 connection-outcome events to Proton's stats endpoint | Visible default-off build capability and state; community builds lock the switch off, disable Core's live event queue after each settings load, and persist the preference as off during explicit settings writes. Telemetry-capable builds expose the user preference | Deliberately disabled in community packages |
 | Release information | About and release-notes views | Native Help & information hub with on-demand Release Notes | Complete |
 | Update channel | Stable/Beta repository choice | Exact-package Polkit action; Discover remains responsible for updates | Native equivalent |
 | Account/help links | Create, manage, support, upgrade, and setup guidance | Official URLs opened through the desktop URL handler | Complete |
@@ -81,8 +81,10 @@ Proton's official core.
 - Optional Core connection telemetry is independently compile-time disabled.
   Core 5.7 enables its queue while loading a stored preference, so the adapter
   immediately disables that queue without writing during a read and persists
-  the preference as off on the next explicit settings write. An approved
-  distribution may enable it with `PROTON_VPN_KDE_ENABLE_TELEMETRY`.
+  the preference as off on the next explicit settings write. Settings and the
+  copied community report disclose the effective policy. An approved
+  distribution may enable the user-controlled switch with
+  `PROTON_VPN_KDE_ENABLE_TELEMETRY`; fresh Core profiles still start off.
 - A resident Plasma agent, global shortcuts, KRunner actions, a System Settings
   module, and native notifications extend rather than replace official behavior.
 

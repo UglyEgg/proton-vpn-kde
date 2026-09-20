@@ -289,6 +289,7 @@ class DemoCoreAdapter:
                 "portForwarding": "port_forwarding",
                 "ipv6": "ipv6",
                 "anonymousCrashReports": "anonymous_crash_reports",
+                "telemetry": "telemetry",
             }[key]: value
             for key, value in patch.items()
         }

@@ -22,6 +22,7 @@ SectionCard {
         wideMode: pageWidth >= Kirigami.Units.gridUnit * 36
 
         Controls.Switch {
+            objectName: "crashReportSwitch"
             Kirigami.FormData.label: qsTr("Diagnostics:")
             text: qsTr("Send anonymous crash reports")
             checked: vpnController.crashReportSubmissionEnabled
@@ -32,17 +33,39 @@ SectionCard {
             onClicked: vpnController.updateSetting("anonymousCrashReports", checked)
         }
 
+        Controls.Switch {
+            objectName: "connectionTelemetrySwitch"
+            Kirigami.FormData.label: qsTr("Connection telemetry:")
+            text: qsTr("Send connection outcome telemetry to Proton")
+            checked: vpnController.telemetryEnabled && vpnSettings.telemetry
+            enabled: vpnController.telemetryEnabled
+                     && vpnController.ready
+                     && vpnSettings.loaded && !vpnSettings.busy
+            onClicked: vpnController.updateSetting("telemetry", checked)
+        }
+
         Kirigami.InlineMessage {
             Layout.fillWidth: true
             visible: !vpnController.crashReportSubmissionEnabled
-                     || !vpnController.telemetryEnabled
             type: Kirigami.MessageType.Warning
-            text: !vpnController.crashReportSubmissionEnabled
-                  && !vpnController.telemetryEnabled
-                  ? qsTr("Anonymous crash reporting and optional connection telemetry to Proton are disabled in this unofficial community build. Report Plasma VPN client crashes in the community project tracker.")
-                  : !vpnController.crashReportSubmissionEnabled
-                    ? qsTr("Anonymous crash reporting to Proton is disabled in this unofficial community build. Report Plasma VPN client crashes in the community project tracker.")
-                    : qsTr("Optional connection telemetry to Proton is disabled in this community build.")
+            text: qsTr("Anonymous crash reporting to Proton is disabled in this unofficial community build. Report Plasma VPN client crashes in the community project tracker.")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: !vpnController.telemetryEnabled
+            type: Kirigami.MessageType.Information
+            text: qsTr("Connection telemetry to Proton is disabled by this community build.")
+        }
+
+        Controls.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            visible: vpnController.telemetryEnabled
+            text: vpnSettings.telemetry
+                  ? qsTr("Enabled by you. Proton Core may send optional connection outcome events to Proton.")
+                  : qsTr("Optional connection outcome telemetry is off. You can enable it explicitly.")
+            color: Kirigami.Theme.disabledTextColor
         }
 
         Kirigami.InlineMessage {
