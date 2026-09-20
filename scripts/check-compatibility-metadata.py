@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -61,6 +62,59 @@ def require_text(path: Path, pattern: str, label: str) -> None:
         fail(f"{label} is not aligned in {path.relative_to(PROJECT_DIR)}")
 
 
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def check_debian_overlay_patch_inputs(manifest: dict[str, object]) -> None:
+    overlay = manifest.get("overlay")
+    if not isinstance(overlay, dict):
+        fail("Ubuntu Core overlay metadata is missing")
+    patches = overlay.get("patches")
+    if not isinstance(patches, list):
+        fail("Ubuntu Core overlay patch list is missing")
+
+    override_directory = (
+        PROJECT_DIR / "packaging/debian/api-core-overlay/patches"
+    )
+    shared_directory = PROJECT_DIR / "packaging/fedora/api-core-overlay/patches"
+    listed_names: set[str] = set()
+    for record in patches:
+        if not isinstance(record, dict):
+            fail("Ubuntu Core overlay patch record is invalid")
+        name = record.get("file")
+        expected = record.get("sha256")
+        if (
+            not isinstance(name, str)
+            or Path(name).name != name
+            or not name.endswith(".patch")
+            or not isinstance(expected, str)
+        ):
+            fail("Ubuntu Core overlay patch metadata is invalid")
+        if name in listed_names:
+            fail(f"duplicate Ubuntu Core overlay patch: {name}")
+        listed_names.add(name)
+        override = override_directory / name
+        source = override if override.is_file() else shared_directory / name
+        if not source.is_file():
+            fail(f"Ubuntu Core overlay patch input is missing: {name}")
+        actual = sha256(source)
+        if actual != expected:
+            fail(
+                f"Ubuntu Core overlay patch hash is stale for {name}: "
+                f"expected {expected}, got {actual}"
+            )
+
+    unlisted_overrides = {
+        path.name for path in override_directory.glob("*.patch")
+    } - listed_names
+    if unlisted_overrides:
+        fail(
+            "Ubuntu Core overlay contains unlisted patch overrides: "
+            + ", ".join(sorted(unlisted_overrides))
+        )
+
+
 def check() -> None:
     requires_python, dependencies = project_metadata()
     if requires_python != f">={EXPECTED_PYTHON}":
@@ -115,6 +169,11 @@ def check() -> None:
         rf"^Requires:\s+python3-proton-vpn-api-core >= {re.escape(runtime_floor)}$",
         "Core runtime floor",
     )
+    require_text(
+        spec,
+        r"^BuildRequires:\s+systemd-rpm-macros$",
+        "systemd RPM macro build dependency",
+    )
     for name, version in EXPECTED_DEPENDENCIES.items():
         rpm_name = "python3-dbus-fast" if name == "dbus-fast" else f"python3-{name}"
         require_text(
@@ -132,6 +191,7 @@ def check() -> None:
     )
     if debian_overlay_manifest["vendor"]["version"] != runtime_floor:
         fail("Ubuntu Core overlay does not match the supported runtime floor")
+    check_debian_overlay_patch_inputs(debian_overlay_manifest)
     require_text(
         debian_control,
         rf"^\s+python3-proton-vpn-api-core \(>= {re.escape(runtime_floor)}\),$",

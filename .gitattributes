@@ -10,3 +10,4 @@
 # lines with scripts/check-patch-whitespace.py instead of flagging that syntax.
 packaging/fedora/api-core-overlay/patches/*.patch whitespace=-trailing-space
 packaging/fedora/keyring-overlay/patches/*.patch whitespace=-trailing-space
+packaging/debian/api-core-overlay/patches/*.patch whitespace=-trailing-space

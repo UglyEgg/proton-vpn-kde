@@ -46,6 +46,16 @@ expect_rejection 'must use a full Git checkout'
 echo "CI policy rejects shallow history-sensitive checkouts"
 
 reset_workflows
+sed -i 's/ diffutils//' "$fixture_dir/.github/workflows/ci.yml"
+expect_rejection 'must install diffutils'
+echo "CI policy rejects a missing source reproducibility tool"
+
+reset_workflows
+sed -i 's/ systemd-rpm-macros//' "$fixture_dir/.github/workflows/rpm.yml"
+expect_rejection 'must install systemd-rpm-macros'
+echo "CI policy rejects missing user-unit RPM macros"
+
+reset_workflows
 sed -i '/      - main/d' "$fixture_dir/.github/workflows/ci.yml"
 expect_rejection 'once per pull request'
 echo "CI policy rejects duplicate feature-branch triggers"

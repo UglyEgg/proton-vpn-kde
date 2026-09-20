@@ -194,6 +194,7 @@ while IFS= read -r path; do
         scripts/check-ci-policy.sh|scripts/test-ci-policy-negative.sh|\
         scripts/check-qml-ui-hygiene.sh|scripts/check-qml-visual-matrix.sh|\
         scripts/check-compatibility-metadata.py|scripts/check-spdx-headers.py|\
+        scripts/check-patch-whitespace.py|\
         scripts/check-core-compatibility.sh|\
         scripts/check-core-contract.py|\
         scripts/generate-snapshot-contract.py|\
@@ -241,13 +242,14 @@ assert_diff_hash \
     src/SnapshotContract.generated.h tests/SnapshotContractTest.cpp \
     tests/SnapshotTestData.h
 assert_diff_hash \
-    "08f5910cb946b223087e8e3c49724d18e202a4baf5407cbb0e73d008787181a3" \
+    "644bf05ea2e42847b51c67c6290a94b54752e4a54759a0567a9d2dda98a7478f" \
     "current Core runtime contract" \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
     packaging/fedora/api-core-overlay/patches/0003-avoid-deprecated-fido2-capability-query.patch \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
+    scripts/check-patch-whitespace.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
 assert_diff_hash \
     "5de064928602ca45f28c6c6a3b06e274d5b7b825c9d2d4cbeb7e61ced635753f" \
@@ -268,14 +270,14 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "56ce7ad31463cd03944d72241ab5321438a44019127b25d356f453a9cb21821f" \
+    "7b07075ad38ce7103981aed6527df9ec3901050fbbdec924ae8206d54c171e3e" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
-    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
+    "8a2cccb232441657210225ed27bc5e470ace05944825c553249e9b71b6042fcc" \
     "RPM test dependencies" .github/workflows/rpm.yml \
     scripts/check-rpm-reproducibility.sh
 assert_diff_hash \
-    "f3b160619e649871b9450995ef5b65024aa8838a5437368888a64bb20138567d" \
+    "ed48be8ab69639c3dcc7f5733171debea065af0cfa022d8191630c430aaa6242" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
     "a5cf6e091b90d281dced46ea7aa0876c46988be1178d643e6898e2ec4499b481" \
@@ -286,7 +288,7 @@ assert_diff_hash \
     "QML presentation" qml
 
 assert_diff_hash \
-    "ead5030950f649e7a5040b66cef6406c626f1966408a77c4aa71e58f917cf369" \
+    "0d6bbe14e82f34479d233df594fbcd04bc65b5214bdf108535985853ff9317c5" \
     "licensing and upstream provenance" \
     .editorconfig .gitattributes .gitignore \
     backend/proton-vpn-kde-backend.in \
@@ -301,7 +303,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "3172acc2c0eee70ce696d128c54b347ee765748b9efdc7f22d6ce0436a30e6cf" \
+    "bafb48c97fb400717561b71ff7e41f6591ad4d9527d35df59986c586462a2060" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \

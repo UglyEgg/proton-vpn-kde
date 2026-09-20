@@ -71,9 +71,32 @@ install -m 0755 "$overlay_dir/rebuild_overlay.py" "$source_dir/"
 install -m 0755 \
     "$project_dir/packaging/fedora/api-core-overlay/rebuild_overlay.py" \
     "$source_dir/api-core-overlay-verifier.py"
-install -m 0644 \
-    "$project_dir"/packaging/fedora/api-core-overlay/patches/*.patch \
-    "$source_dir/patches/"
+
+readarray -t patch_names < <(python3 - "$manifest" <<'PY'
+import json
+from pathlib import Path, PurePosixPath
+import sys
+
+manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for record in manifest["overlay"]["patches"]:
+    name = record["file"]
+    path = PurePosixPath(name)
+    if path.is_absolute() or len(path.parts) != 1 or path.suffix != ".patch":
+        raise SystemExit(f"Unsafe overlay patch name: {name!r}")
+    print(name)
+PY
+)
+for patch_name in "${patch_names[@]}"; do
+    patch_source="$overlay_dir/patches/$patch_name"
+    if [[ ! -f "$patch_source" ]]; then
+        patch_source="$project_dir/packaging/fedora/api-core-overlay/patches/$patch_name"
+    fi
+    if [[ ! -f "$patch_source" ]]; then
+        echo "Overlay patch input is unavailable: $patch_name" >&2
+        exit 1
+    fi
+    install -m 0644 "$patch_source" "$source_dir/patches/$patch_name"
+done
 cp -a "$overlay_dir/debian" "$source_dir/"
 
 export SOURCE_DATE_EPOCH="$source_date_epoch"

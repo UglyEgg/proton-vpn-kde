@@ -80,6 +80,20 @@ for source_job in fedora native-analysis; do
     fi
 done
 
+fedora_job_block="$(workflow_job_block "$source_workflow" fedora)"
+if ! grep -Eq '(^|[[:space:]])diffutils([[:space:]\\]|$)' \
+        <<<"$fedora_job_block"; then
+    echo "Fedora source CI must install diffutils for reproducibility checks" >&2
+    exit 1
+fi
+
+rpm_job_block="$(workflow_job_block "$rpm_workflow" fedora-rpm)"
+if ! grep -Eq '(^|[[:space:]])systemd-rpm-macros([[:space:]\\]|$)' \
+        <<<"$rpm_job_block"; then
+    echo "RPM CI must install systemd-rpm-macros for user-unit paths" >&2
+    exit 1
+fi
+
 for release_step in \
         'Stage release artifacts' \
         'Upload Ubuntu artifacts'; do

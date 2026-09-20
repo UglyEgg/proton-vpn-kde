@@ -46,6 +46,7 @@ jobs:
             python3-packaging python3-pytest python3-pyxdg \
             python3-pynacl python3-secretstorage python3-sentry-sdk \
             python3-setuptools procps-ng ripgrep rpm-build shadow-utils \
+            systemd-rpm-macros \
             kf6-kconfig-devel kf6-kcoreaddons-devel \
             kf6-kglobalaccel-devel kf6-kcmutils-devel \
             kf6-knotifications-devel kf6-krunner-devel \
