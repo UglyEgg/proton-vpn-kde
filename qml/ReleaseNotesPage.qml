@@ -87,7 +87,8 @@ Kirigami.ScrollablePage {
                 notes: [
                     qsTr("Show the VPN exit address reported at connection time, with the device-side address labeled separately when split tunneling is active."),
                     qsTr("Check local Core, backend, package, and Secret Service readiness without opening your secret provider."),
-                    qsTr("Preview a small, privacy-bounded community diagnostic report before choosing to copy it; direct Proton submission remains disabled.")
+                    qsTr("Preview a small, privacy-bounded community diagnostic report before choosing to copy it; direct Proton submission remains disabled."),
+                    qsTr("Support Proton Core 5.7 on Fedora while keeping optional connection telemetry disabled by default.")
                 ]
             }
 

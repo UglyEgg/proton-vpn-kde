@@ -11,7 +11,7 @@ Proton's official core.
 | Area | Official behavior | Plasma implementation | Status |
 | --- | --- | --- | --- |
 | Password sign-in | Proton username and password login | Native Kirigami form with sealed one-use credential transport | Complete |
-| Two-factor sign-in | Authenticator/recovery codes and FIDO2 security keys | TOTP and recovery codes are complete. FIDO2 touch, selection, and PIN are exposed only when Core guarantees cancellable multi-key selection; current Core 5.6.20 does not | Conditional on Core safety contract |
+| Two-factor sign-in | Authenticator/recovery codes and FIDO2 security keys | TOTP and recovery codes are complete. FIDO2 touch, selection, and PIN are exposed only when Core guarantees cancellable multi-key selection; current Fedora Core 5.7.0 does not | Conditional on Core safety contract |
 | Session storage | Proton SSO through Secret Service | Same Core session through a separately packaged provider-neutral keyring rebuild that requires the selected provider to run as the session user and pins traffic to its unique owner; KeePassXC is verified with the downstream build in the compatibility matrix | Complete on supported stack |
 | Permanent kill switch before login | Requires disabling permanent mode before sign-in | Signed-out recovery action changes only the kill-switch setting | Complete |
 | Account/session | Plan, connection limit, account link, and sign-out | Native account page and kill-switch-safe disconnect/sign-out lifecycle | Complete |
@@ -40,6 +40,7 @@ Proton's official core.
 | Troubleshooting capture | Choose folder and start/stop capture for supported protocols | Native folder chooser, consent warning, and official protocol capture implementation | Complete |
 | Issue reporting | Submit support form with optional logs | Reviewed Proton submission proof of concept retained behind a default-off build capability; a separate community flow previews and copies only allowlisted local diagnostics before opening the project tracker | Deliberately disabled for Proton; community flow available |
 | Anonymous crash reporting | Optional automatic reports to Proton's Sentry endpoint | Default-off build capability; community builds disable the runtime sender, always present the preference as off, persist it during explicit settings writes, and direct client crashes to the project tracker | Deliberately disabled |
+| Connection telemetry | Optional Core 5.7 connection-outcome events to Proton's stats endpoint | Default-off build capability; community builds disable Core's live event queue after each settings load and persist the preference as off during explicit settings writes | Deliberately disabled |
 | Release information | About and release-notes views | Native Help & information hub with on-demand Release Notes | Complete |
 | Update channel | Stable/Beta repository choice | Exact-package Polkit action; Discover remains responsible for updates | Native equivalent |
 | Account/help links | Create, manage, support, upgrade, and setup guidance | Official URLs opened through the desktop URL handler | Complete |
@@ -77,6 +78,11 @@ Proton's official core.
   the official Core preference as off during any explicit settings write. An approved
   distribution may enable it with
   `PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION`.
+- Optional Core connection telemetry is independently compile-time disabled.
+  Core 5.7 enables its queue while loading a stored preference, so the adapter
+  immediately disables that queue without writing during a read and persists
+  the preference as off on the next explicit settings write. An approved
+  distribution may enable it with `PROTON_VPN_KDE_ENABLE_TELEMETRY`.
 - A resident Plasma agent, global shortcuts, KRunner actions, a System Settings
   module, and native notifications extend rather than replace official behavior.
 

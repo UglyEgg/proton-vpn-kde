@@ -57,7 +57,9 @@ The project was started by a paying Proton subscriber since 2017 who wanted the 
 - An on-demand, read-only Connection Inspector for the active server, capabilities, protection configuration, and local integration status, with no traffic collection or retained history.
 - In the unreleased 0.14.0 preview, connection-time exit-address labels, a read-only local setup check for Core/backend status and Secret Service availability, and a community diagnostics preview that copies only allowlisted local facts when requested.
 - KRunner connection requests that require explicit Control Center confirmation rather than trusting the shared KRunner process as a VPN controller.
-- Direct Proton support-report and crash-report submission disabled in community builds so unofficial-client defects are not sent to Proton as official-client reports.
+- Direct Proton support-report submission, crash reporting, and optional Core
+  connection telemetry are disabled in community builds. Required account,
+  server, and VPN service traffic remains unchanged.
 
 The maintained comparison with Proton's GTK client is in [Feature parity](docs/PARITY.md).
 

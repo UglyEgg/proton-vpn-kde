@@ -35,8 +35,14 @@ SectionCard {
         Kirigami.InlineMessage {
             Layout.fillWidth: true
             visible: !vpnController.crashReportSubmissionEnabled
+                     || !vpnController.telemetryEnabled
             type: Kirigami.MessageType.Warning
-            text: qsTr("Anonymous crash reporting to Proton is disabled in this unofficial community build. Report Plasma VPN client crashes in the community project tracker.")
+            text: !vpnController.crashReportSubmissionEnabled
+                  && !vpnController.telemetryEnabled
+                  ? qsTr("Anonymous crash reporting and optional connection telemetry to Proton are disabled in this unofficial community build. Report Plasma VPN client crashes in the community project tracker.")
+                  : !vpnController.crashReportSubmissionEnabled
+                    ? qsTr("Anonymous crash reporting to Proton is disabled in this unofficial community build. Report Plasma VPN client crashes in the community project tracker.")
+                    : qsTr("Optional connection telemetry to Proton is disabled in this community build.")
         }
 
         Kirigami.InlineMessage {

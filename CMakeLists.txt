@@ -16,6 +16,11 @@ option(
     "Allow anonymous crash-report submission to Proton's production API"
     OFF
 )
+option(
+    PROTON_VPN_KDE_ENABLE_TELEMETRY
+    "Allow optional Proton Core connection telemetry"
+    OFF
+)
 
 # This file is the single source of truth for environment variables that can
 # redirect native code loading in an otherwise trusted packaged process.
@@ -327,6 +332,7 @@ target_compile_definitions(
     PROTON_VPN_KDE_VERSION="${PROJECT_VERSION}"
     PROTON_VPN_KDE_SUPPORT_REPORT_SUBMISSION_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION}>
     PROTON_VPN_KDE_CRASH_REPORT_SUBMISSION_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION}>
+    PROTON_VPN_KDE_TELEMETRY_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_TELEMETRY}>
 )
 
 target_link_libraries(proton-vpn-kde-agent PRIVATE
@@ -554,6 +560,7 @@ if(BUILD_TESTING)
         _GNU_SOURCE
         PROTON_VPN_KDE_SUPPORT_REPORT_SUBMISSION_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION}>
         PROTON_VPN_KDE_CRASH_REPORT_SUBMISSION_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION}>
+        PROTON_VPN_KDE_TELEMETRY_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_TELEMETRY}>
     )
     target_compile_options(grouped-navigation-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
@@ -1223,6 +1230,11 @@ if(PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION)
     set(PROTON_VPN_KDE_PYTHON_CRASH_REPORT_SUBMISSION_ENABLED True)
 else()
     set(PROTON_VPN_KDE_PYTHON_CRASH_REPORT_SUBMISSION_ENABLED False)
+endif()
+if(PROTON_VPN_KDE_ENABLE_TELEMETRY)
+    set(PROTON_VPN_KDE_PYTHON_TELEMETRY_ENABLED True)
+else()
+    set(PROTON_VPN_KDE_PYTHON_TELEMETRY_ENABLED False)
 endif()
 configure_file(
     backend/proton_vpn_kde_backend/_build_features.py.in

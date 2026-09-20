@@ -85,7 +85,7 @@ from .core_support import (
     take_pending_nps_survey as take_core_nps_survey,
 )
 from .fido_interaction import FidoInteraction
-from .features import CRASH_REPORT_SUBMISSION_ENABLED
+from .features import CRASH_REPORT_SUBMISSION_ENABLED, TELEMETRY_ENABLED
 from .packet_capture import (
     PACKET_CAPTURE_MAX_SECONDS,
     PACKET_CAPTURE_STOP_ATTEMPT_SECONDS,
@@ -158,6 +158,7 @@ class ProtonCoreAdapter:
         ),
         packet_capture_recovery_path: Path | None = None,
         crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
+        telemetry_enabled: bool = TELEMETRY_ENABLED,
         connection_retirement_seconds: float = CONNECTION_RETIREMENT_SECONDS,
         terminal_exit: Callable[[int], NoReturn] = os._exit,
         account_transition_path: Path | None = None,
@@ -196,6 +197,7 @@ class ProtonCoreAdapter:
         self._account_restart_required = False
         self._fido_interaction: FidoInteraction | None = None
         self._crash_report_submission_enabled = crash_report_submission_enabled
+        self._telemetry_enabled = telemetry_enabled
         self._packet_capture = PacketCaptureCoordinator(
             packet_capture_max_seconds,
             self._on_packet_capture_changed,
@@ -810,7 +812,23 @@ class ProtonCoreAdapter:
             usage_reporting = getattr(self._api, "usage_reporting", None)
             if usage_reporting is not None:
                 usage_reporting.enabled = False
+        self._apply_telemetry_policy(settings)
         return settings
+
+    def _apply_telemetry_policy(self, settings: Any) -> None:
+        """Keep optional Core telemetry off unless this client opts in."""
+        if self._telemetry_enabled or not hasattr(settings, "telemetry"):
+            return
+
+        # Core 5.7 mirrors the stored value into its event queue while loading
+        # settings. Mutating this detached settings copy does not persist it;
+        # explicitly disable the queue as well so a read cannot enable
+        # connection-event reporting for the lifetime of this process.
+        settings.telemetry = False
+        telemetry_events = getattr(self._api, "_telemetry_events", None)
+        enable = getattr(telemetry_events, "enable", None)
+        if callable(enable):
+            enable(False)
 
     async def _save_settings(
         self, settings: Any, authentication_epoch: int | None = None
@@ -826,6 +844,7 @@ class ProtonCoreAdapter:
             # place to persist this community build's disabled-reporting
             # policy. Pure reads never write the whole Core settings object.
             settings.anonymous_crash_reports = False
+        self._apply_telemetry_policy(settings)
         try:
             await self._api.save_settings(settings)
         except Exception as error:

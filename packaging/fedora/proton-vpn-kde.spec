@@ -87,6 +87,7 @@ export SOURCE_DATE_EPOCH="$(stat -c %Y .source-commit)"
     -DPROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR=%{_datadir}/proton-vpn-kde/translations \
     -DPROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION=OFF \
     -DPROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION=OFF \
+    -DPROTON_VPN_KDE_ENABLE_TELEMETRY=OFF \
 %if %{without kstatusnotifier}
     -DCMAKE_DISABLE_FIND_PACKAGE_KF6StatusNotifierItem=ON \
 %endif
@@ -144,7 +145,8 @@ desktop-file-validate \
 * Wed Sep 16 2026 uglyegg <uglyegg@entropy.quest> - 0.14.0-0.1
 - Preview connection-time exit-address display and local setup checks
 - Add explicit, privacy-bounded community diagnostic previews
-- Keep Proton Core networking and direct-report submission unchanged
+- Target the verified Fedora Core 5.7.0 overlay
+- Disable optional Core telemetry, crash reports, and direct support submission
 
 * Sun Sep 13 2026 uglyegg <uglyegg@entropy.quest> - 0.13.1-1
 - Add Ubuntu 26.04 binary and source package production

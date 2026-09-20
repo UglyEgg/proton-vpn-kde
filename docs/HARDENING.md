@@ -88,7 +88,15 @@ accepted. Missing evidence blocks recovery.
 ## Capture and diagnostic bounds
 
 Direct Proton support and crash-report submission are disabled in community
-builds at UI, native, backend, and package-policy boundaries.
+builds at UI, native, backend, and package-policy boundaries. Optional Core
+connection telemetry is also a default-off build capability. On Core 5.7 the
+adapter disables the live event queue immediately after settings load and
+persists the preference as off on an explicit settings write; a settings read
+does not write the user's settings file.
+
+This reporting policy does not block traffic required to authenticate, refresh
+account and server state, establish or maintain a VPN connection, or perform an
+explicit user-requested service action such as submitting an NPS response.
 
 Community diagnostics are separate from that dormant submission path. Their
 formatter accepts only fixed status values, recognized error codes, and

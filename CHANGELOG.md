@@ -4,6 +4,16 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 ## [Unreleased]
 
+### Proton Core 5.7
+
+- Rebase the verified Fedora API-Core overlay onto Proton's signed 5.7.0
+  package while retaining all five bounded compatibility patches.
+- Preserve Core's permanent firewall kill-switch service and final-removal
+  cleanup contract.
+- Keep Core 5.7's optional connection telemetry disabled by default in
+  community builds, both in the live event queue and on explicit settings
+  writes. Necessary Proton account, server, and VPN traffic is unchanged.
+
 ### Connection insight
 
 - Show the VPN exit address reported at connection time in the Connection

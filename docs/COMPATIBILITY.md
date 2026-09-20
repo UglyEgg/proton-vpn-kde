@@ -2,9 +2,10 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.13.1 is the current public package release for the baselines below.
-The unreleased 0.14.0 preview retains those package dependencies but has not
-completed live or package acceptance for its new client code.
+Plasma VPN 0.13.1 is the current public package release. The table tracks the
+unreleased 0.14.0 preview: Fedora now targets Proton API Core 5.7.0, while
+Ubuntu retains its package-validated 5.6.10 baseline. The Fedora overlay has
+passed clean build and offline behavior checks but not installed acceptance.
 Ubuntu 26.04 remains package-validated rather than live-supported until
 community Plasma field reports establish its live lifecycle.
 
@@ -14,7 +15,7 @@ community Plasma field reports establish its live lifecycle.
 | Desktop | KDE Plasma 6 with systemd user services | KDE Plasma 6 with systemd user services |
 | Qt / KDE | Qt 6.8+; KDE Frameworks 6 | Qt 6.10.2; KDE Frameworks 6.24 |
 | Python | 3.14 with `os.pidfd_open` | 3.14 with `os.pidfd_open` |
-| Proton VPN API Core | 5.6.20-3.plasmavpn1 | 5.6.10-12plasmavpn1 |
+| Proton VPN API Core | 5.7.0-1.plasmavpn1 | 5.6.10-12plasmavpn1 |
 | Proton keyring adapter | 0.2.3-9.plasmavpn1 | 0.2.3-9plasmavpn1 |
 | Secret Service | Freedesktop Secret Service; KeePassXC verified | Freedesktop Secret Service; live provider UAT pending |
 | Package evidence | Clean builds and installed UAT | Clean-container build/install/reinstall/autopkgtest |
@@ -36,12 +37,12 @@ removing behavior required by the Plasma client.
 
 ## API-Core overlay
 
-The release overlay reconstructs Proton's signed Fedora
-`python3-proton-vpn-api-core-5.6.20-1.fc44` package as
-`5.6.20-3.plasmavpn1.fc44`. Manifest schema 2 distinguishes the signed Fedora
+The preview overlay reconstructs Proton's signed Fedora
+`python3-proton-vpn-api-core-5.7.0-1.fc44` package as
+`5.7.0-1.plasmavpn1.fc44`. Manifest schema 2 distinguishes the signed Fedora
 package version from Proton's latest public source reference, `v5.6.10` at
 commit `f1d13b71c506bbd5f47351a9e4392572e21d0169`. Proton did not publish a
-public `v5.6.20` source tag at the verification date.
+public `v5.7.0` source tag at the verification date.
 
 The five patches apply with zero fuzz. Exact-tree policy permits changes only
 to six Python source files and twelve derived bytecode files. The overlay:
@@ -53,15 +54,23 @@ to six Python source files and twelve derived bytecode files. The overlay:
 - preserves queued connection targets during reconnect; and
 - explicitly activates reusable validated protection profiles.
 
-Release revision 3 has the same runtime source and bytecode hashes as installed
-revision 2; it corrects provenance and source-package metadata. Verification
-includes 14 protection-activation cases, seven hash-checked actual-Core
-lifecycle cases, the complete backend suite, exact changed-path policy, and
-two-build RPM/SRPM reproducibility.
+The 5.7.0 rebase preserves Proton's permanent firewall kill-switch unit and
+safe final-removal script. Verification includes 14 protection-activation
+cases, seven hash-checked actual-Core lifecycle cases, exact changed-path
+policy, and RPM/SRPM checks. Installed startup and live connection acceptance
+remain open.
+
+Core 5.7 adds connection-outcome telemetry and defaults its persisted setting
+to enabled. Community client builds default this optional reporting capability
+off, disable Core's live event queue immediately after every settings load,
+and persist the preference as off on the next explicit settings write. Pure
+reads do not rewrite the settings file. Required Proton service traffic is not
+disabled.
 
 The 5.5.6 compatibility fixture is static public-API lint only. It extracts a
 SHA-256-pinned RPM but never imports Core, reads credentials, or touches
-networking. Behavioral claims use 5.6.20 or installed UAT, not 5.5.6.
+networking. Behavioral claims use 5.7.0, the retained Ubuntu 5.6.10 baseline,
+or installed UAT, not 5.5.6.
 
 ### Ubuntu reconstruction
 
@@ -96,7 +105,7 @@ read/write/delete behavior.
 
 ## Authentication limitations
 
-Core 5.6.20 exposes cancellation for FIDO2 assertion work but not for multi-key
+Core 5.7.0 exposes cancellation for FIDO2 assertion work but not for multi-key
 selection. Plasma VPN therefore does not advertise the security-key flow on
 that version. Authenticator and recovery codes remain supported. FIDO2 can be
 enabled only after Core exposes and passes a complete cancellable-selection
@@ -113,7 +122,7 @@ the old backend process is dead.
 | Maintainer client UAT | `0.13.0-0.9.fc44`; authentication, browsing, settings, connection, disconnection, tray, and presentation accepted |
 | START-01 cold launch | Installed direct KDE launch passed inherited Qt-path normalization and backend authorization |
 | START-02 recovery | Installed Core revision 12 reused and activated one retained protection profile without duplicates or backend restarts |
-| Core 5.6.20 install | Runtime-equivalent overlay revision 2 installed; revision 3 verified as provenance-only |
+| Core 5.7.0 overlay | Signed vendor input verified; all five patches, 14 protection cases, seven lifecycle cases, and RPM/SRPM policy passed; install/UAT pending |
 | Clean package builds | Client and both overlay package pairs pass policy, transaction, and reproducibility checks |
 | Ubuntu 26.04 package validation | Client and both overlay `.deb`/source sets pass clean-container policy and lifecycle checks; community Plasma field acceptance pending |
 

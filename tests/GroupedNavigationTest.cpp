@@ -605,6 +605,7 @@ private slots:
     void staleReconnectionReplyCannotCorruptForegroundOperation();
     void supportReportSubmissionFollowsBuildPolicy();
     void crashReportSubmissionFollowsBuildPolicy();
+    void telemetryFollowsBuildPolicy();
     void npsSubmissionWaitsForBackendAcceptance();
     void npsCompletionUnknownCannotBeRetried();
     void npsDismissalDoesNotOwnVpnOperationsOrGlobalGuidance();
@@ -2717,6 +2718,13 @@ void GroupedNavigationTest::crashReportSubmissionFollowsBuildPolicy()
 
     QVERIFY(controller.settings()->message().contains(
         QStringLiteral("disabled"), Qt::CaseInsensitive));
+}
+
+void GroupedNavigationTest::telemetryFollowsBuildPolicy()
+{
+    VpnController controller(nullptr, false);
+    const bool telemetryEnabled = PROTON_VPN_KDE_TELEMETRY_ENABLED != 0;
+    QCOMPARE(controller.telemetryEnabled(), telemetryEnabled);
 }
 
 QTEST_MAIN(GroupedNavigationTest)

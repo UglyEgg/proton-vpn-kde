@@ -2,7 +2,8 @@ proton-vpn-kde (0.14.0-0~preview1plasmavpn1) resolute; urgency=low
 
   * Preview connection-time exit-address display and local setup checks.
   * Add explicit, privacy-bounded community diagnostic previews.
-  * Keep Proton Core networking and direct-report submission unchanged.
+  * Disable optional Core telemetry, crash reports, and direct support
+    submission in community packages.
 
  -- uglyegg <uglyegg@entropy.quest>  Wed, 16 Sep 2026 00:00:00 -0500
 

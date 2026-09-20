@@ -167,5 +167,6 @@ dpkg-deb --extract "$client_deb" "$client_root"
 feature_file="$client_root/usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/_build_features.py"
 grep -Fqx 'SUPPORT_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
 grep -Fqx 'CRASH_REPORT_SUBMISSION_ENABLED = False' "$feature_file"
+grep -Fqx 'TELEMETRY_ENABLED = False' "$feature_file"
 
 echo "Debian artifact checks passed"

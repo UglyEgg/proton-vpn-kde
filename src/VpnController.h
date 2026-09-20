@@ -62,6 +62,7 @@ class VpnController final : public VpnConnectionController,
     Q_PROPERTY(bool npsSurveySubmissionPending READ npsSurveySubmissionPending NOTIFY npsSurveyChanged)
     Q_PROPERTY(bool supportReportSubmissionEnabled READ supportReportSubmissionEnabled CONSTANT)
     Q_PROPERTY(bool crashReportSubmissionEnabled READ crashReportSubmissionEnabled CONSTANT)
+    Q_PROPERTY(bool telemetryEnabled READ telemetryEnabled CONSTANT)
     Q_PROPERTY(QString state READ state NOTIFY snapshotChanged)
     Q_PROPERTY(QString errorCode READ errorCode NOTIFY snapshotChanged)
     Q_PROPERTY(QString serverName READ serverName NOTIFY snapshotChanged)
@@ -126,6 +127,7 @@ public:
     [[nodiscard]] bool npsSurveySubmissionPending() const;
     [[nodiscard]] bool supportReportSubmissionEnabled() const;
     [[nodiscard]] bool crashReportSubmissionEnabled() const;
+    [[nodiscard]] bool telemetryEnabled() const;
     [[nodiscard]] QString state() const override;
     [[nodiscard]] QString errorCode() const;
     [[nodiscard]] QString serverName() const override;

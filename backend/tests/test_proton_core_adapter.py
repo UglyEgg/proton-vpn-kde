@@ -3629,6 +3629,44 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(api.usage_reporting.enabled)
         api.save_settings.assert_not_awaited()
 
+    async def test_core_telemetry_is_disabled_without_writing(self):
+        api, _ = self.make_api()
+        persisted = api.load_settings.return_value
+        persisted.telemetry = True
+        api._telemetry_events = SimpleNamespace(enable=Mock())
+        adapter = self.make_adapter(api)
+        await adapter.initialize(Mock())
+
+        await adapter.get_settings()
+
+        self.assertFalse(persisted.telemetry)
+        api._telemetry_events.enable.assert_called_once_with(False)
+        api.save_settings.assert_not_awaited()
+
+    async def test_legacy_core_without_telemetry_setting_remains_supported(self):
+        api, _ = self.make_api()
+        self.assertFalse(hasattr(api.load_settings.return_value, "telemetry"))
+        adapter = self.make_adapter(api)
+        await adapter.initialize(Mock())
+
+        await adapter.get_settings()
+
+        api.save_settings.assert_not_awaited()
+
+    async def test_explicit_telemetry_opt_in_preserves_core_preference(self):
+        api, _ = self.make_api()
+        persisted = api.load_settings.return_value
+        persisted.telemetry = True
+        api._telemetry_events = SimpleNamespace(enable=Mock())
+        adapter = self.make_adapter(api, telemetry_enabled=True)
+        await adapter.initialize(Mock())
+
+        await adapter.get_settings()
+
+        self.assertTrue(persisted.telemetry)
+        api._telemetry_events.enable.assert_not_called()
+        api.save_settings.assert_not_awaited()
+
     async def test_unofficial_build_rejects_crash_reporting_enable(self):
         api, _ = self.make_api()
         adapter = self.make_adapter(api)
@@ -3643,6 +3681,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_unofficial_build_persists_disabled_policy_on_explicit_write(self):
         api, _ = self.make_api()
         api.load_settings.return_value.anonymous_crash_reports = True
+        api.load_settings.return_value.telemetry = True
+        api._telemetry_events = SimpleNamespace(enable=Mock())
         api.usage_reporting.enabled = True
         adapter = self.make_adapter(api)
         await adapter.initialize(Mock())
@@ -3651,6 +3691,8 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(api.usage_reporting.enabled)
         self.assertFalse(api.save_settings.await_args.args[0].anonymous_crash_reports)
+        self.assertFalse(api.save_settings.await_args.args[0].telemetry)
+        api._telemetry_events.enable.assert_called_with(False)
 
     async def test_approved_build_preserves_crash_reporting_preference(self):
         api, _ = self.make_api()
