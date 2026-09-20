@@ -93,6 +93,21 @@ if ! grep -Eq '(^|[[:space:]])systemd-rpm-macros([[:space:]\\]|$)' \
     echo "RPM CI must install systemd-rpm-macros for user-unit paths" >&2
     exit 1
 fi
+rpm_inspection_block="$(awk '
+    $0 == "      - name: Inspect package artifacts" {
+        in_step = 1
+        seen_header = 1
+    }
+    in_step && seen_header && \
+        $0 != "      - name: Inspect package artifacts" && \
+        $0 ~ /^      - name:/ { exit }
+    in_step { print }
+' "$rpm_workflow")"
+if ! grep -Eq '^[[:space:]]*--allowerasing[[:space:]]*\\$' \
+        <<<"$rpm_inspection_block"; then
+    echo "RPM CI must allow the Fedora container's standalone systemd package to be replaced" >&2
+    exit 1
+fi
 
 for release_step in \
         'Stage release artifacts' \

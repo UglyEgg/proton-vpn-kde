@@ -188,6 +188,7 @@ jobs:
           packaging/fedora/keyring-overlay/check_overlay_rpm.sh \
             "${keyring_rpms[0]}"
           dnf install -y --downloadonly \
+            --allowerasing \
             --setopt=install_weak_deps=False \
             "${keyring_rpms[0]}" "${api_core_rpms[0]}" \
             "${binary_rpms[0]}"

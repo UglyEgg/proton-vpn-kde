@@ -56,6 +56,12 @@ expect_rejection 'must install systemd-rpm-macros'
 echo "CI policy rejects missing user-unit RPM macros"
 
 reset_workflows
+sed -i '/^[[:space:]]*--allowerasing[[:space:]]*\\$/d' \
+    "$fixture_dir/.github/workflows/rpm.yml"
+expect_rejection "standalone systemd package to be replaced"
+echo "CI policy rejects an unsatisfiable minimal-container RPM transaction"
+
+reset_workflows
 sed -i '/      - main/d' "$fixture_dir/.github/workflows/ci.yml"
 expect_rejection 'once per pull request'
 echo "CI policy rejects duplicate feature-branch triggers"

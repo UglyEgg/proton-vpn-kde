@@ -273,7 +273,7 @@ assert_diff_hash \
     "7b07075ad38ce7103981aed6527df9ec3901050fbbdec924ae8206d54c171e3e" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
-    "8a2cccb232441657210225ed27bc5e470ace05944825c553249e9b71b6042fcc" \
+    "ed9fc06f2491cbe3457a0aef6fd7c5de888a34240df33004f630d782cf3f2c76" \
     "RPM test dependencies" .github/workflows/rpm.yml \
     scripts/check-rpm-reproducibility.sh
 assert_diff_hash \
