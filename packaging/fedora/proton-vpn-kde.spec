@@ -8,7 +8,7 @@
 
 Name:           proton-vpn-kde
 Version:        0.14.1
-Release:        0.2%{?dist}
+Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
 License:        GPL-3.0-or-later
@@ -142,6 +142,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 0.14.1-1
+- Publish connection insight, local readiness, and bounded community diagnostics
+- Support the verified Fedora Core 5.7 stack with optional telemetry disabled
+- Preserve versioned settings and snapshot compatibility across package upgrades
+
 * Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 0.14.1-0.2
 - Drain queued telemetry events when policy is off and fail closed on incompatible Core controls
 - Preserve settings and snapshots across in-place frontend/backend upgrades

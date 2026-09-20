@@ -2,11 +2,9 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.13.1 is the current public package release. The table tracks the
-unreleased 0.14.1 candidate: Fedora targets Proton API Core 5.7.0, while Ubuntu
-retains its package-validated 5.6.10 baseline. The Fedora stack has passed
-installed maintainer UAT; the final post-review client rebuild needs a focused
-upgrade/startup/settings/connect/disconnect recheck before publication.
+Plasma VPN 0.14.1 is the current public package release. Fedora targets Proton
+API Core 5.7.0, while Ubuntu retains its package-validated 5.6.10 baseline. The
+Fedora stack passed installed maintainer UAT on the corrected 0.14.1 package.
 Ubuntu 26.04 remains package-validated rather than live-supported until
 community Plasma field reports establish its live lifecycle.
 
@@ -19,7 +17,7 @@ community Plasma field reports establish its live lifecycle.
 | Proton VPN API Core | 5.7.0-1.plasmavpn1 | 5.6.10-12plasmavpn1 |
 | Proton keyring adapter | 0.2.3-9.plasmavpn1 | 0.2.3-9plasmavpn1 |
 | Secret Service | Freedesktop Secret Service; KeePassXC verified | Freedesktop Secret Service; live provider UAT pending |
-| Package evidence | `0.14.1-0.1.fc44` stack installed and accepted; corrected final client pending focused recheck | Clean-container build/install/reinstall/autopkgtest |
+| Package evidence | `0.14.1-0.2.fc44` signed-source build installed and accepted; publication artifacts rebuild from the signed tag | Clean-container build/install/reinstall/autopkgtest |
 
 Required source dependencies include C++20, CMake 3.24, OpenSSL 3, and
 `dbus-fast` 2.20. Fedora's tested `cryptography` floor is 50.0.0; Ubuntu 26.04
@@ -38,7 +36,7 @@ removing behavior required by the Plasma client.
 
 ## API-Core overlay
 
-The candidate overlay reconstructs Proton's signed Fedora
+The release overlay reconstructs Proton's signed Fedora
 `python3-proton-vpn-api-core-5.7.0-1.fc44` package as
 `5.7.0-1.plasmavpn1.fc44`. Manifest schema 2 distinguishes the signed Fedora
 package version from Proton's latest public source reference, `v5.6.10` at
@@ -124,16 +122,15 @@ the old backend process is dead.
 
 | Evidence | Version / result |
 | --- | --- |
-| Maintainer client UAT | `0.14.1-0.1.fc44`; Core `5.7.0-1.plasmavpn1.fc44`; keyring `0.2.3-9.plasmavpn1.fc44`; authentication, browsing, settings, connection, disconnection, tray, telemetry-off presentation, and recovery accepted before final review corrections |
+| Maintainer client UAT | `0.14.1-0.2.fc44`; Core `5.7.0-1.plasmavpn1.fc44`; keyring `0.2.3-9.plasmavpn1.fc44`; upgrade, authentication restoration, browsing, settings, local setup, diagnostics, connection, disconnection, reconnect, tray reopening, telemetry-off presentation, and recovery accepted after final corrections |
 | START-01 cold launch | Installed direct KDE launch passed inherited Qt-path normalization and backend authorization |
 | START-02 recovery | Installed Core revision 12 reused and activated one retained protection profile without duplicates or backend restarts |
 | Core 5.7.0 overlay | Signed vendor input verified; all five patches, 14 protection cases, seven lifecycle cases, RPM/SRPM policy, installation, startup, and live connection passed |
 | Clean package builds | Client and both overlay package pairs pass policy, transaction, and reproducibility checks |
 | Ubuntu 26.04 package validation | Client and both overlay `.deb`/source sets pass clean-container policy and lifecycle checks; community Plasma field acceptance pending |
 
-The post-UAT client corrections affect telemetry policy, versioned settings and
-snapshot compatibility, and readiness checks. They require a focused installed
-recheck; earlier UAT is not claimed as evidence for those corrected paths.
+The corrected telemetry policy, versioned settings and snapshot compatibility,
+and readiness paths are included in the focused installed acceptance above.
 
 ## Compatibility policy
 

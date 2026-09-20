@@ -21,7 +21,7 @@ Kirigami.ScrollablePage {
 
         IdentityStage {
             heading: qsTr("Plasma VPN")
-            description: qsTr("Proton VPN-compatible community client · Version %1 preview").arg(appVersion)
+            description: qsTr("Proton VPN-compatible community client · Version %1").arg(appVersion)
             iconSource: applicationWindow().appIconSource
         }
 

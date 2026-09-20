@@ -1,6 +1,6 @@
-proton-vpn-kde (0.14.1-0~preview2plasmavpn1) resolute; urgency=low
+proton-vpn-kde (0.14.1-1plasmavpn1) resolute; urgency=medium
 
-  * Preview connection-time exit-address display and local setup checks.
+  * Add connection-time exit-address display and local setup checks.
   * Add explicit, privacy-bounded community diagnostic previews.
   * Surface connection telemetry policy and a build-gated user preference.
   * Disable optional Core telemetry, crash reports, and direct support

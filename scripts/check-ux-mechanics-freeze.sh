@@ -268,7 +268,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "72ac6e8be104ee01a4a2e4886f59e22ce8361719a62f2461e1dbf3a10a5b9b16" \
+    "56ce7ad31463cd03944d72241ab5321438a44019127b25d356f453a9cb21821f" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
@@ -282,7 +282,7 @@ assert_diff_hash \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "56779137f054da36c46730764e2a5fcd59eef9a31689eb4a69e8af5ed9bd94b6" \
+    "63192b438dc5e1ec4582c42ba6e337e876edf6afaf59e34da690e37068a7e946" \
     "QML presentation" qml
 
 assert_diff_hash \
@@ -301,7 +301,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "a3341f1ba844a369ef0e82a462f4c811dc26eda33bceb55923d4389b45dde975" \
+    "3172acc2c0eee70ce696d128c54b347ee765748b9efdc7f22d6ce0436a30e6cf" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \
@@ -322,4 +322,4 @@ assert_diff_hash \
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "unambiguous desktop icon" data/proton-vpn-kde.desktop.in
 
-echo "0.14.1 candidate matches published baseline $baseline_commit plus recorded reviewed deltas"
+echo "0.14.1 release source matches published baseline $baseline_commit plus recorded reviewed deltas"

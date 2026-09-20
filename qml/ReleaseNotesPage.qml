@@ -71,7 +71,7 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("Unreleased 0.14.1 preview. Proton Core still handles your VPN.")
+            description: qsTr("0.14.1 release. Proton Core still handles your VPN.")
             iconName: "software-properties"
 
             Kirigami.Heading {
@@ -95,9 +95,9 @@ Kirigami.ScrollablePage {
 
             Controls.Button {
                 Layout.alignment: Qt.AlignLeft
-                text: qsTr("Published 0.13.1 changelog (online)")
+                text: qsTr("Published changelog (online)")
                 icon.name: "internet-web-browser"
-                Accessible.description: qsTr("Open the published 0.13.1 source changelog in your browser; preview changes are not published yet")
+                Accessible.description: qsTr("Open the published source changelog in your browser")
                 onClicked: Qt.openUrlExternally(
                     "https://github.com/UglyEgg/proton-vpn-kde/blob/main/CHANGELOG.md")
             }

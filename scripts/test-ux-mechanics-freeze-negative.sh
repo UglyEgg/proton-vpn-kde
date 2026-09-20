@@ -157,18 +157,58 @@ cp "$project_dir/docs/COMPATIBILITY.md" \
 release_fixture_version="$(sed -n \
     's/^project(proton-vpn-kde VERSION \([^ ]*\) LANGUAGES CXX)$/\1/p' \
     "$project_dir/CMakeLists.txt")"
+sed -Ei \
+    "1s/^proton-vpn-kde \(${release_fixture_version}-[^)]*/proton-vpn-kde (${release_fixture_version}-0~preview1plasmavpn1/" \
+    "$release_fixture_dir/debian/changelog"
+sed -i \
+    -e 's/Version %1").arg/Version %1 preview").arg/' \
+    "$release_fixture_dir/qml/AboutPage.qml"
+sed -i \
+    -e "s/${release_fixture_version} release\. Proton Core still handles your VPN\./Unreleased ${release_fixture_version} preview. Proton Core still handles your VPN./" \
+    -e 's/Published changelog (online)/Published 0.13.1 changelog (online)/' \
+    -e 's/Open the published source changelog in your browser/Open the published 0.13.1 source changelog in your browser; preview changes are not published yet/' \
+    "$release_fixture_dir/qml/ReleaseNotesPage.qml"
 sed -i \
     "s/^## \\[Unreleased\\]$/## [$release_fixture_version] - 2099-01-01/" \
     "$release_fixture_dir/CHANGELOG.md"
-sed -i \
-    "/^## Current status$/a Version $release_fixture_version is the current public release.\n" \
-    "$release_fixture_dir/README.md"
+if ! rg -Fq \
+        "Version $release_fixture_version is the current public release" \
+        "$release_fixture_dir/README.md"; then
+    sed -i \
+        "/^## Current status$/a Version $release_fixture_version is the current public release.\n" \
+        "$release_fixture_dir/README.md"
+fi
+if ! rg -qi \
+        "(unreleased[^.]*${release_fixture_version}|${release_fixture_version//./\\.}[^.]*(unreleased|candidate|not yet a public|pending focused|before publication))" \
+        "$release_fixture_dir/README.md"; then
+    sed -i \
+        "/^## Current status$/a Version $release_fixture_version is an unreleased candidate.\n" \
+        "$release_fixture_dir/README.md"
+fi
 sed -i \
     "s/^Release: .*$/Release: $release_fixture_version/" \
     "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
-sed -i \
-    "/^## Supported release baseline$/a Plasma VPN $release_fixture_version is the current public package release.\n" \
-    "$release_fixture_dir/docs/COMPATIBILITY.md"
+if ! rg -qi \
+        "(unreleased[^.]*${release_fixture_version}|${release_fixture_version//./\\.}[^.]*(unreleased|candidate|not yet a public|pending focused|before publication))" \
+        "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"; then
+    sed -i \
+        "/^## Status$/a Version $release_fixture_version is an unreleased candidate.\n" \
+        "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
+fi
+if ! rg -Fq \
+        "Plasma VPN $release_fixture_version is the current public package release" \
+        "$release_fixture_dir/docs/COMPATIBILITY.md"; then
+    sed -i \
+        "/^## Supported release baseline$/a Plasma VPN $release_fixture_version is the current public package release.\n" \
+        "$release_fixture_dir/docs/COMPATIBILITY.md"
+fi
+if ! rg -qi \
+        "(unreleased[^.]*${release_fixture_version}|${release_fixture_version//./\\.}[^.]*(unreleased|candidate|not yet a public|pending focused|before publication))" \
+        "$release_fixture_dir/docs/COMPATIBILITY.md"; then
+    sed -i \
+        "/^## Supported release baseline$/a Plasma VPN $release_fixture_version is an unreleased candidate pending focused acceptance before publication.\n" \
+        "$release_fixture_dir/docs/COMPATIBILITY.md"
+fi
 sed -i \
     's/^Release:[[:space:]]*[1-9][0-9]*%{?dist}$/Release:        0%{?dist}/' \
     "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
@@ -253,6 +293,9 @@ echo "The release metadata gate rejects contradictory README status"
 perl -0pi -e \
     "s/In the unreleased ${release_fixture_version} preview/In the ${release_fixture_version} release/g; s/The unreleased ${release_fixture_version} candidate has completed/The ${release_fixture_version} release has completed/g; s/its final corrected package still needs focused installed acceptance/its corrected package passed focused installed acceptance/g; s/Version 0\\.13\\.1 is the current public release; ${release_fixture_version} is an unreleased candidate, not yet a public package or support claim/Version ${release_fixture_version} is the current public release/g" \
     "$release_fixture_dir/README.md"
+sed -i \
+    "/^Version $release_fixture_version is an unreleased candidate\.$/d" \
+    "$release_fixture_dir/README.md"
 if "$release_fixture_dir/scripts/check-release-metadata.sh" \
         >"$release_output" 2>&1; then
     echo "The release metadata gate accepted contradictory security status" >&2
@@ -267,6 +310,9 @@ echo "The release metadata gate rejects contradictory security status"
 
 perl -0pi -e \
     "s/Release: unreleased ${release_fixture_version} candidate/Release: ${release_fixture_version}/; s/for the ${release_fixture_version} candidate/for ${release_fixture_version}/g; s/The final corrected package still requires installed acceptance before publication\\./The corrected package passed installed acceptance./" \
+    "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
+sed -i \
+    "/^Version $release_fixture_version is an unreleased candidate\.$/d" \
     "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
 if "$release_fixture_dir/scripts/check-release-metadata.sh" \
         >"$release_output" 2>&1; then

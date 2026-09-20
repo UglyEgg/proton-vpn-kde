@@ -2,7 +2,7 @@
 
 The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
-## [Unreleased]
+## [0.14.1] - 2026-09-20
 
 ### Proton Core 5.7
 

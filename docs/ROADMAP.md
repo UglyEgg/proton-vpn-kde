@@ -31,8 +31,8 @@ compatibility matrix, and release workflow rather than duplicated here.
 privacy-bounded community diagnostics, and Fedora Core 5.7 compatibility. It
 keeps optional connection telemetry off in community packages and exposes the
 state without changing Proton Core's networking authority. Its seven-review
-battery and bounded remediation are complete; final package acceptance and
-publication remain release operations.
+battery, bounded remediation, corrected-diff re-review, package validation,
+and focused installed acceptance are complete.
 
 ## Post-release priorities
 

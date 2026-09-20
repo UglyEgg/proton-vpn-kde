@@ -13,7 +13,7 @@ evidence for the stated build and fixture, not fixed product requirements.
 | Connected resident CPU | 0.537 CPU-seconds / 10 minutes | 0.089% of one core over the same interval |
 | Complete disconnected demo stack | 76.5 MiB combined PSS | Published 0.11.3; backend, agent, and Control Center |
 | Complete disconnected demo stack | 80.8 MiB median combined PSS | Accepted 0.12 mechanics baseline; three runs |
-| 0.14.1 candidate vs 0.13.1 base | 95,074 vs 95,002 KiB combined PSS | Same-host isolated A/B; +72 KiB (+0.08%) |
+| 0.14.1 vs 0.13.1 base | 95,074 vs 95,002 KiB combined PSS | Same-host isolated A/B; +72 KiB (+0.08%) |
 
 During the connected retention sample, agent private writable memory plus swap
 remained 7,800 KiB; backend private writable memory plus swap fell from 114,660
@@ -26,7 +26,7 @@ only for an explicit action. A disconnected, unleased backend retires through a
 one-shot deadline; active tunnels and capture recovery are event-owned without a
 polling loop.
 
-The same candidate/base A/B measured Control Center RSS at +448 KiB and
+The same release-source/base A/B measured Control Center RSS at +448 KiB and
 startup CPU at +0.03 seconds. These are small same-host differences, not a
 cross-version product budget. Package-manager readiness inspection is lazy and
 runs only when Local setup is opened.

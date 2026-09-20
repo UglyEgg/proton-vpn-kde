@@ -1,14 +1,21 @@
 # Security and engineering assessment
 
 Last updated: 2026-09-20
-Release: unreleased 0.14.1 candidate
+Release: 0.14.1
 
 ## Status
 
-No open source-review blocker is recorded for the 0.14.1 candidate. Seven
+No open source-review blocker is recorded for 0.14.1. Seven
 isolated reviews assessed the frozen `e3d8b210..7f39b795` change boundary. Six
 bounded classes were corrected with focused regressions. The final corrected
-package still requires installed acceptance before publication.
+package passed corrected-diff re-review, package validation, and focused
+installed acceptance on Fedora 44.
+
+The broader 0.14 line had multi-day local use. On 2026-09-20 the maintainer
+explicitly waived the remaining exact-build soak interval after accepting
+`0.14.1-0.2.fc44`; the post-review changes were bounded compatibility,
+telemetry-policy, readiness, and release-gate corrections. The waiver does not
+replace or expand the review, package, or installed-UAT evidence.
 
 This is a maintainer-directed, AI-assisted assessment. It is not an independent
 third-party audit, penetration test, certification, or warranty.

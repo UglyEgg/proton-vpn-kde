@@ -4,6 +4,11 @@ Release only from a clean, immutable commit. Runtime changes after review or
 acceptance restart the affected gates. Feature releases require one week of
 local use on the reviewed runtime before publication.
 
+An abbreviated exact-build soak requires explicit maintainer approval recorded
+in the release assessment, prior use of the same feature line, and focused
+acceptance of every post-review correction. It does not waive review, package,
+artifact, or installed-UAT gates.
+
 ## 1. Metadata
 
 Synchronize:
