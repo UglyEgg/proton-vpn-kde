@@ -642,7 +642,7 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot.ready)
         self.assertTrue(snapshot.logged_in)
         self.assertEqual("disconnected", snapshot.state)
-        self.assertEqual(1, snapshot.schema_version)
+        self.assertEqual(2, snapshot.schema_version)
 
     async def test_startup_failure_logs_only_exception_class(self):
         controller = BackendController(FailingInitializationAdapter())
@@ -693,10 +693,15 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
         await self.controller.connect_fastest()
         self.assertEqual("connected", self.controller.snapshot.state)
         self.assertEqual("US-IL#600", self.controller.snapshot.server_name)
+        self.assertEqual("198.51.100.42", self.controller.snapshot.vpn_exit_ipv4)
+        self.assertEqual("2001:db8::42", self.controller.snapshot.vpn_exit_ipv6)
+        self.assertEqual("203.0.113.9", self.controller.snapshot.device_ip_at_connect)
 
         await self.controller.disconnect()
         self.assertEqual("disconnected", self.controller.snapshot.state)
         self.assertEqual("", self.controller.snapshot.server_name)
+        self.assertEqual("", self.controller.snapshot.vpn_exit_ipv4)
+        self.assertEqual("", self.controller.snapshot.device_ip_at_connect)
 
         states = [snapshot.state for snapshot in self.snapshots]
         self.assertIn("connecting", states)
@@ -827,11 +832,14 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
     async def test_snapshot_json_uses_stable_external_field_names(self):
         payload = self.controller.snapshot.to_json()
 
-        self.assertIn('"schemaVersion":1', payload)
+        self.assertIn('"schemaVersion":2', payload)
         self.assertIn('"startupCompatible":true', payload)
         self.assertIn('"loggedIn":true', payload)
         self.assertIn('"serverName":""', payload)
         self.assertIn('"forwardedPort":0', payload)
+        self.assertIn('"vpnExitIpv4":""', payload)
+        self.assertIn('"vpnExitIpv6":""', payload)
+        self.assertIn('"deviceIpAtConnect":""', payload)
         self.assertIn('"packetCaptureActive":false', payload)
         self.assertIn('"coreMemoryOptimized":true', payload)
         self.assertIn('"coreVersion":"demo"', payload)
@@ -1453,8 +1461,9 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             '{"netShield":2,"vpnAccelerator":false}'
         )
 
-        self.assertIn('"schemaVersion":1', initial)
+        self.assertIn('"schemaVersion":2', initial)
         self.assertIn('"protocols"', initial)
+        self.assertIn('"telemetryAvailable":true', initial)
         self.assertIn('"netShield":2', updated)
         self.assertIn('"vpnAccelerator":false', updated)
         self.assertEqual(2, events[-1].net_shield)
@@ -1652,6 +1661,23 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn('"anonymousCrashReports":true', updated)
 
+    async def test_community_build_rejects_telemetry_enable(self):
+        with self.assertRaisesRegex(RuntimeError, "disabled in this community build"):
+            await self.controller.update_settings_json('{"telemetry":true}')
+
+        unchanged = await self.controller.get_settings_json()
+        self.assertIn('"telemetry":false', unchanged)
+
+    async def test_telemetry_capable_build_allows_user_preference(self):
+        controller = BackendController(
+            DemoCoreAdapter(), telemetry_enabled=True
+        )
+        self.assertTrue(await controller.start())
+
+        updated = await controller.update_settings_json('{"telemetry":true}')
+
+        self.assertIn('"telemetry":true', updated)
+
     async def test_settings_patch_rejects_unknown_and_wrong_typed_values(self):
         with self.assertRaisesRegex(ValueError, "unsupported field"):
             settings_patch_from_json('{"password":"must-not-be-accepted"}')
@@ -1659,6 +1685,10 @@ class BackendControllerTests(unittest.IsolatedAsyncioTestCase):
             settings_patch_from_json('{"killSwitch":true}')
         with self.assertRaisesRegex(ValueError, "valid NetShield"):
             settings_patch_from_json('{"netShield":9}')
+        self.assertEqual(
+            {"telemetry": False},
+            settings_patch_from_json('{"telemetry":false}'),
+        )
 
     async def test_split_tunneling_payload_updates_and_syncs_scalar_settings(self):
         events = []

@@ -56,6 +56,15 @@ Kirigami.ScrollablePage {
                 onClicked: applicationWindow().openOverviewDestination(
                     "report-issue")
             }
+
+            PlasmaListItem {
+                Layout.fillWidth: true
+                text: qsTr("Check local setup")
+                subtitle: qsTr("Backend, Proton Core, and Secret Service availability")
+                icon.name: "view-list-details"
+                onClicked: applicationWindow().openOverviewDestination(
+                    "readiness")
+            }
         }
 
         SectionCard {

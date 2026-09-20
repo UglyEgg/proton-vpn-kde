@@ -5,6 +5,6 @@
 
 from .controller import BackendController, VpnSnapshot
 
-__version__ = "0.13.1"
+__version__ = "0.14.1"
 
 __all__ = ["BackendController", "VpnSnapshot", "__version__"]

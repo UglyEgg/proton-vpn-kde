@@ -211,6 +211,9 @@ void VpnController::onServiceUnregistered(const QString &)
     m_exitCountry.clear();
     m_entryCountry.clear();
     m_forwardedPort = 0;
+    m_vpnExitIpv4.clear();
+    m_vpnExitIpv6.clear();
+    m_deviceIpAtConnect.clear();
     m_secureCore = false;
     m_tor = false;
     m_p2p = false;

@@ -43,7 +43,7 @@ def normalize_server_features(features: list[str] | tuple[str, ...]) -> tuple[st
 
 @dataclass(frozen=True, slots=True)
 class VpnSnapshot:
-    """Non-sensitive state exposed to frontend processes."""
+    """Session state exposed on the user's D-Bus bus, including public IPs."""
 
     schema_version: int = SNAPSHOT_SCHEMA_VERSION
     ready: bool = False
@@ -65,6 +65,9 @@ class VpnSnapshot:
     exit_country: str = ""
     entry_country: str = ""
     forwarded_port: int = 0
+    vpn_exit_ipv4: str = ""
+    vpn_exit_ipv6: str = ""
+    device_ip_at_connect: str = ""
     secure_core: bool = False
     tor: bool = False
     p2p: bool = False
@@ -94,6 +97,9 @@ class VpnSnapshot:
         payload["exitCountry"] = payload.pop("exit_country")
         payload["entryCountry"] = payload.pop("entry_country")
         payload["forwardedPort"] = payload.pop("forwarded_port")
+        payload["vpnExitIpv4"] = payload.pop("vpn_exit_ipv4")
+        payload["vpnExitIpv6"] = payload.pop("vpn_exit_ipv6")
+        payload["deviceIpAtConnect"] = payload.pop("device_ip_at_connect")
         payload["secureCore"] = payload.pop("secure_core")
         payload["smartRouting"] = payload.pop("smart_routing")
         payload["packetCaptureActive"] = payload.pop("packet_capture_active")
@@ -170,7 +176,7 @@ class ProtocolInfo:
 class VpnSettings:
     """Validated, non-sensitive subset of Proton's persisted settings."""
 
-    schema_version: int = 1
+    schema_version: int = 2
     protocol: str = "wireguard"
     protocols: tuple[ProtocolInfo, ...] = ()
     kill_switch: int = 0
@@ -180,6 +186,8 @@ class VpnSettings:
     port_forwarding: bool = False
     ipv6: bool = True
     anonymous_crash_reports: bool = False
+    telemetry: bool = False
+    telemetry_available: bool = False
     paid_features_available: bool = False
     protocol_editable: bool = True
     kill_switch_editable: bool = True
@@ -199,6 +207,8 @@ class VpnSettings:
             "portForwarding": self.port_forwarding,
             "ipv6": self.ipv6,
             "anonymousCrashReports": self.anonymous_crash_reports,
+            "telemetry": self.telemetry,
+            "telemetryAvailable": self.telemetry_available,
             "paidFeaturesAvailable": self.paid_features_available,
             "protocolEditable": self.protocol_editable,
             "killSwitchEditable": self.kill_switch_editable,
@@ -361,6 +371,7 @@ _SETTING_TYPES: dict[str, type[str] | type[int] | type[bool]] = {
     "portForwarding": bool,
     "ipv6": bool,
     "anonymousCrashReports": bool,
+    "telemetry": bool,
 }
 
 

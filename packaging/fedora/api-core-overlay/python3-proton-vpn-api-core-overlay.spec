@@ -7,13 +7,13 @@
 %global use_source_date_epoch_as_buildtime 1
 
 Name:           python3-proton-vpn-api-core
-Version:        5.6.20
-Release:        3.plasmavpn1%{?dist}
+Version:        5.7.0
+Release:        1.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
 Vendor:         Plasma VPN contributors
-Source0:        python3-proton-vpn-api-core-5.6.20-1.fc44.x86_64.rpm
+Source0:        python3-proton-vpn-api-core-5.7.0-1.fc44.x86_64.rpm
 Source1:        overlay-manifest.json
 Source2:        rebuild_overlay.py
 Source3:        protonvpn-fedora-44-public-key.asc
@@ -55,6 +55,7 @@ Requires:       python3-packaging
 Requires:       python3-proton-core >= 0.5.0
 Requires:       python3-pynacl
 Requires:       python3-sentry-sdk
+Requires:       systemd
 Provides:       python-proton-vpn-api-core = %{version}-%{release}
 Provides:       python3.14-proton-vpn-api-core = %{version}-%{release}
 Provides:       python3.14dist(proton-vpn-api-core) = %{version}
@@ -76,7 +77,7 @@ Obsoletes:      python3-proton-vpn-network-manager
 Obsoletes:      python3-proton-vpn-session
 
 %description
-Proton's signed Fedora 5.6.20 API Core payload with narrowly verified memory,
+Proton's signed Fedora 5.7.0 API Core payload with narrowly verified memory,
 diagnostic-hygiene, and Plasma interoperability patches. The Protun WireGuard
 private key remains an unsaved per-connection secret rather than being
 delegated to a desktop keyring. NetworkManager holds it only for the lifetime
@@ -88,7 +89,7 @@ exactly match the checked-in manifest.
 %prep
 %{python3} ../../SOURCES/rebuild_overlay.py prepare \
     --manifest ../../SOURCES/overlay-manifest.json \
-    --vendor-rpm ../../SOURCES/python3-proton-vpn-api-core-5.6.20-1.fc44.x86_64.rpm \
+    --vendor-rpm ../../SOURCES/python3-proton-vpn-api-core-5.7.0-1.fc44.x86_64.rpm \
     --signing-key ../../SOURCES/protonvpn-fedora-44-public-key.asc \
     --source-directory ../../SOURCES \
     --baseline-root vendor-rootfs \
@@ -116,13 +117,30 @@ cp -a overlay-rootfs/. "$RPM_BUILD_ROOT/"
 %defattr(-,root,root,-)
 /usr/lib/NetworkManager/VPN/nm-protun.name
 /usr/lib64/python3.14/site-packages/proton
-/usr/lib64/python3.14/site-packages/proton_vpn_api_core-5.6.20.dist-info
+/usr/lib64/python3.14/site-packages/proton_vpn_api_core-5.7.0.dist-info
+/usr/lib/systemd/system/proton-vpn-kill-switch-boot.service
 /usr/libexec/nm-protun-auth-dialog
 /usr/libexec/nm-protun-service
 /usr/libexec/proton-vpn-kill-switch-service
 /usr/share/dbus-1/system-services/me.proton.vpn.kill_switch.service
 /usr/share/dbus-1/system.d/me.proton.vpn.kill_switch.conf
 /usr/share/dbus-1/system.d/nm-protun-service.conf
+
+%preun
+# Turn the kill switch off before the package goes away.
+# $1 == 0 is final removal, not an upgrade.
+if [ $1 -eq 0 ]; then
+    if ! ks_error=$(busctl call \
+            me.proton.vpn.kill_switch /me/proton/vpn/kill_switch \
+            me.proton.vpn.kill_switch Disable 2>&1); then
+        echo "warning: could not disable the Proton VPN kill switch: ${ks_error}" >&2
+    fi
+
+    # The symlink was created at runtime, so no package owns it and a
+    # plain "remove" leaves it in place. The Disable call above should already remove it
+    # but the extra redundancy is added due to the criticality of leaving this unit enabled.
+    systemctl disable proton-vpn-kill-switch-boot.service >/dev/null 2>&1 || true
+fi
 
 %postun
 # A running instance would keep owning me.proton.vpn.kill_switch with a deleted
@@ -132,6 +150,11 @@ cp -a overlay-rootfs/. "$RPM_BUILD_ROOT/"
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
+* Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 5.7.0-1.plasmavpn1
+- Rebase the verified overlay onto Proton's signed Fedora 5.7.0 payload
+- Preserve the permanent firewall kill-switch unit and safe-removal contract
+- Retain all five bounded Plasma compatibility patches and their regressions
+
 * Sat Sep 12 2026 uglyegg <uglyegg@entropy.quest> - 5.6.20-3.plasmavpn1
 - Separate signed vendor-package identity from public source-tag provenance
 - Record SPDX provenance for the strict-JSON overlay manifest

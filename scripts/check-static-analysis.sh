@@ -40,6 +40,7 @@ python3 -m json.tool \
     packaging/debian/api-core-overlay/overlay-manifest.json >/dev/null
 python3 -m json.tool packaging/fedora/core-compatibility.json >/dev/null
 python3 -m json.tool data/snapshot-schema-v1.json >/dev/null
+python3 -m json.tool data/snapshot-schema-v2.json >/dev/null
 python3 -m json.tool translations/provenance.json >/dev/null
 python3 scripts/import-proton-translations.py --check-outputs
 scripts/check-source-archive-reproducibility.sh

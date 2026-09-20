@@ -38,7 +38,7 @@ env \
     QT_ACCESSIBILITY=0 \
     proton-vpn-kde --version \
     2>"$test_tmp_dir/version.stderr" \
-    | grep -Fqx 'proton-vpn-kde 0.13.1'
+    | grep -Fqx 'proton-vpn-kde 0.14.1'
 if [[ -s "$test_tmp_dir/version.stderr" ]]; then
     [[ $(wc -l <"$test_tmp_dir/version.stderr") -eq 1 ]]
     grep -Eq \

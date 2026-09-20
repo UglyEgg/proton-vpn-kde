@@ -340,7 +340,7 @@ public slots:
             return {};
         }
         return QStringLiteral(R"json({
-            "schemaVersion":1,
+            "schemaVersion":2,
             "protocol":"wireguard",
             "protocols":[{"id":"wireguard","name":"WireGuard"}],
             "killSwitch":0,
@@ -350,6 +350,8 @@ public slots:
             "portForwarding":false,
             "ipv6":true,
             "anonymousCrashReports":true,
+            "telemetry":false,
+            "telemetryAvailable":true,
             "paidFeaturesAvailable":true,
             "protocolEditable":true,
             "killSwitchEditable":true,
@@ -559,6 +561,7 @@ private slots:
     void ignoresOperationReplyFromReplacedBackend();
     void retriesSnapshotAfterTransientSameOwnerFailure();
     void invalidSnapshotOwnsGlobalHealthError();
+    void connectionAddressesFollowSnapshot();
     void loggedOutActiveTunnelCanBeDisconnected();
     void connectionAdmissionAcrossDirectRoutes_data();
     void connectionAdmissionAcrossDirectRoutes();
@@ -604,6 +607,7 @@ private slots:
     void staleReconnectionReplyCannotCorruptForegroundOperation();
     void supportReportSubmissionFollowsBuildPolicy();
     void crashReportSubmissionFollowsBuildPolicy();
+    void telemetryFollowsBuildPolicy();
     void npsSubmissionWaitsForBackendAcceptance();
     void npsCompletionUnknownCannotBeRetried();
     void npsDismissalDoesNotOwnVpnOperationsOrGlobalGuidance();
@@ -809,6 +813,33 @@ void GroupedNavigationTest::invalidSnapshotOwnsGlobalHealthError()
         QVERIFY(controller.primaryActionEnabled());
         QVERIFY(controller.snapshotError().isEmpty());
     }
+}
+
+void GroupedNavigationTest::connectionAddressesFollowSnapshot()
+{
+    VpnController controller(nullptr, false);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+
+    auto snapshot = QJsonDocument::fromJson(
+                        ProtonVpnKde::TestData::completeSnapshot(
+                            QStringLiteral("connected")).toUtf8())
+                        .object();
+    snapshot.insert(QStringLiteral("vpnExitIpv4"),
+                    QStringLiteral("198.51.100.42"));
+    snapshot.insert(QStringLiteral("vpnExitIpv6"),
+                    QStringLiteral("2001:db8::42"));
+    snapshot.insert(QStringLiteral("deviceIpAtConnect"),
+                    QStringLiteral("203.0.113.9"));
+    controller.applySnapshot(QString::fromUtf8(
+        QJsonDocument(snapshot).toJson(QJsonDocument::Compact)));
+    QCOMPARE(controller.vpnExitIpv4(), QStringLiteral("198.51.100.42"));
+    QCOMPARE(controller.vpnExitIpv6(), QStringLiteral("2001:db8::42"));
+    QCOMPARE(controller.deviceIpAtConnect(), QStringLiteral("203.0.113.9"));
+
+    controller.applySnapshot(ProtonVpnKde::TestData::completeSnapshot());
+    QVERIFY(controller.vpnExitIpv4().isEmpty());
+    QVERIFY(controller.vpnExitIpv6().isEmpty());
+    QVERIFY(controller.deviceIpAtConnect().isEmpty());
 }
 
 void GroupedNavigationTest::loggedOutActiveTunnelCanBeDisconnected()
@@ -2686,6 +2717,25 @@ void GroupedNavigationTest::crashReportSubmissionFollowsBuildPolicy()
     QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
     QTRY_VERIFY_WITH_TIMEOUT(controller.settings()->loaded(), 2000);
     controller.updateSetting(QStringLiteral("anonymousCrashReports"), true);
+
+    QVERIFY(controller.settings()->message().contains(
+        QStringLiteral("disabled"), Qt::CaseInsensitive));
+}
+
+void GroupedNavigationTest::telemetryFollowsBuildPolicy()
+{
+    VpnController controller(nullptr, false);
+    const bool telemetryBuildEnabled = PROTON_VPN_KDE_TELEMETRY_ENABLED != 0;
+    QCOMPARE(controller.telemetryBuildEnabled(), telemetryBuildEnabled);
+    if (telemetryBuildEnabled) {
+        return;
+    }
+
+    QTRY_VERIFY_WITH_TIMEOUT(controller.backendAvailable(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.ready(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.loggedIn(), 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(controller.settings()->loaded(), 2000);
+    controller.updateSetting(QStringLiteral("telemetry"), true);
 
     QVERIFY(controller.settings()->message().contains(
         QStringLiteral("disabled"), Qt::CaseInsensitive));

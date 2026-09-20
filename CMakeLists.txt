@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project(proton-vpn-kde VERSION 0.13.1 LANGUAGES CXX)
+project(proton-vpn-kde VERSION 0.14.1 LANGUAGES CXX)
 set(PROJECT_HOMEPAGE_URL "https://github.com/uglyegg/proton-vpn-kde")
 
 option(
@@ -14,6 +14,11 @@ option(
 option(
     PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION
     "Allow anonymous crash-report submission to Proton's production API"
+    OFF
+)
+option(
+    PROTON_VPN_KDE_ENABLE_TELEMETRY
+    "Allow optional Proton Core connection telemetry"
     OFF
 )
 
@@ -168,6 +173,12 @@ qt_add_executable(proton-vpn-kde
     src/CustomDnsModel.cpp
     src/CustomDnsModel.h
     src/ConnectionAction.h
+    src/CommunityReport.cpp
+    src/CommunityReport.h
+    src/CommunityReportFormat.cpp
+    src/CommunityReportFormat.h
+    src/DesktopReadiness.cpp
+    src/DesktopReadiness.h
     src/InstalledApplicationModel.cpp
     src/InstalledApplicationModel.h
     src/InstalledExecutablePaths.cpp
@@ -282,6 +293,7 @@ qt_add_qml_module(proton-vpn-kde
         qml/ProtectionSettingsSection.qml
         qml/ReportIssuePage.qml
         qml/ReleaseNotesPage.qml
+        qml/ReadinessPage.qml
         qml/SectionCard.qml
         qml/ServerCapabilitySelector.qml
         qml/ServerBrowserFeedback.qml
@@ -320,6 +332,7 @@ target_compile_definitions(
     PROTON_VPN_KDE_VERSION="${PROJECT_VERSION}"
     PROTON_VPN_KDE_SUPPORT_REPORT_SUBMISSION_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION}>
     PROTON_VPN_KDE_CRASH_REPORT_SUBMISSION_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION}>
+    PROTON_VPN_KDE_TELEMETRY_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_TELEMETRY}>
 )
 
 target_link_libraries(proton-vpn-kde-agent PRIVATE
@@ -424,6 +437,7 @@ if(BUILD_TESTING)
         tests/SnapshotContractTest.cpp
         tests/SnapshotTestData.h
         src/SnapshotContract.generated.h
+        src/SnapshotCompatibility.h
     )
     target_include_directories(snapshot-contract-tests PRIVATE src tests)
     target_link_libraries(snapshot-contract-tests PRIVATE
@@ -547,6 +561,7 @@ if(BUILD_TESTING)
         _GNU_SOURCE
         PROTON_VPN_KDE_SUPPORT_REPORT_SUBMISSION_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION}>
         PROTON_VPN_KDE_CRASH_REPORT_SUBMISSION_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION}>
+        PROTON_VPN_KDE_TELEMETRY_ENABLED=$<BOOL:${PROTON_VPN_KDE_ENABLE_TELEMETRY}>
     )
     target_compile_options(grouped-navigation-tests PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
@@ -837,6 +852,19 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>
     )
     add_test(NAME secret-transport-tests COMMAND secret-transport-tests)
+
+    qt_add_executable(local-readiness-report-tests
+        tests/LocalReadinessReportTest.cpp
+        src/DesktopReadiness.cpp src/DesktopReadiness.h
+        src/CommunityReportFormat.cpp src/CommunityReportFormat.h
+    )
+    target_include_directories(local-readiness-report-tests PRIVATE src)
+    target_link_libraries(local-readiness-report-tests PRIVATE
+        Qt6::Core Qt6::DBus Qt6::Test)
+    target_compile_options(local-readiness-report-tests PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic>)
+    add_test(NAME local-readiness-report-tests
+        COMMAND local-readiness-report-tests)
 
     qt_add_executable(translation-loader-tests
         tests/TranslationLoaderTest.cpp
@@ -1203,6 +1231,11 @@ if(PROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION)
     set(PROTON_VPN_KDE_PYTHON_CRASH_REPORT_SUBMISSION_ENABLED True)
 else()
     set(PROTON_VPN_KDE_PYTHON_CRASH_REPORT_SUBMISSION_ENABLED False)
+endif()
+if(PROTON_VPN_KDE_ENABLE_TELEMETRY)
+    set(PROTON_VPN_KDE_PYTHON_TELEMETRY_ENABLED True)
+else()
+    set(PROTON_VPN_KDE_PYTHON_TELEMETRY_ENABLED False)
 endif()
 configure_file(
     backend/proton_vpn_kde_backend/_build_features.py.in

@@ -67,6 +67,7 @@ class DemoCoreAdapter:
             paid_features_available=logged_in,
             kill_switch=kill_switch,
             anonymous_crash_reports=False,
+            telemetry_available=True,
         )
         self._split_tunneling = SplitTunnelingSettings(
             available=True,
@@ -289,6 +290,7 @@ class DemoCoreAdapter:
                 "portForwarding": "port_forwarding",
                 "ipv6": "ipv6",
                 "anonymousCrashReports": "anonymous_crash_reports",
+                "telemetry": "telemetry",
             }[key]: value
             for key, value in patch.items()
         }
@@ -619,6 +621,9 @@ class DemoCoreAdapter:
             forwarded_port=(
                 51820 if state == "connected" and self._settings.port_forwarding else 0
             ),
+            vpn_exit_ipv4="198.51.100.42" if state == "connected" else "",
+            vpn_exit_ipv6="2001:db8::42" if state == "connected" else "",
+            device_ip_at_connect="203.0.113.9" if state == "connected" else "",
             secure_core=details[3],
             tor=details[4],
             p2p=details[5],

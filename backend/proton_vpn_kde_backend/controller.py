@@ -23,7 +23,7 @@ from .errors import (
     UserVisibleValueError,
     bounded_user_message,
 )
-from .features import CRASH_REPORT_SUBMISSION_ENABLED
+from .features import CRASH_REPORT_SUBMISSION_ENABLED, TELEMETRY_ENABLED
 from .models import (
     SUPPORTED_SERVER_FEATURES,
     CountryInfo,
@@ -194,6 +194,7 @@ class BackendController:
         adapter: CoreAdapter,
         *,
         crash_report_submission_enabled: bool = CRASH_REPORT_SUBMISSION_ENABLED,
+        telemetry_enabled: bool = TELEMETRY_ENABLED,
         shutdown_drain_seconds: float = 5.0,
         packet_capture_shutdown_seconds: float = 20.0,
         cleanup_seconds: float = 30.0,
@@ -201,6 +202,7 @@ class BackendController:
     ):
         self._adapter = adapter
         self._crash_report_submission_enabled = crash_report_submission_enabled
+        self._telemetry_enabled = telemetry_enabled
         self._snapshot = VpnSnapshot()
         self._listeners: list[SnapshotCallback] = []
         self._server_data_listeners: list[ServerDataCallback] = []
@@ -412,6 +414,10 @@ class BackendController:
         ):
             raise UserVisibleRuntimeError(
                 "Anonymous crash reporting is disabled in this unofficial community build"
+            )
+        if patch.get("telemetry") is True and not self._telemetry_enabled:
+            raise UserVisibleRuntimeError(
+                "Connection telemetry is disabled in this community build"
             )
         async def update() -> str:
             async with self._serialized_settings_access():

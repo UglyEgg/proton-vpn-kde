@@ -16,7 +16,7 @@
    arbitrary native code already executing as the desktop user.
 
 The distribution API-Core overlays are declared downstream builds, not
-unmodified Proton binaries. Fedora revision `5.6.20-3.plasmavpn1.fc44` and the
+unmodified Proton binaries. Fedora revision `5.7.0-1.plasmavpn1.fc44` and the
 Ubuntu package `5.6.10-12plasmavpn1` carry the same five manifested patches,
 including Protun secret ownership and explicit activation of validated
 protection profiles. Core retains ownership of protection rules and connection
@@ -175,7 +175,7 @@ the VPN-operation lock; cancellation joins any executor mutation before
 teardown.
 
 FIDO2 is exposed only when Core guarantees cancellation across device
-selection, assertion, and PIN work. Core 5.6.20 does not meet that complete
+selection, assertion, and PIN work. Core 5.7.0 does not meet that complete
 contract, so authenticator and recovery codes remain available but the unsafe
 security-key route is not advertised.
 
@@ -214,9 +214,26 @@ conflicts require explicit user choice.
 
 The Connection Inspector is an on-demand QML page backed by existing bounded
 state. It has no timer, traffic collector, history, telemetry, or networking
-authority. Closing it destroys the page. Direct Proton support and crash-report
-submission are independently disabled in the build, native controller, backend,
-and package policy.
+authority. Closing it destroys the page. Direct Proton support, crash-report
+submission, and optional Core connection telemetry are independently disabled
+by default through build, adapter, UI, and package policy as applicable.
+
+The local setup view uses existing backend/Core state, fixed read-only package
+queries, and session-bus `ListNames`/`ListActivatableNames`; it never invokes
+or activates `org.freedesktop.secrets`. Package capabilities confirm installed
+metadata, not that a provider is unlocked or that a tunnel will connect.
+The community report formats only allowlisted version, availability, state,
+and error-code facts. It reads no logs or addresses, performs no network call,
+and copies the displayed preview only after an explicit user action.
+
+Snapshot contract v2 carries addresses from the active Core `Connected` event's
+local-agent connection details. `server_ipv4` and `server_ipv6` are displayed as
+the reported VPN exit addresses; `device_ip` is labeled as a device observation
+at connection time. Neither value is independently re-probed, and the device
+address does not attest the current route of every split-tunnel bypass app.
+Missing or malformed values remain explicitly unavailable. The fields clear
+outside `Connected`; the address-bearing snapshot is visible to processes on
+the user's session bus, so it must not be logged or added to crash reports.
 
 Packet capture uses the active official protocol, requires Core's positive byte
 cap, and is supervised by a 15-minute generation-bound watchdog. Start failure

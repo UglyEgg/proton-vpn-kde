@@ -23,6 +23,8 @@ class VpnSettingsModel final : public QObject
     Q_PROPERTY(bool portForwarding READ portForwarding NOTIFY changed)
     Q_PROPERTY(bool ipv6 READ ipv6 NOTIFY changed)
     Q_PROPERTY(bool anonymousCrashReports READ anonymousCrashReports NOTIFY changed)
+    Q_PROPERTY(bool telemetry READ telemetry NOTIFY changed)
+    Q_PROPERTY(bool telemetryAvailable READ telemetryAvailable NOTIFY changed)
     Q_PROPERTY(bool paidFeaturesAvailable READ paidFeaturesAvailable NOTIFY changed)
     Q_PROPERTY(bool protocolEditable READ protocolEditable NOTIFY changed)
     Q_PROPERTY(bool killSwitchEditable READ killSwitchEditable NOTIFY changed)
@@ -46,6 +48,8 @@ public:
     [[nodiscard]] bool portForwarding() const;
     [[nodiscard]] bool ipv6() const;
     [[nodiscard]] bool anonymousCrashReports() const;
+    [[nodiscard]] bool telemetry() const;
+    [[nodiscard]] bool telemetryAvailable() const;
     [[nodiscard]] bool paidFeaturesAvailable() const;
     [[nodiscard]] bool protocolEditable() const;
     [[nodiscard]] bool killSwitchEditable() const;
@@ -74,6 +78,8 @@ private:
     bool m_portForwarding = false;
     bool m_ipv6 = true;
     bool m_anonymousCrashReports = false;
+    bool m_telemetry = false;
+    bool m_telemetryAvailable = false;
     bool m_paidFeaturesAvailable = false;
     bool m_protocolEditable = false;
     bool m_killSwitchEditable = false;

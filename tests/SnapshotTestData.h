@@ -13,7 +13,7 @@ inline QString completeSnapshot(const QString &state = QStringLiteral("disconnec
                                 bool loggedIn = true, bool ready = true)
 {
     const QJsonObject snapshot{
-        {QStringLiteral("schemaVersion"), 1},
+        {QStringLiteral("schemaVersion"), 2},
         {QStringLiteral("ready"), ready},
         {QStringLiteral("startupCompatible"), true},
         {QStringLiteral("loggedIn"), loggedIn},
@@ -37,6 +37,9 @@ inline QString completeSnapshot(const QString &state = QStringLiteral("disconnec
         {QStringLiteral("exitCountry"), QString()},
         {QStringLiteral("entryCountry"), QString()},
         {QStringLiteral("forwardedPort"), 0},
+        {QStringLiteral("vpnExitIpv4"), QString()},
+        {QStringLiteral("vpnExitIpv6"), QString()},
+        {QStringLiteral("deviceIpAtConnect"), QString()},
         {QStringLiteral("secureCore"), false},
         {QStringLiteral("tor"), false},
         {QStringLiteral("p2p"), false},

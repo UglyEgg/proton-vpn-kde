@@ -61,7 +61,7 @@ class OverlayBoundaryTests(unittest.TestCase):
             SCRIPT.parent / "overlay-manifest.json"
         )
 
-        self.assertEqual("5.6.20", manifest["vendor"]["version"])
+        self.assertEqual("5.7.0", manifest["vendor"]["version"])
         self.assertIsNone(manifest["vendor"]["publicSourceTag"])
         self.assertEqual(
             "v5.6.10", manifest["publicUpstream"]["latestVerifiedTag"]
@@ -89,7 +89,7 @@ class OverlayBoundaryTests(unittest.TestCase):
     def test_manifest_rejects_reintroduced_upstream_base_tag(self):
         manifest_path = SCRIPT.parent / "overlay-manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["overlay"]["upstreamBaseTag"] = "v5.6.20"
+        manifest["overlay"]["upstreamBaseTag"] = "v5.7.0"
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.json"
             path.write_text(json.dumps(manifest), encoding="utf-8")

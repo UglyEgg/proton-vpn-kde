@@ -80,6 +80,35 @@ for source_job in fedora native-analysis; do
     fi
 done
 
+fedora_job_block="$(workflow_job_block "$source_workflow" fedora)"
+if ! grep -Eq '(^|[[:space:]])diffutils([[:space:]\\]|$)' \
+        <<<"$fedora_job_block"; then
+    echo "Fedora source CI must install diffutils for reproducibility checks" >&2
+    exit 1
+fi
+
+rpm_job_block="$(workflow_job_block "$rpm_workflow" fedora-rpm)"
+if ! grep -Eq '(^|[[:space:]])systemd-rpm-macros([[:space:]\\]|$)' \
+        <<<"$rpm_job_block"; then
+    echo "RPM CI must install systemd-rpm-macros for user-unit paths" >&2
+    exit 1
+fi
+rpm_inspection_block="$(awk '
+    $0 == "      - name: Inspect package artifacts" {
+        in_step = 1
+        seen_header = 1
+    }
+    in_step && seen_header && \
+        $0 != "      - name: Inspect package artifacts" && \
+        $0 ~ /^      - name:/ { exit }
+    in_step { print }
+' "$rpm_workflow")"
+if ! grep -Eq '^[[:space:]]*--allowerasing[[:space:]]*\\$' \
+        <<<"$rpm_inspection_block"; then
+    echo "RPM CI must allow the Fedora container's standalone systemd package to be replaced" >&2
+    exit 1
+fi
+
 for release_step in \
         'Stage release artifacts' \
         'Upload Ubuntu artifacts'; do

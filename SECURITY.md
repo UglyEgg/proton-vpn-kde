@@ -7,8 +7,8 @@ tagged minor release.
 
 | Release | Security fixes |
 | --- | --- |
-| 0.13.x | Supported |
-| 0.11.x and earlier | Unsupported |
+| 0.14.x | Supported |
+| 0.13.x and earlier | Unsupported |
 
 Version 0.12.0 was an internal development milestone and was never published.
 

@@ -555,6 +555,7 @@ def _verify_behavior(root: Path, site_packages_relative: str) -> None:
 
     from proton.vpn.core.cache_handler import CacheHandler  # noqa: PLC0415
     from proton.vpn.core.api import ProtonVPNAPI  # noqa: PLC0415
+    from proton.vpn.core.settings.settings import Settings  # noqa: PLC0415
     from proton.vpn.connection import events, states  # noqa: PLC0415
     from proton.vpn.backend.networkmanager.protocol.protun.protun import (  # noqa: PLC0415
         SYSTEM_OWNED_PRIVATE_KEY,
@@ -629,6 +630,34 @@ def _verify_behavior(root: Path, site_packages_relative: str) -> None:
     finally:
         ProtonVPNAPI.is_fido2_lib_available = deprecated_property
 
+    # Core 5.7 introduces optional connection telemetry. Plasma VPN disables
+    # it immediately after every settings load. Exercise the real platform
+    # queue when the pinned Core exposes that setting so a future Core cannot
+    # silently turn the adapter's default-off policy into buffered events.
+    if hasattr(Settings.default(0), "telemetry"):
+        from proton.vpn.platform.telemetry import (  # noqa: PLC0415
+            ConnectionOutcome,
+            TelemetryEvents,
+        )
+
+        telemetry_events = TelemetryEvents(8)
+        telemetry_events.enable(False)
+        telemetry_event = telemetry_events.connect_event(
+            "wireguard_udp", "paid", False
+        ).build(ConnectionOutcome.Success)
+        telemetry_events.submit(telemetry_event)
+        if telemetry_events.flush_events():
+            raise OverlayError("Disabled Core telemetry retained an event")
+
+        telemetry_events.enable(True)
+        telemetry_events.submit(telemetry_event)
+        telemetry_events.enable(False)
+        retained_events = telemetry_events.flush_events()
+        if len(retained_events) != 1:
+            raise OverlayError("Core telemetry fixture could not queue an event")
+        if telemetry_events.flush_events():
+            raise OverlayError("Core telemetry queue was not drained after opt-out")
+
     class CapturingConnection:
         def add_setting(self, setting):
             self.setting = setting
@@ -682,7 +711,7 @@ def _verify_behavior(root: Path, site_packages_relative: str) -> None:
     if add_call.get("save_to_disk") is not False:
         raise OverlayError("Protun connection is not explicitly unsaved")
 
-    # This 5.6.10-through-5.6.20 behavior requires the KDE adapter's bounded
+    # This 5.6.10-through-5.7.0 behavior requires the KDE adapter's bounded
     # stable-disconnect barrier.  A Down received while Disconnecting is
     # ignored, and the queued replacement is promoted after the old tunnel's
     # late Disconnected event.  Fail loudly when a future pinned Core changes

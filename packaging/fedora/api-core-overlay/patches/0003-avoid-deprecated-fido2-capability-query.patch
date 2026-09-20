@@ -1,6 +1,6 @@
 --- a/usr/lib64/python3.14/site-packages/proton/vpn/core/api.py
 +++ b/usr/lib64/python3.14/site-packages/proton/vpn/core/api.py
-@@ -217,8 +217,9 @@ class ProtonVPNAPI:  # pylint: disable=too-many-public-methods
+@@ -230,8 +230,9 @@ class ProtonVPNAPI:  # pylint: disable=too-many-public-methods, too-many-instance-attributes
          This only returns True if both conditions are met and if the user
          is currently authenticating a session that requires 2FA.
          """

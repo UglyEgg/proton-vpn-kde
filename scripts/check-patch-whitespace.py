@@ -13,7 +13,6 @@ import sys
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-PATCH_ROOT = PROJECT_DIR / "packaging" / "fedora"
 HUNK_HEADER = re.compile(
     rb"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@(?:[ \t].*)?$"
 )
@@ -83,7 +82,12 @@ def added_trailing_whitespace(lines: Iterable[bytes]) -> list[int]:
 
 def main() -> int:
     failures: list[str] = []
-    patch_paths = sorted(PATCH_ROOT.glob("*-overlay/patches/*.patch"))
+    patch_paths = sorted(
+        [
+            *PROJECT_DIR.glob("packaging/fedora/*-overlay/patches/*.patch"),
+            *PROJECT_DIR.glob("packaging/debian/*-overlay/patches/*.patch"),
+        ]
+    )
     for path in patch_paths:
         try:
             line_numbers = added_trailing_whitespace(

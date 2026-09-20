@@ -38,7 +38,7 @@ It is not a new VPN implementation. Proton's installed Core continues to own pro
 | :---: | :---: | :---: |
 | [<img src="docs/images/locations.png" width="280" alt="Capability-aware server browser">](docs/images/locations.png) | [<img src="docs/images/inspector.png" width="280" alt="Read-only Connection Inspector">](docs/images/inspector.png) | [<img src="docs/images/settings.png" width="280" alt="Native Plasma settings">](docs/images/settings.png) |
 
-These previews show the 0.13 release-line interface in light and dark Plasma themes. They use the deterministic demo backend: the connection is simulated, with no Proton account, NetworkManager changes, or real VPN tunnel.
+These previews show the current interface in light and dark Plasma themes. They use the deterministic demo backend: the connection is simulated, with no Proton account, NetworkManager changes, or real VPN tunnel.
 
 ## Why this exists
 
@@ -55,8 +55,13 @@ The project was started by a paying Proton subscriber since 2017 who wanted the 
 - Protocol, NetShield, NAT, port forwarding, IPv6, custom DNS, kill-switch, and split-tunneling controls through Core's public settings APIs.
 - A resident native agent for tray actions, notifications, shortcuts, auto-connect, and reconnect coordination while the full Control Center stays on demand. Shared Startup controls let you opt into login launch, choose an open window or tray-only startup, and connect automatically to your saved target.
 - An on-demand, read-only Connection Inspector for the active server, capabilities, protection configuration, and local integration status, with no traffic collection or retained history.
+- Connection-time exit-address labels, a read-only local setup check for Core/backend status and Secret Service availability, and a community diagnostics preview that copies only allowlisted local facts when requested.
 - KRunner connection requests that require explicit Control Center confirmation rather than trusting the shared KRunner process as a VPN controller.
-- Direct Proton support-report and crash-report submission disabled in community builds so unofficial-client defects are not sent to Proton as official-client reports.
+- Direct Proton support-report submission, crash reporting, and optional Core
+  connection telemetry are disabled in community builds. Settings and copied
+  community diagnostics show that policy explicitly. Telemetry-capable builds
+  expose an off-by-default user preference. Required account, server, and VPN
+  service traffic remains unchanged.
 
 The maintained comparison with Proton's GTK client is in [Feature parity](docs/PARITY.md).
 
@@ -84,7 +89,7 @@ For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authenticati
 
 The client has regression tests for asynchronous recovery and desktop integration, isolated demo captures for layout checks, and static-analysis and sanitizer gates. Each pull request gets one source and package-validation run; release tags add repeated binary/source reproducibility checks and retained artifacts without duplicating feature-branch jobs.
 
-The 0.13.0 runtime release passed a frozen seven-perspective review. Its six bounded findings are corrected and covered by regressions; no P0 or P1 issue was substantiated. The 0.13.1 release adds cross-distribution packaging without changing VPN mechanics. CI validates source, minimum Python dependencies, Clang-Tidy, sanitizers, Fedora and Ubuntu packages, overlay policy, reproducibility inputs, and provenance without duplicating feature-branch jobs. Installed Fedora acceptance covers authentication, server browsing, settings, connection lifecycle, tray behavior, KDE launch, and inactive-protection recovery.
+The 0.13.0 runtime release passed a frozen seven-perspective review. Its six bounded findings are corrected and covered by regressions; no P0 or P1 issue was substantiated. The 0.13.1 release adds cross-distribution packaging without changing VPN mechanics. CI validates source, minimum Python dependencies, Clang-Tidy, sanitizers, Fedora and Ubuntu packages, overlay policy, reproducibility inputs, and provenance without duplicating feature-branch jobs. Installed Fedora acceptance covers authentication, server browsing, settings, connection lifecycle, tray behavior, KDE launch, and inactive-protection recovery. The 0.14.1 release completed its seven-perspective review, bounded remediation, corrected-diff re-review, package validation, and focused installed acceptance.
 
 The concise [security and engineering assessment](docs/SECURITY-AUDIT-2026-08-30.md) records findings, controls, evidence, and residual risk. Memory, CPU, search, and retention measurements are in [Performance](docs/PERFORMANCE.md).
 
@@ -92,7 +97,7 @@ These are engineering checks, not certification. The project has received mainta
 
 ## Current status
 
-Version 0.13.1 is the current public release. Version 0.12.0 was an accepted internal milestone and was never tagged or published. Fedora 44 remains the live-accepted target. Ubuntu 26.04 amd64 with Plasma 6 is the second package-validated target: CI builds and tests the client plus both required overlays as binary and source Debian packages. It will remain explicitly package-validated rather than live-supported until community field reports establish the Plasma lifecycle. Exact Core and dependency baselines are maintained in [Compatibility](docs/COMPATIBILITY.md).
+Version 0.14.1 is the current public release. Version 0.12.0 was an accepted internal milestone and was never tagged or published. Fedora 44 remains the live-accepted target. Ubuntu 26.04 amd64 with Plasma 6 is the second package-validated target: CI builds and tests the client plus both required overlays as binary and source Debian packages. It will remain explicitly package-validated rather than live-supported until community field reports establish the Plasma lifecycle. Exact Core and dependency baselines are maintained in [Compatibility](docs/COMPATIBILITY.md).
 
 > [!NOTE]
 > Verified KeePassXC support uses the separately packaged, provider-neutral Proton keyring rebuild recorded in [Compatibility](docs/COMPATIBILITY.md). The source, patches, tests, and manifests are included under [`packaging/fedora/keyring-overlay`](packaging/fedora/keyring-overlay/) with Debian packaging under [`packaging/debian/keyring-overlay`](packaging/debian/keyring-overlay/). Release CI builds the overlay beside the client; both package formats require explicit capabilities instead of silently replacing an installed Python file.

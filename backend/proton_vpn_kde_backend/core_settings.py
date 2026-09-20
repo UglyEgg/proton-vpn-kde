@@ -39,6 +39,7 @@ def vpn_settings_from_core(
     user_tier: int,
     disconnected: bool,
     packet_capture_supported: bool,
+    telemetry_available: bool,
 ) -> VpnSettings:
     return VpnSettings(
         protocol=settings.protocol,
@@ -50,6 +51,8 @@ def vpn_settings_from_core(
         port_forwarding=bool(settings.features.port_forwarding),
         ipv6=bool(settings.ipv6),
         anonymous_crash_reports=bool(settings.anonymous_crash_reports),
+        telemetry=bool(getattr(settings, "telemetry", False)),
+        telemetry_available=telemetry_available,
         paid_features_available=user_tier >= 1,
         protocol_editable=disconnected,
         kill_switch_editable=disconnected,

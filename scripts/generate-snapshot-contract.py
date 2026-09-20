@@ -12,7 +12,10 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_PATH = PROJECT_ROOT / "data" / "snapshot-schema-v1.json"
+SCHEMA_PATHS = (
+    PROJECT_ROOT / "data" / "snapshot-schema-v1.json",
+    PROJECT_ROOT / "data" / "snapshot-schema-v2.json",
+)
 PYTHON_OUTPUT = (
     PROJECT_ROOT / "backend" / "proton_vpn_kde_backend" / "snapshot_contract.py"
 )
@@ -20,8 +23,8 @@ CPP_OUTPUT = PROJECT_ROOT / "src" / "SnapshotContract.generated.h"
 SUPPORTED_TYPES = {"boolean", "integer", "string"}
 
 
-def load_schema() -> tuple[int, list[tuple[str, str]]]:
-    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+def load_schema(path: Path) -> tuple[int, list[tuple[str, str]]]:
+    schema = json.loads(path.read_text(encoding="utf-8"))
     version = schema.get("schemaVersion")
     fields = schema.get("fields")
     if type(version) is not int or not isinstance(fields, dict) or not fields:
@@ -80,7 +83,9 @@ def render_python(version: int, fields: list[tuple[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def render_cpp(version: int, fields: list[tuple[str, str]]) -> str:
+def render_cpp(
+    schemas: list[tuple[int, list[tuple[str, str]]]],
+) -> str:
     enum_values = {"boolean": "Boolean", "integer": "Integer", "string": "String"}
     lines = [
         "// SPDX-FileCopyrightText: 2026 Plasma VPN contributors",
@@ -96,46 +101,58 @@ def render_cpp(version: int, fields: list[tuple[str, str]]) -> str:
         "",
         "namespace ProtonVpnKde",
         "{",
-        f"inline constexpr int snapshotSchemaVersion = {version};",
+        f"inline constexpr int snapshotSchemaVersion = {schemas[-1][0]};",
         "enum class SnapshotFieldType { Boolean, Integer, String };",
         "struct SnapshotField { const char *name; SnapshotFieldType type; };",
-        f"inline constexpr std::array<SnapshotField, {len(fields)}> snapshotFields{{{{",
     ]
-    lines.extend(
-        f'    {{"{name}", SnapshotFieldType::{enum_values[field_type]}}},'
-        for name, field_type in fields
-    )
+    for version, fields in schemas:
+        lines.extend(
+            [
+                "",
+                f"inline constexpr std::array<SnapshotField, {len(fields)}> "
+                f"snapshotFieldsV{version}{{{{",
+            ]
+        )
+        lines.extend(
+            f'    {{"{name}", SnapshotFieldType::{enum_values[field_type]}}},'
+            for name, field_type in fields
+        )
+        lines.extend(
+            [
+                "}};",
+                "",
+                f"inline bool validateSnapshotV{version}(const QJsonObject &snapshot,",
+                "                               QString *errorMessage = nullptr)",
+                "{",
+                f"    if (snapshot.size() != static_cast<qsizetype>(snapshotFieldsV{version}.size())) {{",
+                "        if (errorMessage) {",
+                "            *errorMessage = QStringLiteral(\"Snapshot has missing or extra fields\");",
+                "        }",
+                "        return false;",
+                "    }",
+                f"    for (const auto &field : snapshotFieldsV{version}) {{",
+                "        const auto value = snapshot.value(QString::fromLatin1(field.name));",
+                "        const bool valid = field.type == SnapshotFieldType::Boolean",
+                "            ? value.isBool()",
+                "            : field.type == SnapshotFieldType::String",
+                "            ? value.isString()",
+                "            : value.isDouble()",
+                "                && std::trunc(value.toDouble()) == value.toDouble();",
+                "        if (!valid) {",
+                "            if (errorMessage) {",
+                "                *errorMessage = QStringLiteral(\"Missing or invalid snapshot field: %1\")",
+                "                                    .arg(QString::fromLatin1(field.name));",
+                "            }",
+                "            return false;",
+                "        }",
+                "    }",
+                "    return true;",
+                "}",
+            ]
+        )
     lines.extend(
         [
-            "}};",
             "",
-            "inline bool validateSnapshotV1(const QJsonObject &snapshot,",
-            "                               QString *errorMessage = nullptr)",
-            "{",
-            "    if (snapshot.size() != static_cast<qsizetype>(snapshotFields.size())) {",
-            "        if (errorMessage) {",
-            "            *errorMessage = QStringLiteral(\"Snapshot has missing or extra fields\");",
-            "        }",
-            "        return false;",
-            "    }",
-            "    for (const auto &field : snapshotFields) {",
-            "        const auto value = snapshot.value(QString::fromLatin1(field.name));",
-            "        const bool valid = field.type == SnapshotFieldType::Boolean",
-            "            ? value.isBool()",
-            "            : field.type == SnapshotFieldType::String",
-            "            ? value.isString()",
-            "            : value.isDouble()",
-            "                && std::trunc(value.toDouble()) == value.toDouble();",
-            "        if (!valid) {",
-            "            if (errorMessage) {",
-            "                *errorMessage = QStringLiteral(\"Missing or invalid snapshot field: %1\")",
-            "                                    .arg(QString::fromLatin1(field.name));",
-            "            }",
-            "            return false;",
-            "        }",
-            "    }",
-            "    return true;",
-            "}",
             "} // namespace ProtonVpnKde",
             "",
         ]
@@ -159,10 +176,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    version, fields = load_schema()
+    schemas = [load_schema(path) for path in SCHEMA_PATHS]
+    version, fields = schemas[-1]
     results = (
         update(PYTHON_OUTPUT, render_python(version, fields), check=args.check),
-        update(CPP_OUTPUT, render_cpp(version, fields), check=args.check),
+        update(CPP_OUTPUT, render_cpp(schemas), check=args.check),
     )
     return 0 if all(results) else 1
 

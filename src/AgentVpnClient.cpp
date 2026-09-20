@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "AgentVpnClient.h"
-#include "SnapshotContract.generated.h"
+#include "SnapshotCompatibility.h"
 
 #include "BackendCallPolicy.h"
 #include "BackendIdentity.h"
@@ -470,16 +470,16 @@ void AgentVpnClient::applySnapshot(const QString &snapshotJson)
         emit snapshotChanged();
         return;
     }
-    const QJsonObject snapshot = document.object();
-    if (snapshot.value(QStringLiteral("schemaVersion")).toInt()
-        != ProtonVpnKde::snapshotSchemaVersion) {
-        m_message = tr("The backend uses an unsupported interface version");
+    QJsonObject snapshot = document.object();
+    const auto compatibility = ProtonVpnKde::normalizeSnapshot(&snapshot);
+    if (compatibility == ProtonVpnKde::SnapshotCompatibilityResult::UnsupportedVersion) {
+        m_message = tr("The backend uses an unsupported interface version. Restart Plasma VPN after the upgrade completes.");
         clearPendingConnection();
         releaseTransientLease();
         emit snapshotChanged();
         return;
     }
-    if (!ProtonVpnKde::validateSnapshotV1(snapshot)) {
+    if (compatibility != ProtonVpnKde::SnapshotCompatibilityResult::Accepted) {
         m_message = tr("The backend returned an incomplete state snapshot");
         clearPendingConnection();
         releaseTransientLease();

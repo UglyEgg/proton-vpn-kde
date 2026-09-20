@@ -4,6 +4,11 @@ Release only from a clean, immutable commit. Runtime changes after review or
 acceptance restart the affected gates. Feature releases require one week of
 local use on the reviewed runtime before publication.
 
+An abbreviated exact-build soak requires explicit maintainer approval recorded
+in the release assessment, prior use of the same feature line, and focused
+acceptance of every post-review correction. It does not waive review, package,
+artifact, or installed-UAT gates.
+
 ## 1. Metadata
 
 Synchronize:
@@ -48,6 +53,10 @@ scripts/check-qml-visual-matrix.sh build build/visual-matrix
 git diff --check
 git status --short
 ```
+
+The mechanics-freeze script seals the published 0.13 baseline plus the reviewed
+0.14.1 change boundary. Rebaseline only after the seven reviews, required
+corrections, focused regressions, and corrected-diff re-review complete.
 
 The tree must contain no build output, local packages, credentials, diagnostics,
 machine-specific paths, editor state, or unrelated changes.
@@ -125,6 +134,12 @@ in a clean target-distribution Plasma environment. Test:
 - full/split layouts, keyboard navigation, app-owned sizing, and monitor changes;
 - packet-capture stop and disconnected shutdown; and
 - disabled Proton support/crash submission.
+
+For in-place upgrades, verify that a new frontend accepts the immediately
+preceding settings/snapshot contracts and that an unsupported future contract
+produces bounded restart guidance. A package update must not strand an active
+tunnel merely because frontend and backend processes crossed the transaction
+boundary at different times.
 
 Installation must not enable autostart or overwrite custom autostart entries.
 Record exact versions and outcomes in [Compatibility](COMPATIBILITY.md).

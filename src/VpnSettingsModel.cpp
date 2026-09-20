@@ -54,6 +54,8 @@ bool VpnSettingsModel::moderateNat() const { return m_moderateNat; }
 bool VpnSettingsModel::portForwarding() const { return m_portForwarding; }
 bool VpnSettingsModel::ipv6() const { return m_ipv6; }
 bool VpnSettingsModel::anonymousCrashReports() const { return m_anonymousCrashReports; }
+bool VpnSettingsModel::telemetry() const { return m_telemetry; }
+bool VpnSettingsModel::telemetryAvailable() const { return m_telemetryAvailable; }
 bool VpnSettingsModel::paidFeaturesAvailable() const { return m_paidFeaturesAvailable; }
 bool VpnSettingsModel::protocolEditable() const { return m_protocolEditable; }
 bool VpnSettingsModel::killSwitchEditable() const { return m_killSwitchEditable; }
@@ -92,7 +94,8 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
     }
 
     const QJsonObject object = document.object();
-    if (object.value(QStringLiteral("schemaVersion")).toInt() != 1) {
+    const int schemaVersion = object.value(QStringLiteral("schemaVersion")).toInt();
+    if (schemaVersion != 1 && schemaVersion != 2) {
         return fail(tr("The backend uses an unsupported settings version"));
     }
     const QJsonValue protocolValue = object.value(QStringLiteral("protocol"));
@@ -132,6 +135,8 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
     bool portForwarding = false;
     bool ipv6 = false;
     bool anonymousCrashReports = false;
+    bool telemetry = false;
+    bool telemetryAvailable = false;
     bool paidFeaturesAvailable = false;
     bool protocolEditable = false;
     bool killSwitchEditable = false;
@@ -154,6 +159,21 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
                         &packetCaptureSupported)) {
         return fail(tr("The backend returned incomplete VPN settings"));
     }
+    if (schemaVersion == 1) {
+        const QJsonValue telemetryValue = object.value(QStringLiteral("telemetry"));
+        if (!telemetryValue.isUndefined() && !telemetryValue.isBool()) {
+            return fail(tr("The backend returned incomplete VPN settings"));
+        }
+        // Schema 1 always serialized a false telemetry field, including when
+        // its Core had no telemetry capability. It cannot prove availability,
+        // so an in-place frontend-first upgrade must keep the control off.
+        telemetry = false;
+        telemetryAvailable = false;
+    } else if (!readBoolean(object, QStringLiteral("telemetry"), &telemetry)
+               || !readBoolean(object, QStringLiteral("telemetryAvailable"),
+                               &telemetryAvailable)) {
+        return fail(tr("The backend returned incomplete VPN settings"));
+    }
 
     m_protocol = protocol;
     m_protocolOptions = protocolOptions;
@@ -164,6 +184,8 @@ bool VpnSettingsModel::applyJson(const QString &settingsJson,
     m_portForwarding = portForwarding;
     m_ipv6 = ipv6;
     m_anonymousCrashReports = anonymousCrashReports;
+    m_telemetry = telemetry;
+    m_telemetryAvailable = telemetryAvailable;
     m_paidFeaturesAvailable = paidFeaturesAvailable;
     m_protocolEditable = protocolEditable;
     m_killSwitchEditable = killSwitchEditable;

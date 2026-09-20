@@ -27,7 +27,8 @@ jobs:
       - name: Install build and analysis dependencies
         run: |
           dnf install -y \
-            ShellCheck cmake cpio curl dbus-daemon desktop-file-utils libxml2 rpm \
+            ShellCheck cmake cpio curl dbus-daemon desktop-file-utils diffutils \
+            libxml2 rpm \
             extra-cmake-modules gcc-c++ git glib2 ninja-build openssl-devel \
             plasma-breeze-common plasma-integration \
             procps-ng python3-coverage python3-cryptography python3-dbus-fast \
@@ -51,7 +52,7 @@ jobs:
           useradd --create-home ci-builder
           chown -R ci-builder:ci-builder "$GITHUB_WORKSPACE"
 
-      - name: Enforce the reviewed 0.13 change boundary
+      - name: Enforce the reviewed 0.14 release boundary
         run: runuser --user ci-builder -- scripts/check-ux-mechanics-freeze.sh
 
       - name: Run static checks

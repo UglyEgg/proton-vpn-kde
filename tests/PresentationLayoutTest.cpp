@@ -23,23 +23,96 @@ class ReportPreviewController final : public QObject
     Q_PROPERTY(bool supportReportSubmissionEnabled READ submissionEnabled CONSTANT)
     Q_PROPERTY(bool loggedIn READ loggedIn CONSTANT)
     Q_PROPERTY(bool busy READ busy CONSTANT)
+    Q_PROPERTY(bool ready READ ready CONSTANT)
+    Q_PROPERTY(QString state READ state CONSTANT)
     Q_PROPERTY(QString accountName READ accountName CONSTANT)
 public:
     bool submissionEnabled() const { return false; }
     bool loggedIn() const { return true; }
     bool busy() const { return false; }
+    bool ready() const { return true; }
+    QString state() const { return QStringLiteral("disconnected"); }
     QString accountName() const { return QStringLiteral("demo-user"); }
     int submissions = 0;
     Q_INVOKABLE void submitSupportReport(
         const QString &, const QString &, const QString &, bool) { ++submissions; }
 Q_SIGNALS:
+    void snapshotChanged();
     void supportReportFinished(bool success, const QString &message);
+};
+
+class ReportDiagnosticsPreview final : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(QString preview READ preview NOTIFY changed)
+public:
+    QString preview() const { return QStringLiteral("Plasma VPN community diagnostics\nClient version: 0.14.1"); }
+    int refreshes = 0;
+    int copies = 0;
+    Q_INVOKABLE void refresh() { ++refreshes; emit changed(); }
+    Q_INVOKABLE bool copyPreview() { ++copies; return true; }
+Q_SIGNALS:
+    void changed();
+};
+
+class ReadinessPreviewController final : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(bool ready READ ready CONSTANT)
+    Q_PROPERTY(bool backendAvailable READ backendAvailable CONSTANT)
+    Q_PROPERTY(bool snapshotHealthy READ snapshotHealthy CONSTANT)
+    Q_PROPERTY(bool backendRestartAllowed READ backendRestartAllowed CONSTANT)
+    Q_PROPERTY(bool startupCompatible READ startupCompatible CONSTANT)
+    Q_PROPERTY(bool loggedIn READ loggedIn CONSTANT)
+    Q_PROPERTY(QString state READ state CONSTANT)
+    Q_PROPERTY(QString coreVersion READ coreVersion CONSTANT)
+    Q_PROPERTY(QString message READ message CONSTANT)
+public:
+    bool ready() const { return false; }
+    bool backendAvailable() const { return false; }
+    bool snapshotHealthy() const { return true; }
+    bool backendRestartAllowed() const { return true; }
+    bool startupCompatible() const { return false; }
+    bool loggedIn() const { return false; }
+    QString state() const { return QStringLiteral("starting"); }
+    QString coreVersion() const { return {}; }
+    QString message() const { return {}; }
+};
+
+class ReadinessPreviewProbe final : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(QString secretServiceState READ secretServiceState NOTIFY secretServiceStateChanged)
+    Q_PROPERTY(QString coreCapabilityState READ coreCapabilityState NOTIFY packageCapabilityStatesChanged)
+    Q_PROPERTY(QString keyringCapabilityState READ keyringCapabilityState NOTIFY packageCapabilityStatesChanged)
+public:
+    QString secretServiceState() const { return QStringLiteral("missing"); }
+    QString coreCapabilityState() const { return QStringLiteral("present"); }
+    QString keyringCapabilityState() const { return QStringLiteral("present"); }
+    int refreshes = 0;
+    Q_INVOKABLE void refresh()
+    {
+        ++refreshes;
+        emit secretServiceStateChanged();
+        emit packageCapabilityStatesChanged();
+    }
+    Q_INVOKABLE void refreshSecretService()
+    {
+        ++secretRefreshes;
+        emit secretServiceStateChanged();
+    }
+Q_SIGNALS:
+    void secretServiceStateChanged();
+    void packageCapabilityStatesChanged();
+public:
+    int secretRefreshes = 0;
 };
 
 class PresentationLayoutTest final : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    void readinessShowsMissingProviderWithoutOpeningIt();
     void reportStaysInsideCard_data();
     void reportStaysInsideCard();
     void splitRouteIsConditionalAndNavigable_data();
@@ -278,6 +351,33 @@ void PresentationLayoutTest::reportStaysInsideCard_data()
     QTest::newRow("rtl") << 480 << 1.0 << true;
 }
 
+void PresentationLayoutTest::readinessShowsMissingProviderWithoutOpeningIt()
+{
+    ReadinessPreviewController controller;
+    ReadinessPreviewProbe probe;
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty(QStringLiteral("vpnController"), &controller);
+    engine.rootContext()->setContextProperty(QStringLiteral("desktopReadiness"), &probe);
+    QQmlComponent component(&engine);
+    component.setData(R"(
+        import QtQuick
+        import QtQuick.Controls
+        ApplicationWindow {
+            width: 480; height: 700; visible: true
+            ReadinessPage { anchors.fill: parent }
+        }
+    )", QUrl::fromLocalFile(QStringLiteral(PROTON_VPN_KDE_SOURCE_DIR "/qml/LayoutFixture.qml")));
+    QScopedPointer<QObject> root(component.create());
+    QVERIFY2(root, qPrintable(component.errorString()));
+    QCOMPARE(probe.refreshes, 1);
+    auto *missing = root->findChild<QQuickItem *>(QStringLiteral("secretServiceMissingMessage"));
+    auto *refresh = root->findChild<QObject *>(QStringLiteral("readinessRefreshButton"));
+    QVERIFY(missing && refresh);
+    QTRY_VERIFY(missing->property("visible").toBool());
+    QVERIFY(QMetaObject::invokeMethod(refresh, "clicked"));
+    QCOMPARE(probe.refreshes, 2);
+}
+
 void PresentationLayoutTest::reportStaysInsideCard()
 {
     QFETCH(int, viewportWidth);
@@ -294,8 +394,12 @@ void PresentationLayoutTest::reportStaysInsideCard()
     QGuiApplication::setFont(font);
     QGuiApplication::setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
     ReportPreviewController controller;
+    ReportDiagnosticsPreview diagnostics;
     QQmlEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("vpnController"), &controller);
+    engine.rootContext()->setContextProperty(QStringLiteral("communityReport"), &diagnostics);
+    ReadinessPreviewProbe probe;
+    engine.rootContext()->setContextProperty(QStringLiteral("desktopReadiness"), &probe);
     engine.rootContext()->setContextProperty(QStringLiteral("viewportWidth"), viewportWidth);
     QQmlComponent component(&engine);
     component.setData(R"(
@@ -312,11 +416,22 @@ void PresentationLayoutTest::reportStaysInsideCard()
     QVERIFY(window);
     auto *dialog = root->findChild<QObject *>(QStringLiteral("reportUnavailableDialog"));
     QVERIFY(dialog);
-    QTRY_VERIFY(dialog->property("visible").toBool());
-    QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
-    QTRY_VERIFY(!dialog->property("visible").toBool());
+    QVERIFY(!dialog->property("visible").toBool());
+    QCOMPARE(probe.secretRefreshes, 1);
+    QCOMPARE(diagnostics.refreshes, 2);
+    auto *communityCard = root->findChild<QQuickItem *>(QStringLiteral("communityReportCard"));
+    auto *copy = root->findChild<QObject *>(QStringLiteral("copyCommunityReport"));
+    QVERIFY(communityCard && copy);
+    QVERIFY(communityCard->isVisible());
+    QVERIFY(QMetaObject::invokeMethod(copy, "clicked"));
+    QCOMPARE(diagnostics.copies, 1);
     auto *card = root->findChild<QQuickItem *>(QStringLiteral("supportReportCard"));
     QVERIFY(card);
+    QVERIFY(!card->isVisible());
+    auto *page = root->findChild<QObject *>(QStringLiteral("reportIssuePage"));
+    QVERIFY(page);
+    page->setProperty("showInactiveForm", true);
+    QTRY_VERIFY(card->isVisible());
     QTRY_VERIFY(card->width() > 0);
     QTest::qWait(50);
     capture(window);
@@ -349,7 +464,6 @@ void PresentationLayoutTest::reportStaysInsideCard()
     auto *submit = root->findChild<QObject *>(QStringLiteral("reportSubmit"));
     QVERIFY(submit);
     QVERIFY(!submit->property("enabled").toBool());
-    auto *page = root->findChild<QObject *>(QStringLiteral("reportIssuePage"));
     QVERIFY(QMetaObject::invokeMethod(page, "submitReport"));
     QCOMPARE(controller.submissions, 0);
 }
@@ -404,6 +518,8 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
                 loggedIn: true; ready: true; accountName: "demo-user"
                 destinationName: "Illinois"; destinationFlag: "US"
                 serverName: "US-IL#1018"; protocolName: "Smart"
+                vpnExitIpv4: "198.51.100.42"
+                deviceIpAtConnect: "203.0.113.9"
                 p2p: true; streaming: true
                 primaryText: testConnected ? "Disconnect" : "Connect"
                 primaryEnabled: true
@@ -425,6 +541,10 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
     QTRY_VERIFY(scene->height() > 0);
     QTest::qWait(50);
     QCOMPARE(cloud->isVisible(), connected && splitEnabled);
+    if (cloud->isVisible()) {
+        QVERIFY(cloud->property("detail").toString().contains(
+            QStringLiteral("203.0.113.9")));
+    }
     if (qEnvironmentVariableIntValue("PLASMA_VPN_EXPECT_CURVE_RENDERER") == 1) {
         QCOMPARE(routeShape->property("rendererType").toInt(),
                  renderer.keyToValue("CurveRenderer"));
@@ -446,6 +566,10 @@ void PresentationLayoutTest::splitRouteIsConditionalAndNavigable()
     auto *diagram = root->findChild<QQuickItem *>(QStringLiteral("connectionRouteDiagram"));
     auto *facts = root->findChild<QQuickItem *>(QStringLiteral("connectionFacts"));
     QVERIFY(device && vpn && group && diagram && facts);
+    if (connected) {
+        QVERIFY(vpn->property("detail").toString().contains(
+            QStringLiteral("198.51.100.42")));
+    }
     if (connected) {
         QCOMPARE(scene->property("stateColor").value<QColor>(),
                  vpn->property("accentColor").value<QColor>());

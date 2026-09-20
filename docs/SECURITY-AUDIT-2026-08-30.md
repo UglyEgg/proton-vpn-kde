@@ -1,15 +1,21 @@
 # Security and engineering assessment
 
-Last updated: 2026-09-13
-Release: 0.13.1
+Last updated: 2026-09-20
+Release: 0.14.1
 
 ## Status
 
-No open release-blocking finding is recorded for the 0.13.1 package
-update. The 0.13.0 runtime review found no P0 or P1 issue; its six findings were
-corrected and have regression coverage. Later Fedora and Ubuntu packaging,
-Core-overlay, provenance, CI, and documentation changes are covered by their
-own policy and compatibility tests.
+No open source-review blocker is recorded for 0.14.1. Seven
+isolated reviews assessed the frozen `e3d8b210..7f39b795` change boundary. Six
+bounded classes were corrected with focused regressions. The final corrected
+package passed corrected-diff re-review, package validation, and focused
+installed acceptance on Fedora 44.
+
+The broader 0.14 line had multi-day local use. On 2026-09-20 the maintainer
+explicitly waived the remaining exact-build soak interval after accepting
+`0.14.1-0.2.fc44`; the post-review changes were bounded compatibility,
+telemetry-policy, readiness, and release-gate corrections. The waiver does not
+replace or expand the review, package, or installed-UAT evidence.
 
 This is a maintainer-directed, AI-assisted assessment. It is not an independent
 third-party audit, penetration test, certification, or warranty.
@@ -40,6 +46,24 @@ Community code owns desktop presentation, input validation, D-Bus policy,
 operation ownership, process lifetime, and downstream package integration.
 The distribution API-Core packages contain declared, version-pinned patches
 and must not be represented as unmodified Proton binaries.
+
+## 0.14.1 review result
+
+| ID | Priority | Finding | Resolution |
+| --- | --- | --- | --- |
+| 014-RC1 | P1 / low security | Disabling optional Core telemetry stopped new collection but left already queued events publishable | Disabled policy now requires queue controls, disables collection, and drains the queue before settings publication; missing or failing controls fail closed |
+| 014-RC2 | P1 | Frontend and backend snapshot/settings contracts could disagree during an in-place package upgrade | Settings schema 2 advertises runtime capability; schema 1 remains readable; snapshot v1 is validated and normalized to v2; unknown versions provide restart guidance |
+| 014-RC3 | P1 | Final metadata checks could accept a preview Debian revision or stale in-app preview text | Final gate now rejects pre-final Debian identities, preview About/release text, and stale compatibility status; negative fixtures cover each class |
+| 014-RC4 | P2 | Build permission, Core telemetry capability, and user preference were conflated | The three states are independent in native code, Settings, diagnostics, and tests |
+| 014-RC5 | P2 | A package-query completion could satisfy the report page's Secret Service wait; package checks also ran at every Control Center start | Readiness uses distinct signals and entry points; package inspection runs only on the local-setup page |
+| 014-RC6 | P2 | Release and performance evidence described older client/Core states | Existing release, compatibility, performance, and audit records were reconciled to the 0.14.1/Core 5.7 boundary |
+
+The hardening review used a durable repository-diff security scan. It reported
+only 014-RC1 at low severity and high confidence. The finding was reproduced
+against Core 5.7, remediated at the single settings-policy boundary, and covered
+for queued events, legacy settings, missing controls, and failing controls.
+No P0 or unresolved P1 finding remains. This remains a maintainer-directed,
+AI-assisted review rather than an independent audit.
 
 ## 0.13.0 review result
 
@@ -163,6 +187,9 @@ the commit history retains the per-defect development record.
 - Project subprocesses use fixed packaged paths and bounded execution.
 - Support collection is dormant in community builds and capped at 1 MiB per
   source, 2 MiB total, and 20 seconds.
+- Optional Core connection telemetry is disabled at build policy, live queue,
+  queued-event, persistence-write, UI, and diagnostic-report boundaries unless
+  a capable build and explicit user preference both permit it.
 - Capture requires Core's positive reviewed byte cap and an existing writable
   absolute destination; the client neither uploads nor rewrites PCAP data.
 - Repository switching uses fixed package names and arguments through Polkit;
@@ -174,7 +201,7 @@ the commit history retains the per-defect development record.
 | --- | --- |
 | Frozen seven-review battery | Six bounded findings; all corrected; no P0/P1 |
 | Native suite | 45 registered CTest targets, including D-Bus, QML, lifecycle, package-policy, and visual gates |
-| Python/Core suite | 448 backend and Core-conformance cases at the release checkpoint |
+| Python/Core suite | 464 backend and Core-conformance cases; seven environment-specific skips |
 | Native analysis | Full production set under Clang-Tidy and address/leak/undefined-behavior sanitizers |
 | Python analysis | Mypy, Ruff, and branch-coverage floor |
 | Fedora packaging | Client, keyring overlay, and API-Core overlay RPM/SRPM policy checks |

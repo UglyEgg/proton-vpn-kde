@@ -41,6 +41,32 @@ class OverlayBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(6, len(manifest["overlay"]["modifiedFiles"]))
 
+    def test_current_manifest_resolves_version_specific_patch_inputs(self):
+        manifest = rebuild_overlay._load_manifest(
+            SCRIPT.parent / "overlay-manifest.json"
+        )
+        shared_directory = (
+            SCRIPT.parents[2] / "fedora/api-core-overlay/patches"
+        )
+        override_directory = SCRIPT.parent / "patches"
+        listed_names = {
+            record["file"] for record in manifest["overlay"]["patches"]
+        }
+
+        self.assertEqual(
+            {"0003-avoid-deprecated-fido2-capability-query.patch"},
+            {path.name for path in override_directory.glob("*.patch")},
+        )
+        for record in manifest["overlay"]["patches"]:
+            override = override_directory / record["file"]
+            source = override if override.is_file() else shared_directory / record["file"]
+            self.assertTrue(source.is_file(), record["file"])
+            self.assertEqual(record["sha256"], sha256(source), record["file"])
+        self.assertIn(
+            "0003-avoid-deprecated-fido2-capability-query.patch",
+            listed_names,
+        )
+
     def test_manifest_rejects_an_unlisted_capability_patch(self):
         manifest_path = SCRIPT.parent / "overlay-manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

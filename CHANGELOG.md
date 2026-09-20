@@ -2,7 +2,41 @@
 
 The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
-## [Unreleased]
+## [0.14.1] - 2026-09-20
+
+### Proton Core 5.7
+
+- Rebase the verified Fedora API-Core overlay onto Proton's signed 5.7.0
+  package while retaining all five bounded compatibility patches.
+- Preserve Core's permanent firewall kill-switch service and final-removal
+  cleanup contract.
+- Keep Core 5.7's optional connection telemetry disabled by default in
+  community builds, both in the live event queue and on explicit settings
+  writes. Necessary Proton account, server, and VPN traffic is unchanged.
+- Surface telemetry availability and state in Settings and copied community
+  diagnostics. Telemetry-capable builds expose an explicit switch; fresh Core
+  profiles remain off until the user opts in.
+- Drain already queued telemetry events on opt-out and fail closed when the
+  installed Core cannot enforce the requested policy.
+
+### Connection insight
+
+- Show the VPN exit address reported at connection time in the Connection
+  view and Inspector. In split-tunnel mode, label the device-side address
+  separately; these are observations, not a live external-IP probe.
+
+### Setup and support
+
+- Add a read-only local setup view for backend/Core readiness, required Fedora
+  or Ubuntu package capabilities, and Secret Service advertisement. The check
+  does not activate or open the secret provider.
+- Add a previewable, allowlisted community diagnostics report with explicit
+  clipboard copy and a separate issue-tracker link. Direct Proton submission
+  remains disabled; its inactive form is retained behind disclosure.
+- Preserve the previous settings and snapshot contracts across an in-place
+  package upgrade, with explicit restart guidance for unknown future versions.
+- Run package-capability inspection only from Local setup and keep its result
+  independent from the Secret Service readiness signal.
 
 ## [0.13.1] - 2026-09-13
 

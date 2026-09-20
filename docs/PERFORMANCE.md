@@ -13,6 +13,7 @@ evidence for the stated build and fixture, not fixed product requirements.
 | Connected resident CPU | 0.537 CPU-seconds / 10 minutes | 0.089% of one core over the same interval |
 | Complete disconnected demo stack | 76.5 MiB combined PSS | Published 0.11.3; backend, agent, and Control Center |
 | Complete disconnected demo stack | 80.8 MiB median combined PSS | Accepted 0.12 mechanics baseline; three runs |
+| 0.14.1 vs 0.13.1 base | 95,074 vs 95,002 KiB combined PSS | Same-host isolated A/B; +72 KiB (+0.08%) |
 
 During the connected retention sample, agent private writable memory plus swap
 remained 7,800 KiB; backend private writable memory plus swap fell from 114,660
@@ -24,6 +25,11 @@ transport, or Proton Core. It observes without a backend lease and acquires one
 only for an explicit action. A disconnected, unleased backend retires through a
 one-shot deadline; active tunnels and capture recovery are event-owned without a
 polling loop.
+
+The same release-source/base A/B measured Control Center RSS at +448 KiB and
+startup CPU at +0.03 seconds. These are small same-host differences, not a
+cross-version product budget. Package-manager readiness inspection is lazy and
+runs only when Local setup is opened.
 
 ## Inspector retention
 
@@ -46,28 +52,28 @@ native GPU-driver retention.
 
 ## Search benchmark
 
-The corrected offline benchmark uses actual Core 5.6.10 cache/model types and an
+The corrected offline benchmark uses actual Core 5.7.0 cache/model types and an
 explicit fake authenticated session. It prohibits initialization, login, and
 socket creation. Production authentication and search code are unchanged.
 
-Fixture: 24,456,354-byte cache, 18,221 logical servers, 201 projected
+Fixture: 26,030,781-byte cache, 18,220 logical servers, 201 projected
 locations, system Python 3.14, 50 iterations per query.
 
 | Metric | Result |
 | --- | ---: |
-| Cache load | 201.054 ms |
-| Projection build + first query | 117.946 ms |
-| Retained traced allocation | 2,640,733 bytes |
-| Peak traced allocation | 5,290,116 bytes |
+| Cache load | 237.377 ms |
+| Projection build + first query | 114.539 ms |
+| Retained traced allocation | 2,640,777 bytes |
+| Peak traced allocation | 5,289,966 bytes |
 
 | Query | Median | p95 | Maximum |
 | --- | ---: | ---: | ---: |
-| `ch` | 1.207 ms | 1.345 ms | 1.431 ms |
-| `zur` | 0.758 ms | 1.073 ms | 1.388 ms |
-| `us-` | 0.425 ms | 0.552 ms | 0.701 ms |
-| `#1` | 0.202 ms | 0.223 ms | 0.296 ms |
-| `a` | 5.539 ms | 6.894 ms | 7.371 ms |
-| no match | 0.269 ms | 0.537 ms | 1.302 ms |
+| `ch` | 1.243 ms | 1.435 ms | 1.524 ms |
+| `zur` | 0.766 ms | 1.053 ms | 1.357 ms |
+| `us-` | 0.407 ms | 0.431 ms | 0.498 ms |
+| `#1` | 0.232 ms | 0.242 ms | 0.358 ms |
+| `a` | 6.186 ms | 6.887 ms | 7.270 ms |
+| no match | 0.299 ms | 0.570 ms | 1.711 ms |
 
 The projection stores immutable scalar search fields, not Proton server
 objects. It resolves load, maintenance, and account availability from current
@@ -94,5 +100,5 @@ counts. PSS varies with allocators, Qt/KDE versions, platform plugins, and page
 cache.
 
 Measurement gaps: live GPU rendering, cold navigation latency, representative
-cache scaling, normal-GC long-duration Inspector retention, and a fresh complete
-0.13.0/Core-5.6.20 resident-state matrix.
+cache scaling, normal-GC long-duration Inspector/diagnostics retention, and a
+long-duration 0.14.1/Core-5.7 resident-state matrix.

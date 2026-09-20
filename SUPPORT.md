@@ -11,10 +11,12 @@ It is not a Proton customer-support channel.
 - Fedora RPM installation or lifecycle problems caused by this package;
 - regressions that occur only with this client and can be reproduced safely.
 
-Include the client version, Fedora and Plasma versions, relevant package
-versions, steps to reproduce, expected behavior, and sanitized logs. Never post
-credentials, account tokens, recovery codes, private keys, server certificates,
-or unreviewed support bundles.
+The in-app Report an Issue page previews a small allowlisted local diagnostic
+report and copies exactly that preview only when requested. It does not collect
+logs or submit to Proton. Include steps to reproduce and expected behavior;
+review any pasted text before posting. Share logs only when requested and after
+manual redaction. Never post credentials, account tokens, recovery codes,
+private keys, server certificates, IP addresses, or unreviewed support bundles.
 
 ## Contact Proton directly
 

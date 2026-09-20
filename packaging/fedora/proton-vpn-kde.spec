@@ -7,7 +7,7 @@
 %global _buildhost reproducible.invalid
 
 Name:           proton-vpn-kde
-Version:        0.13.1
+Version:        0.14.1
 Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
@@ -42,6 +42,7 @@ BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
 BuildRequires:  qt6-linguist
 BuildRequires:  ripgrep
+BuildRequires:  systemd-rpm-macros
 
 Requires:       kf6-kirigami
 Requires:       kf6-kglobalaccel
@@ -87,6 +88,7 @@ export SOURCE_DATE_EPOCH="$(stat -c %Y .source-commit)"
     -DPROTON_VPN_KDE_RUNTIME_TRANSLATIONS_DIR=%{_datadir}/proton-vpn-kde/translations \
     -DPROTON_VPN_KDE_ENABLE_SUPPORT_REPORT_SUBMISSION=OFF \
     -DPROTON_VPN_KDE_ENABLE_CRASH_REPORT_SUBMISSION=OFF \
+    -DPROTON_VPN_KDE_ENABLE_TELEMETRY=OFF \
 %if %{without kstatusnotifier}
     -DCMAKE_DISABLE_FIND_PACKAGE_KF6StatusNotifierItem=ON \
 %endif
@@ -141,6 +143,26 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 0.14.1-1
+- Publish connection insight, local readiness, and bounded community diagnostics
+- Support the verified Fedora Core 5.7 stack with optional telemetry disabled
+- Preserve versioned settings and snapshot compatibility across package upgrades
+
+* Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 0.14.1-0.2
+- Drain queued telemetry events when policy is off and fail closed on incompatible Core controls
+- Preserve settings and snapshots across in-place frontend/backend upgrades
+- Make package readiness lazy and independent from Secret Service readiness
+
+* Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 0.14.1-0.1
+- Surface connection telemetry policy in Settings and community diagnostics
+- Keep fresh telemetry-capable profiles off until the user explicitly opts in
+
+* Wed Sep 16 2026 uglyegg <uglyegg@entropy.quest> - 0.14.0-0.1
+- Preview connection-time exit-address display and local setup checks
+- Add explicit, privacy-bounded community diagnostic previews
+- Target the verified Fedora Core 5.7.0 overlay
+- Disable optional Core telemetry, crash reports, and direct support submission
+
 * Sun Sep 13 2026 uglyegg <uglyegg@entropy.quest> - 0.13.1-1
 - Add Ubuntu 26.04 binary and source package production
 - Preserve the reviewed keyring and API-Core overlay boundaries across formats

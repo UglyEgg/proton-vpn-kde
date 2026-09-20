@@ -1,3 +1,16 @@
+proton-vpn-kde (0.14.1-1plasmavpn1) resolute; urgency=medium
+
+  * Add connection-time exit-address display and local setup checks.
+  * Add explicit, privacy-bounded community diagnostic previews.
+  * Surface connection telemetry policy and a build-gated user preference.
+  * Disable optional Core telemetry, crash reports, and direct support
+    submission in community packages.
+  * Drain queued telemetry events on opt-out and preserve the previous
+    settings and snapshot contracts across in-place upgrades.
+  * Run package readiness inspection only when Local setup is opened.
+
+ -- uglyegg <uglyegg@entropy.quest>  Sun, 20 Sep 2026 00:00:00 -0500
+
 proton-vpn-kde (0.13.1-1plasmavpn1) resolute; urgency=medium
 
   * Package the Plasma VPN 0.13.1 client for Ubuntu 26.04 LTS.
