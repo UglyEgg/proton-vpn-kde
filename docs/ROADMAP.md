@@ -34,6 +34,11 @@ state without changing Proton Core's networking authority. Its seven-review
 battery, bounded remediation, corrected-diff re-review, package validation,
 and focused installed acceptance are complete.
 
+0.14.2 rebases the Fedora overlay on Core 5.8.3, consumes Proton's upstream
+Protun transient-key behavior, and retains the independently verified string
+sharing, deprecated-FIDO2-query, and protection-activation changes. Client and
+VPN mechanics are unchanged.
+
 ## Post-release priorities
 
 1. Triage reports against the documented support and Core boundaries.
@@ -68,9 +73,12 @@ Prepare independent submissions for:
 
 - the dependency-ordered server string-sharing series;
 - deprecated FIDO2-query removal;
-- Protun transient-secret ownership;
-- queued target preservation; and
 - validated protection-profile activation.
+
+Proton incorporated the Protun transient-secret behavior in Core 5.8.2/5.8.3;
+the former downstream patch is retired and its upstream proposal may be marked
+superseded. Queued-target behavior is now an overlay compatibility contract,
+not a downstream source patch.
 
 The [overlay handoff checklist](../packaging/fedora/api-core-overlay/README.md#patch-scope-and-upstream-handoff)
 records provenance, patch order, tests, attribution, and source-format work.

@@ -2,13 +2,12 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.14.1 is the current public package release. Its published Fedora
-artifact passed installed maintainer UAT with API Core 5.7.0. The current
-Fedora maintenance source targets Core 5.8.3; its exact vendor reconstruction,
-patches, behavior, and RPM/SRPM policy pass locally, while installation and live
-UAT remain release gates. Ubuntu retains its package-validated 5.6.10 baseline
-and remains package-validated rather than live-supported until community Plasma
-field reports establish its live lifecycle.
+Plasma VPN 0.14.2 is the current public package release. Fedora Core 5.8.3
+passed exact reconstruction, overlay policy, reproducibility, installation,
+backend-replacement, capability-detection, and live connection acceptance.
+Ubuntu retains its package-validated 5.6.10 baseline and remains
+package-validated rather than live-supported until community Plasma field
+reports establish its live lifecycle.
 
 | Component | Fedora 44 | Ubuntu 26.04 package-validated |
 | --- | --- | --- |
@@ -16,10 +15,10 @@ field reports establish its live lifecycle.
 | Desktop | KDE Plasma 6 with systemd user services | KDE Plasma 6 with systemd user services |
 | Qt / KDE | Qt 6.8+; KDE Frameworks 6 | Qt 6.10.2; KDE Frameworks 6.24 |
 | Python | 3.14 with `os.pidfd_open` | 3.14 with `os.pidfd_open` |
-| Proton VPN API Core | 5.8.3-1.plasmavpn1 source candidate; 5.7.0-1.plasmavpn1 published/UAT | 5.6.10-12plasmavpn1 |
+| Proton VPN API Core | 5.8.3-1.plasmavpn1 | 5.6.10-12plasmavpn1 |
 | Proton keyring adapter | 0.2.3-9.plasmavpn1 | 0.2.3-9plasmavpn1 |
 | Secret Service | Freedesktop Secret Service; KeePassXC verified | Freedesktop Secret Service; live provider UAT pending |
-| Package evidence | `0.14.1-0.2.fc44` signed-source build installed and accepted; publication artifacts rebuild from the signed tag | Clean-container build/install/reinstall/autopkgtest |
+| Package evidence | 0.14.2 client source/package gates; `0.14.1-0.2.fc44` client with the 5.8.3 overlay installed and accepted | Clean-container build/install/reinstall/autopkgtest |
 
 Required source dependencies include C++20, CMake 3.24, OpenSSL 3, and
 `dbus-fast` 2.20. Fedora's tested `cryptography` floor is 50.0.0; Ubuntu 26.04
@@ -57,8 +56,8 @@ to five Python source files and ten derived bytecode files. The overlay:
 The 5.8.3 rebase preserves Proton's permanent firewall kill-switch unit and
 safe final-removal script. Verification includes 14 protection-activation
 cases, seven hash-checked actual-Core lifecycle cases, exact changed-path
-policy, and RPM/SRPM checks. Installed startup and live connection acceptance
-remain pending for this maintenance candidate.
+policy, reproducible RPM/SRPM checks, installation, backend replacement,
+capability detection, and live connect/disconnect acceptance.
 
 Core 5.7 introduced connection-outcome telemetry and defaults its persisted setting
 to enabled. Community client builds default this optional reporting capability
@@ -74,8 +73,8 @@ Required Proton service traffic is not disabled.
 
 The 5.5.6 compatibility fixture is static public-API lint only. It extracts a
 SHA-256-pinned RPM but never imports Core, reads credentials, or touches
-networking. Current Fedora artifact claims use 5.8.3; installed release evidence
-uses 5.7.0; Ubuntu retains its 5.6.10 baseline. None use 5.5.6 as a runtime.
+networking. Current Fedora artifact and installed overlay claims use 5.8.3;
+Ubuntu retains its 5.6.10 baseline. None use 5.5.6 as a runtime.
 
 ### Ubuntu reconstruction
 
@@ -128,7 +127,7 @@ the old backend process is dead.
 | START-01 cold launch | Installed direct KDE launch passed inherited Qt-path normalization and backend authorization |
 | START-02 recovery | Installed Core revision 12 reused and activated one retained protection profile without duplicates or backend restarts |
 | Core 5.7.0 overlay | Signed vendor input verified; all five patches, 14 protection cases, seven lifecycle cases, RPM/SRPM policy, installation, startup, and live connection passed |
-| Core 5.8.3 candidate overlay | Signed vendor input verified; all three patches, 14 protection cases, seven lifecycle cases, exact-tree policy, and RPM/SRPM verification passed; installation and live UAT pending |
+| Core 5.8.3 overlay | Signed vendor input verified; all three patches, 14 protection cases, seven lifecycle cases, exact-tree policy, reproducible RPM/SRPM output, installation, backend replacement, capability detection, and live connect/disconnect passed with the accepted 0.14.1 client |
 | Clean package builds | Client and both overlay package pairs pass policy, transaction, and reproducibility checks |
 | Ubuntu 26.04 package validation | Client and both overlay `.deb`/source sets pass clean-container policy and lifecycle checks; community Plasma field acceptance pending |
 

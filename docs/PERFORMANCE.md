@@ -104,6 +104,13 @@ Without sharing, the loaded model retained 18,220 distinct objects for each of
 equal value. This is a server-list component A/B, not whole-client RSS, and it
 exposes a one-time decode-time tradeoff rather than claiming a free reduction.
 
+An independent installed-package check used a sanitized 18,000-server fixture
+and seven fresh processes per variant. Median PSS fell from 93,442 to 61,006
+KiB (-34.7%); retained traced allocation fell from 42,508,970 to 27,740,013
+bytes. Median load time rose from 323.3 to 413.6 ms (+27.9%). This corroborates
+the real-cache result while preserving the same component-only and one-time
+load-cost qualifications.
+
 ## Reproduce
 
 ```bash
@@ -119,4 +126,4 @@ cache.
 
 Measurement gaps: live GPU rendering, cold navigation latency, representative
 cache scaling, normal-GC long-duration Inspector/diagnostics retention, and a
-long-duration 0.14.1/Core-5.7 resident-state matrix.
+long-duration 0.14.2/Core-5.8.3 resident-state matrix.

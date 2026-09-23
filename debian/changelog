@@ -1,3 +1,12 @@
+proton-vpn-kde (0.14.2-1plasmavpn1) resolute; urgency=medium
+
+  * Align release metadata with the Fedora Core 5.8.3 maintenance baseline.
+  * Keep the Ubuntu Core 5.6.10 behavior unchanged and its patch inputs
+    self-contained.
+  * Preserve Proton's networking authority and existing client mechanics.
+
+ -- uglyegg <uglyegg@entropy.quest>  Wed, 23 Sep 2026 00:00:00 -0500
+
 proton-vpn-kde (0.14.1-1plasmavpn1) resolute; urgency=medium
 
   * Add connection-time exit-address display and local setup checks.

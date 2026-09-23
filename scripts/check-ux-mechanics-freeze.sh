@@ -230,17 +230,17 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "5ff1ab23cd2993728f02362fe67cd31985b64870dc8ed12680b879acbad20ed9" \
+    "8ea60c80342a983d5f69e727b21142b76a1cc21df741b32cd142e970a10ceeee" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
     "Python dependency floor" backend/requirements-minimum.txt
 assert_diff_hash \
-    "4b02e3bfd6f19af7466f46e0d0a7bc191eeb6ba35c8ece7f38d2578cf2862f4f" \
+    "6dd02b6d8a71581b879262f9fcfb20638cb76c9922f1f585ff2c567dec3e3607" \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "0b67b0c496bf17d67c67c94a5fcb9fb3c7ee6f886b4315f121cb64daa25d8e8e" \
+    "2b80772f2a5c4abb4d1d2e9f144633dded0a15a250442b1b6432a7e551cbde10" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests \
     data/snapshot-schema-v2.json data/snapshot-schema-v2.json.license \
@@ -279,7 +279,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "7b07075ad38ce7103981aed6527df9ec3901050fbbdec924ae8206d54c171e3e" \
+    "643a7120b9e1444375b3c9c09a9934a5064246b410368c64dc6332b39ca3ba71" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "ed9fc06f2491cbe3457a0aef6fd7c5de888a34240df33004f630d782cf3f2c76" \
@@ -289,11 +289,11 @@ assert_diff_hash \
     "ed48be8ab69639c3dcc7f5733171debea065af0cfa022d8191630c430aaa6242" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "a5cf6e091b90d281dced46ea7aa0876c46988be1178d643e6898e2ec4499b481" \
+    "4bc293c2644fb436827aa618a4c8e7ed06908b53612bab558cf9609aaf1468b5" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "63192b438dc5e1ec4582c42ba6e337e876edf6afaf59e34da690e37068a7e946" \
+    "c15bcf89f230d55f237c574ba6627d19db3804989b7867f9b0f62ce114960b47" \
     "QML presentation" qml
 
 assert_diff_hash \
@@ -312,7 +312,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "f167e0bcd9c9a0d54ab1dab9bf8101fa9e5b5f7d204aaa98858059ea8c118e1a" \
+    "651b94b97872f639a0bff1a0b148990950afe8604f9bda43396e58897a0d567a" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \

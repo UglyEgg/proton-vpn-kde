@@ -2,6 +2,23 @@
 
 The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
+## [0.14.2] - 2026-09-23
+
+### Proton Core 5.8.3 compatibility
+
+- Rebase the Fedora API-Core overlay on Proton's signed 5.8.3 package.
+- Remove the downstream Protun transient-key patch now that Proton supplies
+  equivalent behavior in its package; retain explicit capability verification.
+- Consolidate server string-sharing into the source-aligned patch used by the
+  rebased upstream contribution while preserving the measured memory benefit.
+- Retain the bounded deprecated-FIDO2-query and protection-activation patches.
+- Make the unchanged Ubuntu 5.6.10 overlay inputs self-contained instead of
+  borrowing patch files from the Fedora overlay.
+- Distinguish vendor-supplied from patch-supplied capabilities in overlay
+  provenance and verify reproducible RPM/SRPM output.
+- Confirm Fedora installation, backend replacement, capability detection, and
+  connect/disconnect behavior against the 5.8.3 overlay.
+
 ## [0.14.1] - 2026-09-20
 
 ### Proton Core 5.7

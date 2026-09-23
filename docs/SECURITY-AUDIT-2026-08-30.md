@@ -1,15 +1,16 @@
 # Security and engineering assessment
 
-Last updated: 2026-09-20
-Release: 0.14.1
+Last updated: 2026-09-23
+Release: 0.14.2
 
 ## Status
 
-No open source-review blocker is recorded for 0.14.1. Seven
-isolated reviews assessed the frozen `e3d8b210..7f39b795` change boundary. Six
-bounded classes were corrected with focused regressions. The final corrected
-package passed corrected-diff re-review, package validation, and focused
-installed acceptance on Fedora 44.
+No open source-review blocker is recorded for 0.14.2. Its application runtime
+is the accepted 0.14.1 implementation. The maintenance delta rebases the
+Fedora API-Core overlay on signed Core 5.8.3, removes a workaround now supplied
+by Proton, consolidates the existing string-sharing patch, and isolates the
+unchanged Ubuntu 5.6.10 patch inputs. It does not change client mechanics,
+authentication transport, D-Bus policy, or Proton's networking authority.
 
 The broader 0.14 line had multi-day local use. On 2026-09-20 the maintainer
 explicitly waived the remaining exact-build soak interval after accepting
@@ -46,6 +47,20 @@ Community code owns desktop presentation, input validation, D-Bus policy,
 operation ownership, process lifetime, and downstream package integration.
 The distribution API-Core packages contain declared, version-pinned patches
 and must not be represented as unmodified Proton binaries.
+
+## 0.14.2 maintenance assessment
+
+The Core 5.8.3 package passed signed-input verification, exact changed-path
+policy, patch and lifecycle regressions, reproducible RPM/SRPM construction,
+installation, backend replacement, capability detection, and live
+connect/disconnect acceptance. The server-string change retained its memory
+benefit with a documented one-time load-cost tradeoff. No new security finding
+or product-behavior change was introduced by this maintenance delta.
+
+The installed live test used the accepted `0.14.1-0.2.fc44` client with the
+5.8.3 overlay; 0.14.2 changes client release metadata and package integration,
+not its runtime implementation. The 0.14.1 seven-review result below therefore
+remains the runtime assurance basis for this patch release.
 
 ## 0.14.1 review result
 

@@ -7,7 +7,7 @@
 %global _buildhost reproducible.invalid
 
 Name:           proton-vpn-kde
-Version:        0.14.1
+Version:        0.14.2
 Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
@@ -62,7 +62,7 @@ Plasma VPN is an unofficial native Qt 6 and Kirigami frontend compatible with
 Proton VPN. It reuses Proton's official Python VPN core. VPN protocols,
 NetworkManager integration, kill-switch behavior, split tunneling, and session
 persistence remain owned by the official core. The separately packaged,
-version-pinned API-Core overlay keeps Protun's secret inside its existing
+version-pinned API-Core overlay verifies Proton's Protun secret in its existing
 unsaved NetworkManager profile so Plasma does not require a missing Protun
 secret plugin. That same audited rebuild carries the project's independently
 tested server-string memory reductions and an upstream diagnostic cleanup; its
@@ -143,6 +143,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Wed Sep 23 2026 uglyegg <uglyegg@entropy.quest> - 0.14.2-1
+- Rebase the Fedora API-Core overlay on Proton Core 5.8.3
+- Use Proton's upstream Protun secret behavior and retain three bounded patches
+- Keep the Ubuntu 5.6.10 reconstruction unchanged and self-contained
+
 * Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 0.14.1-1
 - Publish connection insight, local readiness, and bounded community diagnostics
 - Support the verified Fedora Core 5.7 stack with optional telemetry disabled

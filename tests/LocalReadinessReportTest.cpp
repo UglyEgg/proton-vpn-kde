@@ -70,7 +70,7 @@ void LocalReadinessReportTest::packageCapabilityParsing()
 void LocalReadinessReportTest::reportContainsOnlyAllowlistedFacts()
 {
     CommunityReportFacts facts;
-    facts.clientVersion = QStringLiteral("0.14.1");
+    facts.clientVersion = QStringLiteral("0.14.2");
     facts.coreVersion = QStringLiteral("5.6.20\npassword=do-not-share");
     facts.osFamily = QStringLiteral("fedora\n/home/private");
     facts.qtVersion = QStringLiteral("6.10.2");
@@ -88,7 +88,7 @@ void LocalReadinessReportTest::reportContainsOnlyAllowlistedFacts()
     facts.telemetryEnabled = false;
 
     const QString report = formatCommunityReport(facts);
-    QVERIFY(report.contains(QStringLiteral("Client version: 0.14.1")));
+    QVERIFY(report.contains(QStringLiteral("Client version: 0.14.2")));
     QVERIFY(report.contains(QStringLiteral("Core startup check: compatible")));
     QVERIFY(report.contains(QStringLiteral("Core memory overlay: detected")));
     QVERIFY(report.contains(QStringLiteral("Connection telemetry: disabled")));
@@ -105,7 +105,7 @@ void LocalReadinessReportTest::reportContainsOnlyAllowlistedFacts()
 void LocalReadinessReportTest::unavailableStateDoesNotClaimCompatibility()
 {
     CommunityReportFacts facts;
-    facts.clientVersion = QStringLiteral("0.14.1");
+    facts.clientVersion = QStringLiteral("0.14.2");
     facts.coreVersion = QStringLiteral("5.6.20");
     facts.osFamily = QStringLiteral("fedora");
     facts.qtVersion = QStringLiteral("6.10.2");

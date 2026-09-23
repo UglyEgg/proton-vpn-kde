@@ -16,7 +16,7 @@
    arbitrary native code already executing as the desktop user.
 
 The distribution API-Core overlays are declared downstream builds, not
-unmodified Proton binaries. The Fedora `5.8.3-1.plasmavpn1.fc44` candidate
+unmodified Proton binaries. The Fedora `5.8.3-1.plasmavpn1.fc44` package
 carries three manifested patches; Proton now supplies the required Protun
 secret ownership behavior. The Ubuntu `5.6.10-12plasmavpn1` package retains
 the earlier five-patch reconstruction. Core owns protection rules and
