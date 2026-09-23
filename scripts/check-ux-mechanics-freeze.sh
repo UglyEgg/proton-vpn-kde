@@ -248,7 +248,7 @@ assert_diff_hash \
     src/SnapshotContract.generated.h tests/SnapshotContractTest.cpp \
     tests/SnapshotTestData.h
 assert_diff_hash \
-    "f02c86625c7fa3575284b1e13063ffbeaba0ae1eb5022dba929a0df2a032108f" \
+    "7547f7705ca8c833a80e009440de7f95a34b0c38d23469e4c3e67a4558798c28" \
     "Fedora Core overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \

@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -29,6 +30,23 @@ def sha256(path: Path) -> str:
 
 
 class OverlayBoundaryTests(unittest.TestCase):
+    def test_protun_private_key_flag_accepts_supported_core_names(self):
+        for attribute in (
+            "STORE_PRIVATE_KEY_IN_NM",
+            "SYSTEM_OWNED_PRIVATE_KEY",
+        ):
+            with self.subTest(attribute=attribute):
+                module = SimpleNamespace(**{attribute: "0"})
+                self.assertEqual(
+                    "0", rebuild_overlay._protun_private_key_flag(module)
+                )
+
+        with self.assertRaisesRegex(
+            rebuild_overlay.OverlayError,
+            "no supported private-key flag constant",
+        ):
+            rebuild_overlay._protun_private_key_flag(SimpleNamespace())
+
     def test_killswitch_test_imports_without_optional_gi_bindings(self):
         test_path = SCRIPT.parent / "tests" / "test_killswitch_activation.py"
         with tempfile.TemporaryDirectory() as directory:
