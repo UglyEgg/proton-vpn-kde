@@ -135,8 +135,14 @@ while IFS= read -r path; do
         packaging/fedora/api-core-overlay/overlay-manifest.json|\
         packaging/fedora/api-core-overlay/overlay-manifest.json.license|\
         packaging/fedora/api-core-overlay/python3-proton-vpn-api-core-overlay.spec|\
-        packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch|\
+        packaging/fedora/api-core-overlay/patches/0001-share-repeated-server-endpoint-strings.patch|\
+        packaging/fedora/api-core-overlay/patches/0002-share-server-strings-during-cache-decoding.patch|\
         packaging/fedora/api-core-overlay/patches/0003-avoid-deprecated-fido2-capability-query.patch|\
+        packaging/fedora/api-core-overlay/patches/0004-keep-protun-private-key-ephemeral.patch|\
+        packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch|\
+        packaging/fedora/api-core-overlay/patches/0001-share-repeated-server-list-strings.patch|\
+        packaging/fedora/api-core-overlay/patches/0002-avoid-deprecated-fido2-capability-query.patch|\
+        packaging/fedora/api-core-overlay/patches/0003-explicitly-activate-protection-profiles.patch|\
         packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py|\
         packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py|\
         packaging/fedora/core-compatibility.json|\
@@ -242,23 +248,26 @@ assert_diff_hash \
     src/SnapshotContract.generated.h tests/SnapshotContractTest.cpp \
     tests/SnapshotTestData.h
 assert_diff_hash \
-    "644bf05ea2e42847b51c67c6290a94b54752e4a54759a0567a9d2dda98a7478f" \
-    "current Core runtime contract" \
+    "f02c86625c7fa3575284b1e13063ffbeaba0ae1eb5022dba929a0df2a032108f" \
+    "Fedora Core overlay" \
+    packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
+    packaging/fedora/api-core-overlay/overlay-manifest.json \
+    packaging/fedora/api-core-overlay/python3-proton-vpn-api-core-overlay.spec \
     packaging/fedora/api-core-overlay/rebuild_overlay.py \
+    packaging/fedora/api-core-overlay/patches/0001-share-repeated-server-endpoint-strings.patch \
+    packaging/fedora/api-core-overlay/patches/0002-share-server-strings-during-cache-decoding.patch \
     packaging/fedora/api-core-overlay/patches/0003-avoid-deprecated-fido2-capability-query.patch \
+    packaging/fedora/api-core-overlay/patches/0004-keep-protun-private-key-ephemeral.patch \
+    packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch \
+    packaging/fedora/api-core-overlay/patches/0001-share-repeated-server-list-strings.patch \
+    packaging/fedora/api-core-overlay/patches/0002-avoid-deprecated-fido2-capability-query.patch \
+    packaging/fedora/api-core-overlay/patches/0003-explicitly-activate-protection-profiles.patch \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
+    packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
     scripts/check-patch-whitespace.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
-assert_diff_hash \
-    "5de064928602ca45f28c6c6a3b06e274d5b7b825c9d2d4cbeb7e61ced635753f" \
-    "protection activation overlay" \
-    packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
-    packaging/fedora/api-core-overlay/overlay-manifest.json \
-    packaging/fedora/api-core-overlay/python3-proton-vpn-api-core-overlay.spec \
-    packaging/fedora/api-core-overlay/patches/0005-explicitly-activate-protection-profiles.patch \
-    packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py
 assert_diff_hash \
     "2767d7621c543ec536b3d9798a9e80b97c76dd061f7f46ffb41fc4dcefb49eb7" \
     "finite process-stop packaging" \
@@ -303,7 +312,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "bafb48c97fb400717561b71ff7e41f6591ad4d9527d35df59986c586462a2060" \
+    "f167e0bcd9c9a0d54ab1dab9bf8101fa9e5b5f7d204aaa98858059ea8c118e1a" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \
@@ -324,4 +333,4 @@ assert_diff_hash \
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" \
     "unambiguous desktop icon" data/proton-vpn-kde.desktop.in
 
-echo "0.14.1 release source matches published baseline $baseline_commit plus recorded reviewed deltas"
+echo "0.14 maintenance source matches published baseline $baseline_commit plus recorded reviewed deltas"

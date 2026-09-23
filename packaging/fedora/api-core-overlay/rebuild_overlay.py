@@ -41,7 +41,7 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as error:
         raise OverlayError(f"Unable to read overlay manifest: {error}") from error
 
-    if manifest.get("schemaVersion") != 2:
+    if manifest.get("schemaVersion") != 3:
         raise OverlayError("Unsupported overlay manifest schema")
     if not isinstance(manifest.get("vendor"), dict):
         raise OverlayError("Overlay manifest has no vendor record")
@@ -97,7 +97,7 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     ):
         raise OverlayError("Overlay version does not match the vendor version")
     capability = overlay.get("capability")
-    capability_patch = overlay.get("capabilityPatch")
+    capability_source = overlay.get("capabilitySource")
     patch_files = {
         record.get("file")
         for record in overlay.get("patches", [])
@@ -105,8 +105,29 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     }
     if not isinstance(capability, str) or not capability:
         raise OverlayError("Overlay manifest has no required capability")
-    if capability_patch not in patch_files:
-        raise OverlayError("Overlay capability is not tied to a listed patch")
+    if not isinstance(capability_source, dict):
+        raise OverlayError("Overlay manifest has no capability source")
+    source_kind = capability_source.get("kind")
+    if source_kind == "patch":
+        if capability_source.get("patch") not in patch_files:
+            raise OverlayError("Overlay capability is not tied to a listed patch")
+    elif source_kind == "vendor":
+        minimum_version = capability_source.get("minimumVersion")
+        evidence = capability_source.get("evidence")
+        if not isinstance(minimum_version, str) or re.fullmatch(
+            r"[0-9]+(?:\.[0-9]+)+", minimum_version
+        ) is None:
+            raise OverlayError("Vendor capability source has no valid version")
+        if tuple(map(int, vendor_version.split("."))) < tuple(
+            map(int, minimum_version.split("."))
+        ):
+            raise OverlayError(
+                "Vendor package predates the required capability"
+            )
+        if not isinstance(evidence, str) or not evidence.strip():
+            raise OverlayError("Vendor capability source has no evidence")
+    else:
+        raise OverlayError("Overlay capability source has an unknown kind")
     return manifest
 
 
@@ -558,7 +579,7 @@ def _verify_behavior(root: Path, site_packages_relative: str) -> None:
     from proton.vpn.core.settings.settings import Settings  # noqa: PLC0415
     from proton.vpn.connection import events, states  # noqa: PLC0415
     from proton.vpn.backend.networkmanager.protocol.protun.protun import (  # noqa: PLC0415
-        SYSTEM_OWNED_PRIVATE_KEY,
+        STORE_PRIVATE_KEY_IN_NM,
         PRIVATE_KEY,
         PRIVATE_KEY_FLAGS,
         ProtunUDP,
@@ -678,7 +699,7 @@ def _verify_behavior(root: Path, site_packages_relative: str) -> None:
     if vpn_setting.get_secret(PRIVATE_KEY) != "private-fixture":
         raise OverlayError("Protun did not retain its activation-time private key")
     expected_secret_flag = str(int(NM.SettingSecretFlags.NONE))
-    if SYSTEM_OWNED_PRIVATE_KEY != expected_secret_flag:
+    if STORE_PRIVATE_KEY_IN_NM != expected_secret_flag:
         raise OverlayError("Protun's private-key constant is not system-owned")
     if vpn_setting.get_data_item(PRIVATE_KEY_FLAGS) != expected_secret_flag:
         raise OverlayError("Protun private key is not system-owned")
@@ -711,7 +732,7 @@ def _verify_behavior(root: Path, site_packages_relative: str) -> None:
     if add_call.get("save_to_disk") is not False:
         raise OverlayError("Protun connection is not explicitly unsaved")
 
-    # This 5.6.10-through-5.7.0 behavior requires the KDE adapter's bounded
+    # This 5.6.10-through-5.8.3 behavior requires the KDE adapter's bounded
     # stable-disconnect barrier.  A Down received while Disconnecting is
     # ignored, and the queued replacement is promoted after the old tunnel's
     # late Disconnected event.  Fail loudly when a future pinned Core changes

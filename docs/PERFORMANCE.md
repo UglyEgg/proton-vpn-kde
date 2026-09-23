@@ -86,6 +86,24 @@ queries against a comparable 18,138-server cache. The scalar projection measured
 queries. Host/cache differences preclude interpreting that comparison as a
 universal ratio.
 
+## Core server-string sharing
+
+The Fedora 5.8.3 overlay was measured against the unmodified signed 5.8.3
+payload with the same real 18,220-server cache. Seven isolated processes were
+used for each variant.
+
+| Metric | Vendor 5.8.3 | String sharing | Difference |
+| --- | ---: | ---: | ---: |
+| Server-list load PSS, median | 85,380 KiB | 62,596 KiB | -22,784 KiB (-26.7%) |
+| Retained traced allocation | 38,660,402 bytes | 29,474,344 bytes | -9,186,058 bytes |
+| Peak traced allocation | 59,782,316 bytes | 50,700,881 bytes | -9,081,435 bytes |
+| Load time, median | 360.1 ms | 425.7 ms | +65.6 ms (+18.2%) |
+
+Without sharing, the loaded model retained 18,220 distinct objects for each of
+149 country and 195 city values. The patched model retained one object per
+equal value. This is a server-list component A/B, not whole-client RSS, and it
+exposes a one-time decode-time tradeoff rather than claiming a free reduction.
+
 ## Reproduce
 
 ```bash

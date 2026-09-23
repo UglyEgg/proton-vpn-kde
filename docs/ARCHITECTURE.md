@@ -16,11 +16,12 @@
    arbitrary native code already executing as the desktop user.
 
 The distribution API-Core overlays are declared downstream builds, not
-unmodified Proton binaries. Fedora revision `5.7.0-1.plasmavpn1.fc44` and the
-Ubuntu package `5.6.10-12plasmavpn1` carry the same five manifested patches,
-including Protun secret ownership and explicit activation of validated
-protection profiles. Core retains ownership of protection rules and connection
-state. See the [Fedora](../packaging/fedora/api-core-overlay/README.md) and
+unmodified Proton binaries. The Fedora `5.8.3-1.plasmavpn1.fc44` candidate
+carries three manifested patches; Proton now supplies the required Protun
+secret ownership behavior. The Ubuntu `5.6.10-12plasmavpn1` package retains
+the earlier five-patch reconstruction. Core owns protection rules and
+connection state in both packages. See the
+[Fedora](../packaging/fedora/api-core-overlay/README.md) and
 [Debian](../packaging/debian/api-core-overlay/README.md) overlay policies.
 
 ## Process model
@@ -175,7 +176,7 @@ the VPN-operation lock; cancellation joins any executor mutation before
 teardown.
 
 FIDO2 is exposed only when Core guarantees cancellation across device
-selection, assertion, and PIN work. Core 5.7.0 does not meet that complete
+selection, assertion, and PIN work. Core 5.8.3 does not meet that complete
 contract, so authenticator and recovery codes remain available but the unsafe
 security-key route is not advertised.
 

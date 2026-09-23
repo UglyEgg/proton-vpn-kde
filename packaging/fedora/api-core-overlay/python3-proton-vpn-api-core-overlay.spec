@@ -7,23 +7,21 @@
 %global use_source_date_epoch_as_buildtime 1
 
 Name:           python3-proton-vpn-api-core
-Version:        5.7.0
+Version:        5.8.3
 Release:        1.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
 Vendor:         Plasma VPN contributors
-Source0:        python3-proton-vpn-api-core-5.7.0-1.fc44.x86_64.rpm
+Source0:        python3-proton-vpn-api-core-5.8.3-1.fc44.x86_64.rpm
 Source1:        overlay-manifest.json
 Source2:        rebuild_overlay.py
 Source3:        protonvpn-fedora-44-public-key.asc
 Source4:        test_killswitch_activation.py
 Source5:        overlay-manifest.json.license
-Patch0:         0001-share-repeated-server-endpoint-strings.patch
-Patch1:         0002-share-server-strings-during-cache-decoding.patch
-Patch2:         0003-avoid-deprecated-fido2-capability-query.patch
-Patch3:         0004-keep-protun-private-key-ephemeral.patch
-Patch4:         0005-explicitly-activate-protection-profiles.patch
+Patch0:         0001-share-repeated-server-list-strings.patch
+Patch1:         0002-avoid-deprecated-fido2-capability-query.patch
+Patch2:         0003-explicitly-activate-protection-profiles.patch
 
 BuildRequires:  cpio
 BuildRequires:  NetworkManager-libnm
@@ -77,19 +75,19 @@ Obsoletes:      python3-proton-vpn-network-manager
 Obsoletes:      python3-proton-vpn-session
 
 %description
-Proton's signed Fedora 5.7.0 API Core payload with narrowly verified memory,
-diagnostic-hygiene, and Plasma interoperability patches. The Protun WireGuard
-private key remains an unsaved per-connection secret rather than being
-delegated to a desktop keyring. NetworkManager holds it only for the lifetime
-of the unsaved connection, including root-only volatile runtime storage when
-NetworkManager materializes the profile under /run. The build fails unless the
-vendor RPM, patch hashes, changed path set, and resulting installed-file hashes
-exactly match the checked-in manifest.
+Proton's signed Fedora 5.8.3 API Core payload with narrowly verified memory,
+diagnostic-hygiene, and Plasma interoperability patches. Proton's upstream
+Protun implementation keeps the WireGuard private key in its existing unsaved
+NetworkManager profile with system-owned secret flags. NetworkManager holds it
+only for the lifetime of the unsaved connection, including root-only volatile
+runtime storage when it materializes the profile under /run. The build fails
+unless the vendor RPM, patch hashes, changed path set, and resulting
+installed-file hashes exactly match the checked-in manifest.
 
 %prep
 %{python3} ../../SOURCES/rebuild_overlay.py prepare \
     --manifest ../../SOURCES/overlay-manifest.json \
-    --vendor-rpm ../../SOURCES/python3-proton-vpn-api-core-5.7.0-1.fc44.x86_64.rpm \
+    --vendor-rpm ../../SOURCES/python3-proton-vpn-api-core-5.8.3-1.fc44.x86_64.rpm \
     --signing-key ../../SOURCES/protonvpn-fedora-44-public-key.asc \
     --source-directory ../../SOURCES \
     --baseline-root vendor-rootfs \
@@ -117,9 +115,8 @@ cp -a overlay-rootfs/. "$RPM_BUILD_ROOT/"
 %defattr(-,root,root,-)
 /usr/lib/NetworkManager/VPN/nm-protun.name
 /usr/lib64/python3.14/site-packages/proton
-/usr/lib64/python3.14/site-packages/proton_vpn_api_core-5.7.0.dist-info
+/usr/lib64/python3.14/site-packages/proton_vpn_api_core-5.8.3.dist-info
 /usr/lib/systemd/system/proton-vpn-kill-switch-boot.service
-/usr/libexec/nm-protun-auth-dialog
 /usr/libexec/nm-protun-service
 /usr/libexec/proton-vpn-kill-switch-service
 /usr/share/dbus-1/system-services/me.proton.vpn.kill_switch.service
@@ -150,6 +147,11 @@ fi
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
+* Wed Sep 23 2026 uglyegg <uglyegg@entropy.quest> - 5.8.3-1.plasmavpn1
+- Rebase the verified overlay onto Proton's signed Fedora 5.8.3 payload
+- Consume Proton's upstream Protun private-key ownership implementation
+- Consolidate the string-sharing series and retain only three bounded patches
+
 * Sun Sep 20 2026 uglyegg <uglyegg@entropy.quest> - 5.7.0-1.plasmavpn1
 - Rebase the verified overlay onto Proton's signed Fedora 5.7.0 payload
 - Preserve the permanent firewall kill-switch unit and safe-removal contract
