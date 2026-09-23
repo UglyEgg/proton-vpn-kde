@@ -16,7 +16,7 @@ The spec is the authoritative build and runtime dependency list. The principal
 native dependencies are Qt 6, KDE Frameworks 6, Kirigami, OpenSSL 3, and the
 system Python interpreter. Runtime integration additionally uses
 `python3-dbus-fast`, `python3-cryptography`, `python3-fido2`, and the reviewed
-Proton VPN API Core 5.7.0 overlay. The RPM retains 5.6.10 as its tested API
+Proton VPN API Core 5.8.3 overlay. The RPM retains 5.6.10 as its tested API
 floor and requires the overlay's separate Protun capability. The adapter also
 retains a static public-API floor check against 5.5.6, but that historical
 package is never imported or executed by the supported build. Session storage
@@ -86,7 +86,7 @@ Source CI additionally runs the complete backend suite under Python 3.11 with
 hash-pinned minimum direct dependencies and checks the adapter's consumed
 public API against Proton's exact SHA-256-pinned Fedora 44 Core 5.5.6 RPM. That
 is a secondary static compatibility-floor check; current runtime and packaging
-validation execute the pinned 5.7.0 overlay, including its queued-connection
+validation execute the pinned 5.8.3 overlay, including its queued-connection
 state-machine contract.
 
 The dedicated `RPM Package` CI workflow performs one source and binary RPM

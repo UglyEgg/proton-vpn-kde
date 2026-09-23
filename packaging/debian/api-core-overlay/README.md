@@ -2,11 +2,11 @@
 
 This source package reconstructs Proton's exact signed-repository
 `python3-proton-vpn-api-core_5.6.10_amd64.deb` with the five reviewed Plasma
-VPN patches. Patches shared byte-for-byte with Fedora are read from the Fedora
-overlay; version-specific Debian overrides live in `patches/`. The vendor
-archive, control metadata, maintainer scripts, resolved patch set, installed
-path set, file modes, and resulting hashes are checked against
-`overlay-manifest.json`.
+VPN patches. Its pinned patch inputs live in `patches/`; Fedora can therefore
+advance its independent vendor overlay without changing this validated Debian
+baseline. The vendor archive, control metadata, maintainer scripts, resolved
+patch set, installed path set, file modes, and resulting hashes are checked
+against `overlay-manifest.json`.
 
 The official public source tag does not contain the complete build inputs for
 the compiled Protun dependency. The Debian source package therefore carries

@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -29,6 +30,23 @@ def sha256(path: Path) -> str:
 
 
 class OverlayBoundaryTests(unittest.TestCase):
+    def test_protun_private_key_flag_accepts_supported_core_names(self):
+        for attribute in (
+            "STORE_PRIVATE_KEY_IN_NM",
+            "SYSTEM_OWNED_PRIVATE_KEY",
+        ):
+            with self.subTest(attribute=attribute):
+                module = SimpleNamespace(**{attribute: "0"})
+                self.assertEqual(
+                    "0", rebuild_overlay._protun_private_key_flag(module)
+                )
+
+        with self.assertRaisesRegex(
+            rebuild_overlay.OverlayError,
+            "no supported private-key flag constant",
+        ):
+            rebuild_overlay._protun_private_key_flag(SimpleNamespace())
+
     def test_killswitch_test_imports_without_optional_gi_bindings(self):
         test_path = SCRIPT.parent / "tests" / "test_killswitch_activation.py"
         with tempfile.TemporaryDirectory() as directory:
@@ -61,16 +79,28 @@ class OverlayBoundaryTests(unittest.TestCase):
             SCRIPT.parent / "overlay-manifest.json"
         )
 
-        self.assertEqual("5.7.0", manifest["vendor"]["version"])
+        self.assertEqual("5.8.3", manifest["vendor"]["version"])
         self.assertIsNone(manifest["vendor"]["publicSourceTag"])
         self.assertEqual(
-            "v5.6.10", manifest["publicUpstream"]["latestVerifiedTag"]
+            "v5.6.20", manifest["publicUpstream"]["latestVerifiedTag"]
         )
         self.assertEqual(
-            "f1d13b71c506bbd5f47351a9e4392572e21d0169",
+            "3a7c1946623796540884574853492d06870d9477",
             manifest["publicUpstream"]["commit"],
         )
         self.assertNotIn("upstreamBaseTag", manifest["overlay"])
+        self.assertEqual(
+            {
+                "kind": "vendor",
+                "minimumVersion": "5.8.2",
+                "evidence": (
+                    "Proton 5.8.2 stores the Protun private key in its "
+                    "existing unsaved NetworkManager profile with "
+                    "system-owned secret flags"
+                ),
+            },
+            manifest["overlay"]["capabilitySource"],
+        )
 
     def test_manifest_rejects_the_conflated_v1_source_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -89,7 +119,7 @@ class OverlayBoundaryTests(unittest.TestCase):
     def test_manifest_rejects_reintroduced_upstream_base_tag(self):
         manifest_path = SCRIPT.parent / "overlay-manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["overlay"]["upstreamBaseTag"] = "v5.7.0"
+        manifest["overlay"]["upstreamBaseTag"] = "v5.8.3"
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.json"
             path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -97,6 +127,43 @@ class OverlayBoundaryTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 rebuild_overlay.OverlayError,
                 "upstreamBaseTag conflates package and source",
+            ):
+                rebuild_overlay._load_manifest(path)
+
+    def test_manifest_rejects_vendor_capability_before_its_floor(self):
+        manifest_path = SCRIPT.parent / "overlay-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["vendor"]["version"] = "5.8.1"
+        manifest["vendor"]["nevra"] = (
+            "python3-proton-vpn-api-core-5.8.1-1.fc44.x86_64"
+        )
+        manifest["overlay"]["nevra"] = (
+            "python3-proton-vpn-api-core-5.8.1-1.plasmavpn1.fc44.x86_64"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                rebuild_overlay.OverlayError,
+                "predates the required capability",
+            ):
+                rebuild_overlay._load_manifest(path)
+
+    def test_manifest_rejects_unlisted_capability_patch(self):
+        manifest_path = SCRIPT.parent / "overlay-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["overlay"]["capabilitySource"] = {
+            "kind": "patch",
+            "patch": "not-listed.patch",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                rebuild_overlay.OverlayError,
+                "not tied to a listed patch",
             ):
                 rebuild_overlay._load_manifest(path)
 

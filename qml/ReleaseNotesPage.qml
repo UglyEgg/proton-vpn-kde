@@ -71,13 +71,13 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("0.14.1 release. Proton Core still handles your VPN.")
+            description: qsTr("0.14.2 maintenance release. Proton Core still handles your VPN.")
             iconName: "software-properties"
 
             Kirigami.Heading {
                 Layout.fillWidth: true
                 level: 3
-                text: "0.14.1"
+                text: "0.14.2"
             }
 
             ReleaseNoteGroup {
@@ -85,11 +85,10 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Highlights")
                 headingLevel: 4
                 notes: [
-                    qsTr("Show the VPN exit address reported at connection time, with the device-side address labeled separately when split tunneling is active."),
-                    qsTr("Check local Core, backend, package, and Secret Service readiness without opening your secret provider."),
-                    qsTr("Preview a small, privacy-bounded community diagnostic report before choosing to copy it; direct Proton submission remains disabled."),
-                    qsTr("Support Proton Core 5.7 on Fedora; optional connection telemetry remains off by default, clears queued events on opt-out, and is visible in Settings."),
-                    qsTr("Keep the previous settings and snapshot contracts working while frontend and backend packages cross an in-place upgrade.")
+                    qsTr("Support Proton Core 5.8.3 on Fedora and use Proton's upstream transient-key behavior."),
+                    qsTr("Keep the measured server-list memory reduction through a smaller, source-aligned compatibility patch."),
+                    qsTr("Remove the superseded downstream workaround without changing Proton Core's networking authority."),
+                    qsTr("Keep the Ubuntu Core 5.6.10 package behavior unchanged and its patch inputs self-contained.")
                 ]
             }
 
@@ -122,6 +121,18 @@ Kirigami.ScrollablePage {
             title: qsTr("Earlier versions")
             description: qsTr("Development milestones and published releases. The complete engineering history remains in CHANGELOG.md.")
             iconName: "view-history"
+
+            ReleaseNoteGroup {
+                heading: "0.14.1"
+                headingLevel: 3
+                notes: [
+                    qsTr("Added connection-time address visibility, local readiness checks, and privacy-bounded community diagnostics."),
+                    qsTr("Supported Proton Core 5.7 on Fedora with optional connection telemetry off by default and visible in Settings."),
+                    qsTr("Preserved settings and snapshot compatibility across in-place package upgrades.")
+                ]
+            }
+
+            Kirigami.Separator { Layout.fillWidth: true }
 
             ReleaseNoteGroup {
                 heading: "0.13.1"

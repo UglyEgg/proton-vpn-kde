@@ -54,7 +54,7 @@ class OverlayBoundaryTests(unittest.TestCase):
         }
 
         self.assertEqual(
-            {"0003-avoid-deprecated-fido2-capability-query.patch"},
+            {record["file"] for record in manifest["overlay"]["patches"]},
             {path.name for path in override_directory.glob("*.patch")},
         )
         for record in manifest["overlay"]["patches"]:

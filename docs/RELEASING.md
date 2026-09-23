@@ -55,8 +55,10 @@ git status --short
 ```
 
 The mechanics-freeze script seals the published 0.13 baseline plus the reviewed
-0.14.1 change boundary. Rebaseline only after the seven reviews, required
-corrections, focused regressions, and corrected-diff re-review complete.
+0.14 runtime boundary. Maintenance releases may update packaging, provenance,
+and release metadata without changing that runtime boundary. Rebaseline runtime
+hashes only after the seven reviews, required corrections, focused regressions,
+and corrected-diff re-review complete.
 
 The tree must contain no build output, local packages, credentials, diagnostics,
 machine-specific paths, editor state, or unrelated changes.
