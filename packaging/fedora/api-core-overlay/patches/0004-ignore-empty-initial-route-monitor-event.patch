@@ -1,0 +1,16 @@
+--- a/usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/killswitch_connection_handler.py
++++ b/usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/killswitch_connection_handler.py
+@@ -254,6 +254,13 @@
+         loop = asyncio.get_running_loop()
+ 
+         def on_active_connection_changed(active_connection):
++            # Installing the first server route changes the physical
++            # connection and therefore triggers this observer before
++            # _server_ip is committed.  Ignore that self-notification: adding
++            # an empty destination can replace the valid route and make the
++            # caller time out while waiting for it.
++            if not self._server_ip:
++                return
+             device = active_connection.get_devices()[0]
+             gateway = active_connection.get_ip4_config().get_gateway()
+             logger.info(f"Interface {device.get_iface()} switched to gateway {gateway}")

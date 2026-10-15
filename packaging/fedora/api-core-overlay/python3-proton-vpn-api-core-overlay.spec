@@ -8,7 +8,7 @@
 
 Name:           python3-proton-vpn-api-core
 Version:        5.8.3
-Release:        1.plasmavpn1%{?dist}
+Release:        2.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
@@ -19,9 +19,11 @@ Source2:        rebuild_overlay.py
 Source3:        protonvpn-fedora-44-public-key.asc
 Source4:        test_killswitch_activation.py
 Source5:        overlay-manifest.json.license
+Source6:        test_killswitch_route_monitor.py
 Patch0:         0001-share-repeated-server-list-strings.patch
 Patch1:         0002-avoid-deprecated-fido2-capability-query.patch
 Patch2:         0003-explicitly-activate-protection-profiles.patch
+Patch3:         0004-ignore-empty-initial-route-monitor-event.patch
 
 BuildRequires:  cpio
 BuildRequires:  NetworkManager-libnm
@@ -102,6 +104,7 @@ installed-file hashes exactly match the checked-in manifest.
     --overlay-root overlay-rootfs
 %{python3} ../../SOURCES/rebuild_overlay.py verify-behavior --root overlay-rootfs
 %{python3} ../../SOURCES/test_killswitch_activation.py --root overlay-rootfs
+%{python3} ../../SOURCES/test_killswitch_route_monitor.py --root overlay-rootfs
 
 %install
 mkdir -p "$RPM_BUILD_ROOT"
@@ -147,6 +150,11 @@ fi
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
+* Thu Oct 15 2026 uglyegg <uglyegg@entropy.quest> - 5.8.3-2.plasmavpn1
+- Ignore the protection route monitor's initial self-notification until a
+  valid Proton server address is owned.
+- Cover outage recovery with an offline regression for empty route updates.
+
 * Wed Sep 23 2026 uglyegg <uglyegg@entropy.quest> - 5.8.3-1.plasmavpn1
 - Rebase the verified overlay onto Proton's signed Fedora 5.8.3 payload
 - Consume Proton's upstream Protun private-key ownership implementation

@@ -7,7 +7,7 @@
 %global _buildhost reproducible.invalid
 
 Name:           proton-vpn-kde
-Version:        0.14.2
+Version:        0.14.3
 Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
@@ -52,7 +52,8 @@ Requires:       /usr/bin/ip
 Requires:       python3-cryptography >= 50.0.0
 Requires:       python3-dbus-fast
 Requires:       python3-fido2
-Requires:       python3-proton-vpn-api-core >= 5.6.10
+Requires:       python3-proton-vpn-api-core >= 5.8.3-2.plasmavpn1
+Requires:       python3-proton-keyring-linux >= 0.2.3-10.plasmavpn1
 Requires:       proton-vpn-api-core-plasma-protun-secret >= 1
 Requires:       proton-keyring-secret-service-owner-pinned >= 1
 Requires:       qt6-qtdeclarative
@@ -143,6 +144,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Thu Oct 15 2026 uglyegg <uglyegg@entropy.quest> - 0.14.3-1
+- Release outage-recovery fixes and refresh in-app release notes
+- Ship bounded Secret Service restart recovery and the initial route-monitor fix
+
 * Wed Sep 23 2026 uglyegg <uglyegg@entropy.quest> - 0.14.2-1
 - Rebase the Fedora API-Core overlay on Proton Core 5.8.3
 - Use Proton's upstream Protun secret behavior and retain three bounded patches

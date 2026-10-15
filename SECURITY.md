@@ -76,6 +76,8 @@ The following properties are part of the project's security contract:
 - the downstream keyring adapter must require the desktop-selected Secret
   Service provider to run as the session user, pin traffic to its unique D-Bus
   owner, and reject owner replacement before sending Proton session material;
+  recovery may retry one complete operation only after selecting and pinning a
+  fresh same-user provider;
 - state-changing backend methods must authorize the actual D-Bus sender and
   revoke that authority when its unique name vanishes;
 - shared desktop action brokers may present bounded confirmation requests but

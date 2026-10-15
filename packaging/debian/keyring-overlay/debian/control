@@ -38,7 +38,8 @@ Description: provider-neutral Proton Secret Service adapter
  default collection, safely falls back when exactly one collection is exposed,
  and retains one bounded D-Bus connection so provider authorization applies to
  the complete operation sequence. Secret traffic is pinned to the selected
- provider's unique D-Bus owner and rejected if that owner changes.
+ provider's unique D-Bus owner. A complete operation may rebind once after a
+ same-user provider restart.
  .
  It is an unofficial downstream build. It contains no KeePassXC- or KDE-specific
  behavior and does not require GNOME Keyring.

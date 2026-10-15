@@ -124,6 +124,9 @@ Inspect:
 - the API-Core SRPM's vendor-RPM reconstruction boundary; and
 - final binary/source checksums.
 
+Check ownership in package metadata. The workstation sandbox's root-to-nobody
+UID/GID mapping is a known verification artifact, not a package defect.
+
 Before calling a distribution live-supported, install all three binary packages
 in a clean target-distribution Plasma environment. Test:
 

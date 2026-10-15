@@ -103,10 +103,14 @@ install -m 0644 \
 install -m 0644 \
     "$shared_overlay_dir/patches/0003-pin-secret-service-provider.patch" \
     "$source_dir/debian/patches/0003-pin-secret-service-provider.patch"
+install -m 0644 \
+    "$shared_overlay_dir/patches/0004-recover-secret-service-provider-restart.patch" \
+    "$source_dir/debian/patches/0004-recover-secret-service-provider-restart.patch"
 printf '%s\n' \
     0001-provider-agnostic-secret-service.patch \
     0002-avoid-missing-entry-traceback.patch \
     0003-pin-secret-service-provider.patch \
+    0004-recover-secret-service-provider-restart.patch \
     >"$source_dir/debian/patches/series"
 
 export SOURCE_DATE_EPOCH="$source_date_epoch"

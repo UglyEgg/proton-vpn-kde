@@ -38,13 +38,13 @@ private writable memory after warm-up. The final five closes varied by 128 KiB,
 and owned-page/window-descendant counts returned to baseline after every close.
 An explicit diagnostic GC after ten seconds reclaimed a further 1,024 KiB.
 
-A shorter frozen-source probe produced:
+A two-cycle 0.14.3 offscreen probe on 2026-10-15 produced:
 
 | State | PSS (KiB) | Private memory (KiB) |
 | --- | ---: | ---: |
-| Initial Overview | 64,780 | 59,348 |
-| First close | 67,524 | 62,092 |
-| Second close | 68,574 | 63,120 |
+| Initial Overview | 84,600 | 76,068 |
+| First close | 92,525 | 87,044 |
+| Second close | 93,557 | 88,076 |
 
 The short probe shows warm-up retention and a smaller second increment; two
 cycles do not establish long-run behavior. Offscreen software rendering excludes
@@ -126,4 +126,4 @@ cache.
 
 Measurement gaps: live GPU rendering, cold navigation latency, representative
 cache scaling, normal-GC long-duration Inspector/diagnostics retention, and a
-long-duration 0.14.2/Core-5.8.3 resident-state matrix.
+long-duration 0.14.3/Core-5.8.3 resident-state matrix.

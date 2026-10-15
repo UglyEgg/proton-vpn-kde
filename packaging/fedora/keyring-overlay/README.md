@@ -20,7 +20,10 @@ The patch set is provider-neutral:
 - support both D-Bus-activated providers and providers that already own the
   service name after desktop autostart; and
 - pin every Secret Service call, reply, and prompt signal to that provider's
-  unique D-Bus owner, rejecting owner replacement.
+  unique D-Bus owner;
+- after an unavailable or replaced provider is detected before a secret call,
+  close the stale connection and retry one complete operation against a newly
+  selected same-user owner.
 
 GNOME Keyring remains a supported provider, but it is a suggestion rather than
 a runtime requirement. KeePassXC, KWallet, GNOME Keyring, and other conforming
@@ -64,9 +67,10 @@ verified in an upstream package and the dependency can be retired.
 
 The first patch combines the default-alias compatibility and stable-connection
 changes because they modify one small backend implementation and share the same
-focused test module. The missing-entry logging and provider-owner-pinning
-patches remain separate and can be proposed independently. No VPN networking,
-session format, or secret storage schema is changed.
+focused test module. The missing-entry logging, provider-owner-pinning, and
+bounded provider-restart patches remain separate and can be proposed
+independently. No VPN networking, session format, or secret storage schema is
+changed.
 
 Existing source files retain Proton's copyright and GPL notices. The new test
 module in patch 0001 uses Proton's current 2026 notice and GPL boilerplate.

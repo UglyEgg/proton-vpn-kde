@@ -164,10 +164,23 @@ def check() -> None:
     )
 
     spec = PROJECT_DIR / "packaging/fedora/proton-vpn-kde.spec"
+    overlay_release_match = re.search(
+        r"^Release:\s+([^\s%]+)",
+        overlay_spec.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    if overlay_release_match is None:
+        fail("Core overlay package release is missing")
+    fedora_overlay_floor = f"{overlay_version}-{overlay_release_match.group(1)}"
     require_text(
         spec,
-        rf"^Requires:\s+python3-proton-vpn-api-core >= {re.escape(runtime_floor)}$",
-        "Core runtime floor",
+        rf"^Requires:\s+python3-proton-vpn-api-core >= {re.escape(fedora_overlay_floor)}$",
+        "Fedora Core overlay package floor",
+    )
+    require_text(
+        spec,
+        r"^Requires:\s+python3-proton-keyring-linux >= 0\.2\.3-10\.plasmavpn1$",
+        "Fedora Secret Service recovery package floor",
     )
     require_text(
         spec,
@@ -201,6 +214,11 @@ def check() -> None:
         debian_control,
         r"^\s+proton-keyring-secret-service-provider-agnostic \(>= 1\),$",
         "Debian provider-neutral keyring capability",
+    )
+    require_text(
+        debian_control,
+        r"^\s+python3-proton-keyring-linux \(>= 0\.2\.3-10plasmavpn1\),$",
+        "Debian Secret Service recovery package floor",
     )
     require_text(
         debian_control,

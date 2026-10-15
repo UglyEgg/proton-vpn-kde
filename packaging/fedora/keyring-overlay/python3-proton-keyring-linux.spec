@@ -3,7 +3,7 @@
 
 Name:           python3-proton-keyring-linux
 Version:        0.2.3
-Release:        9.plasmavpn1%{?dist}
+Release:        10.plasmavpn1%{?dist}
 Summary:        Provider-neutral Proton Secret Service adapter
 
 License:        GPL-3.0-or-later
@@ -15,6 +15,7 @@ Source3:        overlay-manifest.json.license
 Patch0:         0001-provider-agnostic-secret-service.patch
 Patch1:         0002-avoid-missing-entry-traceback.patch
 Patch2:         0003-pin-secret-service-provider.patch
+Patch3:         0004-recover-secret-service-provider-restart.patch
 BuildArch:      noarch
 
 BuildRequires:  pyproject-rpm-macros
@@ -43,7 +44,8 @@ alias, safely handles a sole advertised collection when that alias is stale,
 and keeps one bounded D-Bus client connection so desktop providers can remember
 authorization decisions. The selected provider must run as the session user;
 all secret traffic is pinned to its unique D-Bus owner and rejected if that
-owner changes. It does not contain KDE- or KeePassXC-specific logic.
+owner changes. A complete operation may rebind once after a same-user provider
+restart. It does not contain KDE- or KeePassXC-specific logic.
 
 This is an unofficial downstream rebuild maintained by the Plasma VPN project.
 
@@ -70,6 +72,10 @@ python3 -m pytest -o addopts='' -q \
 %doc overlay-manifest.json overlay-manifest.json.license keyring-overlay-README.md
 
 %changelog
+* Thu Oct 15 2026 uglyegg <uglyegg@entropy.quest> - 0.2.3-10.plasmavpn1
+- Rebind one complete keyring operation after a same-user Secret Service
+  provider restart without weakening per-connection owner pinning.
+
 * Sat Sep 12 2026 uglyegg <uglyegg@entropy.quest> - 0.2.3-9.plasmavpn1
 - Add Proton's current copyright and GPL notice to the new upstream test module
 - Correct the package license expression to GPL-3.0-or-later

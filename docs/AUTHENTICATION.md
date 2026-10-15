@@ -51,15 +51,17 @@ keyring adapter:
 - selects or activates the desktop's provider without sending secrets;
 - requires the provider to run as the session user;
 - pins calls, replies, and prompt signals to its unique owner;
-- fails closed on owner replacement;
+- rejects a replaced owner for the current call, closes the stale connection,
+  and retries one complete operation against a newly selected same-user owner;
 - accepts an already-running provider that is not D-Bus activatable; and
 - handles absent or stale `default` collection aliases without provider-specific
   KeePassXC logic.
 
 The session bus cannot portably attest the executable behind a non-dumpable
 provider. The initially selected same-user provider is a trusted desktop
-dependency; unique-owner pinning prevents later replacement but does not prove
-package provenance.
+dependency; unique-owner pinning prevents a call from crossing provider owners
+but does not prove package provenance. Rebinding after a provider restart uses
+the same trust boundary as a new backend process.
 
 The verified overlay and supported provider stack are recorded in
 [Compatibility](COMPATIBILITY.md). The client stores only non-secret UI

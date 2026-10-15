@@ -91,8 +91,12 @@ for required_path in "${required_paths[@]}"; do
 done
 
 requires="$(rpm -qp --requires "$package_path")"
-if ! grep -Fxq 'python3-proton-vpn-api-core >= 5.6.10' <<<"$requires"; then
-    echo "RPM does not retain the official Proton VPN API Core dependency" >&2
+if ! grep -Fxq 'python3-proton-vpn-api-core >= 5.8.3-2.plasmavpn1' <<<"$requires"; then
+    echo "RPM does not require the corrected Core route-monitor package" >&2
+    exit 1
+fi
+if ! grep -Fxq 'python3-proton-keyring-linux >= 0.2.3-10.plasmavpn1' <<<"$requires"; then
+    echo "RPM does not require the Secret Service recovery package" >&2
     exit 1
 fi
 if ! grep -Fxq \
