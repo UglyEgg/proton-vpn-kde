@@ -2,12 +2,19 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.14.2 is the current public package release. Fedora Core 5.8.3
+Plasma VPN 0.14.3 is the current public package release. Fedora Core 5.8.3
 passed exact reconstruction, overlay policy, reproducibility, installation,
 backend-replacement, capability-detection, and live connection acceptance.
 Ubuntu retains its package-validated 5.6.10 baseline and remains
 package-validated rather than live-supported until community Plasma field
 reports establish its live lifecycle.
+
+The 0.14.3 maintenance release uses the overlay revisions below.
+The installed Fedora overlays passed fresh-backend authentication restoration
+and connection on 2026-10-15. Pre-final Ubuntu binary/source packages pass
+artifact, dependency, install/reinstall, and client-removal checks in an offline
+tooling container. Exact final builds from a signed commit and clean CI remain
+publication gates.
 
 | Component | Fedora 44 | Ubuntu 26.04 package-validated |
 | --- | --- | --- |
@@ -15,10 +22,10 @@ reports establish its live lifecycle.
 | Desktop | KDE Plasma 6 with systemd user services | KDE Plasma 6 with systemd user services |
 | Qt / KDE | Qt 6.8+; KDE Frameworks 6 | Qt 6.10.2; KDE Frameworks 6.24 |
 | Python | 3.14 with `os.pidfd_open` | 3.14 with `os.pidfd_open` |
-| Proton VPN API Core | 5.8.3-1.plasmavpn1 | 5.6.10-12plasmavpn1 |
-| Proton keyring adapter | 0.2.3-9.plasmavpn1 | 0.2.3-9plasmavpn1 |
+| Proton VPN API Core | 5.8.3-2.plasmavpn1 | 5.6.10-12plasmavpn1 |
+| Proton keyring adapter | 0.2.3-10.plasmavpn1 | 0.2.3-10plasmavpn1 |
 | Secret Service | Freedesktop Secret Service; KeePassXC verified | Freedesktop Secret Service; live provider UAT pending |
-| Package evidence | 0.14.2 client source/package gates; `0.14.1-0.2.fc44` client with the 5.8.3 overlay installed and accepted | Clean-container build/install/reinstall/autopkgtest |
+| Package evidence | 0.14.3 source build and 47 checks pass; recovery overlay RPM/SRPM sets verified and installed; exact-commit client RPM pending | Pre-final client, keyring, and Core binary/source sets pass offline build, artifact policy, Lintian error gate, and install/reinstall/removal checks; clean CI pending |
 
 Required source dependencies include C++20, CMake 3.24, OpenSSL 3, and
 `dbus-fast` 2.20. Fedora's tested `cryptography` floor is 50.0.0; Ubuntu 26.04
@@ -35,29 +42,41 @@ proton-keyring-secret-service-owner-pinned >= 1
 Those requirements prevent a stock Proton package upgrade from silently
 removing behavior required by the Plasma client.
 
+The 0.14.3 client also requires keyring revision 10 on both distributions and
+Core `5.8.3-2.plasmavpn1` on Fedora. These package floors ensure a client-only
+upgrade installs the recovery fixes; Ubuntu's Core floor remains 5.6.10.
+
 ## API-Core overlay
 
 The current overlay reconstructs Proton's signed Fedora
 `python3-proton-vpn-api-core-5.8.3-1.fc44` package as
-`5.8.3-1.plasmavpn1.fc44`. Manifest schema 3 distinguishes the signed Fedora
+`5.8.3-2.plasmavpn1.fc44`. Manifest schema 3 distinguishes the signed Fedora
 package version from Proton's latest public source reference, `v5.6.20` at
 commit `3a7c1946623796540884574853492d06870d9477`. Proton did not publish a
 public `v5.8.3` source tag at the verification date.
 
-The three patches apply with zero fuzz. Exact-tree policy permits changes only
-to five Python source files and ten derived bytecode files. The overlay:
+The four patches apply with zero fuzz. Exact-tree policy permits changes only
+to six Python source files and twelve derived bytecode files. The overlay:
 
 - shares repeated server strings without changing server behavior;
 - removes a deprecated FIDO2 capability query;
-- consumes Proton's upstream Protun transient-key behavior in the existing
-  unsaved NetworkManager profile; and
-- explicitly activates reusable validated protection profiles.
+- explicitly activates reusable validated protection profiles; and
+- suppresses the initial empty server-route monitor update that can race
+  recovery after a long outage.
+
+The package also consumes Proton's upstream Protun transient-key behavior in
+the existing unsaved NetworkManager profile.
 
 The 5.8.3 rebase preserves Proton's permanent firewall kill-switch unit and
 safe final-removal script. Verification includes 14 protection-activation
-cases, seven hash-checked actual-Core lifecycle cases, exact changed-path
-policy, reproducible RPM/SRPM checks, installation, backend replacement,
-capability detection, and live connect/disconnect acceptance.
+cases, the initial route-monitor regression, seven hash-checked actual-Core
+lifecycle cases, exact changed-path policy, and reproducible RPM/SRPM checks.
+Revision 2 and keyring revision 10 were installed on 2026-10-15. A fresh backend
+restored authentication and connected to US-IL#788; protection activation,
+physical server-route installation, and the tunnel handshake completed without
+the prior five-second timeout. No provider-identity or backend error followed.
+This validates recovery from the observed failed state; another hours-long
+outage and a live provider-restart exercise have not been repeated.
 
 Core 5.7 introduced connection-outcome telemetry and defaults its persisted setting
 to enabled. Community client builds default this optional reporting capability
@@ -94,17 +113,19 @@ autopkgtest, and the client-removal boundary.
 
 ## Keyring overlay
 
-The release keyring package reconstructs Proton's 0.2.3 source with three
+The release keyring package reconstructs Proton's 0.2.3 source with four
 manifested patches:
 
 - provider-neutral handling for absent or stale `default` collection aliases;
-- reuse of one bounded Secret Service connection for a logical operation; and
-- same-user provider selection with unique-owner pinning.
+- reuse of one bounded Secret Service connection for a logical operation;
+- same-user provider selection with unique-owner pinning; and
+- one complete operation retry after a same-user provider restart.
 
 It supports an already-running provider without a D-Bus activation file and
-fails closed on owner replacement. The implementation contains no KeePassXC-
-specific branch. Its focused suite covers aliases, activation, locked
-collections, connection reuse, same-user selection, replacement, and
+rejects an owner replacement for the current call before selecting a new
+same-user owner. The implementation contains no KeePassXC-specific branch. Its
+focused suite covers aliases, activation, locked collections, connection
+reuse, same-user selection, replacement, restart recovery, and
 read/write/delete behavior.
 
 ## Authentication limitations
@@ -127,9 +148,10 @@ the old backend process is dead.
 | START-01 cold launch | Installed direct KDE launch passed inherited Qt-path normalization and backend authorization |
 | START-02 recovery | Installed Core revision 12 reused and activated one retained protection profile without duplicates or backend restarts |
 | Core 5.7.0 overlay | Signed vendor input verified; all five patches, 14 protection cases, seven lifecycle cases, RPM/SRPM policy, installation, startup, and live connection passed |
-| Core 5.8.3 overlay | Signed vendor input verified; all three patches, 14 protection cases, seven lifecycle cases, exact-tree policy, reproducible RPM/SRPM output, installation, backend replacement, capability detection, and live connect/disconnect passed with the accepted 0.14.1 client |
-| Clean package builds | Client and both overlay package pairs pass policy, transaction, and reproducibility checks |
-| Ubuntu 26.04 package validation | Client and both overlay `.deb`/source sets pass clean-container policy and lifecycle checks; community Plasma field acceptance pending |
+| Core 5.8.3 overlay, revision 2 | Signed vendor input, four patches, 18 changed paths, 14 protection cases, route-monitor regression, lifecycle cases, RPM/SRPM policy, and installed behavior verified; fresh connection passed on 2026-10-15 |
+| Keyring 0.2.3, revision 10 | 32 focused tests and RPM/SRPM policy passed; installed saved-session restoration passed; live provider-restart UAT remains pending |
+| Published 0.14.2 package evidence | Client and both overlay package sets passed policy, transaction, and reproducibility checks |
+| Ubuntu 0.14.3 pre-final validation | 46 client archive checks, 464 backend cases (seven explicit skips), 43 keyring cases, exact Core payload policy, binary/source artifact checks, Lintian error gate, and offline install/reinstall/client-removal boundaries pass; community Plasma field acceptance pending |
 
 The corrected telemetry policy, versioned settings and snapshot compatibility,
 and readiness paths are included in the focused installed acceptance above.

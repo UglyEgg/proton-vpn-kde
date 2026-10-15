@@ -39,6 +39,7 @@ required_dependencies=(
     proton-keyring-secret-service-provider-agnostic
     proton-keyring-secret-service-owner-pinned
     proton-vpn-api-core-plasma-protun-secret
+    python3-proton-keyring-linux
     python3-proton-vpn-api-core
     qml6-module-org-kde-kirigami
     qt6-svg-plugins
@@ -50,6 +51,12 @@ for dependency in "${required_dependencies[@]}"; do
         exit 1
     fi
 done
+
+if ! grep -Eq '(^|, )python3-proton-keyring-linux *\(>= *0\.2\.3-10plasmavpn1\)(,|$)' \
+        <<<"$client_depends"; then
+    echo "Client package does not require the Secret Service recovery package" >&2
+    exit 1
+fi
 
 for forbidden_dependency in \
         gnome-keyring \

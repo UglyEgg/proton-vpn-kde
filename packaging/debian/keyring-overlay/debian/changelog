@@ -1,3 +1,10 @@
+proton-keyring-linux (0.2.3-10plasmavpn1) resolute; urgency=medium
+
+  * Retry one complete operation after a same-user Secret Service provider
+    restart while retaining per-connection unique-owner pinning.
+
+ -- uglyegg <uglyegg@entropy.quest>  Thu, 15 Oct 2026 00:00:00 -0500
+
 proton-keyring-linux (0.2.3-9plasmavpn1) resolute; urgency=medium
 
   * Rebuild Proton's exact v0.2.3 source with provider-neutral Secret Service

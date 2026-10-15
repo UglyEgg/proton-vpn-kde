@@ -2,6 +2,21 @@
 
 The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
+## [0.14.3] - 2026-10-15
+
+### Outage recovery
+
+- Recover a saved session after the Secret Service provider restarts. Retry
+  the complete keyring operation once on a fresh connection, retaining
+  same-user provider checks and unique-owner pinning.
+- Fix a Fedora Core 5.8.3 route-monitor race: the first network-change event
+  could attempt an empty server route and cause connection setup to time out.
+- Package the fixes as keyring `0.2.3-10.plasmavpn1` on Fedora and
+  `0.2.3-10plasmavpn1` on Ubuntu, plus Fedora Core `5.8.3-2.plasmavpn1`.
+  Ubuntu retains its Core 5.6.10 overlay.
+- Require the corrected overlay revisions when upgrading the client, so a
+  client-only update cannot retain the older recovery defects.
+
 ## [0.14.2] - 2026-09-23
 
 ### Proton Core 5.8.3 compatibility

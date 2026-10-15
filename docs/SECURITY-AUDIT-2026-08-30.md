@@ -1,16 +1,18 @@
 # Security and engineering assessment
 
-Last updated: 2026-09-23
-Release: 0.14.2
+Last updated: 2026-10-15
+Release: 0.14.3
 
 ## Status
 
-No open source-review blocker is recorded for 0.14.2. Its application runtime
-is the accepted 0.14.1 implementation. The maintenance delta rebases the
-Fedora API-Core overlay on signed Core 5.8.3, removes a workaround now supplied
-by Proton, consolidates the existing string-sharing patch, and isolates the
-unchanged Ubuntu 5.6.10 patch inputs. It does not change client mechanics,
-authentication transport, D-Bus policy, or Proton's networking authority.
+The 0.14.3 maintenance release adds two bounded recovery fixes in
+the packaged overlays: one complete operation retry after Secret Service
+provider replacement, and suppression of a network-change callback before
+the initial server IP exists. The client runtime changes only in version and
+release-note presentation. Seven isolated reviews passed after one packaging
+correction. Local source and pre-final Ubuntu package gates pass; signed-source
+artifact builds and clean CI remain pending. The corrected Fedora overlays
+passed focused regressions and installed connection testing.
 
 The broader 0.14 line had multi-day local use. On 2026-09-20 the maintainer
 explicitly waived the remaining exact-build soak interval after accepting
@@ -47,6 +49,69 @@ Community code owns desktop presentation, input validation, D-Bus policy,
 operation ownership, process lifetime, and downstream package integration.
 The distribution API-Core packages contain declared, version-pinned patches
 and must not be represented as unmodified Proton binaries.
+
+## 0.14.3 recovery assessment
+
+| Change | Boundary | Evidence |
+| --- | --- | --- |
+| Secret Service restart recovery | Only the adapter's two provider-unavailable/identity-change errors permit one fresh complete operation; each connection retains same-UID validation and unique-owner pinning | 32 keyring tests; RPM/SRPM policy; installed saved-session restoration |
+| Initial route-monitor race | Ignore a network-change callback until the target server IP is known; existing route installation and protection handling remain in Core | Offline actual-source regression; 14 protection cases; exact 18-path overlay policy; installed connection |
+
+On 2026-10-15, Fedora keyring `0.2.3-10.plasmavpn1.fc44` and Core
+`5.8.3-2.plasmavpn1.fc44` were installed and verified. A fresh backend connected
+to US-IL#788 with no timeout or provider-identity errors. A second prolonged
+outage and live Secret Service replacement have not been exercised. Ubuntu
+retains Core 5.6.10 and receives the shared keyring fix; new Debian package
+validation has passed for the keyring binary/source set and its 43 upstream
+tests. The corrected client binary/source build, 46 archive checks, artifact
+policy, Lintian error gate, and install/reinstall/client-removal checks also
+pass in the offline Ubuntu tooling container.
+
+Seven isolated reviewers assessed the aggregate delta from `c256708` in source
+archive SHA-256 `198ad1abd24b57481b765fb2aecd97018e5eec87a24810f5cd118ec06c8f6972`.
+
+| Perspective | Result |
+| --- | --- |
+| Hostile | Pass; focused keyring, route, and protection regressions replayed |
+| Subtractive | Pass |
+| Entropy | One P2 package-dependency finding; corrected and re-reviewed |
+| Error-Class | Pass; bounded recovery and foreign-UID rejection probed offline |
+| HPC/Performance | Pass; no polling or retained resource added |
+| Hardening/Security | Pass within the documented local-session threat boundary |
+| Cognitive Load/Maintainability | Pass |
+
+0143-RC1: the client initially accepted the preceding overlay revisions. Fedora
+now requires Core `5.8.3-2.plasmavpn1` and keyring `0.2.3-10.plasmavpn1`;
+Ubuntu requires keyring `0.2.3-10plasmavpn1`. Source and artifact gates reject
+the older requirements. Corrected source archive SHA-256
+`162a667ddf66ffbd773742fe31723803da79534e1097d5ea31ff57a81134fa42`
+passed focused re-review; both runtime patches are byte-identical to the first
+reviewed snapshot. No open review finding remains.
+
+Recovery covers the adapter's explicit owner-check errors. Provider death
+after that check, generic transport errors, and dismissed prompts do not gain
+an automatic retry. An already-completed credential write may repeat its
+same-key replacement if the provider changes during the following metadata
+read. No new whole-client memory or outage-endurance claim is made.
+
+The 0.14.1 assessment below remains historical client-runtime evidence.
+
+### 0.14.3 validation
+
+| Gate | Result |
+| --- | --- |
+| Source policy | SPDX, patch whitespace, Ruff, ShellCheck, generated contracts/translations, compatibility metadata, documentation links, and reviewed-delta seal pass |
+| Python | Mypy passes for 31 modules; 464 backend cases pass with seven explicit Core-fixture skips; 87% combined coverage |
+| Native/integration | 47 CTest checks pass after a focused release-fixture correction |
+| Presentation | Built client reports 0.14.3; rendered release notes inspected; eight-view visual matrix and Inspector smoke pass |
+| Ubuntu keyring | Binary/source set builds offline in the Ubuntu 26.04 tooling container; 43 upstream tests and Lintian pass |
+| Ubuntu package set | All three binary/source sets build; 46 client archive checks, exact Core payload policy, dependency resolution, Lintian error gate, and installed-layout/reinstall/removal checks pass; Core and keyring remain installed after client removal |
+| Publication | Signed source commit, exact final Fedora client packages, clean CI, final artifact signatures, and release publication remain pending |
+
+The release fixture now constructs explicit dated-release documents instead of
+rewriting production prose. It verifies each independent rejection and a final
+consistent success case. Its focused cognitive/maintainability re-review passed
+for SHA-256 `2aa17d01af4cc88a0275fac4c0c702c228e1138a2ad1d9be623146c102a49692`.
 
 ## 0.14.2 maintenance assessment
 

@@ -35,6 +35,12 @@ profile because normalization adds default settings such as the proxy group.
 The regression fixture now models that storage boundary. No profile settings
 are ignored beyond UUID/timestamp, and the caller's request is not mutated.
 
+The fourth patch ignores the route monitor's initial self-notification until
+the handler owns a valid Proton server address. Without that guard, installing
+the first route can queue a second update with an empty destination, remove the
+valid route, and make outage recovery time out even though NetworkManager
+successfully applied the original update.
+
 `overlay-manifest.json` schema 3 pins:
 
 - the vendor NEVRA, source RPM name, complete-RPM SHA-256, header SHA-256,
@@ -46,9 +52,9 @@ are ignored beyond UUID/timestamp, and the caller's request is not mutated.
   recorded only as the latest public reference, not as the overlay's source;
 - the source of the required Protun capability, now supplied by the pinned
   vendor package rather than a downstream patch;
-- all three runtime patch hashes and their provenance;
+- all four runtime patch hashes and their provenance;
 - every permitted changed installed path;
-- the before/after SHA-256 for five Python sources and their ten derived
+- the before/after SHA-256 for six Python sources and their twelve derived
   bytecode files.
 
 `rebuild_overlay.py` extracts the pinned RPM without installing it, applies
@@ -75,8 +81,9 @@ packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
 
 The resulting SRPM contains the signed vendor RPM, manifest, verifier, and
 patches. The binary RPM contains the same payload paths as Proton's RPM, with
-only the fifteen manifest-listed file hashes changed. The SRPM also includes
-the offline protection-activation regression tests, which run in `%check`.
+only the eighteen manifest-listed file hashes changed. The SRPM also includes
+the offline protection-activation and initial route-monitor regression tests,
+which run in `%check`.
 
 The spec derives RPM build time from its changelog and refers to source inputs
 relative to the RPM build directory. This prevents a caller's temporary top
@@ -92,7 +99,7 @@ of this overlay.
 Core 5.7 introduced a permanent firewall kill-switch systemd unit and optional
 connection telemetry. The overlay preserves the vendor unit and final-removal
 cleanup script exactly. Telemetry policy belongs to the consuming client, not
-these three compatibility patches: Plasma VPN packages disable the Core event
+these four compatibility patches: Plasma VPN packages disable the Core event
 queue by default and verify that policy in their artifact checks.
 
 ## Patch scope and upstream handoff
@@ -119,6 +126,7 @@ overlay patch is removed rather than carried forward.
 | [0001](patches/0001-share-repeated-server-list-strings.patch) | Share equal immutable server/endpoint strings during fresh and cached loads with a per-load pool. Source origin: `9248915988b290ef83c86af38cad523948c9019d` (PR #27). | Value/serialization preservation, absent/non-string fields, plain-cache compatibility and per-load lifetime are covered upstream; the payload verifier covers both load paths. |
 | [0002](patches/0002-avoid-deprecated-fido2-capability-query.patch) | Read current session capability properties without the deprecated API wrapper; independent of string sharing. Source origin: `f39782e411d629694eab174b4b04adc86765d7d8`. | All four capability combinations retain their results, with deprecated-property access forced to fail. |
 | [0003](patches/0003-explicitly-activate-protection-profiles.patch) | Reuse matching protection profiles and explicitly request/observe activation. Originally authored against 5.6.10; its target helper remains compatible in 5.8.3 and the patch is revalidated there. Separate from keyring and memory changes. | Real libnm settings with fake I/O cover inactive/active profiles, mismatches, duplicates, activation failure, autoconnect races, cancellation and late callbacks. The retained-inactive-profile regression fails against the unpatched vendor helper. |
+| [0004](patches/0004-ignore-empty-initial-route-monitor-event.patch) | Ignore the route monitor's self-notification until a selected server address is committed. | Offline fake-I/O coverage proves the initial callback performs no update and a later callback carries the owned server and gateway. The live incident journal supplies the NetworkManager timing evidence. |
 
 Against the same 18,220-server cache on Core 5.8.3, seven isolated runs
 measured server-list load PSS at 85,380 KiB without string sharing and a median
@@ -142,6 +150,9 @@ They load an explicitly selected helper with `--module` (source tree) or
 `--root` (extracted RPM), never construct a real NetworkManager client, and
 bound completion waits. They do not establish live protection behavior or
 replace installed connect/disconnect and manual-device-disconnect acceptance.
+Patch 0004's focused regression is in
+[`tests/test_killswitch_route_monitor.py`](tests/test_killswitch_route_monitor.py)
+and likewise performs no live NetworkManager operation.
 
 For remaining source-level contributions:
 

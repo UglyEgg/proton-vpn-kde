@@ -143,8 +143,10 @@ while IFS= read -r path; do
         packaging/fedora/api-core-overlay/patches/0001-share-repeated-server-list-strings.patch|\
         packaging/fedora/api-core-overlay/patches/0002-avoid-deprecated-fido2-capability-query.patch|\
         packaging/fedora/api-core-overlay/patches/0003-explicitly-activate-protection-profiles.patch|\
+        packaging/fedora/api-core-overlay/patches/0004-ignore-empty-initial-route-monitor-event.patch|\
         packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py|\
         packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py|\
+        packaging/fedora/api-core-overlay/tests/test_killswitch_route_monitor.py|\
         packaging/fedora/core-compatibility.json|\
         packaging/fedora/core-compatibility.json.license|\
         packaging/fedora/keyring-overlay/README.md|\
@@ -154,6 +156,7 @@ while IFS= read -r path; do
         packaging/fedora/keyring-overlay/overlay-manifest.json.license|\
         packaging/fedora/keyring-overlay/patches/0001-provider-agnostic-secret-service.patch|\
         packaging/fedora/keyring-overlay/patches/0003-pin-secret-service-provider.patch|\
+        packaging/fedora/keyring-overlay/patches/0004-recover-secret-service-provider-restart.patch|\
         packaging/fedora/keyring-overlay/python3-proton-keyring-linux.spec|\
         packaging/fedora/proton-vpn-kde.spec|\
         kcm/kcm_proton_vpn_kde.json.license|\
@@ -230,17 +233,17 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "8ea60c80342a983d5f69e727b21142b76a1cc21df741b32cd142e970a10ceeee" \
+    "8997cc14a573443a08488bfba36495b1a17adbdcc3e0d353e86c9f9285e183d8" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
     "Python dependency floor" backend/requirements-minimum.txt
 assert_diff_hash \
-    "6dd02b6d8a71581b879262f9fcfb20638cb76c9922f1f585ff2c567dec3e3607" \
+    "ca73bbfe54e944fed683921822e69e1d73733d146133476bd4c469a6c57abf8d" \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "2b80772f2a5c4abb4d1d2e9f144633dded0a15a250442b1b6432a7e551cbde10" \
+    "7e5e5352a8af84877bd3387c1f5f800fc2a59bda8f5383a4467f91b21bedcc1f" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests \
     data/snapshot-schema-v2.json data/snapshot-schema-v2.json.license \
@@ -248,7 +251,7 @@ assert_diff_hash \
     src/SnapshotContract.generated.h tests/SnapshotContractTest.cpp \
     tests/SnapshotTestData.h
 assert_diff_hash \
-    "7547f7705ca8c833a80e009440de7f95a34b0c38d23469e4c3e67a4558798c28" \
+    "63c7afb05affc2fbd29b91c786ad187825bebd737aeed2f0ec9e780197cef86e" \
     "Fedora Core overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -262,14 +265,16 @@ assert_diff_hash \
     packaging/fedora/api-core-overlay/patches/0001-share-repeated-server-list-strings.patch \
     packaging/fedora/api-core-overlay/patches/0002-avoid-deprecated-fido2-capability-query.patch \
     packaging/fedora/api-core-overlay/patches/0003-explicitly-activate-protection-profiles.patch \
+    packaging/fedora/api-core-overlay/patches/0004-ignore-empty-initial-route-monitor-event.patch \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
     packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py \
+    packaging/fedora/api-core-overlay/tests/test_killswitch_route_monitor.py \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
     scripts/check-patch-whitespace.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
 assert_diff_hash \
-    "2767d7621c543ec536b3d9798a9e80b97c76dd061f7f46ffb41fc4dcefb49eb7" \
+    "9bf01d7b0c6350bf69bf0678b1972c8af3679be287fc4727e34b56ddd944b4f3" \
     "finite process-stop packaging" \
     data/proton-vpn-kde-backend.service.in \
     scripts/check-rpm-artifact.sh scripts/smoke-staged-install.sh
@@ -279,7 +284,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "643a7120b9e1444375b3c9c09a9934a5064246b410368c64dc6332b39ca3ba71" \
+    "9864834972bafcd92a805a7f2e303042ee600fb94ed0e4fa1281431a8f5f8d06" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "ed9fc06f2491cbe3457a0aef6fd7c5de888a34240df33004f630d782cf3f2c76" \
@@ -293,11 +298,11 @@ assert_diff_hash \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "c15bcf89f230d55f237c574ba6627d19db3804989b7867f9b0f62ce114960b47" \
+    "c4d78eec841ae7ec84a98f4056df623c5e20d23cc2c4865910466492dea06ccf" \
     "QML presentation" qml
 
 assert_diff_hash \
-    "0d6bbe14e82f34479d233df594fbcd04bc65b5214bdf108535985853ff9317c5" \
+    "274ce64efe03b7c303d79d30230c4188435206cc52fb90f0f04a3bcfcfc11071" \
     "licensing and upstream provenance" \
     .editorconfig .gitattributes .gitignore \
     backend/proton-vpn-kde-backend.in \
@@ -312,7 +317,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "651b94b97872f639a0bff1a0b148990950afe8604f9bda43396e58897a0d567a" \
+    "bca9356c4e7bb4146f5ec7ffb6ac5319c0e6c414076728502f4df01485be7c63" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \

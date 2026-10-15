@@ -39,6 +39,12 @@ Protun transient-key behavior, and retains the independently verified string
 sharing, deprecated-FIDO2-query, and protection-activation changes. Client and
 VPN mechanics are unchanged.
 
+0.14.3 adds bounded Secret Service provider-restart recovery and an initial
+server-route monitor race fix in the Fedora Core overlay. Focused regressions
+and installed connection testing pass. Seven isolated reviews and the bounded
+package-dependency correction are complete; final package gates are tracked
+in the assessment.
+
 ## Post-release priorities
 
 1. Triage reports against the documented support and Core boundaries.

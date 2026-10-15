@@ -71,13 +71,13 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("0.14.2 maintenance release. Proton Core still handles your VPN.")
+            description: qsTr("0.14.3 maintenance release. More reliable recovery after interruptions.")
             iconName: "software-properties"
 
             Kirigami.Heading {
                 Layout.fillWidth: true
                 level: 3
-                text: "0.14.2"
+                text: "0.14.3"
             }
 
             ReleaseNoteGroup {
@@ -85,10 +85,9 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Highlights")
                 headingLevel: 4
                 notes: [
-                    qsTr("Support Proton Core 5.8.3 on Fedora and use Proton's upstream transient-key behavior."),
-                    qsTr("Keep the measured server-list memory reduction through a smaller, source-aligned compatibility patch."),
-                    qsTr("Remove the superseded downstream workaround without changing Proton Core's networking authority."),
-                    qsTr("Keep the Ubuntu Core 5.6.10 package behavior unchanged and its patch inputs self-contained.")
+                    qsTr("Restore access to saved sign-in details after your desktop's secret store restarts."),
+                    qsTr("Fix a Fedora connection timeout caused by a race while preparing the VPN server route."),
+                    qsTr("Keep secret access restricted to your desktop user and retry provider recovery only once.")
                 ]
             }
 
@@ -121,6 +120,17 @@ Kirigami.ScrollablePage {
             title: qsTr("Earlier versions")
             description: qsTr("Development milestones and published releases. The complete engineering history remains in CHANGELOG.md.")
             iconName: "view-history"
+
+            ReleaseNoteGroup {
+                heading: "0.14.2"
+                headingLevel: 3
+                notes: [
+                    qsTr("Supported Proton Core 5.8.3 on Fedora and adopted Proton's upstream transient-key behavior."),
+                    qsTr("Retained server-list memory savings through a smaller compatibility patch and kept Ubuntu's Core 5.6.10 baseline.")
+                ]
+            }
+
+            Kirigami.Separator { Layout.fillWidth: true }
 
             ReleaseNoteGroup {
                 heading: "0.14.1"

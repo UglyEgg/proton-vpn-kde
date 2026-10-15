@@ -27,7 +27,7 @@
   },
   "overlay": {
     "packageName": "python3-proton-vpn-api-core",
-    "nevra": "python3-proton-vpn-api-core-5.8.3-1.plasmavpn1.fc44.x86_64",
+    "nevra": "python3-proton-vpn-api-core-5.8.3-2.plasmavpn1.fc44.x86_64",
     "downstreamVendor": "Plasma VPN contributors",
     "capability": "proton-vpn-api-core-plasma-protun-secret = 1",
     "pythonCacheTag": "cpython-314",
@@ -50,6 +50,12 @@
         "sha256": "c85103ebcde258ede876527659eabce2773cac3f37e6c54b1b002f4e2ac243f8",
         "provenance": "local",
         "rationale": "Reuse validated protection profiles and explicitly activate them after manual device disconnect"
+      },
+      {
+        "file": "0004-ignore-empty-initial-route-monitor-event.patch",
+        "sha256": "7beca83cbef6cc47c7f233463b81057346e88a89b5483dbc058c32fec1248aaf",
+        "provenance": "local",
+        "rationale": "Prevent the first physical-connection notification from replacing the selected Proton server route with an empty destination"
       }
     ],
     "derivedBytecode": [
@@ -107,9 +113,35 @@
         "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.opt-1.pyc",
         "optimization": 1,
         "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.pyc"
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/killswitch_connection_handler.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/killswitch_connection_handler.cpython-314.pyc",
+        "optimization": 0
+      },
+      {
+        "source": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/killswitch_connection_handler.py",
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/killswitch_connection_handler.cpython-314.opt-1.pyc",
+        "optimization": 1,
+        "hardlinkTo": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/killswitch_connection_handler.cpython-314.pyc"
       }
     ],
     "modifiedFiles": [
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/killswitch_connection_handler.cpython-314.opt-1.pyc",
+        "vendorSha256": "4b4009d69c51887f82844879bf2d9f90ea3a9b18a6b17af884fd389f6ae231a5",
+        "overlaySha256": "541015a56388d28169a9c17720c5bc9f77768385dd2fdab178836d1da0dd5df8"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/killswitch_connection_handler.cpython-314.pyc",
+        "vendorSha256": "4b4009d69c51887f82844879bf2d9f90ea3a9b18a6b17af884fd389f6ae231a5",
+        "overlaySha256": "541015a56388d28169a9c17720c5bc9f77768385dd2fdab178836d1da0dd5df8"
+      },
+      {
+        "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/killswitch_connection_handler.py",
+        "vendorSha256": "f33e015409b25c6f8e652f57519e1fdadb4477dfbdc0f7e6a7a796da955f5069",
+        "overlaySha256": "a0c17a2d145e068f086eeef997cc8372bee30e88a85877dec9d91c991d864aaf"
+      },
       {
         "path": "usr/lib64/python3.14/site-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/__pycache__/nmclient.cpython-314.opt-1.pyc",
         "vendorSha256": "269b0bef7932e1c8e36684eb0f8bc136e1ed9f5501eec25b2291c6b904af495b",
