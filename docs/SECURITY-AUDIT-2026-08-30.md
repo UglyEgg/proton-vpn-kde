@@ -35,6 +35,11 @@ namespaces. IPv4/IPv6 routing replay covers Off/On/Permanent protection and
 repeated failed attempts. Provider I/O is substituted; the replay is not a
 native-plugin or end-to-end packet-leak test.
 
+The first Ubuntu CI run built and inspected the packages, then rejected the
+installed client against a hard-coded previous version. The corrected
+installation test derives its expected version from package metadata; the
+application runtime is unchanged.
+
 Installed client `0.14.3-2.fc44` contains these retry fixes. Normal operations
 and package integrity passed on 2026-10-15. On 2026-10-17, one controlled
 native-plugin crash recovered automatically with Core
