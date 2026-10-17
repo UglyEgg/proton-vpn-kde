@@ -1,27 +1,65 @@
 # Security and engineering assessment
 
-Last updated: 2026-10-15
-Release: 0.14.3
+Last updated: 2026-10-17
+Release: 0.14.4
 
 ## Status
 
-The 0.14.3 maintenance release adds two bounded recovery fixes in
-the packaged overlays: one complete operation retry after Secret Service
-provider replacement, and suppression of a network-change callback before
-the initial server IP exists. The client runtime changes only in version and
-release-note presentation. Seven isolated reviews passed after one packaging
-correction. Local source and pre-final Ubuntu package gates pass; signed-source
-artifact builds and clean CI remain pending. The corrected Fedora overlays
-passed focused regressions and installed connection testing.
+The release fixes two adapter recovery defects: an ordinary-route preflight
+blocked reconnect behind Core's surviving protection, and intermediate
+handoff/early Connected events could cancel an accepted replacement. The
+adapter retains Core-owned networking/protection, exponential retry backoff,
+and explicit disconnect/shutdown cancellation barriers.
 
-The broader 0.14 line had multi-day local use. On 2026-09-20 the maintainer
-explicitly waived the remaining exact-build soak interval after accepting
-`0.14.1-0.2.fc44`; the post-review changes were bounded compatibility,
-telemetry-policy, readiness, and release-gate corrections. The waiver does not
-replace or expand the review, package, or installed-UAT evidence.
+The Fedora overlay is rebased on signed Core 5.8.11 beta. All four patches
+remain; the original pending-route ordering is fixed upstream, but four
+adverse callback cases still require the empty-address guard. The stable
+Fedora consumer floor stays at `5.8.3-2.plasmavpn1`; Ubuntu retains 5.6.10.
 
-This is a maintainer-directed, AI-assisted assessment. It is not an independent
-third-party audit, penetration test, certification, or warranty.
+Seven isolated perspectives reviewed frozen snapshot
+`fd1e3fef24f3277c075c6035d8083ca9a38205b5afd8bf920c1c53f94432812f`:
+Hostile, Subtractive, Entropy, Error-Class, HPC/Performance, Hardening/Security,
+and Cognitive Load/Code Maintainability. No unresolved packaged-runtime
+finding was reported. The managed security diff scan found no reportable issue
+under the documented attacker boundary; Daybreak Blue also performed an
+independent recheck. The owner approved clarifying the existing Core-overlay
+boundary in `SECURITY.md`; no finding exclusion or attacker assumption changed.
+
+The aggregate comparison confirms 131 runtime/overlay files match the reviewed
+snapshot, apart from the backend version constant. The release diff seals are
+updated for the reviewed code, regression fixtures, and release metadata.
+Static checks, Python analysis (465 cases, 11 explicit skips, 87% coverage),
+and all 47 native/CTest groups pass, including eight visual captures. Core 5.8.3 and
+5.8.11 each pass 11 real-state-machine cases in disposable user/network
+namespaces. IPv4/IPv6 routing replay covers Off/On/Permanent protection and
+repeated failed attempts. Provider I/O is substituted; the replay is not a
+native-plugin or end-to-end packet-leak test.
+
+The first Ubuntu CI run built and inspected the packages, then rejected the
+installed client against a hard-coded previous version. The corrected
+installation test derives its expected version from package metadata; the
+application runtime is unchanged.
+
+Installed client `0.14.3-2.fc44` contains these retry fixes. Normal operations
+and package integrity passed on 2026-10-15. On 2026-10-17, one controlled
+native-plugin crash recovered automatically with Core
+`5.8.11-1.plasmavpn1.fc44` and keyring revision 10. The independent timer and
+deny-only fence remained available; the client established a replacement
+tunnel before inspection, both route families used `proton0`, and the timer
+required no fallback. The maintainer confirmed Protected status and browsing
+without Retry or Connect. Cleanup retained the normal client connection.
+
+Review findings in the temporary rescue/fault harness concern local test
+infrastructure. Those tools are excluded from the release source/packages and
+require correction before another live fault trial. They do not constitute
+packaged-client findings. This acceptance covers one fixed-server recovery;
+suspend, extended outages, roaming, all protocols, and end-to-end leak behavior
+are not established by it.
+
+Publication requires clean CI and signed-tag package artifacts.
+The earlier review and acceptance records below are historical. This is a
+maintainer-directed, AI-assisted assessment, not an independent third-party
+audit or certification.
 
 ## Scope and assurance boundary
 

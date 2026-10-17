@@ -2,6 +2,18 @@
 
 The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
+## [0.14.4] - 2026-10-17
+
+### Protected reconnect
+
+- Allow protected reconnect when a plugin crash leaves ordinary internet
+  routing blocked; retain Core's protection and exponential retry backoff.
+- Preserve accepted reconnect work across Core's intermediate handoff and
+  early Connected notifications. Explicit disconnect and shutdown still
+  retire owned work.
+- Rebase the development Fedora overlay on Core 5.8.11; retain the empty-address
+  route-monitor guard for both current and legacy Core.
+
 ## [0.14.3] - 2026-10-15
 
 ### Outage recovery

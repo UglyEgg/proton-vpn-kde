@@ -7,19 +7,20 @@
 %global use_source_date_epoch_as_buildtime 1
 
 Name:           python3-proton-vpn-api-core
-Version:        5.8.3
-Release:        2.plasmavpn1%{?dist}
+Version:        5.8.11
+Release:        1.plasmavpn1%{?dist}
 Summary:        Proton VPN Core with a verified narrow overlay
 License:        GPL-3.0-or-later
 URL:            https://github.com/ProtonVPN/python-proton-vpn-api-core
 Vendor:         Plasma VPN contributors
-Source0:        python3-proton-vpn-api-core-5.8.3-1.fc44.x86_64.rpm
+Source0:        python3-proton-vpn-api-core-5.8.11-1.fc44.x86_64.rpm
 Source1:        overlay-manifest.json
 Source2:        rebuild_overlay.py
 Source3:        protonvpn-fedora-44-public-key.asc
 Source4:        test_killswitch_activation.py
 Source5:        overlay-manifest.json.license
 Source6:        test_killswitch_route_monitor.py
+Source7:        test_server_cache.py
 Patch0:         0001-share-repeated-server-list-strings.patch
 Patch1:         0002-avoid-deprecated-fido2-capability-query.patch
 Patch2:         0003-explicitly-activate-protection-profiles.patch
@@ -77,7 +78,7 @@ Obsoletes:      python3-proton-vpn-network-manager
 Obsoletes:      python3-proton-vpn-session
 
 %description
-Proton's signed Fedora 5.8.3 API Core payload with narrowly verified memory,
+Proton's signed Fedora 5.8.11 API Core payload with narrowly verified memory,
 diagnostic-hygiene, and Plasma interoperability patches. Proton's upstream
 Protun implementation keeps the WireGuard private key in its existing unsaved
 NetworkManager profile with system-owned secret flags. NetworkManager holds it
@@ -89,7 +90,7 @@ installed-file hashes exactly match the checked-in manifest.
 %prep
 %{python3} ../../SOURCES/rebuild_overlay.py prepare \
     --manifest ../../SOURCES/overlay-manifest.json \
-    --vendor-rpm ../../SOURCES/python3-proton-vpn-api-core-5.8.3-1.fc44.x86_64.rpm \
+    --vendor-rpm ../../SOURCES/python3-proton-vpn-api-core-5.8.11-1.fc44.x86_64.rpm \
     --signing-key ../../SOURCES/protonvpn-fedora-44-public-key.asc \
     --source-directory ../../SOURCES \
     --baseline-root vendor-rootfs \
@@ -105,6 +106,7 @@ installed-file hashes exactly match the checked-in manifest.
 %{python3} ../../SOURCES/rebuild_overlay.py verify-behavior --root overlay-rootfs
 %{python3} ../../SOURCES/test_killswitch_activation.py --root overlay-rootfs
 %{python3} ../../SOURCES/test_killswitch_route_monitor.py --root overlay-rootfs
+%{python3} ../../SOURCES/test_server_cache.py --root overlay-rootfs
 
 %install
 mkdir -p "$RPM_BUILD_ROOT"
@@ -118,7 +120,7 @@ cp -a overlay-rootfs/. "$RPM_BUILD_ROOT/"
 %defattr(-,root,root,-)
 /usr/lib/NetworkManager/VPN/nm-protun.name
 /usr/lib64/python3.14/site-packages/proton
-/usr/lib64/python3.14/site-packages/proton_vpn_api_core-5.8.3.dist-info
+/usr/lib64/python3.14/site-packages/proton_vpn_api_core-5.8.11.dist-info
 /usr/lib/systemd/system/proton-vpn-kill-switch-boot.service
 /usr/libexec/nm-protun-service
 /usr/libexec/proton-vpn-kill-switch-service
@@ -150,6 +152,13 @@ fi
 pkill -f "^/usr/libexec/proton-vpn-kill-switch-service" || true
 
 %changelog
+* Thu Oct 15 2026 uglyegg <uglyegg@entropy.quest> - 5.8.11-1.plasmavpn1
+- Rebase string sharing onto Proton's JSON/binary cache separation.
+- Preserve upstream route tracking, bridge/bond routing and DHCP fixes.
+- Retain the empty-address guard: subscription and teardown fixtures still
+  reject its retirement on 5.8.11; cover both legacy and current call signatures.
+- Add offline cache contracts while retaining existing client package floors.
+
 * Thu Oct 15 2026 uglyegg <uglyegg@entropy.quest> - 5.8.3-2.plasmavpn1
 - Ignore the protection route monitor's initial self-notification until a
   valid Proton server address is owned.

@@ -111,6 +111,41 @@ bytes. Median load time rose from 323.3 to 413.6 ms (+27.9%). This corroborates
 the real-cache result while preserving the same component-only and one-time
 load-cost qualifications.
 
+## Core 5.8.11 beta comparison (2026-10-15)
+
+Same-host, alternating fresh-process comparison of the 5.8.3 and 5.8.11
+overlays. Both retain string sharing. One frozen public server cache contains
+18,221 logical servers (25,977,530 bytes; SHA-256
+`996fd95d4b3fba44d09c637c10954f9b8463794387aee9db76ba5aff1ff9fc69`).
+Each variant has seven normal runs and seven separate tracemalloc runs.
+Network socket creation is prohibited; no session or live API is initialized.
+
+| Metric, median | Overlay 5.8.3 | Overlay 5.8.11 |
+| --- | ---: | ---: |
+| Loaded process PSS + SwapPss | 69,865 KiB | 70,315 KiB |
+| Process peak RSS, normal runs | 102,092 KiB | 128,056 KiB |
+| Cache load + model construction, normal runs | 195.374 ms | 197.417 ms |
+| Retained traced allocations | 38,177,747 bytes | 38,178,105 bytes |
+| Peak traced allocations | 61,088,762 bytes | 86,934,181 bytes |
+
+The retained allocation difference is 358 bytes; both models share 149 country
+strings across 18,221 servers. The new cache implementation raises process peak
+RSS by 25.4 MiB and traced peak by 24.6 MiB. Its raw byte buffer remains live
+while decoded JSON text is parsed, consistent with the extra peak allocation.
+This is a component regression, not evidence of increased steady-state
+whole-client memory. Traced runs are excluded from the process-PSS/timing rows.
+No extra cache-buffer optimization is included in this candidate.
+
+Before installation, seven samples of the mature connected 0.14.3 agent/backend
+on Core 5.8.3 measured 131,371 KiB median combined PSS + SwapPss (128.3 MiB),
+with the window closed. After guarded recovery on Core 5.8.11, seven read-only
+connected samples measured about 169.1 MiB for the agent/backend; the open
+window separately measured 65.2 MiB. Agent/backend file descriptors and
+threads stayed at 16/32 and 4/23 across those samples. The observations use
+different connection lifecycles and servers, so they do not establish a
+5.8.11 steady-state regression. A controlled whole-client comparison and
+long-duration retention test remain open.
+
 ## Reproduce
 
 ```bash

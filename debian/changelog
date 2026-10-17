@@ -1,3 +1,13 @@
+proton-vpn-kde (0.14.4-1plasmavpn1) resolute; urgency=medium
+
+  * Retry protected connections when no ordinary internet route is available.
+  * Preserve accepted reconnects across intermediate Core notifications.
+  * Retain the Ubuntu Core 5.6.10 and keyring overlay baselines.
+  * Compare the installed executable version with package metadata instead
+    of a hard-coded previous release.
+
+ -- uglyegg <uglyegg@entropy.quest>  Sat, 17 Oct 2026 00:00:00 -0500
+
 proton-vpn-kde (0.14.3-1plasmavpn1) resolute; urgency=medium
 
   * Refresh release metadata and in-app notes for outage recovery.

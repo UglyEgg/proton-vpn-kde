@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 from types import SimpleNamespace
 import unittest
@@ -13,7 +12,6 @@ from unittest.mock import AsyncMock, Mock, patch
 from proton_vpn_kde_backend.reconnector import (
     AsyncReconnector,
     LogindSessionProbe,
-    network_route_available,
 )
 
 
@@ -66,120 +64,10 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(probe._bus)
         self.assertIsNone(probe._properties)
 
-    async def test_network_probe_uses_packaged_ip_under_hostile_path(self):
-        process = SimpleNamespace(wait=AsyncMock(return_value=0), returncode=0)
-        with (
-            patch.dict(os.environ, {"PATH": "/tmp/attacker"}),
-            patch(
-                "proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
-                new=AsyncMock(return_value=process),
-            ) as create_process,
-        ):
-            self.assertTrue(await network_route_available())
-
-        create_process.assert_awaited_once_with(
-            "/usr/bin/ip",
-            "route",
-            "get",
-            "192.0.2.1",
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-
-    async def test_network_probe_fails_when_packaged_ip_is_unavailable(self):
-        with patch(
-            "proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
-            new=AsyncMock(side_effect=FileNotFoundError),
-        ) as create_process:
-            self.assertFalse(await network_route_available())
-
-        create_process.assert_awaited_once_with(
-            "/usr/bin/ip",
-            "route",
-            "get",
-            "192.0.2.1",
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-
-    async def test_route_probe_timeout_and_cancellation_reap_owned_child(self):
-        for cancelled in (False, True):
-            for ignore_terminate in (False, True):
-                with self.subTest(cancelled=cancelled, ignore_terminate=ignore_terminate):
-                    waiting = asyncio.Event()
-                    stopped = asyncio.Event()
-                    process = SimpleNamespace(returncode=None)
-
-                    async def wait(waiting=waiting, stopped=stopped, process=process):
-                        waiting.set()
-                        await stopped.wait()
-                        return process.returncode
-
-                    def stop(process=process, stopped=stopped):
-                        process.returncode = -9
-                        stopped.set()
-
-                    process.wait = AsyncMock(side_effect=wait)
-                    process.terminate = Mock(side_effect=None if ignore_terminate else stop)
-                    process.kill = Mock(side_effect=stop)
-                    with (
-                        patch("proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
-                              new=AsyncMock(return_value=process)),
-                        patch("proton_vpn_kde_backend.reconnector.ROUTE_PROBE_SECONDS", 0.01),
-                        patch("proton_vpn_kde_backend.reconnector.ROUTE_PROBE_STOP_SECONDS", 0.01),
-                    ):
-                        probe = asyncio.create_task(network_route_available())
-                        await waiting.wait()
-                        if cancelled:
-                            probe.cancel()
-                            with self.assertRaises(asyncio.CancelledError):
-                                await probe
-                        else:
-                            self.assertFalse(await probe)
-                    self.assertIsNotNone(process.returncode)
-                    process.terminate.assert_called_once_with()
-                    self.assertEqual(int(ignore_terminate), process.kill.call_count)
-
-    async def test_route_probe_cancellation_during_spawn_retains_child_ownership(self):
-        spawning = asyncio.Event()
-        release_spawn = asyncio.Event()
-        process = SimpleNamespace(returncode=None, wait=AsyncMock(return_value=-15))
-
-        def stop():
-            process.returncode = -15
-
-        process.terminate = Mock(side_effect=stop)
-        process.kill = Mock()
-
-        async def spawn(*_args, **_kwargs):
-            spawning.set()
-            await release_spawn.wait()
-            return process
-
-        with patch("proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec", new=spawn):
-            probe = asyncio.create_task(network_route_available())
-            await spawning.wait()
-            probe.cancel()
-            release_spawn.set()
-            with self.assertRaises(asyncio.CancelledError):
-                await probe
-        process.terminate.assert_called_once_with()
-        process.wait.assert_awaited_once_with()
-        process.kill.assert_not_called()
-
-    async def test_network_probe_propagates_non_missing_executable_failures(self):
-        with patch(
-            "proton_vpn_kde_backend.reconnector.asyncio.create_subprocess_exec",
-            new=AsyncMock(side_effect=PermissionError),
-        ):
-            with self.assertRaises(PermissionError):
-                await network_route_available()
-
     def make_reconnector(
         self,
         *,
         event_name: str = "UnexpectedError",
-        network_probe=None,
         session_probe=None,
         delay_factory=None,
         authentication_epoch_source=None,
@@ -219,7 +107,6 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
             connector,
             refresher,
             messages.append,
-            network_probe=network_probe or AsyncMock(return_value=True),
             session_probe=session_probe or FakeSessionProbe(),
             delay_factory=delay_factory or (lambda _attempt: 0),
             authentication_epoch_source=authentication_epoch_source or (lambda: 7),
@@ -257,6 +144,106 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("Reconnecting…", messages)
         await reconnector.disable()
+
+    async def test_crash_protection_blocked_default_route_cannot_gate_recovery(self):
+        _, connector, refresher, messages, attempt = self.make_reconnector()
+        reconnector = AsyncReconnector(
+            connector,
+            refresher,
+            messages.append,
+            connection_attempt=attempt,
+            authentication_epoch_source=lambda: 7,
+            authentication_epoch_validator=lambda epoch: epoch == 7,
+            authentication_error_callback=AsyncMock(),
+            session_probe=FakeSessionProbe(),
+            delay_factory=lambda _attempt: 0,
+        )
+        # A crashed tunnel leaves an unreachable default in Proton's policy
+        # table. Wired connectivity alone cannot make an unmarked lookup pass.
+        blocked_route = SimpleNamespace(wait=AsyncMock(return_value=2), returncode=2)
+        with patch(
+            "asyncio.create_subprocess_exec", new=AsyncMock(return_value=blocked_route)
+        ) as route_probe:
+            reconnector.enable()
+            try:
+                await self.let_tasks_run()
+                attempt.assert_awaited_once_with(
+                    "vpn-server", "wireguard", "networkmanager", 7
+                )
+                route_probe.assert_not_awaited()
+            finally:
+                await reconnector.disable()
+
+    async def test_handoff_and_early_connected_event_do_not_cancel_owned_up(self):
+        for state_name in ("Disconnected", "Connected"):
+            with self.subTest(state=state_name):
+                started, release = asyncio.Event(), asyncio.Event()
+
+                async def connecting(*_args, started=started, release=release):
+                    started.set()
+                    await release.wait()
+                    return True
+
+                reconnector, connector, _, _, attempt = self.make_reconnector(connection_attempt=connecting)
+                reconnector.enable()
+                try:
+                    await asyncio.wait_for(started.wait(), timeout=1)
+                    owner = reconnector._retry_task
+                    connector.current_state = state_named(state_name)
+                    if state_name == "Disconnected":
+                        connector.current_state.context.reconnection = object()
+                    reconnector.status_update(connector.current_state)
+                    await self.let_tasks_run()
+                    self.assertEqual(0, owner.cancelling())
+                    release.set()
+                    await asyncio.wait_for(owner, timeout=1)
+                    self.assertIsNone(reconnector._retry_task)
+                    self.assertFalse(reconnector._connection_attempt_active)
+                finally:
+                    release.set()
+                    await reconnector.disable()
+
+    async def test_connected_cancels_delay_but_not_an_accepted_connection_attempt(self):
+        reconnector, connector, _, _, attempt = self.make_reconnector(delay_factory=lambda _count: 3600)
+        reconnector.enable()
+        owner = reconnector._retry_task
+        connector.current_state = state_named("Connected")
+        reconnector.status_update(connector.current_state)
+        await self.let_tasks_run()
+        self.assertTrue(owner.cancelled() or owner.done())
+        attempt.assert_not_awaited()
+        await reconnector.disable()
+
+    async def test_new_error_rearms_after_early_connected_while_owner_finishes(self):
+        started, release, retried = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        calls = 0
+
+        async def connect(*_args):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                started.set()
+                await release.wait()
+            else:
+                retried.set()
+            return True
+
+        reconnector, connector, _, _, _ = self.make_reconnector(connection_attempt=connect)
+        reconnector.enable()
+        try:
+            await asyncio.wait_for(started.wait(), timeout=1)
+            owner = reconnector._retry_task
+            connector.current_state = state_named("Connected")
+            reconnector.status_update(connector.current_state)
+            connector.current_state = state_named("Error")
+            reconnector.status_update(connector.current_state)
+            self.assertEqual(0, owner.cancelling())
+            release.set()
+            await asyncio.wait_for(retried.wait(), timeout=1)
+            self.assertEqual(2, calls)
+        finally:
+            release.set()
+            await reconnector.disable()
 
     async def test_adapter_owned_attempt_replaces_direct_connector_call(self):
         attempt = AsyncMock(return_value=True)
@@ -489,40 +476,6 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         attempt.assert_not_awaited()
         await reconnector.disable()
 
-    async def test_waits_for_network_before_retrying(self):
-        network_probe = AsyncMock(side_effect=[False, True])
-        reconnector, connector, _, messages, attempt = self.make_reconnector(
-            network_probe=network_probe
-        )
-
-        reconnector.enable()
-        await self.let_tasks_run()
-
-        self.assertGreaterEqual(network_probe.await_count, 2)
-        attempt.assert_awaited_once()
-        self.assertIn("Waiting for network connectivity…", messages)
-        await reconnector.disable()
-
-    async def test_network_probe_failure_remains_retryable(self):
-        network_probe = AsyncMock(side_effect=[OSError("route failed"), True])
-        reconnector, connector, _, messages, attempt = self.make_reconnector(
-            network_probe=network_probe
-        )
-
-        with self.assertLogs(
-            "proton_vpn_kde_backend.reconnector", level="ERROR"
-        ) as captured:
-            reconnector.enable()
-            await self.let_tasks_run()
-
-        self.assertTrue(reconnector.enabled)
-        self.assertGreaterEqual(network_probe.await_count, 2)
-        attempt.assert_awaited_once()
-        self.assertIn("Waiting for network connectivity…", messages)
-        self.assertIn("OSError", "\n".join(captured.output))
-        self.assertNotIn("route failed", "\n".join(captured.output))
-        await reconnector.disable()
-
     async def test_waits_for_previous_connection_then_retries(self):
         reconnector, connector, _, messages, attempt = self.make_reconnector(
             delay_factory=lambda _attempt: 0
@@ -547,17 +500,19 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         attempt.assert_awaited_once()
         await reconnector.disable()
 
-    async def test_disable_during_network_probe_cancels_pending_reconnect(self):
+    async def test_disable_during_session_probe_cancels_pending_reconnect(self):
         probe_started = asyncio.Event()
         release_probe = asyncio.Event()
 
-        async def blocking_network_probe():
+        async def blocking_session_probe():
             probe_started.set()
             await release_probe.wait()
             return True
 
+        session_probe = FakeSessionProbe()
+        session_probe.is_unlocked = blocking_session_probe
         reconnector, connector, _, _, attempt = self.make_reconnector(
-            network_probe=blocking_network_probe
+            session_probe=session_probe
         )
 
         reconnector.enable()
@@ -626,7 +581,7 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         reconnector.enable()
         await first_started.wait()
 
-        connector.current_state = state_named("Connected")
+        connector.current_state = state_named("Disconnected")
         reconnector.status_update(connector.current_state)
         await first_cancelled.wait()
         connector.current_state = state_named("Error")

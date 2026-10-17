@@ -2,19 +2,20 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.14.3 is the current public package release. Fedora Core 5.8.3
-passed exact reconstruction, overlay policy, reproducibility, installation,
-backend-replacement, capability-detection, and live connection acceptance.
+Plasma VPN 0.14.4 is the current public package release. Fedora Core 5.8.11
+beta passed exact reconstruction, overlay policy, reproducibility, installation,
+and fixed-server native-plugin recovery acceptance. The stable 5.8.3 overlay
+remains supported.
 Ubuntu retains its package-validated 5.6.10 baseline and remains
 package-validated rather than live-supported until community Plasma field
 reports establish its live lifecycle.
 
-The 0.14.3 maintenance release uses the overlay revisions below.
-The installed Fedora overlays passed fresh-backend authentication restoration
-and connection on 2026-10-15. Pre-final Ubuntu binary/source packages pass
+The 0.14.4 maintenance release uses the overlay revisions below.
+The installed Fedora runtime passed normal Connect/Disconnect and controlled
+crash recovery. Prior Ubuntu binary/source packages passed
 artifact, dependency, install/reinstall, and client-removal checks in an offline
-tooling container. Exact final builds from a signed commit and clean CI remain
-publication gates.
+tooling container. Clean CI and signed-tag package artifacts are publication
+gates.
 
 | Component | Fedora 44 | Ubuntu 26.04 package-validated |
 | --- | --- | --- |
@@ -22,10 +23,10 @@ publication gates.
 | Desktop | KDE Plasma 6 with systemd user services | KDE Plasma 6 with systemd user services |
 | Qt / KDE | Qt 6.8+; KDE Frameworks 6 | Qt 6.10.2; KDE Frameworks 6.24 |
 | Python | 3.14 with `os.pidfd_open` | 3.14 with `os.pidfd_open` |
-| Proton VPN API Core | 5.8.3-2.plasmavpn1 | 5.6.10-12plasmavpn1 |
+| Proton VPN API Core | 5.8.11-1.plasmavpn1 beta; stable floor 5.8.3-2.plasmavpn1 | 5.6.10-12plasmavpn1 |
 | Proton keyring adapter | 0.2.3-10.plasmavpn1 | 0.2.3-10plasmavpn1 |
 | Secret Service | Freedesktop Secret Service; KeePassXC verified | Freedesktop Secret Service; live provider UAT pending |
-| Package evidence | 0.14.3 source build and 47 checks pass; recovery overlay RPM/SRPM sets verified and installed; exact-commit client RPM pending | Pre-final client, keyring, and Core binary/source sets pass offline build, artifact policy, Lintian error gate, and install/reinstall/removal checks; clean CI pending |
+| Package evidence | 47 source/CTest groups pass; overlay RPM/SRPM pairs reproducible; installed runtime recovery accepted; clean CI verifies each release commit | Prior binary/source sets pass build, artifact, Lintian, and transaction checks; clean CI validates the new client |
 
 Required source dependencies include C++20, CMake 3.24, OpenSSL 3, and
 `dbus-fast` 2.20. Fedora's tested `cryptography` floor is 50.0.0; Ubuntu 26.04
@@ -42,13 +43,53 @@ proton-keyring-secret-service-owner-pinned >= 1
 Those requirements prevent a stock Proton package upgrade from silently
 removing behavior required by the Plasma client.
 
-The 0.14.3 client also requires keyring revision 10 on both distributions and
+The 0.14.4 client also requires keyring revision 10 on both distributions and
 Core `5.8.3-2.plasmavpn1` on Fedora. These package floors ensure a client-only
 upgrade installs the recovery fixes; Ubuntu's Core floor remains 5.6.10.
 
 ## API-Core overlay
 
-The current overlay reconstructs Proton's signed Fedora
+### Fedora 5.8.11 beta overlay
+
+The 0.14.4 Fedora overlay reconstructs Proton's signed `5.8.11-1.fc44` RPM as
+`5.8.11-1.plasmavpn1.fc44`. The latest public source reference verified on
+2026-10-15 was `v5.8.7` (`1b6dcda24566568437d423c095c14e0aa9d71ec6`);
+it is not asserted to be the package's source tag. The client also accepts
+the stable `5.8.3-2.plasmavpn1` overlay.
+
+All four downstream behaviors remain. String sharing covers the new JSON
+decoder over Core's binary cache. The empty-address route-monitor patch is
+still required: unpatched 5.8.11 passes the original pending-route fixture
+but fails four subscription/teardown callback cases. Both patched versions
+pass all five. These substituted-I/O tests do not establish live reachability
+of every interleaving.
+
+Two clean builds produced byte-identical RPM/SRPM pairs. Vendor signature,
+zero-fuzz patches, the exact six-source/twelve-bytecode delta, unchanged
+dependencies/scriptlets, and source inclusion pass. Package tests cover
+19 build-policy, 14 protection-activation, five route-monitor, and eight
+server-cache cases. Hash-checked Core 5.8.3 and 5.8.11 each pass 11 lifecycle
+cases inside disposable user/network namespaces, including IPv4/IPv6 routing
+replay with Off/On/Permanent protection and repeated failed reconnects.
+
+The locally installed `0.14.3-2.fc44` client contains the 0.14.4 retry fixes.
+Normal Connect/Disconnect passed; a controlled native-plugin crash on
+2026-10-17 recovered automatically under an independently verified rescue
+timer and deny-only fence, without fallback or manual reconnect. The
+maintainer confirmed Protected status and browsing. This is fixed-server
+availability evidence, not comprehensive leak, suspend, roaming, or outage
+coverage. The temporary harness is excluded from the release.
+
+Seven isolated reviews of snapshot
+`fd1e3fef24f3277c075c6035d8083ca9a38205b5afd8bf920c1c53f94432812f`
+reported no unresolved packaged-runtime finding. The approved security-policy
+clarification describes existing reviewed Core overlays. The aggregate check
+confirms 131 runtime/overlay files match the snapshot after normalizing the
+version constant. Clean CI and signed-tag packages remain publication gates.
+
+### Released 5.8.3 overlay
+
+The published 0.14.3 overlay reconstructs Proton's signed Fedora
 `python3-proton-vpn-api-core-5.8.3-1.fc44` package as
 `5.8.3-2.plasmavpn1.fc44`. Manifest schema 3 distinguishes the signed Fedora
 package version from Proton's latest public source reference, `v5.6.20` at

@@ -147,6 +147,7 @@ while IFS= read -r path; do
         packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py|\
         packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py|\
         packaging/fedora/api-core-overlay/tests/test_killswitch_route_monitor.py|\
+        packaging/fedora/api-core-overlay/tests/test_server_cache.py|\
         packaging/fedora/core-compatibility.json|\
         packaging/fedora/core-compatibility.json.license|\
         packaging/fedora/keyring-overlay/README.md|\
@@ -216,6 +217,7 @@ while IFS= read -r path; do
         scripts/smoke-qml-diagnostics.sh|scripts/smoke-qml-layout-variants.sh|\
         scripts/smoke-settings-route.sh|scripts/smoke-staged-install.sh|\
         scripts/test-ux-mechanics-freeze-negative.sh|\
+        scripts/test-core-recovery-isolated.sh|\
         translations/provenance.json.license)
             # Presentation verification and its hermetic test drivers.
             ;;
@@ -233,25 +235,26 @@ if ((${#violations[@]} > 0)); then
 fi
 
 assert_diff_hash \
-    "8997cc14a573443a08488bfba36495b1a17adbdcc3e0d353e86c9f9285e183d8" \
+    "d3a1edddff4b5572c730bd967af9a1e3de5e99de61ea4ed4f666909c9138aecd" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
     "Python dependency floor" backend/requirements-minimum.txt
 assert_diff_hash \
-    "ca73bbfe54e944fed683921822e69e1d73733d146133476bd4c469a6c57abf8d" \
+    "160430a39b7e44e2dc07152d41705da33a10bdaf7a5ffbb6ffaf4a08f12a4150" \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "7e5e5352a8af84877bd3387c1f5f800fc2a59bda8f5383a4467f91b21bedcc1f" \
+    "14b8d038a90b62a0b887eaac23ab32a67a5e67aeebabc4f918c0cebd7fcd82cd" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests \
     data/snapshot-schema-v2.json data/snapshot-schema-v2.json.license \
     scripts/generate-snapshot-contract.py \
+    scripts/test-core-recovery-isolated.sh \
     src/SnapshotContract.generated.h tests/SnapshotContractTest.cpp \
     tests/SnapshotTestData.h
 assert_diff_hash \
-    "63c7afb05affc2fbd29b91c786ad187825bebd737aeed2f0ec9e780197cef86e" \
+    "207c9fdb5386358c9da8b37fe90127c6fcfaaf459d311eb3337fdee0d95a996c" \
     "Fedora Core overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -269,12 +272,13 @@ assert_diff_hash \
     packaging/fedora/api-core-overlay/tests/test_rebuild_overlay.py \
     packaging/fedora/api-core-overlay/tests/test_killswitch_activation.py \
     packaging/fedora/api-core-overlay/tests/test_killswitch_route_monitor.py \
+    packaging/fedora/api-core-overlay/tests/test_server_cache.py \
     packaging/fedora/core-compatibility.json \
     scripts/check-compatibility-metadata.py \
     scripts/check-patch-whitespace.py \
     scripts/check-core-compatibility.sh scripts/check-core-contract.py
 assert_diff_hash \
-    "9bf01d7b0c6350bf69bf0678b1972c8af3679be287fc4727e34b56ddd944b4f3" \
+    "e69fb4016f78e8322eb9cdda52db969637b5c1f3d7d051ae5dbe200a4f6f202d" \
     "finite process-stop packaging" \
     data/proton-vpn-kde-backend.service.in \
     scripts/check-rpm-artifact.sh scripts/smoke-staged-install.sh
@@ -284,7 +288,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "9864834972bafcd92a805a7f2e303042ee600fb94ed0e4fa1281431a8f5f8d06" \
+    "fbf18be84808c4e73892b9269fde1e19ff9c2f8a383cc166f3e74872a03d604d" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "ed9fc06f2491cbe3457a0aef6fd7c5de888a34240df33004f630d782cf3f2c76" \
@@ -298,7 +302,7 @@ assert_diff_hash \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "c4d78eec841ae7ec84a98f4056df623c5e20d23cc2c4865910466492dea06ccf" \
+    "8c2d606660713c8a5be1a75a15711341f6726efed296e8ae0d1f810448e73004" \
     "QML presentation" qml
 
 assert_diff_hash \
@@ -317,7 +321,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "bca9356c4e7bb4146f5ec7ffb6ac5319c0e6c414076728502f4df01485be7c63" \
+    "11a379167efdcdbb5e2ae47a243736a705df55aa54c213a3b2dc8bb4cb839920" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \

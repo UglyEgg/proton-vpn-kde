@@ -8,10 +8,10 @@
  from proton.vpn import logging
  
  
-@@ -31,8 +32,15 @@
- 
- class CacheHandler:
-     """Used to save, load, and remove cache files."""
+@@ -34,8 +35,15 @@
+     Filesystem access is delegated to BinaryCacheHandler,
+     this class adds JSON layer.
+     """
 -    def __init__(self, filepath: str):
 +    def __init__(
 +            self,
@@ -22,19 +22,17 @@
 +    ):
          self._fp = Path(filepath)
 +        self._object_hook_factory = object_hook_factory
+         self._binary_cache = BinaryCacheHandler(filepath)
  
      @property
-     def exists(self):
-@@ -55,7 +63,11 @@
+@@ -57,7 +65,9 @@
+             return None
  
          try:
-             with open(self._fp, "r", encoding="utf-8") as f:  # pylint: disable=C0103
--                return json.load(f)  # pylint: disable=C0103
-+                object_hook = self._object_hook_factory() \
-+                    if self._object_hook_factory else None
-+                return json.load(  # pylint: disable=C0103
-+                    f, object_hook=object_hook
-+                )
+-            return json.loads(rawdata.decode("utf-8"))
++            object_hook = self._object_hook_factory() \
++                if self._object_hook_factory else None
++            return json.loads(rawdata.decode("utf-8"), object_hook=object_hook)
          except (json.decoder.JSONDecodeError, UnicodeDecodeError):
              filename = os.path.basename(self._fp)
              logger.warning(
@@ -97,8 +95,8 @@
  
 --- a/usr/lib64/python3.14/site-packages/proton/vpn/session/servers/server_list_fetcher.py
 +++ b/usr/lib64/python3.14/site-packages/proton/vpn/session/servers/server_list_fetcher.py
-@@ -26,7 +26,9 @@
- from proton.vpn.core.cache_handler import CacheHandler
+@@ -25,7 +25,9 @@
+ from proton.vpn.core.cache_handler import CacheHandler, BinaryCacheHandler
  from proton.vpn.session.exceptions import ServerListDecodeError
  from proton.vpn.session.servers.types import ServerLoad
 -from proton.vpn.session.servers.logicals import ServerList, PersistenceKeys
@@ -108,7 +106,7 @@
  from proton.vpn.session.dataclasses import VPNLocation
  from proton.vpn.session.utils import rest_api_request
  from proton.vpn.platform.core import ServerStatus  # pylint: disable=E0401, E0611
-@@ -179,7 +181,10 @@
+@@ -190,7 +192,10 @@
      ):
          self._session = session
          self._server_list = server_list
@@ -117,6 +115,6 @@
 +            self.CACHE_PATH,
 +            object_hook_factory=_server_string_object_hook,
 +        )
+         self._binary_status_cache_file = binary_status_cache_file or \
+             BinaryCacheHandler(self.BINARY_STATUS_CACHE_PATH)
  
-     def clear_cache(self):
-         """Discards the cache, if existing."""

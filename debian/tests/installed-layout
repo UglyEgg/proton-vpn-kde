@@ -30,6 +30,9 @@ test "$(stat -c '%U:%G' /usr/bin/proton-vpn-kde)" = root:root
 test "$(stat -c '%a' /usr/bin/proton-vpn-kde)" = 755
 test "$(stat -c '%a' \
     /usr/libexec/proton-vpn-kde/proton_vpn_kde_backend/__main__.py)" = 644
+package_version="$(dpkg-query --show --showformat='${Version}' proton-vpn-kde)"
+upstream_version="${package_version#*:}"
+upstream_version="${upstream_version%%-*}"
 env \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
@@ -38,7 +41,7 @@ env \
     QT_ACCESSIBILITY=0 \
     proton-vpn-kde --version \
     2>"$test_tmp_dir/version.stderr" \
-    | grep -Fqx 'proton-vpn-kde 0.14.3'
+    | grep -Fqx "proton-vpn-kde $upstream_version"
 if [[ -s "$test_tmp_dir/version.stderr" ]]; then
     [[ $(wc -l <"$test_tmp_dir/version.stderr") -eq 1 ]]
     grep -Eq \

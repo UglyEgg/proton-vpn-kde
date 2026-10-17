@@ -87,9 +87,11 @@ The following properties are part of the project's security contract:
   caller and must not grant that authority to arbitrary session peers;
 - unexpected third-party exception text must not cross the public D-Bus
   boundary;
-- the community client must not implement or override VPN protocols,
+- the community frontend and adapter must not implement or override VPN protocols,
   NetworkManager behavior, kill switch, split tunneling, server construction,
-  or session persistence owned by Proton Core;
+  or session persistence owned by Proton Core; existing version-pinned downstream
+  Core overlays must remain documented, source-verified, regression-tested,
+  independently reviewed, and identified as modified Proton Core;
 - the backend must remain an unprivileged user service and must fail safely
   when required official-Core behavior is unavailable;
 - diagnostic and support artifacts must be explicitly requested, bounded, and

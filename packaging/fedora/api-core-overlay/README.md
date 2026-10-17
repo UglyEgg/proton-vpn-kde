@@ -1,7 +1,10 @@
 # Reproducible API Core overlay
 
 This directory rebuilds the Plasma-compatible API Core package from Proton's
-exact signed Fedora `5.8.3-1.fc44` RPM. The vendor RPM is a build input only;
+exact signed Fedora `5.8.11-1.fc44` beta RPM for Plasma VPN 0.14.4.
+The client also accepts the existing stable `5.8.3-2.plasmavpn1` overlay.
+Installation and live acceptance remain separate gates. The vendor RPM is a
+build input only;
 the workflow does not install Proton's GTK client and does not download or
 combine payload files from any other package.
 
@@ -11,10 +14,12 @@ the complete overlay is therefore a runtime dependency of this distribution,
 not an optional Fedora installation step.
 
 The first patch shares repeated immutable server strings for fresh and cached
-lists. The second stops `supports_fido2` from calling API Core's own
+lists, including the JSON decoder layered over 5.8.11's new binary cache.
+It does not change the binary-status cache or Proton's JSON save format.
+The second stops `supports_fido2` from calling API Core's own
 deprecated capability property while preserving its
 availability-and-registered-key truth table. Proton 5.8.2 incorporated the
-previous Protun private-key ownership patch: 5.8.3 supplies the key in its
+previous Protun private-key ownership patch: 5.8.11 supplies the key in its
 existing unsaved NetworkManager profile with system-owned secret flags. On
 Fedora, NetworkManager may materialize that profile in its root-only volatile
 `/run/NetworkManager/system-connections` directory. It is removed on
@@ -35,11 +40,17 @@ profile because normalization adds default settings such as the proxy group.
 The regression fixture now models that storage boundary. No profile settings
 are ignored beyond UUID/timestamp, and the caller's request is not mutated.
 
-The fourth patch ignores the route monitor's initial self-notification until
-the handler owns a valid Proton server address. Without that guard, installing
-the first route can queue a second update with an empty destination, remove the
-valid route, and make outage recovery time out even though NetworkManager
-successfully applied the original update.
+The fourth patch rejects monitor notifications without an owned server address.
+Core 5.8.11 assigns that address before awaiting route installation, correcting
+the original pending-route ordering. It still forwards an empty destination in
+adversarial subscription and post-teardown fixtures without the guard. Retain
+the guard on both 5.8.3 and 5.8.11: all five callback regressions pass with it;
+four fail against unpatched 5.8.11. These fake-I/O results do not establish that
+all adverse interleavings occur on a live NetworkManager instance.
+
+The consumer's minimum stays `5.8.3-2.plasmavpn1`, independently recorded in
+`../core-compatibility.json`. A beta build input must not force stable users
+onto beta Core. Existing 5.8.3 packages and Ubuntu's 5.6.10 overlay are unchanged.
 
 `overlay-manifest.json` schema 3 pins:
 
@@ -47,8 +58,8 @@ successfully applied the original update.
   payload SHA-256, signing-key fingerprint, official key URL, and complete
   signing-key SHA-256;
 - the signed vendor package version separately from the latest verified public
-  source tag and commit. Proton's Fedora `5.8.3` package has no corresponding
-  public source tag in the repository as verified on 2026-09-23; `v5.6.20` is
+  source tag and commit. Proton's Fedora `5.8.11` package has no corresponding
+  public source tag in the repository as verified on 2026-10-15; `v5.8.7` is
   recorded only as the latest public reference, not as the overlay's source;
 - the source of the required Protun capability, now supplied by the pinned
   vendor package rather than a downstream patch;
@@ -62,7 +73,7 @@ all patches with zero fuzz, deterministically regenerates only the affected
 bytecode, and compares the complete vendor and overlay trees. It imports the
 pinned signing key into a temporary unprivileged RPM database solely to verify
 the vendor RPM, so a clean builder does not depend on a preconfigured system
-keyring. Its behavioral verifier also executes the pinned 5.8.3 connection
+keyring. Its behavioral verifier also executes the pinned 5.8.11 connection
 state contract that motivates the client's stable-disconnect barrier: newest
 queued target wins, Down while Disconnecting retains that target, and the old
 tunnel's late Disconnected event promotes it. A future Core that changes this
@@ -76,13 +87,13 @@ Build and verify with:
 
 ```bash
 packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
-    /path/to/python3-proton-vpn-api-core-5.8.3-1.fc44.x86_64.rpm
+    /path/to/python3-proton-vpn-api-core-5.8.11-1.fc44.x86_64.rpm
 ```
 
 The resulting SRPM contains the signed vendor RPM, manifest, verifier, and
 patches. The binary RPM contains the same payload paths as Proton's RPM, with
 only the eighteen manifest-listed file hashes changed. The SRPM also includes
-the offline protection-activation and initial route-monitor regression tests,
+the offline protection-activation, route-monitor and server-cache regression tests,
 which run in `%check`.
 
 The spec derives RPM build time from its changelog and refers to source inputs
@@ -109,8 +120,9 @@ Proton review, acceptance or endorsement. The manifest's historical
 `upstreamCommit` and `upstreamPatchSha256` fields identify the maintainer's
 source-format commits and exported patches. They do not mean those commits
 were merged by Proton. The string-sharing contribution is rebased on public
-`v5.6.20` and separately applied and measured against the pinned **5.8.3**
-payload. The FIDO2 change retains its original source provenance; protection
+`v5.6.20`, measured against **5.8.3**, and adapted to the pinned **5.8.11**
+payload. Existing performance numbers below are historical, not 5.8.11 measurements.
+The FIDO2 change retains its original source provenance; protection
 activation remains downstream. Source-level tests live with their respective
 contributions, while the payload patches here change runtime files only.
 
@@ -125,8 +137,8 @@ overlay patch is removed rather than carried forward.
 | --- | --- | --- |
 | [0001](patches/0001-share-repeated-server-list-strings.patch) | Share equal immutable server/endpoint strings during fresh and cached loads with a per-load pool. Source origin: `9248915988b290ef83c86af38cad523948c9019d` (PR #27). | Value/serialization preservation, absent/non-string fields, plain-cache compatibility and per-load lifetime are covered upstream; the payload verifier covers both load paths. |
 | [0002](patches/0002-avoid-deprecated-fido2-capability-query.patch) | Read current session capability properties without the deprecated API wrapper; independent of string sharing. Source origin: `f39782e411d629694eab174b4b04adc86765d7d8`. | All four capability combinations retain their results, with deprecated-property access forced to fail. |
-| [0003](patches/0003-explicitly-activate-protection-profiles.patch) | Reuse matching protection profiles and explicitly request/observe activation. Originally authored against 5.6.10; its target helper remains compatible in 5.8.3 and the patch is revalidated there. Separate from keyring and memory changes. | Real libnm settings with fake I/O cover inactive/active profiles, mismatches, duplicates, activation failure, autoconnect races, cancellation and late callbacks. The retained-inactive-profile regression fails against the unpatched vendor helper. |
-| [0004](patches/0004-ignore-empty-initial-route-monitor-event.patch) | Ignore the route monitor's self-notification until a selected server address is committed. | Offline fake-I/O coverage proves the initial callback performs no update and a later callback carries the owned server and gateway. The live incident journal supplies the NetworkManager timing evidence. |
+| [0003](patches/0003-explicitly-activate-protection-profiles.patch) | Reuse matching protection profiles and explicitly request/observe activation. Revalidated against 5.8.11; separate from keyring and memory changes. | Fourteen real-libnm/fake-I/O cases cover inactive/active profiles, mismatches, duplicates, activation failure, autoconnect races, cancellation and late callbacks. |
+| [0004](patches/0004-ignore-empty-initial-route-monitor-event.patch) | Ignore notifications while no selected server address is owned. | Five fake-I/O cases cover subscription, pending installation, teardown, valid updates and repeated recovery. Both patched 5.8.3 and 5.8.11 pass. |
 
 Against the same 18,220-server cache on Core 5.8.3, seven isolated runs
 measured server-list load PSS at 85,380 KiB without string sharing and a median
@@ -153,6 +165,10 @@ replace installed connect/disconnect and manual-device-disconnect acceptance.
 Patch 0004's focused regression is in
 [`tests/test_killswitch_route_monitor.py`](tests/test_killswitch_route_monitor.py)
 and likewise performs no live NetworkManager operation.
+[`tests/test_server_cache.py`](tests/test_server_cache.py) exercises eight
+5.8.11 contracts: plain JSON compatibility, decode-time sharing, per-load
+pool lifetime, factory lifetime, malformed input, raw binary storage, injected
+fetcher caches and non-string/absent server fields.
 
 For remaining source-level contributions:
 

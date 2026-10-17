@@ -45,6 +45,11 @@ and installed connection testing pass. Seven isolated reviews and the bounded
 package-dependency correction are complete; final package gates are tracked
 in the assessment.
 
+0.14.4 corrects protected reconnect scheduling and rebases the Fedora overlay
+on beta Core 5.8.11 without raising the stable consumer floor. Seven isolated
+reviews and the fixed-server native-plugin recovery trial are complete; final
+package and publication gates are recorded in the assessment.
+
 ## Post-release priorities
 
 1. Triage reports against the documented support and Core boundaries.
