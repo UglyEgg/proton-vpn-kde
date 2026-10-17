@@ -91,7 +91,10 @@ for required_path in "${required_paths[@]}"; do
 done
 
 requires="$(rpm -qp --requires "$package_path")"
-if ! grep -Fxq 'python3-proton-vpn-api-core >= 5.8.3-2.plasmavpn1' <<<"$requires"; then
+core_overlay_floor="$(python3 -c \
+    'import json,sys; floor=json.load(open(sys.argv[1]))["fedoraOverlayFloor"]; print("{}-{}".format(floor["version"],floor["release"]))' \
+    "$project_dir/packaging/fedora/core-compatibility.json")"
+if ! grep -Fxq "python3-proton-vpn-api-core >= $core_overlay_floor" <<<"$requires"; then
     echo "RPM does not require the corrected Core route-monitor package" >&2
     exit 1
 fi

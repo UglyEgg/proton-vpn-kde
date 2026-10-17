@@ -8,5 +8,9 @@
   },
   "runtimeFloor": {
     "version": "5.6.10"
+  },
+  "fedoraOverlayFloor": {
+    "version": "5.8.3",
+    "release": "2.plasmavpn1"
   }
 }

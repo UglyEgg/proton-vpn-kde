@@ -71,13 +71,13 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("0.14.3 maintenance release. More reliable recovery after interruptions.")
+            description: qsTr("0.14.4 maintenance release. Automatic recovery while VPN protection stays active.")
             iconName: "software-properties"
 
             Kirigami.Heading {
                 Layout.fillWidth: true
                 level: 3
-                text: "0.14.3"
+                text: "0.14.4"
             }
 
             ReleaseNoteGroup {
@@ -85,9 +85,9 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Highlights")
                 headingLevel: 4
                 notes: [
-                    qsTr("Restore access to saved sign-in details after your desktop's secret store restarts."),
-                    qsTr("Fix a Fedora connection timeout caused by a race while preparing the VPN server route."),
-                    qsTr("Keep secret access restricted to your desktop user and retry provider recovery only once.")
+                    qsTr("Reconnect after a VPN process failure even when leak protection blocks ordinary internet access."),
+                    qsTr("Keep an accepted reconnect running through intermediate connection-state changes."),
+                    qsTr("Support Proton Core 5.8.11 beta on Fedora while retaining the existing stable Core baseline.")
                 ]
             }
 
@@ -120,6 +120,17 @@ Kirigami.ScrollablePage {
             title: qsTr("Earlier versions")
             description: qsTr("Development milestones and published releases. The complete engineering history remains in CHANGELOG.md.")
             iconName: "view-history"
+
+            ReleaseNoteGroup {
+                heading: "0.14.3"
+                headingLevel: 3
+                notes: [
+                    qsTr("Restored saved sign-in access after the desktop's secret store restarts."),
+                    qsTr("Fixed an initial server-route race in the Fedora Core overlay.")
+                ]
+            }
+
+            Kirigami.Separator { Layout.fillWidth: true }
 
             ReleaseNoteGroup {
                 heading: "0.14.2"

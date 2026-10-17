@@ -57,6 +57,13 @@ def normalized_version(version: str) -> tuple[int, ...]:
     return tuple(parts)
 
 
+def fedora_overlay_identity(version: str, release: str) -> tuple:
+    match = re.fullmatch(r"([0-9]+)\.plasmavpn([0-9]+)", release)
+    if match is None:
+        fail(f"unsupported Fedora overlay release: {release}")
+    return normalized_version(version), tuple(map(int, match.groups()))
+
+
 def require_text(path: Path, pattern: str, label: str) -> None:
     if re.search(pattern, path.read_text(encoding="utf-8"), re.MULTILINE) is None:
         fail(f"{label} is not aligned in {path.relative_to(PROJECT_DIR)}")
@@ -171,7 +178,14 @@ def check() -> None:
     )
     if overlay_release_match is None:
         fail("Core overlay package release is missing")
-    fedora_overlay_floor = f"{overlay_version}-{overlay_release_match.group(1)}"
+    # A beta overlay rebase must not force stable users onto a beta Core.
+    # Check the consumer's independently tested minimum, not the build input.
+    fedora_floor = floor_manifest["fedoraOverlayFloor"]
+    if fedora_overlay_identity(
+        overlay_version, overlay_release_match.group(1)
+    ) < fedora_overlay_identity(fedora_floor["version"], fedora_floor["release"]):
+        fail("Packaged Fedora Core overlay predates the required recovery floor")
+    fedora_overlay_floor = f"{fedora_floor['version']}-{fedora_floor['release']}"
     require_text(
         spec,
         rf"^Requires:\s+python3-proton-vpn-api-core >= {re.escape(fedora_overlay_floor)}$",

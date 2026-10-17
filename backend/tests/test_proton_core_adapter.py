@@ -116,7 +116,6 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         # Exercise the real retry owner with explicit, desktop-independent inputs.
         def make_reconnector(*args, **kwargs):
-            kwargs.setdefault("network_probe", AsyncMock(return_value=True))
             kwargs.setdefault("session_probe", SimpleNamespace(
                 is_unlocked=AsyncMock(return_value=True), close=AsyncMock(),
             ))
@@ -3011,7 +3010,7 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
             ("server", lambda adapter: adapter.connect_server("CH#10")),
         )
 
-        for phase in ("delay", "network", "session"):
+        for phase in ("delay", "session"):
             for route_name, connect_route in routes:
                 with self.subTest(phase=phase, route=route_name):
                     api, connector = self.make_api()
@@ -3087,10 +3086,6 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                         if phase == "delay"
                         else (lambda _attempt: 0)
                     )
-                    if phase == "network":
-                        reconnector._network_probe = blocking_preflight
-                    else:
-                        reconnector._network_probe = AsyncMock(return_value=True)
                     if phase == "session":
                         reconnector._session_probe = SimpleNamespace(
                             is_unlocked=blocking_preflight,

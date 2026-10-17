@@ -7,7 +7,7 @@
 %global _buildhost reproducible.invalid
 
 Name:           proton-vpn-kde
-Version:        0.14.3
+Version:        0.14.4
 Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
@@ -144,6 +144,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Sat Oct 17 2026 uglyegg <uglyegg@entropy.quest> - 0.14.4-1
+- Recover through protected routing after native-plugin failure
+- Preserve accepted reconnects across intermediate Core notifications
+- Validate the Fedora Core 5.8.11 overlay without raising the stable floor
+
 * Thu Oct 15 2026 uglyegg <uglyegg@entropy.quest> - 0.14.3-1
 - Release outage-recovery fixes and refresh in-app release notes
 - Ship bounded Secret Service restart recovery and the initial route-monitor fix

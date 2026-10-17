@@ -85,6 +85,52 @@ Account replacement is a process boundary. A private non-secret handoff, pidfd,
 and PID start time prove outgoing-process death before new credentials are
 accepted. Missing evidence blocks recovery.
 
+## Crash recovery and fault testing
+
+An abruptly terminated Protun plugin can leave its policy rules and unreachable
+fallback routes intact after the tunnel disappears. Reconnection must not wait
+for an ordinary internet route: that creates a circular dependency on the
+tunnel being restored. Core owns the protected replacement and server
+reachability checks; the adapter retains exponential backoff and never removes
+routes, disables protection, or changes kill-switch settings to recover.
+
+Core's intermediate `Disconnected` state with a queued `reconnection` is not
+terminal. A `Connected` notification must not cancel an accepted Up still
+returning to its owner. Explicit disconnect, sign-out, and shutdown retain
+their cancellation/join and authentication-generation barriers.
+
+Run `bash scripts/test-core-recovery-isolated.sh /path/to/core/site-packages`
+with an extracted, hash-checked Core fixture. The launcher requires an
+unprivileged user, fresh user/network namespaces, and a 30-second outer bound.
+The test refuses network mutations unless both namespace identities differ
+from the parent and only loopback exists. It replays IPv4/IPv6 tunnel removal
+with dummy links and real policy routing; Core event/state tasks are real,
+while provider I/O is substituted. It does not run the native plugin, establish
+a real VPN, or validate end-to-end packet confidentiality.
+
+Live fault injection is blocked until an independently supervised recovery
+mechanism and a control path unaffected by the injected failure are prepared
+and verified. An observer running over the tested connection is insufficient.
+Namespace tests have no fallback to privileged or host-network execution.
+
+### Controlled recovery acceptance
+
+On 2026-10-17, client `0.14.3-2.fc44` with Core
+`5.8.11-1.plasmavpn1.fc44` and keyring revision 10 recovered automatically
+after one identity-verified native-plugin SIGKILL. An independently proven
+root timer, a cached RAM-only rescue profile, and an extra deny-only IPv4/IPv6
+fence were prepared and checked before injection. The client created a new
+desktop-owned tunnel; both route families used `proton0`, and the recovery
+worker required no fallback. The maintainer confirmed Protected status and
+ordinary browsing without Retry or Connect.
+
+The temporary harness and fault operator are local test tools, excluded from
+the release source and packages. Review found interruption-handling defects
+and an unverified backup-profile permission postcondition. They must be
+resolved before reusing those tools for another live fault test. The accepted
+trial demonstrates fixed-server availability recovery, not end-to-end leak,
+peer-roaming, suspend, extended-outage, or all-protocol coverage.
+
 ## Capture and diagnostic bounds
 
 Direct Proton support and crash-report submission are disabled in community

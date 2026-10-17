@@ -85,6 +85,7 @@ install -m 0644 "$manifest.license" "$topdir/SOURCES/"
 install -m 0755 "$overlay_dir/rebuild_overlay.py" "$topdir/SOURCES/"
 install -m 0644 "$overlay_dir/tests/test_killswitch_activation.py" "$topdir/SOURCES/"
 install -m 0644 "$overlay_dir/tests/test_killswitch_route_monitor.py" "$topdir/SOURCES/"
+install -m 0644 "$overlay_dir/tests/test_server_cache.py" "$topdir/SOURCES/"
 install -m 0644 "$overlay_dir/patches/"*.patch "$topdir/SOURCES/"
 install -m 0644 \
     "$overlay_dir/python3-proton-vpn-api-core-overlay.spec" \
@@ -120,6 +121,7 @@ source_checks=(
     "rebuild_overlay.py=$overlay_dir/rebuild_overlay.py"
     "test_killswitch_activation.py=$overlay_dir/tests/test_killswitch_activation.py"
     "test_killswitch_route_monitor.py=$overlay_dir/tests/test_killswitch_route_monitor.py"
+    "test_server_cache.py=$overlay_dir/tests/test_server_cache.py"
     "$signing_key_name=$(realpath "$signing_key")"
 )
 for patch_path in "$overlay_dir"/patches/*.patch; do

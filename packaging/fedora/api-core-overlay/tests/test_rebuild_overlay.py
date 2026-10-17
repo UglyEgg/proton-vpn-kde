@@ -79,13 +79,13 @@ class OverlayBoundaryTests(unittest.TestCase):
             SCRIPT.parent / "overlay-manifest.json"
         )
 
-        self.assertEqual("5.8.3", manifest["vendor"]["version"])
+        self.assertEqual("5.8.11", manifest["vendor"]["version"])
         self.assertIsNone(manifest["vendor"]["publicSourceTag"])
         self.assertEqual(
-            "v5.6.20", manifest["publicUpstream"]["latestVerifiedTag"]
+            "v5.8.7", manifest["publicUpstream"]["latestVerifiedTag"]
         )
         self.assertEqual(
-            "3a7c1946623796540884574853492d06870d9477",
+            "1b6dcda24566568437d423c095c14e0aa9d71ec6",
             manifest["publicUpstream"]["commit"],
         )
         self.assertNotIn("upstreamBaseTag", manifest["overlay"])
@@ -101,6 +101,32 @@ class OverlayBoundaryTests(unittest.TestCase):
             },
             manifest["overlay"]["capabilitySource"],
         )
+
+    def test_current_overlay_retains_the_route_monitor_guard(self):
+        manifest = rebuild_overlay._load_manifest(
+            SCRIPT.parent / "overlay-manifest.json"
+        )
+        self.assertIn(
+            "0004-ignore-empty-initial-route-monitor-event.patch",
+            {record["file"] for record in manifest["overlay"]["patches"]},
+        )
+
+    def test_beta_build_preserves_the_stable_consumer_floor(self):
+        checker = SCRIPT.parents[3] / "scripts/check-compatibility-metadata.py"
+        spec = importlib.util.spec_from_file_location("compatibility_metadata", checker)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.check()
+        self.assertGreater(
+            module.fedora_overlay_identity("5.8.11", "1.plasmavpn1"),
+            module.fedora_overlay_identity("5.8.3", "2.plasmavpn1"),
+        )
+        self.assertGreater(
+            module.fedora_overlay_identity("5.8.3", "10.plasmavpn1"),
+            module.fedora_overlay_identity("5.8.3", "2.plasmavpn1"),
+        )
+        with self.assertRaisesRegex(ValueError, "unsupported Fedora overlay release"):
+            module.fedora_overlay_identity("5.8.3", "unrecognized")
 
     def test_manifest_rejects_the_conflated_v1_source_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
