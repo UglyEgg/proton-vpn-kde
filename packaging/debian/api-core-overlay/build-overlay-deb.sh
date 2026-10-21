@@ -17,7 +17,7 @@ vendor_deb="${2:-}"
 mkdir -p "$output_dir"
 output_dir="$(realpath "$output_dir")"
 
-for command in curl dpkg-buildpackage dpkg-deb gzip patch python3 tar; do
+for command in curl dpkg-buildpackage dpkg-deb gzip patch python3 sha256sum tar; do
     if ! command -v "$command" >/dev/null; then
         echo "Required overlay build command is unavailable: $command" >&2
         exit 1
@@ -111,6 +111,16 @@ tar \
     -C "$work_root" \
     -cf - "$source_name" \
     | gzip -n >"$orig_tar"
+
+# This original archive is already published. Debian revision-only changes
+# belong under debian/; changed original inputs need a new source identity.
+published_orig_sha256="fb2349c59e52d7ade27b604670370e9dd9ae68eab632bd0d36cd3f1aa426c5e0"
+if ! printf '%s  %s\n' "$published_orig_sha256" "$orig_tar" \
+        | sha256sum --check --status; then
+    echo "Published original-source archive differs: $(basename "$orig_tar")." >&2
+    echo "Use a new original-source identity instead of replacing the published archive." >&2
+    exit 1
+fi
 
 (
     cd "$source_dir"

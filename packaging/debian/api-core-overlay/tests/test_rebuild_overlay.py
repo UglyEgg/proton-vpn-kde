@@ -6,8 +6,10 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -26,6 +28,41 @@ def sha256(path: Path) -> str:
 
 
 class OverlayBoundaryTests(unittest.TestCase):
+    def test_original_source_readme_retains_published_content(self):
+        # README is part of the immutable 5.6.10 original archive, not the
+        # Debian revision. Current build instructions live in docs/RELEASING.md.
+        self.assertEqual(
+            "7a39bd33a20bfc9d243865f943888351f3d2ab449d4cbd240db0fa2e4184f3a5",
+            sha256(SCRIPT.parent / "README.md"),
+        )
+
+    def test_builder_rejects_changed_original_before_package_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            vendor = root / "vendor.deb"
+            vendor.write_bytes(b"not the published original-source input\n")
+            tools = root / "bin"
+            tools.mkdir()
+            for name in ("curl", "dpkg-buildpackage", "dpkg-deb", "patch"):
+                command = tools / name
+                command.write_text(
+                    "#!/bin/sh\necho 'Unexpected external tool invocation' >&2\nexit 77\n",
+                    encoding="utf-8",
+                )
+                command.chmod(0o755)
+            result = subprocess.run(
+                ["bash", str(SCRIPT.parent / "build-overlay-deb.sh"),
+                 str(root / "output"), str(vendor)],
+                env={**os.environ, "PATH": f"{tools}:{os.environ['PATH']}"},
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertIn("Published original-source archive differs", result.stderr)
+            self.assertNotIn("Unexpected external tool invocation", result.stderr)
+            self.assertEqual([], list((root / "output").iterdir()))
+
     def test_current_manifest_is_internally_consistent(self):
         manifest = rebuild_overlay._load_manifest(
             SCRIPT.parent / "overlay-manifest.json"

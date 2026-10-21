@@ -22,6 +22,10 @@ Finalize all three documents together before tagging the publication commit.
 
 Overlay versions change only when their payload/package contract changes.
 Their manifests and dependency floors must remain aligned with the client.
+Published package payloads and original-source archives are immutable for a
+given identity, including packaged documentation. A changed RPM payload requires
+a new release revision. A Debian revision may change its Debian delta, not an
+existing `.orig.tar.gz`; preserve that archive or assign a new source identity.
 
 ```bash
 scripts/check-release-metadata.sh

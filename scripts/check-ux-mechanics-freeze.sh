@@ -238,6 +238,8 @@ fi
 
 # 0.14.5: accepted seven-review recovery delta, focused rechecks and normal UAT;
 # version/display metadata and the reviewed documentation consolidation included.
+# Packaging-only follow-up: revision the Fedora keyring documentation payload
+# and preserve Ubuntu's published original archive; runtime seals are unchanged.
 assert_diff_hash \
     "fb3972bc98a9f643f974f1045c388db937191a0e7e0fefefab8813fa2ce706dd" \
     "build-system" CMakeLists.txt
@@ -310,7 +312,7 @@ assert_diff_hash \
     "QML presentation" qml
 
 assert_diff_hash \
-    "1c75052facbf93d658c346ccee204d29c07f2cb77773ea49be36f4426cc8d473" \
+    "aafbc39d8c4870e6e988b9c20c5219b88594e53d58fd6a1c6bc50d1644ab46ce" \
     "licensing and upstream provenance" \
     .editorconfig .gitattributes .gitignore \
     backend/proton-vpn-kde-backend.in \
@@ -325,7 +327,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "119d2be309915c83d8327ff3d61a30d59481e9096a6a1c848a1cc3378c8beb8b" \
+    "03cc0486d2c515f28d7bfce6bb8db2c1fc483cd57987dc0b8664412a743576a2" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \

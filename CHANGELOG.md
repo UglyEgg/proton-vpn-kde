@@ -22,10 +22,12 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
   selected country for group alternatives, and avoid repeated full-catalog
   grouping during recovery.
 
-### Documentation
+### Packaging and documentation
 
 - Consolidate current-state engineering references and separate release,
   branch-validation, and installed-acceptance evidence.
+- Give the Fedora keyring documentation refresh its own package revision;
+  preserve Ubuntu's published original-source archive and unchanged runtime floors.
 
 ## [0.14.4] - 2026-10-17
 

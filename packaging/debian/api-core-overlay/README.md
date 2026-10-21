@@ -18,6 +18,3 @@ Only six Python source files differ from the vendor payload. The required
 Protun behavior is tied to
 `0004-keep-protun-private-key-ephemeral.patch` and exposed as the versioned
 `proton-vpn-api-core-plasma-protun-secret` package capability.
-
-Build/publication commands are owned by [Releasing](../../../docs/RELEASING.md#3-package-builds);
-supported component floors are owned by [Compatibility](../../../docs/COMPATIBILITY.md).

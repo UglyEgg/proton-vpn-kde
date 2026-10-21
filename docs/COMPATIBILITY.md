@@ -4,8 +4,8 @@
 
 Plasma VPN 0.14.5 is prepared for release; 0.14.4 remains the current public
 package release. Fedora's normal-operation UAT is accepted for the new recovery
-code. Final release artifacts remain pending. Ubuntu is package-validated on
-the public baseline and needs refreshed package checks and Plasma field reports.
+code. Both distributions pass candidate package checks. Publication requires
+signed, exact-source artifacts. Ubuntu still needs Plasma field reports.
 Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.md).
 
 | Component | Fedora 44 | Ubuntu 26.04 |
@@ -15,7 +15,7 @@ Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.
 | Qt / KDE | Qt 6.8+; Frameworks 6 | Qt 6.10.2; Frameworks 6.24 |
 | Python | 3.14 with `os.pidfd_open` | 3.14 with `os.pidfd_open` |
 | API Core overlay | `5.8.11-1.plasmavpn1` beta; stable minimum `5.8.3-2.plasmavpn1` | `5.6.10-12plasmavpn1` |
-| Keyring overlay | `0.2.3-10.plasmavpn1` | `0.2.3-10plasmavpn1` |
+| Keyring overlay | `0.2.3-11.plasmavpn1` build; minimum `0.2.3-10.plasmavpn1` | `0.2.3-10plasmavpn1` |
 | Secret Service | KeePassXC verified; provider-neutral implementation | Live provider UAT pending |
 | Validation tier | Installed Plasma lifecycle accepted | Build, artifact, dependency, transaction, and removal checks; live lifecycle pending |
 
