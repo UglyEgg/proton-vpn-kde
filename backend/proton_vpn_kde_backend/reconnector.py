@@ -14,6 +14,7 @@ import random
 from typing import Any, AsyncIterator
 
 from .async_utils import await_owned
+from .core_servers import FastestSelection
 from .errors import is_proton_authentication_needed
 
 
@@ -23,6 +24,7 @@ AuthenticationEpochSource = Callable[[], int]
 AuthenticationEpochValidator = Callable[[int], bool]
 AuthenticationErrorCallback = Callable[[Exception, int], Awaitable[None]]
 ConnectionAttempt = Callable[[Any, Any, Any, int], Awaitable[bool]]
+FastestSelectionSource = Callable[[], FastestSelection | None]
 
 
 logger = logging.getLogger(__name__)
@@ -125,6 +127,9 @@ class AsyncReconnector:
         "NotYetValidCertificate",
         "TwoFARequired",
     }
+    _FAILOVER_EVENTS = {"Timeout", "TunnelSetupFailed", "DeviceDisconnected"}
+    _ATTEMPTS_PER_SERVER = 2
+    _MAX_ALTERNATIVES = 2
 
     def __init__(
         self,
@@ -136,6 +141,7 @@ class AsyncReconnector:
         authentication_epoch_source: AuthenticationEpochSource,
         authentication_epoch_validator: AuthenticationEpochValidator,
         authentication_error_callback: AuthenticationErrorCallback,
+        fastest_selection_source: FastestSelectionSource | None = None,
         session_probe: LogindSessionProbe | None = None,
         delay_factory: DelayFactory | None = None,
     ):
@@ -156,6 +162,10 @@ class AsyncReconnector:
         self._authentication_epoch_validator = authentication_epoch_validator
         self._authentication_error_callback = authentication_error_callback
         self._connection_attempt = connection_attempt
+        self._fastest_selection_source = fastest_selection_source or (lambda: None)
+        self._failover_server_id: str | None = None
+        self._failover_attempts = 0
+        self._failover_excluded: set[str] = set()
         self._connection_attempt_active = False
         self._retry_task: asyncio.Task | None = None
         self._retry_pending = False
@@ -202,7 +212,15 @@ class AsyncReconnector:
     def begin_shutdown(self) -> None:
         """Fence scheduling now; ordered disable still joins and unregisters."""
         self._closing = True
+        self.reset_failure_episode()
         self._reset()
+
+    def reset_failure_episode(self) -> None:
+        """Retire outage history only at a connection/selection boundary."""
+        self._retry_counter = 0
+        self._failover_server_id = None
+        self._failover_attempts = 0
+        self._failover_excluded.clear()
 
     async def disable(self, *, deadline: float | None = None) -> None:
         unregister_error: Exception | None = None
@@ -266,6 +284,7 @@ class AsyncReconnector:
             # caller returns. Invalidate scheduling, but let its owner finish.
             # Explicit disconnect/shutdown still cancel and join through their
             # own suspension/disable barriers.
+            self.reset_failure_episode()
             self._reset(
                 cancel_retry=state_name != "Connected" or not self._connection_attempt_active
             )
@@ -353,9 +372,12 @@ class AsyncReconnector:
 
         authentication_epoch = self._authentication_epoch_source()
         try:
-            logical_server = self._refresher.server_list.get_by_id(
-                connection.server_id
-            )
+            previous_server_id = self._failover_server_id or connection.server_id
+            logical_server = self._retry_logical_server(connection)
+            if logical_server is None:
+                self._retry_counter += 1
+                self._status_callback("Waiting for a server matching your Fastest selection…")
+                return True
             vpn_server = self._connector.get_vpn_server(
                 logical_server, self._refresher.client_config
             )
@@ -364,7 +386,15 @@ class AsyncReconnector:
             if not self._authentication_epoch_validator(authentication_epoch):
                 return False
             self._retry_counter += 1
-            self._status_callback("Reconnecting…")
+            self._status_callback(
+                "Trying another server matching your Fastest selection…"
+                if self._failover_server_id not in {None, previous_server_id}
+                else "Reconnecting…"
+            )
+            if self._failover_server_id is not None:
+                self._failover_attempts = min(
+                    self._ATTEMPTS_PER_SERVER, self._failover_attempts + 1
+                )
             self._connection_attempt_active = True
             try:
                 if not await self._connection_attempt(
@@ -396,6 +426,42 @@ class AsyncReconnector:
             return True
         return False
 
+    def _retry_logical_server(self, connection: Any) -> Any:
+        selection = self._fastest_selection_source()
+        server_list = self._refresher.server_list
+        if selection is None:
+            # An exact server or a restored connection with unknown intent
+            # must not silently become a global Fastest connection.
+            return server_list.get_by_id(connection.server_id)
+        if self._failover_server_id is None:
+            self._failover_server_id = connection.server_id
+        current_id = self._failover_server_id
+        event = getattr(getattr(self._connector.current_state, "context", None), "event", None)
+        can_switch = len(self._failover_excluded) < self._MAX_ALTERNATIVES
+        if (
+            can_switch and self._failover_attempts >= self._ATTEMPTS_PER_SERVER
+            and type(event).__name__ in self._FAILOVER_EVENTS
+        ):
+            candidate = selection.pick(
+                server_list, "", self._failover_excluded | {current_id}
+            )
+            if candidate is None:
+                candidate = selection.pick(
+                    server_list, current_id, self._failover_excluded, only_preferred=True,
+                )
+        else:
+            candidate = selection.pick(
+                server_list, current_id, self._failover_excluded,
+                only_preferred=not can_switch,
+            )
+        if candidate is not None and candidate.id != current_id:
+            if not can_switch:
+                return None
+            self._failover_excluded.add(current_id)
+            self._failover_server_id = candidate.id
+            self._failover_attempts = 0
+        return candidate
+
     def _retry_is_current(self, generation: int) -> bool:
         return (
             self._enabled
@@ -418,7 +484,6 @@ class AsyncReconnector:
             self._retiring_retry_tasks.add(retry_task)
             retry_task.add_done_callback(self._retiring_retry_tasks.discard)
             retry_task.cancel()
-        self._retry_counter = 0
         self._retry_pending = False
         return retry_task if retry_task is not current_task else None
 

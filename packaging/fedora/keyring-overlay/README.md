@@ -1,81 +1,62 @@
 # Proton keyring Secret Service overlay
 
-This directory builds a separately reviewable Fedora RPM from Proton's exact
-`python-proton-keyring-linux` `v0.2.3` source. It does not vendor a modified
-copy of Proton's Python package into the Plasma client.
+Builds a separate Fedora package from pinned Proton
+`python-proton-keyring-linux` `v0.2.3` source. Modified Proton code is not
+vendored into the community adapter.
 
-The patch set is provider-neutral:
+## Patch contract
 
-- prefer the Freedesktop `default` collection alias;
-- use the sole advertised collection when that alias is missing or stale;
-- create a default collection only when the service advertises none;
-- reject an ambiguous multi-collection fallback;
-- validate Secret Service availability without reading or creating a secret;
-- reuse one serialized D-Bus connection per backend, without caching plaintext;
-- close that connection explicitly or through a finalizer; and
-- treat an already-absent keyring entry as a normal `KeyError`, without an
-  error-level traceback;
-- require the selected provider to run as the session user before sending it
-  secret data;
-- support both D-Bus-activated providers and providers that already own the
-  service name after desktop autostart; and
-- pin every Secret Service call, reply, and prompt signal to that provider's
-  unique D-Bus owner;
-- after an unavailable or replaced provider is detected before a secret call,
-  close the stale connection and retry one complete operation against a newly
-  selected same-user owner.
+| Patch | Behavior |
+| --- | --- |
+| [0001](patches/0001-provider-agnostic-secret-service.patch) | Provider-neutral collection selection/validation and one reusable serialized D-Bus connection per backend |
+| [0002](patches/0002-avoid-missing-entry-traceback.patch) | Missing entries are ordinary `KeyError`, not error-level tracebacks |
+| [0003](patches/0003-pin-secret-service-provider.patch) | Same-user provider selection and unique-owner pinning |
+| [0004](patches/0004-recover-secret-service-provider-restart.patch) | Bounded complete-operation retry after explicit provider-unavailable/identity-change detection |
 
-GNOME Keyring remains a supported provider, but it is a suggestion rather than
-a runtime requirement. KeePassXC, KWallet, GNOME Keyring, and other conforming
-Freedesktop Secret Service implementations use the same code path. The desktop-
-selected same-user provider is a trusted dependency: D-Bus exposes its unique
-owner and Unix user but does not portably attest its executable, especially
-when a provider deliberately runs as a non-dumpable process.
+Collection selection prefers `default`; absent/stale aliases use the sole
+advertised collection. If none are advertised, create a default; multiple
+collections without an unambiguous default fail. Backend validation neither
+reads nor creates a secret.
 
-An activation response that says the service is not activatable is tolerated
-only long enough to resolve the current owner. If no provider is actually
-running, owner resolution still fails closed before any secret operation.
+Connections retain no plaintext cache, serialize operations, and close explicitly
+or through finalization. Activation failure is tolerated only while resolving
+an already-running owner; missing owner still fails before a secret operation.
+The call/rebind trust boundary is specified in
+[Authentication](../../../docs/AUTHENTICATION.md#secret-service-provider).
+
+GNOME Keyring is suggested, not required. KeePassXC, KWallet, GNOME Keyring, and
+other conforming providers use the same path. Verified provider/platform tiers
+belong in [Compatibility](../../../docs/COMPATIBILITY.md).
 
 ## Rebuild
-
-On Fedora 44, run:
-
-```bash
-packaging/fedora/keyring-overlay/build_overlay_rpm.sh
-```
-
-The script downloads the pinned upstream archive, verifies its SHA-256 digest,
-verifies every patch against the manifest, and invokes `rpmbuild -ba`. `%check`
-runs the focused upstream and overlay tests. Pass a second argument to select a
-specific RPM top directory:
 
 ```bash
 packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
     '' "$PWD/build-keyring-overlay"
 ```
 
-An already downloaded archive can be supplied as the first argument. Neither
-the downloaded archive nor built RPMs belong in Git.
+The first argument may name an existing upstream archive. Otherwise the script
+downloads it, checks its pinned SHA-256, verifies manifest/patch hashes, and runs
+`rpmbuild -ba`. `%check` runs upstream and overlay tests. Archives/build outputs
+do not belong in Git.
 
-The resulting package provides both the compatibility capability
-`proton-keyring-secret-service-provider-agnostic = 1` and the stronger
-`proton-keyring-secret-service-owner-pinned = 1`. The Plasma client RPM
-requires the stronger capability until an equivalent implementation is
-verified in an upstream package and the dependency can be retired.
+The package provides:
 
-## Upstream boundary
+```text
+proton-keyring-secret-service-provider-agnostic = 1
+proton-keyring-secret-service-owner-pinned = 1
+```
 
-The first patch combines the default-alias compatibility and stable-connection
-changes because they modify one small backend implementation and share the same
-focused test module. The missing-entry logging, provider-owner-pinning, and
-bounded provider-restart patches remain separate and can be proposed
-independently. No VPN networking, session format, or secret storage schema is
-changed.
+The client requires the stronger owner-pinned capability until an equivalent
+released upstream implementation passes its compatibility gates. Debian uses
+the same series; build commands are in [Releasing](../../../docs/RELEASING.md).
 
-Existing source files retain Proton's copyright and GPL notices. The new test
-module in patch 0001 uses Proton's current 2026 notice and GPL boilerplate.
-This prepares the source form for Proton's contribution policy; keeping the
-patch locally does not itself assign copyright or constitute Proton review.
-Before submission, the human contributor must review every line and determine
-that they can truthfully accept Proton's copyright-assignment and sole-creation
-terms.
+## Contribution boundary
+
+The patches change no VPN networking, session format, or secret schema.
+Alias selection and connection reuse share one implementation/test boundary;
+logging, owner pinning, and provider restart remain separate patch units.
+
+Preserve upstream notices and actual patch provenance. Upstream contribution
+terms and material AI assistance must be reviewed by the human contributor
+before an authorized submission; see [Contributing](../../../CONTRIBUTING.md).

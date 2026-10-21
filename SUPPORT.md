@@ -8,7 +8,7 @@ It is not a Proton customer-support channel.
 - crashes or incorrect behavior in the Plasma Control Center or resident agent;
 - KRunner, System Settings, notification, shortcut, or tray integration issues;
 - failures in the community D-Bus adapter;
-- Fedora RPM installation or lifecycle problems caused by this package;
+- Fedora RPM or Ubuntu Debian-package installation/lifecycle problems;
 - regressions that occur only with this client and can be reproduced safely.
 
 The in-app Report an Issue page previews a small allowlisted local diagnostic
@@ -17,6 +17,12 @@ logs or submit to Proton. Include steps to reproduce and expected behavior;
 review any pasted text before posting. Share logs only when requested and after
 manual redaction. Never post credentials, account tokens, recovery codes,
 private keys, server certificates, IP addresses, or unreviewed support bundles.
+
+Include the client/Core/keyring versions, distribution/Plasma versions, event
+time and timezone, expected behavior, and any preceding suspend, outage, or
+resource-pressure event. Ubuntu's live-validation tier is documented in
+[Compatibility](docs/COMPATIBILITY.md); a package build alone does not establish
+its desktop lifecycle.
 
 ## Contact Proton directly
 

@@ -7,7 +7,7 @@
 %global _buildhost reproducible.invalid
 
 Name:           proton-vpn-kde
-Version:        0.14.4
+Version:        0.14.5
 Release:        1%{?dist}
 Summary:        Proton VPN-compatible community client for KDE Plasma
 
@@ -144,6 +144,11 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
+* Wed Oct 21 2026 uglyegg <uglyegg@entropy.quest> - 0.14.5-1
+- Add bounded Fastest failover while retaining filters, scope, and explicit pins
+- Preserve retry ownership and avoid redundant server-catalog projection
+- Consolidate current-state engineering documentation
+
 * Sat Oct 17 2026 uglyegg <uglyegg@entropy.quest> - 0.14.4-1
 - Recover through protected routing after native-plugin failure
 - Preserve accepted reconnects across intermediate Core notifications

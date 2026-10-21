@@ -1,194 +1,98 @@
 # Backend service hardening
 
-## Threat boundary
-
-The protected local adversary is an ordinary or sandboxed process in the same
-graphical session with D-Bus access but without arbitrary native-code execution
-as the desktop user.
-
-Out of scope:
-
-- root and debuggers;
-- arbitrary same-UID native code or process-memory access;
-- malicious replacement of user-owned systemd state followed by restoration;
-- compromise of Proton Core, NetworkManager, the Secret Service provider, or
-  Proton's service.
-
-Linux session D-Bus does not provide code-signing identity. A stronger same-UID
-boundary requires a root-controlled service, MAC policy, or equivalent
-privileged attestation and would materially change the desktop architecture.
+[SECURITY.md](../SECURITY.md) owns the attacker model, invariants, exclusions, and
+disclosure policy. This document specifies deployed enforcement and validation
+constraints; it does not establish a stronger same-UID boundary.
 
 ## Deployment controls
 
-The backend, Control Center, and agent are unprivileged D-Bus-activated systemd
-user services. Distribution packages and launchers provide:
+Backend, Control Center, and agent use unprivileged, D-Bus-activated systemd
+user services with:
 
-- root-owned absolute executable paths;
-- `NoNewPrivileges=true`;
-- isolated Python startup;
-- one generated denylist for dynamic-loader, OpenSSL-provider, GIO/GI, Python,
-  Qt-plugin, and QML search overrides;
-- fixed absolute paths for project-owned `ip` and `journalctl` subprocesses;
-- `KillMode=control-group`, `SendSIGKILL=yes`, and an outer 35-second stop
-  deadline; and
-- a production-fixed backend idle grace, with override only in demo/test mode.
+- root-owned absolute executable paths and `NoNewPrivileges=true`;
+- isolated Python startup and one generated loader/runtime/plugin denylist;
+- fixed paths for project subprocesses;
+- `KillMode=control-group`, `SendSIGKILL=yes`, and a 35-second outer stop bound;
+- production-fixed idle grace; overrides only in demo/tests.
 
-Native direct launches apply the same environment policy before Qt starts and
-re-execute `/proc/self/exe` when cleanup changes the environment. D-Bus
-activation applies it before the initial executable load.
+The denylist covers dynamic-loader, OpenSSL-provider, GIO/GI, Python, Qt-plugin,
+and QML search overrides. Direct native launches sanitize and re-execute
+`/proc/self/exe` before Qt; D-Bus activation sanitizes before initial load.
 
-Repository-channel changes use a fixed Polkit action, fixed package names, and
-fixed DNF arguments. No shell or user-selected package name crosses the
-privilege boundary. Installed acceptance must cover the interaction between
-`pkexec` and the Control Center's `NoNewPrivileges` launch path.
+Mount-namespace confinement is not enabled: host procfs peer inspection must
+remain usable under Fedora SELinux. Additional sandbox directives require
+installed Core, FIDO2, capture, KRunner, KCM, tray, Polkit, and identity checks.
+`systemd-analyze security` is a confinement heuristic, not a vulnerability or
+acceptance verdict.
+
+Repository-channel changes use a fixed Polkit action, package allowlist, and
+DNF arguments, with no shell. Installed acceptance must verify `pkexec` through
+the Control Center's `NoNewPrivileges` launch path.
 
 ## D-Bus identity and authorization
 
-The well-known name is an address. Native clients resolve it to a unique owner
-and verify UID, PID, installed executable, active unit, acceptable unit inputs,
-loader environment, and owner continuity. User-writable or mixed-trust service
-drop-ins fail closed.
+| Boundary | Enforcement |
+| --- | --- |
+| Frontend → backend | Resolve unique owner; verify UID/PID, installed executable, active unit and acceptable inputs, loader environment, and owner continuity |
+| Backend ingress | Capture actual sender; authorize packaged client; recheck before protected dispatch |
+| Owner replacement | Pin calls/subscriptions; generation-check replies; revoke authority, leases, and secret keys on loss |
+| Unexpected descriptors | Close at ingress on ignored/rejected messages |
+| Desktop brokers | Explicit presentation/action allowlist and user confirmation; no direct authenticated controller access |
 
-Calls and subscriptions target the verified unique name. Every asynchronous
-completion also carries the frontend's backend generation; replacement owners
-cannot receive an in-flight call or have stale replies accepted.
+User-writable/mixed-trust unit drop-ins fail closed. Claims in message arguments
+never substitute for the real sender. These checks do not provide code signing
+or durable attestation against arbitrary native code already running as the
+desktop user.
 
-At ingress, the backend captures the actual D-Bus sender. Protected methods
-require an authorized installed client, then recheck authorization before the
-operation body runs. Claims in arguments never substitute for the sender.
-Owner loss revokes authorization, leases, and secret keys. Unexpected file
-descriptors are closed before ignored or rejected messages leave ingress.
+Authentication and provider ownership are specified in
+[Authentication](AUTHENTICATION.md); cancellation/retirement contracts in
+[Architecture](ARCHITECTURE.md#request-ownership).
 
-KRunner, global shortcuts, and status-notifier brokers are not authentication
-principals. They can request a bounded confirmation surface but cannot invoke
-the authorized backend controller directly.
+## Data and reporting
 
-## Lifetime and cancellation
+| Surface | Current boundary |
+| --- | --- |
+| Community report | Allowlisted state/version/error-code facts; preview then explicit clipboard copy; no account/server/address/path/log/provider text; opening tracker sends no report |
+| Proton support submission | Default-off build capability; UI/native/backend/package enforcement; dormant collector uses fixed journal sources, no shell, 20 seconds, 1 MiB/source, 2 MiB total |
+| Crash submission | Disabled runtime sender and locked-off preference in community packages |
+| Core connection telemetry | Disabled build policy, live queue, and queued events; explicit settings writes persist Off; reads do not rewrite storage |
+| Packet capture | Supported Core protocol; positive byte cap ≤512 MiB; existing writable absolute destination; 15-minute watchdog and atomic deadline-preserving recovery record |
+| Snapshot addresses | Connection-time observations visible on the session bus; excluded from logs, crash reports, and community diagnostics |
 
-- The backend acquires its bus name without queueing; only the primary owner
-  initializes Core.
-- Owner-loss events release frontend leases; disconnected idle retirement is
-  event-driven.
-- Manual and automatic connection work share generation-bound ownership.
-  Superseded Core work is shielded, joined, and compensated before ownership
-  is released.
-- Disconnect crosses Core's public event barrier. Observed `Disconnected`
-  alone is not treated as proof that queued provider work has retired.
-- Cleanup requests have one admission-to-retirement deadline. Duplicate
-  callers cannot extend it.
-- Shutdown is singleflight and uses one absolute deadline through controller,
-  adapter, capture, background-handler, and thread retirement.
-- Unconfirmed retirement exits nonzero so a stale process cannot later mutate
-  state beside a replacement.
+A telemetry-capable build exposes an explicit preference; fresh profiles remain
+off until opt-in. Missing/failing telemetry queue controls fail closed. Required
+account/server/VPN traffic and explicit NPS actions are unaffected.
 
-Account replacement is a process boundary. A private non-secret handoff, pidfd,
-and PID start time prove outgoing-process death before new credentials are
-accepted. Missing evidence blocks recovery.
+Capture Stop remains supervised after failure or ambiguity; the client does not
+inspect, upload, rename, or rewrite PCAP output. Clipboard history and user-pasted
+reports are outside the client boundary.
 
-## Crash recovery and fault testing
+## Fault-test isolation
 
-An abruptly terminated Protun plugin can leave its policy rules and unreachable
-fallback routes intact after the tunnel disappears. Reconnection must not wait
-for an ordinary internet route: that creates a circular dependency on the
-tunnel being restored. Core owns the protected replacement and server
-reachability checks; the adapter retains exponential backoff and never removes
-routes, disables protection, or changes kill-switch settings to recover.
+Protected recovery cannot require an ordinary internet route: surviving Core
+protection can block it until the replacement tunnel exists. The adapter must
+use Core's protected handoff, not remove rules or lower the kill-switch setting.
 
-Core's intermediate `Disconnected` state with a queued `reconnection` is not
-terminal. A `Connected` notification must not cancel an accepted Up still
-returning to its owner. Explicit disconnect, sign-out, and shutdown retain
-their cancellation/join and authentication-generation barriers.
+Run the actual-Core fixture only through:
 
-Run `bash scripts/test-core-recovery-isolated.sh /path/to/core/site-packages`
-with an extracted, hash-checked Core fixture. The launcher requires an
-unprivileged user, fresh user/network namespaces, and a 30-second outer bound.
-The test refuses network mutations unless both namespace identities differ
-from the parent and only loopback exists. It replays IPv4/IPv6 tunnel removal
-with dummy links and real policy routing; Core event/state tasks are real,
-while provider I/O is substituted. It does not run the native plugin, establish
-a real VPN, or validate end-to-end packet confidentiality.
+```bash
+scripts/test-core-recovery-isolated.sh /path/to/core/site-packages
+```
 
-Live fault injection is blocked until an independently supervised recovery
-mechanism and a control path unaffected by the injected failure are prepared
-and verified. An observer running over the tested connection is insufficient.
-Namespace tests have no fallback to privileged or host-network execution.
+The launcher requires a hash-checked fixture, unprivileged execution, fresh
+user/network namespaces, and a 30-second outer bound. Routing replay refuses
+mutations unless both namespace identities differ from the parent and only
+loopback exists. It uses dummy links and real policy routing with substituted
+provider I/O, not a native plugin or live VPN.
 
-### Controlled recovery acceptance
+The Fastest fixture additionally checks bounded logical-server changes and
+protected handoff ordering in Off/On/Permanent modes. These are behavioral
+checks, not end-to-end packet-confidentiality evidence. Results and unqualified
+surfaces belong in the [assessment](SECURITY-AUDIT-2026-08-30.md).
 
-On 2026-10-17, client `0.14.3-2.fc44` with Core
-`5.8.11-1.plasmavpn1.fc44` and keyring revision 10 recovered automatically
-after one identity-verified native-plugin SIGKILL. An independently proven
-root timer, a cached RAM-only rescue profile, and an extra deny-only IPv4/IPv6
-fence were prepared and checked before injection. The client created a new
-desktop-owned tunnel; both route families used `proton0`, and the recovery
-worker required no fallback. The maintainer confirmed Protected status and
-ordinary browsing without Retry or Connect.
-
-The temporary harness and fault operator are local test tools, excluded from
-the release source and packages. Review found interruption-handling defects
-and an unverified backup-profile permission postcondition. They must be
-resolved before reusing those tools for another live fault test. The accepted
-trial demonstrates fixed-server availability recovery, not end-to-end leak,
-peer-roaming, suspend, extended-outage, or all-protocol coverage.
-
-## Capture and diagnostic bounds
-
-Direct Proton support and crash-report submission are disabled in community
-builds at UI, native, backend, and package-policy boundaries. Optional Core
-connection telemetry is also a default-off build capability. On Core 5.7 the
-adapter disables the live event queue immediately after settings load and
-persists the preference as off on an explicit settings write; a settings read
-does not write the user's settings file. Settings and copied community
-diagnostics disclose the effective policy. A telemetry-capable build exposes
-an explicit preference, with fresh Core profiles projected off until opt-in.
-
-This reporting policy does not block traffic required to authenticate, refresh
-account and server state, establish or maintain a VPN connection, or perform an
-explicit user-requested service action such as submitting an NPS response.
-
-Community diagnostics are separate from that dormant submission path. Their
-formatter accepts only fixed status values, recognized error codes, and
-bounded version/OS tokens. No account name, server, IP address, path, log, or
-provider exception is read. The user previews the exact text before an
-explicit clipboard copy; opening the community tracker sends none of it.
-Clipboard history and user-pasted issue text remain outside this boundary.
-
-The dormant support collector has:
-
-- fixed journal sources;
-- no shell;
-- 20-second process timeout;
-- 1 MiB per-source limit; and
-- 2 MiB aggregate limit.
-
-Packet capture requires an active supported protocol, an existing writable
-absolute directory, and Core's positive reviewed byte cap, currently no more
-than 512 MiB. A 15-minute generation-bound watchdog owns Stop. A private atomic
-recovery record preserves the original deadline across backend replacement.
-Failed or ambiguous Stop retains supervised retry; the adapter never uploads or
-rewrites capture data.
-
-## Secret Service and authentication
-
-The keyring overlay requires a same-user Secret Service provider and pins all
-traffic to its unique owner. Owner replacement fails closed. The initial
-provider remains a trusted desktop dependency because portable session APIs do
-not attest its executable provenance.
-
-Authentication fields cross D-Bus only as bounded, authenticated ciphertext in
-a sealed descriptor under one-use sender/method-bound keys. Raw provider
-exceptions, tracebacks, tokens, and credentials do not enter public state.
-See [Authentication](AUTHENTICATION.md).
-
-## Defense-in-depth backlog
-
-`systemd-analyze security --offline=yes --user` scores both services 9.0,
-`UNSAFE`, largely because desktop VPN integration requires host networking,
-D-Bus, home state, devices, and procfs peer inspection. This is a heuristic, not
-a vulnerability result.
-
-Potential additions are `UMask=0077`, an empty `CapabilityBoundingSet`,
-`LockPersonality`, `RestrictRealtime`, `RestrictSUIDSGID`,
-`SystemCallArchitectures=native`, and selected `ProtectKernel*` directives.
-Each requires installed Core, FIDO2, capture, KRunner, KCM, tray, Polkit, and
-procfs identity regression testing before adoption.
+Live faults require explicit authorization, an independently supervised recovery
+mechanism, and a verified control path unaffected by the fault. Existing
+temporary recovery tools are excluded from release packages and are not
+qualified for reuse. Before reuse, correct interruption handling and verify the
+backup-profile permission postcondition. Namespace tests have no
+privileged/host-network fallback.

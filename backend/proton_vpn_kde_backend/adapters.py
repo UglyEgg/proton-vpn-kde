@@ -55,6 +55,7 @@ from .core_compatibility import (
     core_package_version as _core_package_version,
 )
 from .core_servers import (
+    FastestSelection,
     countries as core_countries,
     country as core_country,
     fastest_matching as core_fastest_matching,
@@ -174,6 +175,7 @@ class ProtonCoreAdapter:
         self._reconnector: AsyncReconnector | None = None
         self._connection_scope = TaskScope()
         self._connection_intent_generation = 0
+        self._fastest_selection: FastestSelection | None = None
         self._manual_connection_tasks: dict[asyncio.Task[Any], int] = {}
         self._connector_state_revision = 0
         self._connector_state_changed = asyncio.Event()
@@ -396,7 +398,8 @@ class ProtonCoreAdapter:
                 return
             logical_server = server_list.get_fastest()
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                fastest_selection=FastestSelection(),
             )
 
     async def connect_fastest_with_feature(self, feature: str) -> None:
@@ -416,7 +419,8 @@ class ProtonCoreAdapter:
                 server_list, server_list.logicals, features
             )
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                fastest_selection=FastestSelection(features=tuple(features)),
             )
 
     @staticmethod
@@ -1116,6 +1120,7 @@ class ProtonCoreAdapter:
                 server_list.get_fastest_in_country(country_code),
                 authentication_epoch,
                 connection_intent,
+                fastest_selection=FastestSelection(country_code=country_code),
             )
 
     async def connect_country_with_features(
@@ -1135,7 +1140,10 @@ class ProtonCoreAdapter:
                 server_list, country.servers, features
             )
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                fastest_selection=FastestSelection(
+                    features=tuple(features), country_code=country_code,
+                ),
             )
 
     async def connect_group(
@@ -1162,7 +1170,12 @@ class ProtonCoreAdapter:
                     "No server available in the current tier"
                 )
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                # Group selection already defines its mode-specific pool.
+                fastest_selection=FastestSelection(
+                    features=(), country_code=country_code,
+                    group_kind=group_kind, group_name=group_name,
+                ),
             )
 
     async def connect_group_with_features(
@@ -1188,7 +1201,11 @@ class ProtonCoreAdapter:
                 server_list, group.servers, features
             )
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                fastest_selection=FastestSelection(
+                    features=tuple(features), country_code=country_code,
+                    group_kind=group_kind, group_name=group_name,
+                ),
             )
 
     async def connect_server(self, server_name: str) -> None:
@@ -1339,6 +1356,8 @@ class ProtonCoreAdapter:
         logical_server,
         authentication_epoch: int,
         connection_intent: int,
+        *,
+        fastest_selection: FastestSelection | None = None,
     ) -> None:
         if not self._manual_connection_is_current(
             authentication_epoch, connection_intent
@@ -1368,6 +1387,7 @@ class ProtonCoreAdapter:
                 ),
                 authentication_epoch,
                 connection_intent,
+                fastest_selection=fastest_selection,
             )
         except Exception as error:
             await self._raise_session_error(error, authentication_epoch)
@@ -1383,6 +1403,7 @@ class ProtonCoreAdapter:
             lambda: self._connector.connect(vpn_server, protocol, backend),
             authentication_epoch,
             self._connection_intent_generation,
+            fastest_selection=self._fastest_selection,
         )
 
     async def _attempt_connection(
@@ -1390,12 +1411,17 @@ class ProtonCoreAdapter:
         operation: Callable[[], Awaitable[None]],
         authentication_epoch: int,
         connection_intent: int,
+        *,
+        fastest_selection: FastestSelection | None,
     ) -> bool:
         """Own one Core connection side effect and retire stale success."""
         async with self._serialized_connection_lifecycle():
             if connection_intent != self._connection_intent_generation:
                 return False
             self._require_authenticated_epoch(authentication_epoch)
+            # Pending/cancelled requests cannot attribute their selection to a
+            # retained tunnel. Publish only with current dispatch ownership.
+            self._fastest_selection = fastest_selection
             try:
                 # Core 5.6.10 through 5.6.20 can await a NetworkManager future
                 # in an executor here. Cancelling only the asyncio caller would
@@ -1440,13 +1466,20 @@ class ProtonCoreAdapter:
         self._connection_intent_generation += 1
         return self._connection_intent_generation
 
+    def _clear_fastest_selection(self) -> None:
+        self._fastest_selection = None
+        if self._reconnector:
+            self._reconnector.reset_failure_episode()
+
     @asynccontextmanager
     async def _manual_connection_target(self) -> AsyncIterator[tuple[int, int]]:
         """Own and retire every older target before manual work can proceed."""
         task = asyncio.current_task()
         if task is None:
             raise RuntimeError("A manual connection target requires an asyncio task")
-        intent = (self._authenticated_epoch(), self._advance_connection_intent())
+        authentication_epoch = self._authenticated_epoch()
+        self._clear_fastest_selection()
+        intent = (authentication_epoch, self._advance_connection_intent())
         self._manual_connection_tasks[task] = intent[1]
         deadline = self._connection_retirement_deadline()
         try:
@@ -1461,9 +1494,11 @@ class ProtonCoreAdapter:
 
     @asynccontextmanager
     async def _superseding_connection_targets(
-        self, *, deadline: float | None = None,
+        self, *, deadline: float | None = None, preserve_selection: bool = False,
     ) -> AsyncIterator[_ConnectionSupersession]:
         """Invalidate and join all older manual and automatic connection work."""
+        if not preserve_selection:
+            self._clear_fastest_selection()
         generation = self._advance_connection_intent()
         if deadline is None:
             deadline = self._connection_retirement_deadline()
@@ -2021,17 +2056,29 @@ class ProtonCoreAdapter:
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
         if enabled:
+            # Frontend registration replays this preference. A healthy no-op
+            # must not cancel an accepted Up or renew its outage budget. A
+            # failed observer/session enable still follows the retryable path.
+            if (
+                self._reconnection_enabled and self._reconnector
+                and self._reconnector.enabled and self._logged_in
+                and self._session_services_enabled
+                and not self._reconnector._suspended
+            ):
+                return
             async with self._suspended_reconnection() as reconnector:
                 async with self._serialized_connection_lifecycle():
                     await self._apply_reconnection_enabled(enabled, reconnector)
             return
 
-        async with self._superseding_connection_targets() as supersession:
+        async with self._superseding_connection_targets(preserve_selection=True) as supersession:
             async with self._serialized_connection_lifecycle():
                 await self._disconnect_until_stable(
                     deadline=supersession.deadline,
                     transitional_only=True,
                 )
+                if self._connector and type(self._connector.current_state).__name__ == "Disconnected":
+                    self._clear_fastest_selection()
                 await self._apply_reconnection_enabled(
                     enabled,
                     supersession.reconnector,
@@ -2312,6 +2359,7 @@ class ProtonCoreAdapter:
                     ),
                     authentication_error_callback=self._raise_session_error,
                     connection_attempt=self._attempt_reconnection,
+                    fastest_selection_source=lambda: self._fastest_selection,
                 )
             if self._reconnection_enabled:
                 self._reconnector.enable()
@@ -2692,6 +2740,7 @@ class ProtonCoreAdapter:
         # Invalidate sibling requests from the expired session before cleanup
         # yields to the event loop.
         self._authentication_epoch += 1
+        self._clear_fastest_selection()
         self._advance_connection_intent()
         session_services_need_cleanup = (
             self._session_services_state is not _SessionServicesState.DISABLED

@@ -2,6 +2,31 @@
 
 The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
+## [Unreleased]
+
+## [0.14.5] - 2026-10-21
+
+### Fastest recovery
+
+- After two unsuccessful automatic retries, Fastest connections may try up to
+  two alternative logical servers, retaining their capability and location
+  constraints, Core access checks, protocol, and protection handoffs.
+- Exact-server selections and restored connections with unknown selection
+  intent never roam. An exhausted alternative budget retains normal backoff;
+  missing eligible servers never broaden the selection or disable protection.
+- Preserve Fastest constraints, outage budgets, and retry backoff across
+  frontend preference replay and reconnection toggles; unchanged enable replay
+  no longer cancels an owned connection attempt. Queued/cancelled requests
+  cannot attribute their selection to a retained tunnel.
+- Validate preferred retry targets through Core's ID index, project only the
+  selected country for group alternatives, and avoid repeated full-catalog
+  grouping during recovery.
+
+### Documentation
+
+- Consolidate current-state engineering references and separate release,
+  branch-validation, and installed-acceptance evidence.
+
 ## [0.14.4] - 2026-10-17
 
 ### Protected reconnect

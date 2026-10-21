@@ -18,6 +18,10 @@ class ServerFeatureEnum(IntFlag):
     STREAMING = 8
 
 
+class ServerNotFoundError(Exception):
+    pass
+
+
 class SplitTunnelingMode(str, Enum):
     EXCLUDE = "exclude"
     INCLUDE = "include"
@@ -70,6 +74,7 @@ def core_module_fakes() -> dict[str, ModuleType]:
     settings = ModuleType("proton.vpn.core.settings")
     split_tunneling = ModuleType("proton.vpn.core.settings.split_tunneling")
     session = ModuleType("proton.vpn.session")
+    exceptions = ModuleType("proton.vpn.session.exceptions")
     dataclasses = ModuleType("proton.vpn.session.dataclasses")
     servers = ModuleType("proton.vpn.session.servers")
     logicals = ModuleType("proton.vpn.session.servers.logicals")
@@ -79,6 +84,7 @@ def core_module_fakes() -> dict[str, ModuleType]:
     dataclasses.BugReportForm = BugReportForm
     dataclasses.NPSSurveyResponse = NPSSurveyResponse
     servers.ServerFeatureEnum = ServerFeatureEnum
+    exceptions.ServerNotFoundError = ServerNotFoundError
     logicals.sort_servers_alphabetically_by_country_and_server_name = (
         sort_servers_alphabetically_by_country_and_server_name
     )
@@ -89,6 +95,7 @@ def core_module_fakes() -> dict[str, ModuleType]:
     core.settings = settings
     settings.split_tunneling = split_tunneling
     session.dataclasses = dataclasses
+    session.exceptions = exceptions
     session.servers = servers
     servers.logicals = logicals
 
@@ -99,6 +106,7 @@ def core_module_fakes() -> dict[str, ModuleType]:
         "proton.vpn.core.settings": settings,
         "proton.vpn.core.settings.split_tunneling": split_tunneling,
         "proton.vpn.session": session,
+        "proton.vpn.session.exceptions": exceptions,
         "proton.vpn.session.dataclasses": dataclasses,
         "proton.vpn.session.servers": servers,
         "proton.vpn.session.servers.logicals": logicals,

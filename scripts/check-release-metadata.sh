@@ -65,8 +65,26 @@ done
 
 if grep -Eq "^## \[$release_version_pattern\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" \
         "$project_dir/CHANGELOG.md"; then
-    if [[ "$readme_posture" != *"Version $cmake_version is the current public release"* \
-            || "$security_posture" != *"Release: $cmake_version"* ]]; then
+    expected_readme="Version $cmake_version is the current public release"
+    expected_assessment="Release: $cmake_version"
+    expected_compatibility="Plasma VPN $cmake_version is the current public package release"
+    if [[ "$readme_posture" == *"Version $cmake_version is prepared for release"* ]]; then
+        if [[ "$readme_document" == *"$expected_readme"* \
+                || "$security_document" == *"$expected_assessment"* \
+                || "$compatibility_document" == *"$expected_compatibility"* ]]; then
+            echo "Prepared release metadata cannot also claim public release status" >&2
+            exit 1
+        fi
+        expected_readme="Version $cmake_version is prepared for release"
+        expected_assessment="Release target: $cmake_version"
+        expected_compatibility="Plasma VPN $cmake_version is prepared for release"
+    elif [[ "$security_posture" == *"Release target: $cmake_version"* \
+            || "$compatibility_posture" == *"Plasma VPN $cmake_version is prepared for release"* ]]; then
+        echo "Release-facing documents disagree on prepared/public status" >&2
+        exit 1
+    fi
+    if [[ "$readme_posture" != *"$expected_readme"* \
+            || "$security_posture" != *"$expected_assessment"* ]]; then
         echo "Release-facing posture does not identify release $cmake_version" >&2
         exit 1
     fi
@@ -84,7 +102,7 @@ if grep -Eq "^## \[$release_version_pattern\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" \
         echo "A dated public release cannot retain preview-facing in-app metadata" >&2
         exit 1
     fi
-    if [[ "$compatibility_posture" != *"Plasma VPN $cmake_version is the current public package release"* ]]; then
+    if [[ "$compatibility_posture" != *"$expected_compatibility"* ]]; then
         echo "Compatibility metadata does not identify the current release" >&2
         exit 1
     fi
