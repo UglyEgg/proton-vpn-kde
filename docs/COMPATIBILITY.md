@@ -2,10 +2,9 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.14.5 is prepared for release; 0.14.4 remains the current public
-package release. Fedora's normal-operation UAT is accepted for the new recovery
-code. Both distributions pass candidate package checks. Publication requires
-signed, exact-source artifacts. Ubuntu still needs Plasma field reports.
+Plasma VPN 0.14.5 is the current public package release. Fedora's normal-operation
+UAT is accepted for the recovery code; both distributions pass package checks.
+Ubuntu still needs Plasma field reports.
 Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.md).
 
 | Component | Fedora 44 | Ubuntu 26.04 |

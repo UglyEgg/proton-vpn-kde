@@ -1,24 +1,22 @@
 # Security and engineering assessment
 
-Last updated: 2026-10-21
-Release: 0.14.4
-Release target: 0.14.5
+Last updated: 2026-10-22
+Release: 0.14.5
 
 ## Status
 
-Version 0.14.5 is prepared for release on `fix/fastest-bounded-failover`.
-Version 0.14.4 remains public. Seven isolated reviews and affected corrected-diff
-rechecks are complete; no runtime finding remains open. Fedora native/package
-checks and maintainer-observed normal UAT passed. Signed candidate `84016fe`
-passes both distributions' clean-build/reproducibility and offline lifecycle
-checks. The packaging-only identity correction is separately verified.
-Publication requires signed, exact-source artifacts; final build evidence is
-recorded alongside their artifact manifests.
+Version 0.14.5 is the current public release. Seven isolated reviews and affected
+corrected-diff rechecks are complete; no runtime finding remains open. Fedora
+native/package checks and maintainer-observed normal UAT passed. Signed
+candidate `10d2b7f` passes both distributions' clean-build/reproducibility,
+source-provenance, offline lifecycle, and package/checksum signature checks.
+Publication-point changes are limited to release status and documentation.
+Exact release-source build evidence is recorded alongside the artifact manifests.
 
 | Scope | Current evidence | Remaining gate |
 | --- | --- | --- |
-| Public release | Seven isolated perspectives reviewed frozen runtime/overlay snapshot `fd1e3fef24f3277c075c6035d8083ca9a38205b5afd8bf920c1c53f94432812f`; no unresolved packaged-runtime finding was reported | New runtime changes require a new review |
-| Release target | Seven isolated reviews and affected rechecks accepted; backend/Core tests, both distributions' candidate package checks, and normal Fedora UAT passed | Verified source/package signatures, exact-source artifacts, and publication |
+| Public release | Seven isolated reviews and affected rechecks accepted; backend/Core tests and both distributions' package checks passed | New runtime changes require a new review |
+| Installed acceptance | Maintainer accepted normal Fedora UAT on the runtime-equivalent local build; Ubuntu remains package-validated | Ubuntu Plasma field acceptance and the limits below |
 | Independent assurance | No independent third-party audit or penetration test | Not certified |
 
 Review perspectives are Hostile, Subtractive, Entropy, Error-Class,
@@ -103,9 +101,9 @@ a release candidate commit in the development checkout. The maintainer accepted
 normal UAT on 2026-10-21. Version-only release preparation does not extend that
 acceptance to a new failure mode or to unbuilt final artifacts.
 
-Complete candidate package builds used signed commit `84016fe`. Subsequent
-overlay identity checks cover the packaging-only follow-up;
-client/Core runtime sources and patch series are unchanged.
+Complete candidate package builds and signatures used signed commit `10d2b7f`,
+including the packaging-only identity correction. Publication-point metadata
+does not change client/Core runtime sources or overlay patch series.
 
 | Check | Result and scope |
 | --- | --- |
@@ -117,13 +115,13 @@ client/Core runtime sources and patch series are unchanged.
 | Native integration | Rebuilt 0.14.5 with GCC/KStatusNotifier; all 47 source-checkout CTest groups pass, including prepared/public metadata regressions, Git-history negative controls, staged install, and the eight-view visual matrix |
 | Fedora RPM/SRPM | Two clean candidate builds pass all 46 archive-build CTest groups; all eight RPM/SRPM/debug outputs match byte-for-byte; artifact policy, offline install/reinstall/integrity/removal, demo startup, and ELF hardening pass |
 | Ubuntu packages | Two clean candidate builds pass all 46 CTest groups and the backend suite; 13 binary/source/debug artifacts match byte-for-byte; six build records differ only by timestamps and their checksums; policy, offline install/reinstall/autopkgtest/removal, and actual-Core 5.6.10 selection checks pass |
-| Overlay identities | Fedora keyring revision 11 has reproducible RPM/SRPM output; runtime source and bytecode bodies are unchanged. Ubuntu overlay binary/source artifacts retain their published identities. Nine boundary tests and a real-vendor changed-README rejection pass; signature and exact-source artifact checks remain release gates |
+| Overlay identities | Fedora keyring revision 11 has reproducible RPM/SRPM output; runtime source and bytecode bodies are unchanged. Ubuntu overlay binary/source artifacts retain their published identities. Nine boundary tests and a real-vendor changed-README rejection pass; source provenance and candidate package/checksum signatures verify |
 | Validation conditions | Disk-backed temporary storage and one build/test worker; one unchanged package-suite rerun passed after two visual timeouts under concurrent host load; no time limits relaxed or checks omitted |
 | Native analysis limit | Native C++ behavior and QML mechanics are unchanged; release preparation updates version/display text. Clang-Tidy and sanitizer analysis were not repeated for the recovery correction |
 | Inspector retention | Two-cycle isolated 0.14.5 probe completed; results and warm-up/whole-client limits are recorded in [Performance](PERFORMANCE.md#inspector-probe) |
 | Local installation | RPM upgrade and root-side integrity check pass; installed version and three changed backend modules match the validated payload; Core/keyring packages unchanged |
 | Live branch acceptance | Maintainer accepted normal UAT on the exact installed local RPM; no live fault injection performed |
-| Review seal | Release-preparation seal covers the accepted deltas and metadata; the public tag/seal is unchanged |
+| Review seal | Release seal covers the accepted runtime deltas; publication-point changes are limited to status/documentation |
 
 ## Installed acceptance
 
@@ -139,9 +137,6 @@ No new live-fault claim is made.
 
 ## Open assurance work
 
-- Before publication, verify the follow-up's source signature, reproducible
-  complete artifacts, and package/checksum signatures; candidate evidence alone
-  does not establish the final source identity.
 - Obtain Ubuntu Plasma field acceptance and live Secret Service restart UAT.
 - Qualify prolonged outage, suspend/roaming, and global resource-pressure
   recovery; a successful handshake alone does not prove usable browsing.
