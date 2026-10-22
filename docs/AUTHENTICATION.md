@@ -1,115 +1,76 @@
-# Authentication security boundary
+# Authentication
+
+The protocol below implements the invariants in [SECURITY.md](../SECURITY.md).
+Deployment identity checks belong in [Hardening](HARDENING.md); account/process
+transitions belong in [Architecture](ARCHITECTURE.md#authentication-and-account-lifecycle).
 
 ## Secret transport
 
-The Kirigami process receives text entered into username, password, second-factor,
-recovery-code, and security-key PIN fields. It clears those fields immediately
-after submission and does not persist or log them.
+The native UI accepts username, password, second-factor/recovery code, and
+security-key PIN fields. Submission clears the fields; the client neither
+persists nor logs them.
 
-For each secret operation:
+1. Resolve and verify the backend's unique owner before requesting a key.
+2. Request an ephemeral X25519 public key scoped to the actual D-Bus sender
+   and intended method.
+3. Derive an AES-256-GCM key with HKDF-SHA256; encrypt only required fields.
+4. Write versioned ciphertext to an anonymous Linux `memfd`, seal writes and
+   size changes, rewind, and transfer its descriptor.
+5. Validate sender, method, descriptor count, seals, size, schema, allowed fields,
+   and types before decryption.
+6. Rotate the backend private key before each decryption attempt. A sender,
+   operation, or backend generation cannot reuse another operation's key.
 
-1. The native client resolves the backend name to a unique D-Bus owner and
-   verifies its installed executable, systemd unit, UID, loader environment,
-   and owner continuity.
-2. It requests an ephemeral X25519 public key bound to the actual client sender
-   and intended backend method.
-3. It derives an AES-256-GCM key with HKDF-SHA256 and encrypts only the required
-   fields.
-4. It writes the versioned ciphertext to an anonymous Linux `memfd`, seals it
-   against writes and size changes, rewinds it, and transfers the descriptor.
-5. The backend validates sender, method, descriptor count, seals, payload size,
-   schema, field set, and types before decrypting.
-6. The backend rotates its private key before each decryption attempt. A key or
-   payload cannot be reused by another sender, operation, or backend generation.
-
-Payloads are limited to 16 KiB. The backend closes the descriptor on every path
-and overwrites its mutable input buffer. D-Bus monitors see authenticated
-ciphertext, not plaintext credentials.
-
-Qt and Python may retain immutable string copies until allocator reuse. The
-design does not defend against root, debuggers, or arbitrary same-user native
-code with process-memory access.
-
-## Process identity
-
-All packaged entry points use root-owned absolute paths and a shared generated
-environment denylist. D-Bus activation crosses dedicated systemd user services
-before Qt or Python imports application code. Direct native launches remove
-loader/runtime overrides and re-execute `/proc/self/exe` before constructing
-`QApplication` when cleanup was required.
-
-These checks resist ordinary and sandboxed session peers. They are current-state
-policy, not code-signing identity or durable attestation against arbitrary
-same-UID native code. KRunner is therefore an untrusted broker and never handles
-authentication material or calls the backend directly.
+Payloads are capped at 16 KiB. Descriptors close on every path; the mutable
+input buffer is overwritten. Plaintext does not cross D-Bus. Qt/Python immutable
+string copies may remain until allocator reuse; this is not process-memory
+protection against root or arbitrary same-user native code.
 
 ## Secret Service provider
 
-Proton SSO persists the session through `org.freedesktop.secrets`. The downstream
-keyring adapter:
+Proton SSO stores its session through `org.freedesktop.secrets` using the
+separately packaged keyring overlay. Before sending session material, it selects
+a same-user provider and pins calls, replies, and prompt signals to that unique
+owner. Already-running providers need not have activation files.
 
-- selects or activates the desktop's provider without sending secrets;
-- requires the provider to run as the session user;
-- pins calls, replies, and prompt signals to its unique owner;
-- rejects a replaced owner for the current call, closes the stale connection,
-  and retries one complete operation against a newly selected same-user owner;
-- accepts an already-running provider that is not D-Bus activatable; and
-- handles absent or stale `default` collection aliases without provider-specific
-  KeePassXC logic.
+An unavailable/replaced owner invalidates the current call and stale connection.
+Only the overlay's explicit provider-unavailable/identity-change errors permit
+one complete retry against a freshly selected same-user owner. Generic
+transport failures and dismissed prompts do not gain that retry. A credential
+write followed by an owner change during metadata lookup may repeat the same-key
+replacement.
 
-The session bus cannot portably attest the executable behind a non-dumpable
-provider. The initially selected same-user provider is a trusted desktop
-dependency; unique-owner pinning prevents a call from crossing provider owners
-but does not prove package provenance. Rebinding after a provider restart uses
-the same trust boundary as a new backend process.
+The initial provider is a trusted desktop dependency: portable D-Bus APIs attest
+its owner/user, not the executable provenance of a non-dumpable provider.
+Collection/alias selection and serialized connection reuse are specified in
+the [keyring overlay](../packaging/fedora/keyring-overlay/README.md).
+Supported stacks belong in [Compatibility](COMPATIBILITY.md).
 
-The verified overlay and supported provider stack are recorded in
-[Compatibility](COMPATIBILITY.md). The client stores only non-secret UI
-preferences in KConfig.
+## Account-facing behavior
 
-## Session and account lifecycle
-
-Saved-session restoration and connector readiness are separate. A restored
-session with failed connector initialization remains signed in but not ready;
-the UI exposes the startup error and explicit retry. Credentials are not
-requested again to mask a networking failure.
-
-Login, second factor, cancellation, FIDO2, logout, expiry, and shutdown share an
-authentication-transition owner. Account-scoped work captures the current
-session epoch and cannot mutate a replacement account. After Core refreshers
-start, replacement credentials require backend process replacement. A private
-non-secret handoff and pidfd/start-time check prove outgoing-process death before
-new login admission.
-
-Logout disables reconnection, crosses the stable-disconnect boundary, removes
-the persisted Proton session, and restores the previous kill-switch preference
-if a later step fails. Unconfirmed account or protection state produces explicit
-recovery guidance and blocks unsafe admission.
-
-The frontend receives only minimum account display metadata. Snapshots exclude
-passwords, factors, recovery codes, assertions, tokens, certificates, private
-keys, VPN credentials, human-verification tokens, and raw API responses.
+- Saved authentication with failed connector initialization remains signed in
+  but not ready. The client offers startup retry rather than another login.
+- Snapshots contain minimum account display metadata, never credentials,
+  assertions, certificates, tokens, VPN secrets, or raw API responses.
+- Expected failures use fixed public messages. Unexpected provider text and
+  tracebacks do not cross D-Bus.
+- Owner replacement invalidates pending keys and replies.
+- Unconfirmed logout reconciles Core's account/protection state and blocks
+  unsafe replacement.
+- Ordinary startup failure waits for explicit retry; durable cleanup failure
+  uses supervised restart.
+- FIDO2 is advertised only when Core supplies the complete cancellable device
+  selection/assertion/PIN contract; current limitations are in Compatibility.
 
 ## Password managers
 
-The fields support clipboard paste and deterministic keyboard navigation. The
-client does not query a password-manager database or expose a browser-extension
-protocol. Desktop Auto-Type depends on the password manager and display system;
-X11-only Auto-Type cannot inject into a native Wayland window.
+Fields support paste and deterministic keyboard navigation. The client neither
+queries password-manager databases nor implements a browser-extension protocol.
+Desktop Auto-Type depends on the manager/display system; X11-only injection
+cannot target a native Wayland window.
 
-## Failure contract
-
-- Expected failures map to fixed public messages.
-- Unexpected provider exception text and tracebacks do not cross D-Bus.
-- Owner replacement invalidates pending keys and replies.
-- A cancelled or failed logout is reconciled against Core's account state.
-- A connector failure after successful session restoration does not erase the
-  signed-in fact.
-- Ordinary startup failure remains visible without an automatic prompt loop;
-  durable cleanup failure uses supervised nonzero restart.
-
-Regression coverage includes owner substitution, sender authorization,
-operation isolation, C++/Python encryption compatibility, descriptor seals and
-closure, size and field bounds, tamper/replay rejection, exception redaction,
-password/TOTP/recovery-code flows, FIDO2 capability gating, session expiry,
-transactional logout, and a complete encrypted D-Bus descriptor smoke test.
+Regression coverage includes sender/operation isolation, C++/Python encryption
+compatibility, descriptor seals/closure, bounds, tamper/replay rejection,
+redaction, authentication factors, expiry, logout, and an encrypted descriptor
+D-Bus smoke. Current results belong in the
+[assessment](SECURITY-AUDIT-2026-08-30.md).

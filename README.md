@@ -20,13 +20,11 @@
 </p>
 
 > [!IMPORTANT]
-> Plasma VPN is independent community software. It is not developed, reviewed, sponsored, or endorsed by Proton AG. “Proton” and “Proton VPN” identify compatibility with Proton's service; Proton's names and marks remain its own.
+> Plasma VPN is independent community software, not developed, reviewed, sponsored, or endorsed by Proton AG. “Proton” and “Proton VPN” identify compatibility; their names and marks remain Proton's own.
 
-Plasma VPN gives Proton's Linux networking stack a first-class KDE home: a Kirigami Control Center, a lean resident Plasma agent, native notifications, KRunner actions, global shortcuts, System Settings integration, and a Plasma status notifier. The visible client is implemented entirely with C++20, Qt 6, KDE Frameworks 6, and Kirigami; it has no direct GTK or GNOME desktop dependency.
+Plasma VPN gives Proton's Linux networking stack a KDE home: a Kirigami Control Center, a lean resident agent, native notifications, KRunner actions, global shortcuts, and System Settings integration. It follows your Plasma theme and keeps the full interface on demand.
 
-Proton's Fedora and Ubuntu API Core packages currently retain a dependency on the GNOME NetworkManager OpenVPN editor, which installs GTK libraries. Plasma VPN does not use that editor component or add another GTK dependency, but it also does not remove or conceal an upstream Core packaging requirement.
-
-It is not a new VPN implementation. Proton's installed Core continues to own protocols, NetworkManager integration, server scoring, kill switch, IPv6 leak protection, split tunneling, account sessions, and persisted VPN state.
+The interface is C++20, Qt 6, KDE Frameworks 6, and Kirigami—not GTK. Proton Core still owns VPN protocols, NetworkManager, protection, split tunneling, and account sessions. Its upstream packages retain a GNOME NetworkManager OpenVPN editor dependency; Plasma VPN neither uses that editor nor removes the dependency.
 
 ## See it
 
@@ -38,98 +36,56 @@ It is not a new VPN implementation. Proton's installed Core continues to own pro
 | :---: | :---: | :---: |
 | [<img src="docs/images/locations.png" width="280" alt="Capability-aware server browser">](docs/images/locations.png) | [<img src="docs/images/inspector.png" width="280" alt="Read-only Connection Inspector">](docs/images/inspector.png) | [<img src="docs/images/settings.png" width="280" alt="Native Plasma settings">](docs/images/settings.png) |
 
-These previews show the current interface in light and dark Plasma themes. They use the deterministic demo backend: the connection is simulated, with no Proton account, NetworkManager changes, or real VPN tunnel.
+Light and dark Plasma themes, captured with the deterministic demo backend. These are simulated connections, with no account or real VPN tunnel.
 
 ## Why this exists
 
-Proton's official Linux networking stack is reusable, but its shipping desktop experience is GTK/GNOME-oriented. Plasma VPN asks a narrow question: what would the same service feel like if KDE Plasma were the target desktop rather than a compatibility environment?
-
-The project was started by a paying Proton subscriber since 2017 who wanted the Linux and KDE experience to reflect the quality of the underlying service. The goal is constructive: build a credible Plasma client, preserve Proton's security ownership, and make both the community code and any upstream patches inexpensive to review.
+The project was started by a paying Proton subscriber since 2017 who wanted the KDE experience to reflect the quality of the service. The aim is a credible Plasma client that preserves Proton's networking ownership and keeps its community integration straightforward to review.
 
 ## What it offers
 
-- Native password and TOTP/recovery-code sign-in, plus Proton FIDO2 when the
-  installed Core explicitly provides cancellable multi-key selection.
-- Country, city/state, Secure Core, and exact-server browsing with combinable P2P, Streaming, Tor, and Secure Core filters.
-- Proton-ranked fastest connections, saved capability defaults, global search, and pinned tray targets.
-- Protocol, NetShield, NAT, port forwarding, IPv6, custom DNS, kill-switch, and split-tunneling controls through Core's public settings APIs.
-- A resident native agent for tray actions, notifications, shortcuts, auto-connect, and reconnect coordination while the full Control Center stays on demand. Shared Startup controls let you opt into login launch, choose an open window or tray-only startup, and connect automatically to your saved target.
-- An on-demand, read-only Connection Inspector for the active server, capabilities, protection configuration, and local integration status, with no traffic collection or retained history.
-- Connection-time exit-address labels, a read-only local setup check for Core/backend status and Secret Service availability, and a community diagnostics preview that copies only allowlisted local facts when requested.
-- KRunner connection requests that require explicit Control Center confirmation rather than trusting the shared KRunner process as a VPN controller.
-- Direct Proton support-report submission, crash reporting, and optional Core
-  connection telemetry are disabled in community builds. Settings and copied
-  community diagnostics show that policy explicitly. Telemetry-capable builds
-  expose an off-by-default user preference. Required account, server, and VPN
-  service traffic remains unchanged.
+- Native sign-in, authenticator and recovery codes, and saved sessions through Freedesktop Secret Service, including the verified KeePassXC stack.
+- Country, state/city, Secure Core, and exact-server browsing; combinable P2P, Streaming, Tor, and Secure Core filters; saved Fastest defaults and pinned tray targets.
+- Core-backed protocol, NetShield, NAT, port forwarding, IPv6, custom DNS, kill-switch, and split-tunneling controls.
+- Opt-in login launch, window or tray-only startup, auto-connect, shortcuts, and confirmation-gated KRunner actions.
+- A read-only Connection Inspector, connection-time exit addresses, local setup checks, and previewable community diagnostics.
+- No automatic community diagnostic uploads. Direct Proton support submission, crash reporting, and optional connection telemetry are disabled in community builds; required Proton service traffic is unchanged.
 
-The maintained comparison with Proton's GTK client is in [Feature parity](docs/PARITY.md).
+See [Feature parity](docs/PARITY.md) for capability coverage and conditional features.
 
-## Trust boundary
+## Try it
 
-```text
-Plasma agent (resident)  ─┐
-                          ├─ owner-pinned, policy-checked session D-Bus
-Control Center (on demand)┘
-                                  │
-                    Community adapter (Python)
-                                  │ official public API
-                    Proton VPN API Core (official)
-                                  │
-        NetworkManager · protocols · kill switch · split tunneling
-```
+Download the Fedora RPM or Ubuntu Debian package sets from [Releases](https://github.com/UglyEgg/proton-vpn-kde/releases/latest). Install the client and both required overlays together; the client package does not replace Proton-owned Python files outside package ownership.
 
-Community code owns the Plasma experience, bounded input validation, and lifecycle coordination. Official Proton packages own VPN networking and session persistence. Authentication fields cross the community process boundary only as bounded, one-use encrypted ciphertext in sealed Linux memory descriptors.
-
-The desktop boundary resists ordinary and sandboxed session-bus peers; it does not claim OS-backed process identity against arbitrary native code already running as the same desktop user. The precise boundary and stronger-but-incompatible alternatives are documented in [Backend service hardening](docs/HARDENING.md).
-
-For the complete design, see [Architecture](docs/ARCHITECTURE.md), [Authentication](docs/AUTHENTICATION.md), and [Backend service hardening](docs/HARDENING.md).
+[Compatibility](docs/COMPATIBILITY.md) lists exact versions, dependencies, and validation tiers. Fedora 44 is live-accepted; Ubuntu 26.04 amd64 with Plasma 6 is package-validated and still needs community field testing. Do not run the official and community frontends concurrently against the same Proton session.
 
 ## Engineering posture
 
-The client has regression tests for asynchronous recovery and desktop integration, isolated demo captures for layout checks, and static-analysis and sanitizer gates. Each pull request gets one source and package-validation run; release tags add repeated binary/source reproducibility checks and retained artifacts without duplicating feature-branch jobs.
+Version 0.14.5 is the current public release. The project is public alpha. CI checks source, native and Python tests, static analysis, sanitizers, and Fedora/Ubuntu packaging. Release validation adds isolated review, reproducibility, signed artifacts, and installed acceptance.
 
-The 0.13.0 runtime release passed a frozen seven-perspective review. Its six bounded findings are corrected and covered by regressions; no P0 or P1 issue was substantiated. The 0.13.1 release adds cross-distribution packaging without changing VPN mechanics. CI validates source, minimum Python dependencies, Clang-Tidy, sanitizers, Fedora and Ubuntu packages, overlay policy, reproducibility inputs, and provenance without duplicating feature-branch jobs. Installed Fedora acceptance covers authentication, server browsing, settings, connection lifecycle, tray behavior, KDE launch, and inactive-protection recovery. The 0.14.1 release completed its seven-perspective review, bounded remediation, corrected-diff re-review, package validation, and focused installed acceptance. Version 0.14.2 rebases the Fedora overlay on Core 5.8.3, removes the superseded Protun workaround, and retains three independently verified patches without changing client or VPN mechanics.
+The [assessment](docs/SECURITY-AUDIT-2026-08-30.md) records validation scope and assurance limits. [Performance](docs/PERFORMANCE.md) records measured results rather than a fixed memory promise. Neither constitutes independent third-party security certification.
 
-The 0.14.4 maintenance release restores automatic reconnect when leak protection blocks ordinary routing and preserves accepted reconnects across intermediate Core events. It adds Fedora Core 5.8.11 beta compatibility while retaining the stable package floor. Seven isolated reviews reported no unresolved packaged-runtime finding, and a controlled native-plugin crash recovered automatically with protection retained. Validation and publication gates are recorded in the [assessment](docs/SECURITY-AUDIT-2026-08-30.md).
-
-The concise [security and engineering assessment](docs/SECURITY-AUDIT-2026-08-30.md) records findings, controls, evidence, and residual risk. Memory, CPU, search, and retention measurements are in [Performance](docs/PERFORMANCE.md).
-
-These are engineering checks, not certification. The project has received maintainer-directed, AI-assisted review; it has not received an independent third-party security audit or penetration test.
-
-## Current status
-
-Version 0.14.4 is the current public release. Version 0.12.0 was an accepted internal milestone and was never tagged or published. Fedora 44 remains the live-accepted target. Ubuntu 26.04 amd64 with Plasma 6 is the second package-validated target: CI builds and tests the client plus both required overlays as binary and source Debian packages. It will remain explicitly package-validated rather than live-supported until community field reports establish the Plasma lifecycle. Exact Core and dependency baselines are maintained in [Compatibility](docs/COMPATIBILITY.md).
-
-> [!NOTE]
-> Verified KeePassXC support uses the separately packaged, provider-neutral Proton keyring rebuild recorded in [Compatibility](docs/COMPATIBILITY.md). The source, patches, tests, and manifests are included under [`packaging/fedora/keyring-overlay`](packaging/fedora/keyring-overlay/) with Debian packaging under [`packaging/debian/keyring-overlay`](packaging/debian/keyring-overlay/). Release CI builds the overlay beside the client; both package formats require explicit capabilities instead of silently replacing an installed Python file.
->
-> Reliable Protun reconnects on Plasma also use the independently reviewable API-Core overlays under [`packaging/fedora/api-core-overlay`](packaging/fedora/api-core-overlay/) and [`packaging/debian/api-core-overlay`](packaging/debian/api-core-overlay/). Each reconstructs Proton's exact signed distribution payload and verifies every changed path and hash. Fedora Core 5.8.3 now supplies the required transient-key behavior; the pinned Ubuntu 5.6.10 reconstruction retains the reviewed downstream patch until its baseline advances.
+The community adapter uses Core's public API and separately packaged, version-pinned overlays. See [Architecture](docs/ARCHITECTURE.md) for ownership and [Security policy](SECURITY.md) for the threat boundary and private reporting.
 
 ## Evaluate or contribute
 
-The safe demo backend exercises the interface without a Proton account or NetworkManager access:
+Build and run the isolated, offscreen demo smoke without an account or network changes:
 
 ```bash
 cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
 cmake --build build
 
-PYTHONPATH=backend python3 -m proton_vpn_kde_backend --demo
-./build/proton-vpn-kde
+dbus-run-session -- scripts/smoke-demo.sh
 ```
 
-Run `ctest --test-dir build --output-on-failure`, `scripts/check-static-analysis.sh`, and `scripts/check-python-analysis.sh` for the standard source verification. The Clang analysis commands and required tools are documented in [Contributing](CONTRIBUTING.md). Fedora dependencies and RPM instructions are in the [packaging guide](packaging/fedora/README.md); Ubuntu build and release commands are in the [release procedure](docs/RELEASING.md).
-
-Before contributing, read [Contributing](CONTRIBUTING.md). Security issues must follow the private process in [Security policy](SECURITY.md); account, billing, service, and unmodified official-package problems belong with [Proton Support](https://proton.me/support/contact).
-
-## Project references
+[Contributing](CONTRIBUTING.md) owns development checks and documentation conventions. Package instructions are in [Fedora packaging](packaging/fedora/README.md) and [Release procedure](docs/RELEASING.md).
 
 | Question | Reference |
 | --- | --- |
-| Will it work on my system? | [Compatibility](docs/COMPATIBILITY.md) |
-| What is implemented or intentionally different? | [Feature parity](docs/PARITY.md) |
-| What is planned next? | [Roadmap](docs/ROADMAP.md) |
-| How are releases produced? | [Release procedure](docs/RELEASING.md) |
+| What works, and on which stack? | [Compatibility](docs/COMPATIBILITY.md), [Feature parity](docs/PARITY.md) |
+| How is it designed? | [Architecture](docs/ARCHITECTURE.md), [Visual system](docs/VISUAL-SYSTEM.md) |
+| What is validated or still open? | [Assessment](docs/SECURITY-AUDIT-2026-08-30.md), [Roadmap](docs/ROADMAP.md) |
+| Where should a problem be reported? | [Support](SUPPORT.md), [Security policy](SECURITY.md) |
 | What changed? | [Changelog](CHANGELOG.md) |
 
-Community code is licensed under `GPL-3.0-or-later`; see [LICENSE](LICENSE), [COPYING.md](COPYING.md), and [Third-party notices](THIRD_PARTY_NOTICES.md). This repository intentionally uses original neutral artwork rather than Proton's logo. The GPL license for Proton's source code does not grant trademark rights or imply endorsement.
+Community code is licensed under `GPL-3.0-or-later`; see [LICENSE](LICENSE), [Copying](COPYING.md), and [Third-party notices](THIRD_PARTY_NOTICES.md). Original neutral artwork does not imply Proton affiliation or trademark permission.

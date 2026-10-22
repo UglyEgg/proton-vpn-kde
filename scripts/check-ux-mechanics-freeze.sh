@@ -95,6 +95,7 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/async_utils.py|\
         backend/proton_vpn_kde_backend/client_authorization.py|\
         backend/proton_vpn_kde_backend/controller.py|\
+        backend/proton_vpn_kde_backend/core_servers.py|\
         backend/proton_vpn_kde_backend/core_settings.py|\
         backend/proton_vpn_kde_backend/demo_adapter.py|\
         backend/proton_vpn_kde_backend/core_compatibility.py|\
@@ -116,6 +117,7 @@ while IFS= read -r path; do
         backend/tests/test_async_utils.py|\
         backend/tests/test_client_authorization.py|\
         backend/tests/test_controller.py|\
+        backend/tests/core_fakes.py|backend/tests/test_fastest_failover.py|\
         backend/tests/test_core_lifecycle_conformance.py|\
         backend/tests/test_dbus_contract.py|\
         backend/tests/test_dbus_service.py|\
@@ -234,18 +236,22 @@ if ((${#violations[@]} > 0)); then
     exit 1
 fi
 
+# 0.14.5: accepted seven-review recovery delta, focused rechecks and normal UAT;
+# version/display metadata and the reviewed documentation consolidation included.
+# Packaging-only follow-up: revision the Fedora keyring documentation payload
+# and preserve Ubuntu's published original archive; runtime seals are unchanged.
 assert_diff_hash \
-    "d3a1edddff4b5572c730bd967af9a1e3de5e99de61ea4ed4f666909c9138aecd" \
+    "fb3972bc98a9f643f974f1045c388db937191a0e7e0fefefab8813fa2ce706dd" \
     "build-system" CMakeLists.txt
 assert_diff_hash \
     "1d259cc2b1dd1d08025f69c3aa622a122079a24ea761545e42ac37915e79e260" \
     "Python dependency floor" backend/requirements-minimum.txt
 assert_diff_hash \
-    "160430a39b7e44e2dc07152d41705da33a10bdaf7a5ffbb6ffaf4a08f12a4150" \
+    "3faf4998a84729c70e3d5aa296ef7cd71d11f1656838e0605a97e8b433d9ea20" \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "14b8d038a90b62a0b887eaac23ab32a67a5e67aeebabc4f918c0cebd7fcd82cd" \
+    "5282625f3dc637d8df33492f85da13495ed44818131d8cfac54de9c8099446d9" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests \
     data/snapshot-schema-v2.json data/snapshot-schema-v2.json.license \
@@ -288,7 +294,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "fbf18be84808c4e73892b9269fde1e19ff9c2f8a383cc166f3e74872a03d604d" \
+    "71937b271ed1b17c0b42ce0ec4d5e4e610ee0a86c6d9763d95e8352556f0ce52" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "ed9fc06f2491cbe3457a0aef6fd7c5de888a34240df33004f630d782cf3f2c76" \
@@ -302,11 +308,11 @@ assert_diff_hash \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "8c2d606660713c8a5be1a75a15711341f6726efed296e8ae0d1f810448e73004" \
+    "528514b939dc3a11043bc20d293781f03b613ea4e668f86077e63070c0f326cd" \
     "QML presentation" qml
 
 assert_diff_hash \
-    "274ce64efe03b7c303d79d30230c4188435206cc52fb90f0f04a3bcfcfc11071" \
+    "aafbc39d8c4870e6e988b9c20c5219b88594e53d58fd6a1c6bc50d1644ab46ce" \
     "licensing and upstream provenance" \
     .editorconfig .gitattributes .gitignore \
     backend/proton-vpn-kde-backend.in \
@@ -321,7 +327,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "11a379167efdcdbb5e2ae47a243736a705df55aa54c213a3b2dc8bb4cb839920" \
+    "03cc0486d2c515f28d7bfce6bb8db2c1fc483cd57987dc0b8664412a743576a2" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \

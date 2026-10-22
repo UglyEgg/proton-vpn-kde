@@ -71,13 +71,13 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("0.14.4 maintenance release. Automatic recovery while VPN protection stays active.")
+            description: qsTr("0.14.5 maintenance release. Bounded Fastest recovery without changing your filters or server pins.")
             iconName: "software-properties"
 
             Kirigami.Heading {
                 Layout.fillWidth: true
                 level: 3
-                text: "0.14.4"
+                text: "0.14.5"
             }
 
             ReleaseNoteGroup {
@@ -85,9 +85,9 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Highlights")
                 headingLevel: 4
                 notes: [
-                    qsTr("Reconnect after a VPN process failure even when leak protection blocks ordinary internet access."),
-                    qsTr("Keep an accepted reconnect running through intermediate connection-state changes."),
-                    qsTr("Support Proton Core 5.8.11 beta on Fedora while retaining the existing stable Core baseline.")
+                    qsTr("After repeated failures, Fastest can try up to two other servers that meet your filters and location choice."),
+                    qsTr("Exact-server pins stay fixed. Retry limits and VPN protection remain in effect."),
+                    qsTr("Reduce server-list processing during automatic recovery and preserve accepted reconnect work.")
                 ]
             }
 
@@ -120,6 +120,17 @@ Kirigami.ScrollablePage {
             title: qsTr("Earlier versions")
             description: qsTr("Development milestones and published releases. The complete engineering history remains in CHANGELOG.md.")
             iconName: "view-history"
+
+            ReleaseNoteGroup {
+                heading: "0.14.4"
+                headingLevel: 3
+                notes: [
+                    qsTr("Recovered protected connections after VPN process failures without ordinary internet routing."),
+                    qsTr("Preserved accepted reconnects across intermediate Core notifications and supported Fedora Core 5.8.11 beta.")
+                ]
+            }
+
+            Kirigami.Separator { Layout.fillWidth: true }
 
             ReleaseNoteGroup {
                 heading: "0.14.3"

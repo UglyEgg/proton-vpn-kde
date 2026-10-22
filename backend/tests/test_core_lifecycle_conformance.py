@@ -24,6 +24,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from proton_vpn_kde_backend.adapters import ProtonCoreAdapter
+from proton_vpn_kde_backend.core_servers import FastestSelection
 from proton_vpn_kde_backend.reconnector import AsyncReconnector
 import test_proton_core_adapter as adapter_tests
 
@@ -94,6 +95,66 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
                      environment._path_cache, environment._path_runtime):
             self.assertTrue(Path(path).is_relative_to(self.environment_root), path)
         self.assertEqual(self.environment_root.stat().st_mode & 0o077, 0)
+
+    def test_fastest_scope_views_retain_real_core_group_semantics_and_work_bounds(self):
+        from proton.vpn.session.servers import LogicalServer, ServerList
+
+        def logical(identifier, *, country="CH", location="Zurich", tier=2,
+                    features=12, score=9):
+            return LogicalServer({
+                "ID": identifier, "Name": identifier, "EntryCountry": country,
+                "ExitCountry": country, "City": location, "Tier": tier,
+                "Status": 1, "Features": features, "Score": score, "Load": 0,
+                "Servers": [{"ID": identifier, "Status": 1}],
+            })
+
+        catalog = ServerList(user_tier=2, logicals=[
+            logical("current"), logical("nearby", score=5),
+            logical("geneva", location="Geneva", score=1),
+            logical("free", tier=0, score=0),
+            logical("secure", features=13, score=2),
+            logical("foreign", country="US", score=3),
+        ])
+        location = FastestSelection(country_code="CH", group_kind="location",
+                                    group_name="Zurich", features=("p2p", "streaming"))
+        secure = FastestSelection(country_code="CH", group_kind="secure-core",
+                                  group_name="Via Secure Core", features=("secure-core", "p2p"))
+        preferred_cases = (
+            (FastestSelection(), "current"),
+            (FastestSelection(country_code="CH"), "current"),
+            (FastestSelection(country_code="CH", features=()), "current"),
+            (location, "current"), (secure, "secure"),
+        )
+        projected, filtered = [], []
+        group_by_country = ServerList.group_by_country
+        get_available = ServerList.get_available_servers
+
+        def grouping(view, **kwargs):
+            projected.append(len(view.logicals))
+            return group_by_country(view, **kwargs)
+
+        def available(servers, tier):
+            selected = list(servers)
+            filtered.append(len(selected))
+            return get_available(selected, tier)
+
+        order = [s.id for s in catalog.logicals]
+        with patch.object(ServerList, "group_by_country", grouping), \
+             patch.object(ServerList, "get_available_servers", staticmethod(available)):
+            for selection, identifier in preferred_cases:
+                with self.subTest(selection=selection):
+                    self.assertIs(catalog.get_by_id(identifier), selection.pick(catalog, identifier, set()))
+        self.assertEqual([1, 1], projected)
+        self.assertEqual([1] * len(preferred_cases), filtered)
+        self.assertEqual("nearby", location.pick(catalog, "", {"current"}).id)
+        self.assertEqual("secure", secure.pick(catalog, "", set()).id)
+        # A paid location excludes free and Secure Core records; country
+        # selection does not. Both remain Core-owned grouping behavior.
+        self.assertEqual("free", FastestSelection(country_code="CH", features=()).pick(
+            catalog, "", set()).id)
+        self.assertEqual(order, [s.id for s in catalog.logicals])
+        free_catalog = ServerList(user_tier=0, logicals=catalog.logicals)
+        self.assertEqual("free", location.pick(free_catalog, "", set()).id)
 
     def test_cold_import_without_desktop_environment(self):
         environment = dict(os.environ)
@@ -213,7 +274,9 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
         connection.stop.assert_not_awaited()
         self.adapter._terminal_exit.assert_not_called()
 
-    async def crash_recovery(self, mode, *, failures=0, checkpoint=lambda _stage: None):
+    async def crash_recovery(
+        self, mode, *, failures=0, checkpoint=lambda _stage: None, fastest=False,
+    ):
         """Real public Core Up, dispatcher and state tasks; only external I/O is fake."""
         trace, queued, attempts, errors = [], [], [], []
         connected = asyncio.Event()
@@ -238,11 +301,11 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
         def emit(event):
             queued.append(asyncio.create_task(self.connector._on_connection_event(event)))
 
-        def protocol(*_args):
+        def protocol(vpn_server, *_args):
             connection = self.connection()
             connection.add_persistence = AsyncMock()
             connection.server_id, connection.protocol, connection.backend = (
-                old.server_id, old.protocol, old.backend
+                getattr(vpn_server, "id", old.server_id), old.protocol, old.backend
             )
 
             async def start():
@@ -286,6 +349,16 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
         refresher = SimpleNamespace(
             server_list=SimpleNamespace(get_by_id=Mock(return_value=object())), client_config=object()
         )
+        if fastest:
+            from proton.vpn.session.servers import ServerFeatureEnum as Feature, ServerList
+            # Real Core availability, feature intersection and score selection;
+            # only the server records and privileged I/O are synthetic.
+            refresher.server_list = ServerList(user_tier=2, logicals=[
+                SimpleNamespace(id=identifier, name=identifier, score=index,
+                                enabled=True, tier=1, features=[Feature.P2P, Feature.STREAMING])
+                for index, identifier in enumerate(("server-id", "alternative-1", "alternative-2"))
+            ])
+            self.connector.get_vpn_server = Mock(side_effect=lambda logical, _config: logical)
         delays = []
 
         def retry_delay(counter):
@@ -306,6 +379,9 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
             authentication_epoch_validator=lambda epoch: epoch == self.adapter._authentication_epoch,
             authentication_error_callback=AsyncMock(), delay_factory=retry_delay,
             session_probe=SimpleNamespace(is_unlocked=AsyncMock(return_value=True), close=AsyncMock()),
+            fastest_selection_source=lambda: (
+                FastestSelection(features=("p2p", "streaming")) if fastest else None
+            ),
         )
 
         def observe(state):
@@ -327,6 +403,11 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
                 await reconnector.disable()
                 await asyncio.gather(*queued)
         self.assertEqual(failures + 1, len(attempts))
+        if fastest:
+            self.assertEqual(
+                ["server-id", "server-id", "alternative-1", "alternative-1", "alternative-2"],
+                [connection.server_id for connection in attempts],
+            )
         self.assertEqual(list(range(failures + 1)), delays)
         self.assertEqual("stop", trace[0])
         for index, step in enumerate(trace):
@@ -346,6 +427,11 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
         for mode in self.states.KillSwitchSetting:
             with self.subTest(mode=mode):
                 await self.crash_recovery(mode, failures=2)
+
+    async def test_fastest_failover_preserves_real_core_protected_handoffs(self):
+        for mode in self.states.KillSwitchSetting:
+            with self.subTest(mode=mode):
+                await self.crash_recovery(mode, failures=4, fastest=True)
 
     @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_NAMESPACE_PARENT"),
                          "explicit isolated network namespace required")

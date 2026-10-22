@@ -1,3 +1,12 @@
+proton-vpn-kde (0.14.5-1plasmavpn1) resolute; urgency=medium
+
+  * Add bounded Fastest failover with retained filters and location scope.
+  * Preserve exact-server pins, retry budgets, and connection ownership.
+  * Avoid redundant server-catalog projection and consolidate documentation.
+  * Retain the existing Core and keyring overlay baselines.
+
+ -- uglyegg <uglyegg@entropy.quest>  Wed, 21 Oct 2026 00:00:00 -0500
+
 proton-vpn-kde (0.14.4-1plasmavpn1) resolute; urgency=medium
 
   * Retry protected connections when no ordinary internet route is available.

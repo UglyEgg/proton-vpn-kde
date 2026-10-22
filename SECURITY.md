@@ -10,8 +10,6 @@ tagged minor release.
 | 0.14.x | Supported |
 | 0.13.x and earlier | Unsupported |
 
-Version 0.12.0 was an internal development milestone and was never published.
-
 ## Report a vulnerability privately
 
 Do not open a public issue for a suspected vulnerability.
@@ -45,7 +43,7 @@ cannot offer rewards on Proton's behalf.
 - the Python community adapter and its versioned session D-Bus interface;
 - encrypted authentication payload transport and secret handling;
 - KRunner, System Settings, notification, shortcut, and tray integrations;
-- Fedora packaging, systemd user services, activation, and process lifetime;
+- Fedora and Ubuntu packaging, systemd user services, activation, and process lifetime;
 - community-owned support-report and diagnostic handling;
 - interactions in which this client violates the documented boundary with
   Proton's official VPN Core.
@@ -102,8 +100,7 @@ The detailed design is documented in
 [Architecture](docs/ARCHITECTURE.md), and
 [Backend service hardening](docs/HARDENING.md).
 
-The current maintainer-directed assessment and its closed historical findings
-are published in the
+Current validation status and assurance limits are recorded in the
 [security and engineering assessment](docs/SECURITY-AUDIT-2026-08-30.md). It is
 not an independent certification and does not replace private reporting of a
 new suspected vulnerability.

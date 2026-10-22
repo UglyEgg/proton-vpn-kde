@@ -1,70 +1,83 @@
 # Performance
 
-## Runtime measurements
+## Interpretation
 
-Measurements are proportional set size (PSS) unless noted. They are regression
-evidence for the stated build and fixture, not fixed product requirements.
+PSS and SwapPss account for shared and swapped memory; RSS is labeled separately.
+Results are bounded measurements of identified builds/fixtures, not guaranteed
+product budgets. The current Fastest branch has no new whole-client performance
+qualification.
 
-| State | Result | Scope |
+## Fastest retry selection
+
+Same-host Core 5.8.11 model/selection probe with 18,221 synthetic logicals,
+149 countries, and 201 location groups; three warm untraced runs per case,
+with separate allocation runs. Socket construction is prohibited. Before/after
+medians isolate selection, not whole-client latency or memory.
+
+| Selection work | Before | Current |
+| --- | ---: | ---: |
+| Eligible preferred, global | 272.789 ms | 0.032 ms |
+| Eligible preferred, location group | 391.300 ms | 0.054 ms |
+| Group with no feature match | 346.450 ms | 4.587 ms |
+| Preferred check + group alternative query | 811.249 ms | 5.333 ms |
+
+The last row retains the original two-call probe; production now enumerates
+alternatives once per switching tick. Preferred group selection's traced peak
+falls from 1,604,168 to 5,259 bytes. The preferred-plus-alternative pair peaks
+at 18,155 bytes after the correction.
+
+Preferred checks use Core's ID index and single-object eligibility/grouping.
+Alternative projection includes only the selected country, uses current Core
+objects, and does not sort the cached catalog. Global alternative ranking is
+still linear in the eligible catalog; no parallel Core access or persistent
+secondary index is introduced. Unit work-bound checks and actual-Core fixtures
+guard the selection scope independently of these timing samples.
+
+## Whole-client observations
+
+| Sample | PSS + SwapPss | Conditions |
 | --- | ---: | --- |
-| Resident agent, disconnected | 11,124 KiB PSS | Fedora 44 Plasma session; no Control Center or backend |
-| Resident agent, isolated offscreen | 29,440 KiB RSS | Qt offscreen session |
-| Agent + backend, connected for 10 minutes | 130.8–133.8 MiB PSS + SwapPss | 21 samples from 0.13 development build `58b3d83`; Control Center closed |
-| Connected resident CPU | 0.537 CPU-seconds / 10 minutes | 0.089% of one core over the same interval |
-| Complete disconnected demo stack | 76.5 MiB combined PSS | Published 0.11.3; backend, agent, and Control Center |
-| Complete disconnected demo stack | 80.8 MiB median combined PSS | Accepted 0.12 mechanics baseline; three runs |
-| 0.14.1 vs 0.13.1 base | 95,074 vs 95,002 KiB combined PSS | Same-host isolated A/B; +72 KiB (+0.08%) |
+| Agent + backend, Core 5.8.3 | 128.3 MiB median | Mature connected 0.14.3 runtime, window closed; seven samples |
+| Agent + backend, Core 5.8.11 | About 169.1 MiB | Connected after guarded recovery; seven samples |
+| Open Control Center, Core 5.8.11 | 65.2 MiB separately | Same post-recovery observation |
 
-During the connected retention sample, agent private writable memory plus swap
-remained 7,800 KiB; backend private writable memory plus swap fell from 114,660
-to 113,408 KiB. Thread and descriptor counts were constant. This is bounded
-observation, not proof that every reconnect or longer session is leak-free.
+Different servers and process lifecycles prevent an A/B interpretation.
+Descriptor/thread counts were stable across the seven 5.8.11 samples
+(agent 16/4, backend 32/23). These observations do not establish a steady-state
+Core regression or long-run retention bound.
 
 The resident agent does not load QML, server/application models, authentication
-transport, or Proton Core. It observes without a backend lease and acquires one
-only for an explicit action. A disconnected, unleased backend retires through a
-one-shot deadline; active tunnels and capture recovery are event-owned without a
-polling loop.
+transport, or Core. Backend idle retirement and page lifetime are specified in
+[Architecture](ARCHITECTURE.md), not inferred from these samples.
 
-The same release-source/base A/B measured Control Center RSS at +448 KiB and
-startup CPU at +0.03 seconds. These are small same-host differences, not a
-cross-version product budget. Package-manager readiness inspection is lazy and
-runs only when Local setup is opened.
+## Inspector probe
 
-## Inspector retention
-
-Two 20-cycle, same-process Inspector open/close probes retained 7,284 KiB of
-private writable memory after warm-up. The final five closes varied by 128 KiB,
-and owned-page/window-descendant counts returned to baseline after every close.
-An explicit diagnostic GC after ten seconds reclaimed a further 1,024 KiB.
-
-A two-cycle 0.14.3 offscreen probe on 2026-10-15 produced:
+A two-cycle 0.14.5 release-preparation offscreen probe on 2026-10-21 measured:
 
 | State | PSS (KiB) | Private memory (KiB) |
 | --- | ---: | ---: |
-| Initial Overview | 84,600 | 76,068 |
-| First close | 92,525 | 87,044 |
-| Second close | 93,557 | 88,076 |
+| Initial Overview | 69,443 | 58,724 |
+| First close | 73,175 | 62,456 |
+| Second close | 73,563 | 62,844 |
 
-The short probe shows warm-up retention and a smaller second increment; two
-cycles do not establish long-run behavior. Offscreen software rendering excludes
-native GPU-driver retention.
+The first close retained 3,732 KiB; the second added 388 KiB. This measures the
+Control Center against the isolated demo backend, not resident Core memory or
+an A/B improvement. Two cycles expose warm-up retention, not a leak-free
+plateau. Software rendering excludes native GPU-driver retention; long-duration
+qualification remains open.
 
-## Search benchmark
+## Search fixture
 
-The corrected offline benchmark uses actual Core 5.7.0 cache/model types and an
-explicit fake authenticated session. It prohibits initialization, login, and
-socket creation. Production authentication and search code are unchanged.
+Actual Core 5.7.0 cache/model types with a fake authenticated session;
+initialization, login, and socket creation are prohibited. The fixture has
+18,220 logical servers, 201 projected locations, and a 26,030,781-byte cache.
+Python 3.14; 50 iterations/query.
 
-Fixture: 26,030,781-byte cache, 18,220 logical servers, 201 projected
-locations, system Python 3.14, 50 iterations per query.
-
-| Metric | Result |
+| Setup metric | Result |
 | --- | ---: |
 | Cache load | 237.377 ms |
-| Projection build + first query | 114.539 ms |
-| Retained traced allocation | 2,640,777 bytes |
-| Peak traced allocation | 5,289,966 bytes |
+| Projection + first query | 114.539 ms |
+| Retained / peak traced allocation | 2,640,777 / 5,289,966 bytes |
 
 | Query | Median | p95 | Maximum |
 | --- | ---: | ---: | ---: |
@@ -75,76 +88,43 @@ locations, system Python 3.14, 50 iterations per query.
 | `a` | 6.186 ms | 6.887 ms | 7.270 ms |
 | no match | 0.299 ms | 0.570 ms | 1.711 ms |
 
-The projection stores immutable scalar search fields, not Proton server
-objects. It resolves load, maintenance, and account availability from current
-Core objects for matched records. Load-only refreshes do not rebuild it;
-topology or localized-name changes invalidate it for lazy reconstruction.
+This is a search-fixture baseline, not current-Core or network-latency evidence.
 
-The earlier direct-object implementation measured 418–968 ms for representative
-queries against a comparable 18,138-server cache. The scalar projection measured
-0.2–5.7 ms and returned identical fields and ordering for 12 representative
-queries. Host/cache differences preclude interpreting that comparison as a
-universal ratio.
+## Server-string sharing
 
-## Core server-string sharing
+Signed vendor Core 5.8.3 versus its string-sharing overlay; identical real
+18,220-server cache, seven fresh processes/variant.
 
-The Fedora 5.8.3 overlay was measured against the unmodified signed 5.8.3
-payload with the same real 18,220-server cache. Seven isolated processes were
-used for each variant.
-
-| Metric | Vendor 5.8.3 | String sharing | Difference |
-| --- | ---: | ---: | ---: |
-| Server-list load PSS, median | 85,380 KiB | 62,596 KiB | -22,784 KiB (-26.7%) |
-| Retained traced allocation | 38,660,402 bytes | 29,474,344 bytes | -9,186,058 bytes |
-| Peak traced allocation | 59,782,316 bytes | 50,700,881 bytes | -9,081,435 bytes |
-| Load time, median | 360.1 ms | 425.7 ms | +65.6 ms (+18.2%) |
-
-Without sharing, the loaded model retained 18,220 distinct objects for each of
-149 country and 195 city values. The patched model retained one object per
-equal value. This is a server-list component A/B, not whole-client RSS, and it
-exposes a one-time decode-time tradeoff rather than claiming a free reduction.
-
-An independent installed-package check used a sanitized 18,000-server fixture
-and seven fresh processes per variant. Median PSS fell from 93,442 to 61,006
-KiB (-34.7%); retained traced allocation fell from 42,508,970 to 27,740,013
-bytes. Median load time rose from 323.3 to 413.6 ms (+27.9%). This corroborates
-the real-cache result while preserving the same component-only and one-time
-load-cost qualifications.
-
-## Core 5.8.11 beta comparison (2026-10-15)
-
-Same-host, alternating fresh-process comparison of the 5.8.3 and 5.8.11
-overlays. Both retain string sharing. One frozen public server cache contains
-18,221 logical servers (25,977,530 bytes; SHA-256
-`996fd95d4b3fba44d09c637c10954f9b8463794387aee9db76ba5aff1ff9fc69`).
-Each variant has seven normal runs and seven separate tracemalloc runs.
-Network socket creation is prohibited; no session or live API is initialized.
-
-| Metric, median | Overlay 5.8.3 | Overlay 5.8.11 |
+| Metric, median | Vendor | Shared strings |
 | --- | ---: | ---: |
-| Loaded process PSS + SwapPss | 69,865 KiB | 70,315 KiB |
-| Process peak RSS, normal runs | 102,092 KiB | 128,056 KiB |
-| Cache load + model construction, normal runs | 195.374 ms | 197.417 ms |
-| Retained traced allocations | 38,177,747 bytes | 38,178,105 bytes |
-| Peak traced allocations | 61,088,762 bytes | 86,934,181 bytes |
+| Loaded process PSS | 85,380 KiB | 62,596 KiB |
+| Retained traced allocation | 38,660,402 bytes | 29,474,344 bytes |
+| Peak traced allocation | 59,782,316 bytes | 50,700,881 bytes |
+| Load time | 360.1 ms | 425.7 ms |
 
-The retained allocation difference is 358 bytes; both models share 149 country
-strings across 18,221 servers. The new cache implementation raises process peak
-RSS by 25.4 MiB and traced peak by 24.6 MiB. Its raw byte buffer remains live
-while decoded JSON text is parsed, consistent with the extra peak allocation.
-This is a component regression, not evidence of increased steady-state
-whole-client memory. Traced runs are excluded from the process-PSS/timing rows.
-No extra cache-buffer optimization is included in this candidate.
+PSS falls 26.7%; decode time rises 18.2%. These are component results, not
+whole-client RSS. The sharing pool retains one object per equal string rather
+than one per server.
 
-Before installation, seven samples of the mature connected 0.14.3 agent/backend
-on Core 5.8.3 measured 131,371 KiB median combined PSS + SwapPss (128.3 MiB),
-with the window closed. After guarded recovery on Core 5.8.11, seven read-only
-connected samples measured about 169.1 MiB for the agent/backend; the open
-window separately measured 65.2 MiB. Agent/backend file descriptors and
-threads stayed at 16/32 and 4/23 across those samples. The observations use
-different connection lifecycles and servers, so they do not establish a
-5.8.11 steady-state regression. A controlled whole-client comparison and
-long-duration retention test remain open.
+## Supported-overlay comparison
+
+Same-host 5.8.3/5.8.11 overlays with sharing, measured 2026-10-15. Seven normal
+and seven separate tracemalloc runs/variant; sockets are prohibited. Frozen
+18,221-server cache: 25,977,530 bytes, SHA-256
+`996fd95d4b3fba44d09c637c10954f9b8463794387aee9db76ba5aff1ff9fc69`.
+
+| Metric, median | 5.8.3 | 5.8.11 |
+| --- | ---: | ---: |
+| Loaded PSS + SwapPss | 69,865 KiB | 70,315 KiB |
+| Peak RSS, normal runs | 102,092 KiB | 128,056 KiB |
+| Load + model construction | 195.374 ms | 197.417 ms |
+| Retained traced allocation | 38,177,747 bytes | 38,178,105 bytes |
+| Peak traced allocation | 61,088,762 bytes | 86,934,181 bytes |
+
+Retained allocation differs by 358 bytes. Peak RSS rises 25.4 MiB and traced
+peak 24.6 MiB, consistent with retaining the raw buffer while parsing decoded
+JSON. No additional cache-buffer optimization is included. Traced runs are
+excluded from process-PSS/timing rows.
 
 ## Reproduce
 
@@ -154,11 +134,10 @@ scripts/measure-demo-memory.sh build
 scripts/measure-inspector-retention.sh build
 ```
 
-All scripts use isolated state and remove their processes and files. The search
-report prints only cache size, aggregate counts, timing, allocation, and result
-counts. PSS varies with allocators, Qt/KDE versions, platform plugins, and page
-cache.
+The scripts own isolated state and cleanup. Reports contain aggregate counts,
+timing, and allocations, not account data. Allocator, Qt/KDE, platform plugin,
+GPU, and page-cache differences affect results.
 
-Measurement gaps: live GPU rendering, cold navigation latency, representative
-cache scaling, normal-GC long-duration Inspector/diagnostics retention, and a
-long-duration 0.14.3/Core-5.8.3 resident-state matrix.
+Open measurements: controlled current-stack whole-client A/B, long-duration
+resident/Inspector/diagnostic retention, live GPU behavior, cold navigation,
+and representative cache scaling.
