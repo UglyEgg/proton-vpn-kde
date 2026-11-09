@@ -111,6 +111,7 @@ while IFS= read -r path; do
         backend/proton_vpn_kde_backend/packet_capture.py|\
         backend/proton_vpn_kde_backend/reconnector.py|\
         backend/proton_vpn_kde_backend/refresher_events.py|\
+        backend/proton_vpn_kde_backend/secret_service_readiness.py|\
         backend/proton_vpn_kde_backend/snapshot_contract.py|\
         backend/proton_vpn_kde_backend/task_scope.py|\
         backend/tests/test_account_transition.py|\
@@ -126,6 +127,8 @@ while IFS= read -r path; do
         backend/tests/test_proton_core_adapter.py|\
         backend/tests/test_reconnector.py|\
         backend/tests/test_refresher_events.py|\
+        backend/tests/test_secret_service_readiness.py|\
+        backend/tests/test_startup_credential_recovery.py|\
         backend/tests/test_search_projection.py|\
         backend/tests/test_task_scope.py|\
         data/proton-vpn-kde-backend.service.in|\
@@ -240,6 +243,11 @@ fi
 # version/display metadata and the reviewed documentation consolidation included.
 # Packaging-only follow-up: revision the Fedora keyring documentation payload
 # and preserve Ubuntu's published original archive; runtime seals are unchanged.
+# Startup follow-up: seven isolated reviews and all five affected rechecks
+# accepted the bounded backend/test delta and queued auto-connect regression.
+# Admission follow-up: focused error-class/compatibility review, security diff
+# review and affected control rechecks accepted the constructor/selector gate,
+# one initial activation and keyring-owned first-use collection creation.
 assert_diff_hash \
     "fb3972bc98a9f643f974f1045c388db937191a0e7e0fefefab8813fa2ce706dd" \
     "build-system" CMakeLists.txt
@@ -251,7 +259,7 @@ assert_diff_hash \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "5282625f3dc637d8df33492f85da13495ed44818131d8cfac54de9c8099446d9" \
+    "bf80ff8ccd2b06e99eeecdfc377aa34b33fcee15f71ae0e92472c583ca3df2a4" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests \
     data/snapshot-schema-v2.json data/snapshot-schema-v2.json.license \
@@ -304,7 +312,7 @@ assert_diff_hash \
     "ed48be8ab69639c3dcc7f5733171debea065af0cfa022d8191630c430aaa6242" \
     "CI" .github/workflows/ci.yml
 assert_diff_hash \
-    "4bc293c2644fb436827aa618a4c8e7ed06908b53612bab558cf9609aaf1468b5" \
+    "00e2c843d0706caa0328f33c783041c93935fdc1e2d9b99ebaeec87eca4835a2" \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \

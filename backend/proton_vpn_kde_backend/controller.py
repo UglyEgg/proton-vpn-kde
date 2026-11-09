@@ -18,6 +18,7 @@ from .async_utils import await_owned
 from .errors import (
     CleanupAdmissionExpired,
     ConnectorStartupError,
+    SecretStoreUnavailableError,
     UserVisibleError,
     UserVisibleRuntimeError,
     UserVisibleValueError,
@@ -283,6 +284,12 @@ class BackendController:
                     logged_in=error.logged_in,
                     auth_state="signed_in" if error.logged_in else "signed_out",
                     error_code="connector_initialization_failed",
+                    message=bounded_user_message(error, failed.message),
+                )
+            elif isinstance(error, SecretStoreUnavailableError):
+                failed = replace(
+                    failed, auth_state="authentication_unknown",
+                    error_code="secret_store_locked",
                     message=bounded_user_message(error, failed.message),
                 )
             self._publish(failed)

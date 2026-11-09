@@ -28,6 +28,13 @@ protection against root or arbitrary same-user native code.
 
 ## Secret Service provider
 
+Before constructing its Core API, the backend enforces Proton's public
+`keyring=secret_service` selector through `PROTON_LOADER_OVERRIDES`. Only keyring
+selection tokens are replaced; other component overrides retain their meaning.
+This policy remains in effect because SSO rechecks selection on later operations.
+An unavailable provider fails closed instead of selecting Core's JSON fallback.
+Legacy fallback files are neither read for restoration nor migrated or deleted.
+
 Proton SSO stores its session through `org.freedesktop.secrets` using the
 separately packaged keyring overlay. Before sending session material, it selects
 a same-user provider and pins calls, replies, and prompt signals to that unique
@@ -50,6 +57,17 @@ Supported stacks belong in [Compatibility](COMPATIBILITY.md).
 
 - Saved authentication with failed connector initialization remains signed in
   but not ready. The client offers startup retry rather than another login.
+- Startup waits for store readiness before any owned Core/session construction,
+  rather than accepting a cached logged-in result from another backend. Expired
+  waits or repeated refusal require backend retry,
+  not sign-out or adapter reset. Bounds and ownership are in
+  [Architecture](ARCHITECTURE.md#backend-lifecycle).
+- Initial admission permits one standard D-Bus activation request and an empty
+  provider's keyring-owned default creation. Subsequent lock retries stay passive.
+  Existing collections follow the packaged keyring's default-or-sole rule. A
+  missing/stale alias permits fallback only for missing-object errors; access
+  failures, ambiguity, and owner changes do not. The probe never unlocks, creates
+  collections, or reads secrets.
 - Snapshots contain minimum account display metadata, never credentials,
   assertions, certificates, tokens, VPN secrets, or raw API responses.
 - Expected failures use fixed public messages. Unexpected provider text and
@@ -57,8 +75,8 @@ Supported stacks belong in [Compatibility](COMPATIBILITY.md).
 - Owner replacement invalidates pending keys and replies.
 - Unconfirmed logout reconciles Core's account/protection state and blocks
   unsafe replacement.
-- Ordinary startup failure waits for explicit retry; durable cleanup failure
-  uses supervised restart.
+- Other startup failures wait for explicit retry; durable cleanup failure uses
+  supervised restart.
 - FIDO2 is advertised only when Core supplies the complete cancellable device
   selection/assertion/PIN contract; current limitations are in Compatibility.
 

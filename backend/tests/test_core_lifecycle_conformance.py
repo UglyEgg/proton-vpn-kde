@@ -10,6 +10,7 @@ All external I/O and publication are substituted explicitly.
 """
 
 import asyncio
+import base64
 import hashlib
 import importlib
 import inspect
@@ -21,11 +22,14 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 from proton_vpn_kde_backend.adapters import ProtonCoreAdapter
 from proton_vpn_kde_backend.core_servers import FastestSelection
+from proton_vpn_kde_backend.controller import BackendController
+from proton_vpn_kde_backend.errors import ConnectorStartupError
 from proton_vpn_kde_backend.reconnector import AsyncReconnector
+from proton_vpn_kde_backend.secret_service_readiness import require_secret_service_backend
 import test_proton_core_adapter as adapter_tests
 
 
@@ -50,6 +54,22 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
         from xdg import BaseDirectory
         cls.enterClassContext(patch.object(BaseDirectory, "xdg_config_home", directories["XDG_CONFIG_HOME"]))
         cls.enterClassContext(patch.object(BaseDirectory, "xdg_cache_home", directories["XDG_CACHE_HOME"]))
+        sso_path = os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES")
+        if sso_path:
+            sso_source = Path(sso_path).resolve()
+            # Base Core 0.7.4; SSO includes the installed single-read overlay.
+            sso_hashes = {
+                "proton/sso/sso.py": "be8fdb9bf62c2a1e207ae03d627a05b375f743b08d8aac2f30bd73a6f688e760",
+                "proton/loader/loader.py": "8ba14ff555647338138ddc4b69ff818cfe129a3a058ef33a7761047b94c0a21c",
+                "proton/keyring/_base.py": "3f7f75042723558b5853c9c94d2c413b80e96958a807ac67850d315b62ec05ab",
+                "proton/keyring/textfile.py": "06dfa739c2a309273523cb5c04896b02b164688290b54568603a91509f398d78",
+                "proton/session/api.py": "64554fc97c29c04758d8102e52d5168303ec0523799f73db6238e8e35644a109",
+            }
+            for relative, digest in sso_hashes.items():
+                if hashlib.sha256((sso_source / relative).read_bytes()).hexdigest() != digest:
+                    raise AssertionError("SSO/Loader fixture changed; review its contract")
+            sys.path.insert(0, str(sso_source))
+            cls.addClassCleanup(sys.path.remove, str(sso_source))
         source = Path(os.environ["PLASMA_VPN_TEST_CORE_SITE_PACKAGES"]).resolve()
         # These provider modules are unchanged by our packaging overlays.
         expected = {
@@ -63,6 +83,9 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
             },
             "proton/vpn/core/refresher/scheduler.py": {
                 "a4830c8b24645e59d8ec4b47180b2afd0e72bc2c7d685da9ecb15647eb886449",
+            },
+            "proton/vpn/core/refresher/certificate_refresher.py": {
+                "2727199f8bda6b5c566064d10347bcd23f62d765c010cb75560a2df9e610e593",  # 5.8.11
             },
             "proton/vpn/core/refresher/vpn_data_refresher.py": {
                 "80117ee317910e528a129a0c0d10bcda873f48234e372555bfbab54d3e478804",  # 5.6.20
@@ -80,9 +103,26 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
         cls.events = importlib.import_module("proton.vpn.connection.events")
         cls.scheduler = importlib.import_module("proton.vpn.core.refresher.scheduler")
         cls.refresher = importlib.import_module("proton.vpn.core.refresher.vpn_data_refresher")
+        cls.certificates = importlib.import_module("proton.vpn.core.refresher.certificate_refresher")
+        if sso_path:
+            for relative in sso_hashes:
+                module = importlib.import_module(relative[:-3].replace("/", "."))
+                if Path(inspect.getfile(module)).resolve() != sso_source / relative:
+                    raise AssertionError("Imported SSO/Loader differs from the selected fixture")
+            for relative, digest in {
+                "proton/vpn/core/api.py": "aa2c46e627999ad88b5276a020f5085f5286a7cd9080c81a7d27836960d18e4b",
+                "proton/vpn/core/session_holder.py": "906f740c4511826d7b361c344f098fb6588d3ef0f3f49d2fe25019f26bf07741",
+                "proton/vpn/session/session.py": "a1d5fd0ba4b1dbb07f3628e6510b2ca865b4c77c89b51a0131d62860d360a2b2",
+            }.items():
+                if hashlib.sha256((source / relative).read_bytes()).hexdigest() != digest:
+                    raise AssertionError("Core SSO facade fixture changed; review its contract")
+                module = importlib.import_module(relative[:-3].replace("/", "."))
+                if Path(inspect.getfile(module)).resolve() != source / relative:
+                    raise AssertionError("Imported Core SSO facade differs from the fixture")
         for module, relative in ((cls.connector_module, "proton/vpn/core/vpnconnector.py"),
                                  (cls.states, "proton/vpn/connection/states.py"),
                                  (cls.scheduler, "proton/vpn/core/refresher/scheduler.py"),
+                                 (cls.certificates, "proton/vpn/core/refresher/certificate_refresher.py"),
                                  (cls.refresher, "proton/vpn/core/refresher/vpn_data_refresher.py")):
             if Path(inspect.getfile(module)).resolve() != source / relative:
                 raise AssertionError("The imported Core differs from the selected fixture")
@@ -557,3 +597,329 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_real_scheduler_update_failure_reports_degraded_services(self):
         await self.scheduler_error_case(RuntimeError("unused details"), "signed_in_degraded")
+
+    async def stale_certificate_failure(self, mode):
+        api, connector = adapter_tests.ProtonCoreAdapterTests().make_api()
+        connector.current_state = adapter_tests.state_named("Connected")
+        scheduler = self.scheduler.Scheduler(check_interval_in_ms=1)
+        old_started, new_started = asyncio.Event(), asyncio.Event()
+        old_failure, finish_new = asyncio.Event(), asyncio.Event()
+        reported, degraded, updated = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        fetches, cancelled = [], []
+
+        async def fetch():
+            fetches.append(len(fetches) + 1)
+            if len(fetches) == 1:
+                old_started.set()
+                if mode == "cancellation":
+                    try:
+                        await asyncio.Event().wait()
+                    except asyncio.CancelledError:
+                        await old_failure.wait()
+                        raise RuntimeError("synthetic old-worker persistence failure") from None
+                await old_failure.wait()
+                raise RuntimeError("synthetic old-worker failure")
+            new_started.set()
+            try:
+                await finish_new.wait()
+            except asyncio.CancelledError:
+                cancelled.append(True)
+                raise
+            return SimpleNamespace(remaining_time_to_next_refresh=3600)
+
+        certificate = self.certificates.CertificateRefresher(SimpleNamespace(
+            session=SimpleNamespace(fetch_certificate=fetch),
+        ))
+        certificate.certificate_updated_callback = AsyncMock(side_effect=updated.set)
+        refresher = object.__new__(self.refresher.VPNDataRefresher)
+        refresher._scheduler = scheduler
+        refresher._certificate_refresher = certificate
+        refresher._certificate_refresher_task_id = None
+        api.refresher.force_refresh_certificate = Mock(wraps=refresher.force_refresh_certificate)
+        api.refresher.disable.side_effect = scheduler.stop
+        adapter = ProtonCoreAdapter(api)
+        snapshots, unhandled = [], []
+
+        def changed(snapshot):
+            snapshots.append(snapshot)
+            if snapshot.auth_state == "signed_in_degraded":
+                degraded.set()
+
+        def expired():
+            connector.current_state = adapter_tests.state_named("Error")
+            connector.current_state.context = SimpleNamespace(event=self.events.ExpiredCertificate(None))
+            adapter._reconnector.status_update(connector.current_state)
+
+        loop = asyncio.get_running_loop()
+        previous = loop.get_exception_handler()
+        loop.set_exception_handler(lambda _loop, context: unhandled.append(context))
+        try:
+            await adapter.initialize(changed)
+            callback = api.refresher.set_error_callback.call_args.args[0]
+            api.refresher.set_error_callback.side_effect = refresher.set_error_callback
+            def report(error):
+                callback(error)
+                reported.set()
+            refresher.set_error_callback(report)
+            if mode == "episode-reset":
+                expired()
+            else:
+                refresher._certificate_refresher_task_id = scheduler.run_soon(certificate.refresh)
+            scheduler.start()
+            await asyncio.wait_for(old_started.wait(), 1)
+            if mode == "cancellation":
+                expired()  # Cancel old worker; it fails only after its successor starts.
+                await asyncio.wait_for(new_started.wait(), 1)
+                old_failure.set()
+            else:
+                async with adapter._serialized_authentication_transition():
+                    old_failure.set()
+                    await asyncio.wait_for(reported.wait(), 1)
+                    if mode == "episode-reset":
+                        connector.current_state = adapter_tests.state_named("Disconnected")
+                        adapter._reconnector.status_update(connector.current_state)
+                    expired()  # An old failure is queued behind the authentication owner.
+            await asyncio.wait_for(new_started.wait(), 1)
+            await asyncio.wait_for(degraded.wait(), 1)
+            self.assertEqual([], cancelled)
+            self.assertEqual(2, len(fetches))
+            self.assertEqual(2 if mode == "episode-reset" else 1,
+                             api.refresher.force_refresh_certificate.call_count)
+            self.assertIsNone(adapter._reconnector._retry_task)
+            finish_new.set()
+            await asyncio.wait_for(updated.wait(), 1)
+            for _ in range(30):
+                if all(record.background_task is None for record in scheduler.task_list):
+                    break
+                await asyncio.sleep(0)
+            self.assertEqual(1, len(scheduler.task_list))
+            self.assertIsNone(scheduler.task_list[0].background_task)
+            connector.connect.assert_not_awaited()
+            connector.disconnect.assert_not_awaited()
+            api.logout.assert_not_awaited()
+            await adapter.close()
+            await asyncio.sleep(0)
+            self.assertEqual([], unhandled)
+        finally:
+            old_failure.set()
+            finish_new.set()
+            await adapter.close()
+            await scheduler.stop()
+            loop.set_exception_handler(previous)
+
+    async def test_real_deferred_certificate_failure_cannot_cancel_a_new_worker(self):
+        await self.stale_certificate_failure("deferred")
+
+    async def test_real_cancelled_certificate_cleanup_cannot_cancel_its_successor(self):
+        await self.stale_certificate_failure("cancellation")
+
+    async def test_real_certificate_failure_cannot_cross_episode_reset(self):
+        await self.stale_certificate_failure("episode-reset")
+
+    def sso_fixture(self):
+        # Check isolation before creating actual SSO state or replacing providers.
+        for kind, variable in (("net", "PLASMA_VPN_TEST_NAMESPACE_PARENT"),
+                               ("user", "PLASMA_VPN_TEST_USER_NAMESPACE_PARENT")):
+            parent = os.environ.get(variable)
+            self.assertIsNotNone(parent)
+            self.assertNotEqual(parent, os.readlink(f"/proc/self/ns/{kind}"))
+        from proton.sso import ProtonSSO
+        from proton.keyring import Keyring
+        from proton.keyring.textfile import KeyringBackendJsonFiles
+        from proton.loader.loader import Loader
+        from proton.utils import ExecutionEnvironment
+        from proton.utils.environment import VPNExecutionEnvironment
+        api_module = importlib.import_module("proton.vpn.core.api")
+        holder_module = importlib.import_module("proton.vpn.core.session_holder")
+        real_api = api_module.ProtonVPNAPI
+        root = Path(self.enterContext(tempfile.TemporaryDirectory(dir=self.environment_root)))
+        for environment, label in ((ExecutionEnvironment(), "sso"),
+                                   (VPNExecutionEnvironment(), "vpn")):
+            for kind in ("config", "cache", "runtime"):
+                directory = root / label / kind
+                directory.mkdir(parents=True, mode=0o700)
+                self.enterContext(patch.object(environment, f"_path_{kind}", str(directory)))
+        self.enterContext(patch.dict(os.environ, {"PROTON_LOADER_OVERRIDES": ""}))
+
+        def account_key(name):
+            return "proton-sso-account-" + base64.b32encode(name.encode()).decode().rstrip("=").lower()
+
+        # Real JSON backend, but synthetic account data in private test storage.
+        legacy = KeyringBackendJsonFiles()
+        legacy["proton-sso-accounts"] = ["legacy"]
+        legacy[account_key("legacy")] = {"AccountName": "legacy", "UID": "offline-legacy", "Scopes": []}
+        secure = {"proton-sso-accounts": ["secure"],
+                  account_key("secure"): {"AccountName": "secure", "UID": "offline-secure", "Scopes": []}}
+        available = [False]
+        secret_reads = []
+
+        class SyntheticSecretService(Keyring):
+            @classmethod
+            def _get_priority(cls):
+                return 5
+
+            @classmethod
+            def _validate(cls):
+                return available[0]
+
+            def _get_item(self, key):
+                secret_reads.append(key)
+                return secure[key]
+
+        loader = Loader()
+        groups = dict(loader._proton_entry_point_groups)
+        groups["proton_loader_keyring"] = [
+            SimpleNamespace(name="secret_service", load=lambda: SyntheticSecretService),
+            SimpleNamespace(name="legacy_file", load=lambda: KeyringBackendJsonFiles),
+        ]
+        self.enterContext(patch.object(loader, "_Loader__known_types", {}))
+        self.enterContext(patch.object(Loader, "_proton_entry_point_groups",
+                                      new_callable=PropertyMock, return_value=groups))
+        json_read = self.enterContext(patch.object(
+            KeyringBackendJsonFiles, "_get_item", side_effect=AssertionError("JSON reads forbidden")))
+        json_write = self.enterContext(patch.object(
+            KeyringBackendJsonFiles, "_set_item", side_effect=AssertionError("JSON writes forbidden")))
+        self.addCleanup(json_read.assert_not_called)
+        self.addCleanup(json_write.assert_not_called)
+        facades = []
+        before_creation = Mock()
+
+        def create_api(metadata):
+            before_creation()
+            # Use the real session holder, SSO, VPN session and logged-in getter;
+            # substitute API construction and stop at the networking boundary.
+            facade = object.__new__(real_api)
+            facade._session_holder = holder_module.SessionHolder(metadata)
+            self.addCleanup(facade._session_holder._proton_sso._global_adv_lock.close)
+            facade.refresher = adapter_tests.ProtonCoreAdapterTests().make_api()[0].refresher
+            facade.get_vpn_connector = AsyncMock(side_effect=RetirementRejected("No networking in fixture"))
+            facades.append(facade)
+            return facade
+
+        factory = self.enterContext(patch.object(api_module, "ProtonVPNAPI", side_effect=create_api))
+        adapter = ProtonCoreAdapter(account_transition_path=root / "account.json")
+        self.addAsyncCleanup(adapter.close)
+        return SimpleNamespace(adapter=adapter, factory=factory, facades=facades,
+                               available=available, secret_reads=secret_reads,
+                               secret_data=secure,
+                               before_creation=before_creation, sso=ProtonSSO,
+                               keyring=Keyring, secret_type=SyntheticSecretService,
+                               account_key=account_key)
+
+    @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES"),
+                         "explicit hash-checked SSO fixture required")
+    async def test_actual_sso_cached_json_success_cannot_bypass_admission(self):
+        fixture = self.sso_fixture()
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def wait(_remaining, *, initial_admission):
+            self.assertTrue(initial_admission)
+            entered.set()
+            await release.wait()
+            return True
+        snapshots = []
+        with patch("proton_vpn_kde_backend.adapters.wait_for_secret_service",
+                   new=AsyncMock(side_effect=wait)):
+            task = asyncio.create_task(fixture.adapter.initialize(snapshots.append))
+            await asyncio.wait_for(entered.wait(), 1)
+            fixture.factory.assert_not_called()
+            self.assertEqual([], fixture.secret_reads)
+            self.assertFalse(snapshots[-1].ready)
+            fixture.available[0] = True
+            release.set()
+            with self.assertRaises(ConnectorStartupError) as caught:
+                await asyncio.wait_for(task, 1)
+        self.assertTrue(caught.exception.logged_in)
+        self.assertIsInstance(caught.exception.__cause__, RetirementRejected)
+        self.assertEqual("secure", fixture.facades[0].account_name)
+        fixture.factory.assert_called_once()
+        fixture.facades[0].get_vpn_connector.assert_awaited_once()
+        self.assertTrue(fixture.secret_reads)
+        self.assertIn("keyring=secret_service", os.environ["PROTON_LOADER_OVERRIDES"].split())
+        fixture.available[0] = False
+        with self.assertRaises(RuntimeError):
+            fixture.facades[0]._session_holder._proton_sso._get_session_data("secure")
+
+    @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES"),
+                         "explicit hash-checked SSO fixture required")
+    async def test_actual_loader_provider_loss_before_lookup_never_selects_json(self):
+        fixture = self.sso_fixture()
+        fixture.available[0] = True
+        def lose_provider():
+            fixture.available[0] = False
+        fixture.before_creation.side_effect = lose_provider
+        controller = BackendController(fixture.adapter)
+        with patch("proton_vpn_kde_backend.adapters.wait_for_secret_service",
+                   new=AsyncMock(return_value=True)), \
+             self.assertLogs("proton_vpn_kde_backend.controller", level="ERROR"):
+            self.assertFalse(await controller.start())
+        self.assertEqual([], fixture.secret_reads)
+        fixture.facades[0].get_vpn_connector.assert_not_awaited()
+        self.assertFalse(fixture.adapter._initialized)
+        self.assertFalse(controller.snapshot.ready)
+        self.assertEqual("authentication_unknown", controller.snapshot.auth_state)
+
+    @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES"),
+                         "explicit hash-checked SSO fixture required")
+    async def test_actual_sso_rechecks_cannot_fall_back_after_provider_loss(self):
+        fixture = self.sso_fixture()
+        require_secret_service_backend()
+        fixture.available[0] = True
+        sso = fixture.sso(appversion="offline-fixture@0")
+        self.addCleanup(sso._global_adv_lock.close)
+        session = sso.get_default_session(override_class=importlib.import_module("proton.vpn.session").VPNSession)
+        self.assertTrue(session.logged_in)
+        self.assertEqual("secure", session.AccountName)
+        fixture.available[0] = False
+        with self.assertRaises(RuntimeError):
+            sso._get_session_data("secure")
+        with self.assertRaises(RuntimeError):
+            fixture.keyring.get_from_factory()[fixture.account_key("secure")] = {"AccountName": "unused"}
+        fixture.available[0] = True
+        self.assertEqual("secure", sso._get_session_data("secure")["AccountName"])
+        self.assertIsInstance(sso._keyring, fixture.secret_type)
+
+    @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES"),
+                         "explicit hash-checked SSO fixture required")
+    def test_secret_service_selector_matches_installed_keyring_registration(self):
+        from importlib.metadata import entry_points
+        self.assertTrue(any(entry.name == "secret_service" for entry in entry_points(
+            group="proton_loader_keyring")))
+
+    @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES"),
+                         "explicit hash-checked SSO fixture required")
+    async def test_actual_sso_empty_secret_store_does_not_restore_legacy_json_session(self):
+        fixture = self.sso_fixture()
+        fixture.secret_data.clear()
+        from dbus_fast import Variant
+        from dbus_fast.constants import MessageType
+        owner, observed = ":1.42", []
+        async def call(message):
+            observed.append(message.member)
+            if message.member == "StartServiceByName":
+                self.assertEqual(["org.freedesktop.secrets", 0], message.body)
+                fixture.available[0] = True
+                body = [1]
+            elif message.member == "GetNameOwner":
+                body = [owner]
+            elif message.member == "GetConnectionUnixUser":
+                body = [os.getuid()]
+            elif message.member == "ReadAlias":
+                body = ["/"]
+            elif message.member == "Get":
+                self.assertEqual(["org.freedesktop.Secret.Service", "Collections"], message.body)
+                body = [Variant("ao", [])]
+            else:
+                raise AssertionError("Admission must not create a collection or read secrets")
+            return SimpleNamespace(body=body, sender=owner, message_type=MessageType.METHOD_RETURN)
+        bus = SimpleNamespace(connect=AsyncMock(), call=AsyncMock(side_effect=call),
+                              disconnect=Mock(), wait_for_disconnect=AsyncMock())
+        with patch("proton_vpn_kde_backend.secret_service_readiness.MessageBus", return_value=bus):
+            with self.assertRaises(ConnectorStartupError) as caught:
+                await fixture.adapter.initialize(lambda _snapshot: None)
+        self.assertFalse(caught.exception.logged_in)
+        self.assertIsInstance(caught.exception.__cause__, RetirementRejected)
+        self.assertEqual("StartServiceByName", observed[0])
+        fixture.factory.assert_called_once()
+        self.assertIsNone(fixture.facades[0].account_name)
+        self.assertIsInstance(fixture.facades[0]._session_holder._proton_sso._keyring, fixture.secret_type)
+        self.assertEqual("keyring=secret_service", os.environ["PROTON_LOADER_OVERRIDES"])

@@ -2,9 +2,13 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.14.5 is the current public package release. Fedora's normal-operation
-UAT is accepted for the recovery code; both distributions pass package checks.
-Ubuntu still needs Plasma field reports.
+Plasma VPN 0.14.5 is prepared for release; qualification remains pending.
+Version 0.14.4 remains the current public package release. The startup-recovery
+branch passes native and local Fedora RPM validation, isolated source tests and
+focused independent review. The corrected unsigned Fedora RPM is installed and
+integrity-checked; the maintainer accepted clean-boot UAT with KeePassXC 2.8.0 on
+November 9. Signed commit-bound release packaging remains unqualified.
+Ubuntu has not been rebuilt for this follow-up and still needs Plasma field reports.
 Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.md).
 
 | Component | Fedora 44 | Ubuntu 26.04 |
@@ -92,3 +96,15 @@ These are tested integration bounds, not a support promise for future Proton,
 distribution, Qt, or KDE releases. Evidence is owned by the
 [assessment](SECURITY-AUDIT-2026-08-30.md); promotion gates are owned by the
 [release procedure](RELEASING.md).
+
+## Isolated source conformance
+
+```bash
+scripts/test-core-recovery-isolated.sh CORE_SITE_PACKAGES [SSO_SITE_PACKAGES]
+```
+
+The second argument enables actual SSO/Loader regressions against the hash-pinned
+Core 0.7.4 and VPN API Core 5.8.11 fixture. These use synthetic storage, substituted
+provider/network boundaries, and disposable user/network namespaces. They do not
+qualify desktop prompting or live connection recovery. Other SSO baselines need
+their own source verification.

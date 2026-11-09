@@ -61,7 +61,7 @@ Download the Fedora RPM or Ubuntu Debian package sets from [Releases](https://gi
 
 ## Engineering posture
 
-Version 0.14.5 is the current public release. The project is public alpha. CI checks source, native and Python tests, static analysis, sanitizers, and Fedora/Ubuntu packaging. Release validation adds isolated review, reproducibility, signed artifacts, and installed acceptance.
+Version 0.14.5 is prepared for release; 0.14.4 remains the current public release. The project is public alpha. CI checks source, native and Python tests, static analysis, sanitizers, and Fedora/Ubuntu packaging. Release validation adds isolated review, reproducibility, signed artifacts, and installed acceptance.
 
 The [assessment](docs/SECURITY-AUDIT-2026-08-30.md) records validation scope and assurance limits. [Performance](docs/PERFORMANCE.md) records measured results rather than a fixed memory promise. Neither constitutes independent third-party security certification.
 

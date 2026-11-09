@@ -79,14 +79,27 @@ a lease except during an explicit action. Owner loss releases clients without
 polling.
 
 Disconnected idle state retires after the production grace period. Active
-tunnels, operations, and capture recovery keep the backend alive. Ordinary
-initialization failure is published once for explicit retry; durable cleanup
-failure exits nonzero for supervised recovery.
+tunnels, operations, and capture recovery keep the backend alive. Before owned
+Core construction or saved-session lookup, startup requests standard Secret
+Service activation once and observes a same-user, stable owner. An existing
+default/sole collection must be unlocked; a provider with no collections is
+admitted to keyring-owned default creation. This gates successful cached reads
+as well as failures. Backend selection is
+enforced for the process lifetime; [Authentication](AUTHENTICATION.md#secret-service-provider)
+owns that policy.
+
+Admission and session restoration share one two-minute deadline. A subsequent
+locked-store refusal permits at most one further credential request after another
+readiness observation. Timeout, repeated refusal, or an unknown startup error stops
+for explicit backend retry. Durable capture/account cleanup retains its shorter
+supervised bound and journal. No timed-out provider worker is replaced within
+that activation. Only expiration of the owned deadline becomes secret-store
+unavailability; a provider-origin timeout retains the unknown-failure path.
 
 Idle retirement waits on lifetime events and one deadline, not a polling loop.
 Lease and snapshot changes wake it to recheck eligibility.
 
-Readiness follows saved-session prewarm, connector construction, refreshers,
+Readiness follows store admission, saved-session prewarm, connector construction, refreshers,
 and recovery initialization. Pending capture recovery bounds unanswered
 Secret Service/connector waits without discarding its recovery record.
 An open frontend may reactivate a lost backend, reverify identity, and restore
@@ -154,7 +167,15 @@ Disconnected alone does not prove retirement. Queued reconnection is not
 terminal, and early Connected must not cancel its accepted Up caller.
 
 Background authentication failures enter expiry handling. Other refresh
-failures preserve the tunnel and publish degraded-services state.
+failures preserve the tunnel and publish degraded-services state. Core's public
+error callback supplies no request identity; a traceback cannot establish which
+certificate attempt failed. Such notices never re-arm or cancel a refresh.
+`ExpiredCertificate` admits one initial public `force_refresh_certificate` request
+per connection episode. Duplicate notifications, recovery Off/On, and temporary
+suspension do not repeat it. A healthy terminal state or an explicit new target
+starts a new episode. A queued ordinary reconnect cannot dispatch Core Up while
+the certificate is expired. Stopped background jobs require an explicit restart
+of background controls. Core owns certificate fetch, scheduling, and protection.
 
 ## Settings and observability
 

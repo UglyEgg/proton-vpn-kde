@@ -24,10 +24,12 @@ from .errors import (
     CleanupAdmissionExpired,
     ConnectorStartupError,
     NpsCompletionUnknownError,
+    SecretStoreUnavailableError,
     SessionExpiredError,
     UserVisibleRuntimeError,
     UserVisibleValueError,
     is_proton_authentication_needed,
+    is_secret_store_locked,
 )
 from .controller import (
     CountryInfo,
@@ -97,6 +99,9 @@ from .refresher_events import (
     RefreshFailure, RefreshFailureKind, RefresherFailureRelay, ignore_retired_refresh_error,
 )
 from .search_projection import ServerSearchProjection
+from .secret_service_readiness import (
+    SECRET_STORE_WAIT_SECONDS, require_secret_service_backend, wait_for_secret_service,
+)
 
 
 __all__ = [
@@ -112,8 +117,8 @@ CAPTURE_RECOVERY_CONNECTOR_TIMEOUT_SECONDS = 5.0
 CONNECTION_RETIREMENT_SECONDS = 30.0
 INCOMPLETE_CONNECTION_RETIREMENT_EXIT_CODE = 1
 BACKGROUND_REFRESH_DEGRADED_MESSAGE = (
-    "Some Proton background updates stopped. "
-    "Sign out and sign in again to restart them."
+    "Some Proton background updates failed. "
+    "If updates do not resume, quit background controls and reopen Plasma VPN."
 )
 _OwnedTaskResult = TypeVar("_OwnedTaskResult")
 
@@ -146,7 +151,9 @@ class ProtonCoreAdapter:
     """Thin adapter over the official python-proton-vpn-api-core package.
 
     Proton modules are imported lazily so demo mode and unit tests have no
-    dependency on a locally installed Proton client.
+    dependency on a locally installed Proton client. An injected API retains
+    its caller's construction/admission responsibility; the production backend
+    owns its API and admits it here before any session lookup.
     """
 
     def __init__(
@@ -165,6 +172,7 @@ class ProtonCoreAdapter:
         account_transition_path: Path | None = None,
     ):
         self._api: Any = api
+        self._owns_api = api is None
         self._connector: Any = None
         self._callback: SnapshotCallback | None = None
         self._server_data_callback: ServerDataCallback | None = None
@@ -231,14 +239,6 @@ class ProtonCoreAdapter:
         self._initialized = False
         self._callback = callback
         self._server_data_callback = server_data_callback
-        self._core_memory_optimized = _core_memory_optimizations_active()
-        self._core_version = _core_package_version()
-        if self._api is None:
-            from proton.vpn.core.api import ProtonVPNAPI
-            from proton.vpn.core.session_holder import ClientTypeMetadata
-
-            self._api = ProtonVPNAPI(ClientTypeMetadata(type="gui"))
-
         # Proton SSO reaches Secret Service through a synchronous keyring API.
         # Warm the cached session away from the D-Bus asyncio thread so a
         # provider unlock prompt (KeePassXC, KWallet, etc.) cannot freeze the
@@ -260,12 +260,45 @@ class ProtonCoreAdapter:
                     "The outgoing backend is still stopping; retry the service shortly"
                 )
         pending_cleanup = pending_capture_recovery or pending_account_transition is not None
-        session_probe = run_in_daemon_thread(self._api.is_user_logged_in)
+        restore_deadline = None
+        if self._owns_api:
+            # A successful cached-session read can come from Core's JSON
+            # fallback. Admit no owned Core construction/lookup until the
+            # selected store is ready, and prohibit fallback even if it vanishes.
+            require_secret_service_backend()
+            loop = asyncio.get_running_loop()
+            restore_deadline = loop.time() + (
+                CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS if pending_cleanup
+                else SECRET_STORE_WAIT_SECONDS
+            )
+            self._publish_secret_store_wait()
+            if (not await wait_for_secret_service(
+                    max(0.0, restore_deadline - loop.time()), initial_admission=True)
+                    or loop.time() >= restore_deadline):
+                if pending_cleanup:
+                    raise UserVisibleRuntimeError(
+                        "Secret Service was not ready while protected cleanup was pending"
+                    )
+                raise SecretStoreUnavailableError()
+        self._core_memory_optimized = _core_memory_optimizations_active()
+        self._core_version = _core_package_version()
+        if self._api is None:
+            from proton.vpn.core.api import ProtonVPNAPI
+            from proton.vpn.core.session_holder import ClientTypeMetadata
+
+            self._api = ProtonVPNAPI(ClientTypeMetadata(type="gui"))
         if pending_cleanup:
+            remaining = (max(0.0, restore_deadline - asyncio.get_running_loop().time())
+                         if restore_deadline is not None
+                         else CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS)
+            if remaining <= 0:
+                raise UserVisibleRuntimeError(
+                    "Proton session restoration did not finish while local cleanup was pending"
+                )
             try:
                 self._logged_in = await asyncio.wait_for(
-                    session_probe,
-                    timeout=CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS,
+                    run_in_daemon_thread(self._api.is_user_logged_in),
+                    timeout=remaining,
                 )
             except TimeoutError:
                 raise UserVisibleRuntimeError(
@@ -273,7 +306,7 @@ class ProtonCoreAdapter:
                     "local cleanup was pending"
                 ) from None
         else:
-            self._logged_in = await session_probe
+            self._logged_in = await self._restore_saved_session(restore_deadline)
 
         if pending_capture_recovery and not self._logged_in:
             # Core intentionally ignores a persisted connection while logged
@@ -377,6 +410,45 @@ class ProtonCoreAdapter:
         # the controller receives this single authoritative ready snapshot.
         self._initialized = True
         return snapshot
+
+    def _publish_secret_store_wait(self) -> None:
+        if self._callback:
+            self._callback(VpnSnapshot(
+                state="starting", auth_state="authentication_unknown",
+                message="Waiting for your secret store to unlock…",
+            ))
+
+    async def _restore_saved_session(self, deadline: float | None = None) -> bool:
+        # Retry only this pre-connector stage. Re-running all initialization
+        # after an arbitrary keyring failure could duplicate live Core owners.
+        loop = asyncio.get_running_loop()
+        if deadline is None:
+            deadline = loop.time() + SECRET_STORE_WAIT_SECONDS
+        if loop.time() >= deadline:
+            raise SecretStoreUnavailableError()
+        restore_timeout = asyncio.timeout_at(deadline)
+        try:
+            async with restore_timeout:
+                try:
+                    return bool(await run_in_daemon_thread(self._api.is_user_logged_in))
+                except Exception as error:
+                    if not is_secret_store_locked(error):
+                        raise
+                self._publish_secret_store_wait()
+                if not await wait_for_secret_service(max(0.0, deadline - loop.time())):
+                    raise SecretStoreUnavailableError()
+                # A second refusal is terminal for this activation. Never
+                # repeat credential requests after denial or a timed-out worker.
+                try:
+                    return bool(await run_in_daemon_thread(self._api.is_user_logged_in))
+                except Exception as error:
+                    if not is_secret_store_locked(error):
+                        raise
+                    raise SecretStoreUnavailableError() from None
+        except TimeoutError:
+            if not restore_timeout.expired():
+                raise
+            raise SecretStoreUnavailableError() from None
 
     async def _finish_account_restart(self) -> None:
         await self._logout_with_disconnect_barrier(self._connection_retirement_deadline())
@@ -2243,7 +2315,8 @@ class ProtonCoreAdapter:
             else:
                 # An escaped exception removes that job from Core scheduling.
                 # Preserve the account, tunnel, other jobs and recovery policy;
-                # report degraded updates rather than inventing a retry.
+                # report degraded updates. The public callback cannot identify
+                # a failed request, so it must never cancel/re-arm a successor.
                 self._background_refresh_degraded = True
                 self._publish_snapshot()
 

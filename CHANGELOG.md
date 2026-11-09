@@ -4,6 +4,20 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 ## [Unreleased]
 
+### Startup credential recovery
+
+- Require Secret Service admission before Core construction or session lookup,
+  including cached-success startup. Existing collections must be unlocked;
+  dormant providers and first-use collection creation remain supported.
+  Enforce its backend through Proton's public
+  selector so provider loss cannot enable JSON fallback. Admission and restoration
+  share a two-minute bound; protected cleanup retains its shorter deadline.
+- A failed or cancelled restore neither clears the session nor resets networking.
+  Legacy fallback files are not migrated or removed.
+- Request the initial expired-certificate refresh once per connection episode.
+  Unattributed background failures report degraded updates and restart guidance;
+  they cannot re-arm or cancel a newer certificate worker.
+
 ## [0.14.5] - 2026-10-22
 
 ### Fastest recovery

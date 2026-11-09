@@ -168,6 +168,7 @@ class AsyncReconnector:
         self._failover_excluded: set[str] = set()
         self._connection_attempt_active = False
         self._retry_task: asyncio.Task | None = None
+        self._certificate_refresh_requested = False
         self._retry_pending = False
         self._retry_counter = 0
         self._retry_generation = 0
@@ -221,6 +222,7 @@ class AsyncReconnector:
         self._failover_server_id = None
         self._failover_attempts = 0
         self._failover_excluded.clear()
+        self._certificate_refresh_requested = False
 
     async def disable(self, *, deadline: float | None = None) -> None:
         unregister_error: Exception | None = None
@@ -296,8 +298,12 @@ class AsyncReconnector:
         event = getattr(getattr(state, "context", None), "event", None)
         event_name = type(event).__name__
         if event_name == "ExpiredCertificate":
-            self._status_callback("Refreshing the VPN certificate…")
-            self._refresher.force_refresh_certificate()
+            # The public failure callback has no request identity. Never
+            # re-arm from it: a stale failure could cancel this live request.
+            if not self._certificate_refresh_requested:
+                self._certificate_refresh_requested = True
+                self._status_callback("Refreshing the VPN certificate…")
+                self._refresher.force_refresh_certificate()
             return
         if event_name in self._NO_RETRY_EVENTS:
             self._reset()
@@ -362,6 +368,10 @@ class AsyncReconnector:
             self._status_callback("Waiting for the Plasma session to unlock…")
             return True
         if not self._retry_is_current(generation):
+            return False
+
+        if type(getattr(getattr(self._connector.current_state, "context", None),
+                        "event", None)).__name__ == "ExpiredCertificate":
             return False
 
         connection = self._connector.current_connection
