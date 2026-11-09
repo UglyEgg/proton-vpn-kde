@@ -811,8 +811,9 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
     async def test_actual_sso_cached_json_success_cannot_bypass_admission(self):
         fixture = self.sso_fixture()
         entered, release = asyncio.Event(), asyncio.Event()
-        async def wait(_remaining, *, initial_admission):
+        async def wait(_remaining, *, initial_admission, request_unlock):
             self.assertTrue(initial_admission)
+            self.assertTrue(request_unlock)
             entered.set()
             await release.wait()
             return True
@@ -923,3 +924,72 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(fixture.facades[0].account_name)
         self.assertIsInstance(fixture.facades[0]._session_holder._proton_sso._keyring, fixture.secret_type)
         self.assertEqual("keyring=secret_service", os.environ["PROTON_LOADER_OVERRIDES"])
+
+    async def prompt_admission(self, outcome):
+        from test_secret_service_unlock import FakeUnlockBus
+        fixture = self.sso_fixture()
+        fixture.available[0] = True
+        bus = FakeUnlockBus("pending")
+        bus.alias = "/"  # Exercise the actual SSO gate without a default alias.
+        controller = BackendController(fixture.adapter)
+        with patch("proton_vpn_kde_backend.secret_service_readiness.MessageBus", return_value=bus), \
+             patch("proton_vpn_kde_backend.adapters.SECRET_STORE_WAIT_SECONDS",
+                   0.03 if outcome == "timeout" else 5), \
+             self.assertLogs("proton_vpn_kde_backend.controller", level="ERROR"):
+            task = asyncio.create_task(controller.start())
+            await asyncio.wait_for(bus.shown.wait(), 1)
+            fixture.factory.assert_not_called()
+            self.assertEqual([], fixture.secret_reads)
+            self.assertEqual("keyring=secret_service", os.environ["PROTON_LOADER_OVERRIDES"])
+            self.assertFalse(controller.snapshot.ready)
+            if outcome != "timeout":
+                bus.complete(dismissed=outcome == "dismissed")
+            self.assertFalse(await asyncio.wait_for(task, 1))
+        if outcome == "success":
+            fixture.factory.assert_called_once()
+            self.assertTrue(controller.snapshot.logged_in)
+            self.assertEqual("secure", fixture.facades[0].account_name)
+            fixture.facades[0].get_vpn_connector.assert_awaited_once()
+            self.assertEqual("connector_initialization_failed", controller.snapshot.error_code)
+        else:
+            fixture.factory.assert_not_called()
+            self.assertEqual("authentication_unknown", controller.snapshot.auth_state)
+            self.assertEqual("secret_store_locked", controller.snapshot.error_code)
+        self.assertEqual(1, len(bus.members("Unlock")))
+        self.assertEqual(int(outcome == "timeout"), len(bus.members("Dismiss")))
+        self.assertEqual([], bus.handlers)
+
+    @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES"),
+                         "explicit hash-checked SSO fixture required")
+    async def test_actual_sso_waits_for_provider_prompt_before_session_lookup(self):
+        await self.prompt_admission("success")
+
+    @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES"),
+                         "explicit hash-checked SSO fixture required")
+    async def test_actual_sso_prompt_dismissal_never_restores_from_json(self):
+        await self.prompt_admission("dismissed")
+
+    @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES"),
+                         "explicit hash-checked SSO fixture required")
+    async def test_actual_sso_prompt_timeout_never_restores_from_json(self):
+        await self.prompt_admission("timeout")
+
+    @unittest.skipUnless(os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES"),
+                         "explicit hash-checked SSO fixture required")
+    async def test_actual_sso_prompt_cancellation_cannot_start_late_session_lookup(self):
+        from test_secret_service_unlock import FakeUnlockBus
+        fixture = self.sso_fixture()
+        fixture.available[0] = True
+        bus = FakeUnlockBus("pending")
+        with patch("proton_vpn_kde_backend.secret_service_readiness.MessageBus", return_value=bus):
+            task = asyncio.create_task(fixture.adapter.initialize(lambda _snapshot: None))
+            await asyncio.wait_for(bus.shown.wait(), 1)
+            fixture.factory.assert_not_called()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        bus.complete()
+        fixture.factory.assert_not_called()
+        self.assertEqual([], fixture.secret_reads)
+        self.assertEqual(1, len(bus.members("Dismiss")))
+        self.assertEqual([], bus.handlers)

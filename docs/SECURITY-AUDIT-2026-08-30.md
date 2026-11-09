@@ -6,6 +6,24 @@ Release target: 0.14.5
 
 ## Status
 
+This checkout's `feature/secret-service-unlock-prompt` is a separate source-only
+follow-up to the accepted startup baseline below. It permits one provider-owned
+unlock request during normal admission, while keeping cleanup/retries passive.
+It is not independently reviewed, packaged, installed, or accepted by live UAT;
+the accepted source seal has not been refreshed to admit it.
+
+Follow-up evidence: 587 backend cases (555 pass, 32 opt-in skips), 87% coverage,
+32 source files passing Mypy, 25 isolated actual Core/SSO cases, and seven private-bus
+wire cases. Tests cover signal-first completion, a missing RPC reply, cancellation,
+timeout/dismissal, owner replacement, forged signals, and the JSON fallback barrier.
+Missing/stale aliases use the actual advertised collection as the unlock target.
+Private-wire runs retain the installed dbus-fast closed-socket ResourceWarnings
+already observed on the baseline; no test fails or pending task is reported.
+No live faults, desktop-provider calls, installed-package or network changes were
+performed. Review, package and normal provider UAT are the next qualification gates.
+
+### Accepted startup baseline
+
 Version 0.14.5 remains pending; 0.14.4 remains public. The working branch
 `fix/startup-credential-recovery` passes native/Fedora package validation and
 source tests. Seven isolated reviews and affected rechecks cover the pre-admission

@@ -49,8 +49,9 @@ class OwnedCoreAdmissionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cached_success_cannot_construct_core_before_store_admission(self):
         entered, release = asyncio.Event(), asyncio.Event()
-        async def wait(_remaining, *, initial_admission):
+        async def wait(_remaining, *, initial_admission, request_unlock):
             self.assertTrue(initial_admission)
+            self.assertTrue(request_unlock)
             entered.set()
             await release.wait()
             return True
@@ -92,8 +93,9 @@ class OwnedCoreAdmissionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelled_admission_does_not_start_core_later(self):
         entered = asyncio.Event()
-        async def wait(_remaining, *, initial_admission):
+        async def wait(_remaining, *, initial_admission, request_unlock):
             self.assertTrue(initial_admission)
+            self.assertTrue(request_unlock)
             entered.set()
             await asyncio.Event().wait()
         self.waiter.side_effect = wait
@@ -119,13 +121,15 @@ class OwnedCoreAdmissionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(UserVisibleRuntimeError):
             await self.adapter.initialize(self.snapshots.append)
         self.assertLessEqual(self.waiter.await_args.args[0], 5.0)
+        self.assertFalse(self.waiter.await_args.kwargs["request_unlock"])
         self.assertTrue(self.adapter.has_pending_startup_recovery())
         self.factory.assert_not_called()
 
     async def test_admission_and_session_lookup_share_the_original_deadline(self):
         upper = []
-        async def wait(remaining, *, initial_admission):
+        async def wait(remaining, *, initial_admission, request_unlock):
             self.assertTrue(initial_admission)
+            self.assertTrue(request_unlock)
             upper.append(asyncio.get_running_loop().time() + remaining)
             await asyncio.sleep(0.01)
             return True

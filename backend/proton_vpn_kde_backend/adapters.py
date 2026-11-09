@@ -273,7 +273,8 @@ class ProtonCoreAdapter:
             )
             self._publish_secret_store_wait()
             if (not await wait_for_secret_service(
-                    max(0.0, restore_deadline - loop.time()), initial_admission=True)
+                    max(0.0, restore_deadline - loop.time()), initial_admission=True,
+                    request_unlock=not pending_cleanup)
                     or loop.time() >= restore_deadline):
                 if pending_cleanup:
                     raise UserVisibleRuntimeError(

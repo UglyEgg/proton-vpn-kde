@@ -96,6 +96,12 @@ supervised bound and journal. No timed-out provider worker is replaced within
 that activation. Only expiration of the owned deadline becomes secret-store
 unavailability; a provider-origin timeout retains the unknown-failure path.
 
+Normal admission may request one provider-owned unlock dialog for an identified
+locked collection. Its RPC and completion signal share that deadline; dismissal
+ends this admission. Unsupported prompting retains passive observation. Durable
+cleanup and later lock retries remain noninteractive. Prompt ownership and teardown
+are specified in [Authentication](AUTHENTICATION.md#secret-service-provider).
+
 Idle retirement waits on lifetime events and one deadline, not a polling loop.
 Lease and snapshot changes wake it to recheck eligibility.
 

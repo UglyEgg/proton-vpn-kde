@@ -4,6 +4,15 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 ## [Unreleased]
 
+### Provider-owned unlock prompt
+
+- Normal startup may request one standard Secret Service unlock dialog for a
+  locked default/sole collection. The provider handles authentication; Core
+  admission and the JSON fallback block remain enforced.
+- Dismissal ends admission; cancellation and timeout retire the owned request
+  and dismiss a pending dialog. Unsupported providers retain passive waiting.
+  Protected cleanup and later lock retries do not request dialogs.
+
 ### Startup credential recovery
 
 - Require Secret Service admission before Core construction or session lookup,

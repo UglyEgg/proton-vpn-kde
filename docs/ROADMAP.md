@@ -5,6 +5,15 @@ This file contains open work. Shipped changes belong in the
 [assessment](SECURITY-AUDIT-2026-08-30.md). Architecture and security ownership
 remain unchanged.
 
+## Active: Provider-owned unlock prompt
+
+The separate `feature/secret-service-unlock-prompt` checkout adds one standard
+unlock/prompt attempt before normal Core admission. Source and isolated protocol
+tests pass; independent review, package validation and normal provider UAT remain.
+The installed startup fix and its accepted UAT remain the baseline. Integrate the
+focused follow-up onto that signed source before publishing; local validation
+snapshot commits are not publication history.
+
 ## Active: 0.14.5 release preparation
 
 Implementation and focused offline regressions are on

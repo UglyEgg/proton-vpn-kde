@@ -8,6 +8,9 @@ branch passes native and local Fedora RPM validation, isolated source tests and
 focused independent review. The corrected unsigned Fedora RPM is installed and
 integrity-checked; the maintainer accepted clean-boot UAT with KeePassXC 2.8.0 on
 November 9. Signed commit-bound release packaging remains unqualified.
+The separate unlock-prompt follow-up is source-tested only; the installed build
+and its acceptance do not cover provider prompting. No live KeePassXC/KWallet
+prompt behavior is qualified for that follow-up.
 Ubuntu has not been rebuilt for this follow-up and still needs Plasma field reports.
 Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.md).
 
