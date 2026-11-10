@@ -12,11 +12,11 @@ were corrected in one bounded patch and accepted by affected reviewers. The
 P3 EOF cleanup passes aggregate whitespace checks. The approved Ubuntu 5.8.11
 rebase passed focused compatibility, consistency and security-control rechecks.
 
-Package qualification uses signed runtime source `2568b7e`. Normal installed
-UAT covers `e7b4956`, accepted November 10; the corrected candidate still needs
-focused installed acceptance. Documentation follow-ups do not extend either
-acceptance scope. Final-head PR/CI, publication metadata, signed tag builds and
-artifact signatures remain release gates.
+Package qualification and normal installed UAT cover signed runtime source
+`2568b7e`, accepted November 10. Root package integrity and all 32 backend files
+match that source. Documentation follow-ups do not extend the runtime scope.
+Final-head PR/CI, publication metadata, signed tag builds and artifact signatures
+remain release gates.
 
 ## Current evidence
 
@@ -36,7 +36,7 @@ artifact signatures remain release gates.
 | Fedora repeatability | Four unsigned client/source/debug RPMs repeat byte-for-byte with canonical build/source/temp paths, matching the CI build model |
 | Fedora client | RPM policy, paired source identity, 32 backend files, disabled reporting/telemetry and ELF hardening pass; copied-database dependency and private payload transactions pass without scriptlets |
 | Keyring | Ubuntu `0.2.3-10plasmavpn1` rebuilt from unchanged pinned inputs; Fedora revision 11 is the earlier documentation-only package identity |
-| Installed UAT | Fedora client `0.14.5-1.fc44` from `e7b4956`: root RPM integrity and all 32 backend files verified; maintainer accepted normal operation November 10 |
+| Installed UAT | Fedora client `0.14.5-1.fc44` from `2568b7e`: root RPM integrity and all 32 backend files verified; maintainer accepted normal operation November 10 |
 
 The installed stack is Fedora 44, KeePassXC `2.8.0-2.fc44`, API Core
 `5.8.11-1.plasmavpn1.fc44`, and keyring `0.2.3-10.plasmavpn1.fc44`.
@@ -74,10 +74,9 @@ Proton's disabled default, saved enablement and removal behavior.
 
 ## Remaining release gates
 
-1. Focused normal installed acceptance of the corrected Fedora runtime; retain
+1. PR/CI on the final head, public-status metadata and authorized merge; retain
    Ubuntu's package-validated tier and live-provider limitations.
-2. Authorized PR/CI on the final head, public-status metadata and merge.
-3. Exact signed-tag package builds, artifact signatures, publication, download
+2. Exact signed-tag package builds, artifact signatures, publication, download
    verification and approved mirror/catalog updates.
 
 ## Scope and assurance limits

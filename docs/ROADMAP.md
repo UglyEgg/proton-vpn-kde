@@ -11,17 +11,15 @@ failover, startup Secret Service admission, and one provider-owned unlock
 request. Seven isolated reviews and bounded client corrections are accepted.
 The approved Ubuntu Core 5.8.11 rebase passes source/Core/package rechecks.
 Signed runtime candidate `2568b7e` passes Fedora/Ubuntu client package checks
-and Ubuntu offline transactions. Installed normal Fedora UAT on `e7b4956` was
-accepted November 10; corrected installed acceptance remains open. Public
-release remains 0.14.4.
+and Ubuntu offline transactions. Normal installed Fedora UAT on that corrected
+candidate was accepted November 10. Public release remains 0.14.4.
 
 Remaining gates:
 
-1. Complete affected normal installed acceptance; retain Ubuntu field-test
-   limitations.
-2. With maintainer authorization, push for final-head PR/CI, finalize public
-   release metadata and merge.
-3. Build from the signed tag, verify artifact reproducibility and signatures,
+1. Push the authorized branch to GitHub/VPS and open its release PR; pass
+   final-head CI, retain Ubuntu field-test limitations, and finalize public
+   release metadata before authorized merge.
+2. Build from the signed tag, verify artifact reproducibility and signatures,
    publish, and verify Git mirrors and the OpenDesktop listing.
 
 No live fault tests are authorized. Any future fault trial requires the
