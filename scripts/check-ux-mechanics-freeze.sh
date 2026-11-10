@@ -245,6 +245,10 @@ fi
 # Approved Ubuntu 5.8.11 rebase and exact usrmerge unit relocation passed scoped
 # compatibility, consistency and security-control rechecks. Metadata/doc closure
 # and the source-only mechanical fixture binding are accepted separately.
+# CI dependency correction: Ubuntu admission/installation now selects the already
+# qualified daemon 0.13.8. Current-index fresh resolution, artifact/metadata
+# negative controls and isolated transactions pass; no runtime or Core payload
+# changes. The shared metadata checker also changes the Fedora packaging seal.
 assert_diff_hash \
     "fb3972bc98a9f643f974f1045c388db937191a0e7e0fefefab8813fa2ce706dd" \
     "build-system" CMakeLists.txt
@@ -265,7 +269,7 @@ assert_diff_hash \
     src/SnapshotContract.generated.h tests/SnapshotContractTest.cpp \
     tests/SnapshotTestData.h
 assert_diff_hash \
-    "af160fc734177b066b09e8ba225c262252bcda67912139740f74b02b578fe469" \
+    "0c881ac2634bca7bd320021798f294b4248f4402286debaecec9614268e679d4" \
     "Fedora Core overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -332,7 +336,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "8886e4bcfefb4de9a61bc7ee3bc51d7b74ccbab514f421bcffad48d54535a1ba" \
+    "32e6f382aab6d2023fdfae38402b641784d22ab521ad6205b508d8de8a30aa0c" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \

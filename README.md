@@ -57,6 +57,15 @@ See [Feature parity](docs/PARITY.md) for capability coverage and conditional fea
 
 Download the Fedora RPM or Ubuntu Debian package sets from [Releases](https://github.com/UglyEgg/proton-vpn-kde/releases/latest). Install the client and both required overlays together; the client package does not replace Proton-owned Python files outside package ownership.
 
+For Ubuntu, enable Proton's repository and run this from a directory containing one release's three binary packages. Select the daemon version paired with the Core overlay:
+
+```bash
+sudo apt install proton-vpn-daemon=0.13.8 \
+  ./python3-proton-keyring-linux_*_all.deb \
+  ./python3-proton-vpn-api-core_*_amd64.deb \
+  ./proton-vpn-kde_*_amd64.deb
+```
+
 [Compatibility](docs/COMPATIBILITY.md) lists exact versions, dependencies, and validation tiers. Fedora 44 is live-accepted; Ubuntu 26.04 amd64 with Plasma 6 is package-validated and still needs community field testing. Do not run the official and community frontends concurrently against the same Proton session.
 
 ## Engineering posture

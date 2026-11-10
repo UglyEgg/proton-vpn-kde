@@ -59,6 +59,8 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
   boot-unit location and preserve Proton's enablement/removal contract.
 - Give the Ubuntu Core overlay a new original-source identity; preserve
   previously published originals and the existing keyring runtime floor.
+- Pin Ubuntu's daemon to 0.13.8 for the qualified Core 5.8.11 stack, preventing
+  an incompatible Core 6 daemon from blocking installation.
 
 ## [0.14.4] - 2026-10-17
 

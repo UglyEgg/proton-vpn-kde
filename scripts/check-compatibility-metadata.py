@@ -230,6 +230,16 @@ def check() -> None:
     )
     require_text(
         debian_control,
+        r"^\s+proton-vpn-daemon \(= 0\.13\.8\),$",
+        "Debian daemon paired with the qualified Core 5.8.11 baseline",
+    )
+    require_text(
+        PROJECT_DIR / ".github/workflows/deb.yml",
+        r"^\s+proton-vpn-daemon=0\.13\.8\s*\\$",
+        "Ubuntu CI's explicit selection of the qualified daemon",
+    )
+    require_text(
+        debian_control,
         r"^\s+proton-keyring-secret-service-provider-agnostic \(>= 1\),$",
         "Debian provider-neutral keyring capability",
     )

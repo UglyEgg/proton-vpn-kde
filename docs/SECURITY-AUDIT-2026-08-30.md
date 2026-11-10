@@ -32,6 +32,7 @@ remain release gates.
 | Ubuntu repeatability | Core DEB/original archive/Debian delta/DSC repeat byte-for-byte; buildinfo differs only in Build-Date, changes only in corresponding checksums |
 | Ubuntu hooks/policy | Generated default/saved-enable/upgrade/remove/purge paths pass with mocked commands; Lintian error gates pass; inherited vendor and missing-manual warnings remain |
 | Ubuntu client | Binary, debug symbols, original archive, Debian delta and DSC repeat byte-for-byte; all 407 source files and 32 backend files match the signed candidate; reporting/telemetry gates and ELF hardening pass |
+| Ubuntu dependency admission | Core 5.8.11 pairs with daemon 0.13.8; exact package dependency and explicit APT selection enforced; current-index fresh dependency resolution, negative metadata/artifact controls and isolated installation/reinstallation/autopkgtest pass |
 | Ubuntu transactions | Offline upgrade from Core 5.6.10/keyring revision 9, fresh installation, reinstallation, full integrity, autopkgtest and client removal pass in a private root; systemctl is stubbed; boot-unit bytes/mode/path verified after each transaction |
 | Fedora repeatability | Four unsigned client/source/debug RPMs repeat byte-for-byte with canonical build/source/temp paths, matching the CI build model |
 | Fedora client | RPM policy, paired source identity, 32 backend files, disabled reporting/telemetry and ELF hardening pass; copied-database dependency and private payload transactions pass without scriptlets |

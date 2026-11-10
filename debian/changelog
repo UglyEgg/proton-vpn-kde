@@ -8,6 +8,7 @@ proton-vpn-kde (0.14.5-1plasmavpn1) resolute; urgency=medium
   * Avoid redundant server-catalog projection and consolidate documentation.
   * Rebase Ubuntu's overlay on stable Core 5.8.11; retain the keyring baseline.
   * Preserve failed-preflight recovery policy and certificate-worker ownership.
+  * Pin daemon 0.13.8 for the qualified Core 5.8.11 stack.
 
  -- uglyegg <uglyegg@entropy.quest>  Tue, 10 Nov 2026 00:00:00 -0600
 

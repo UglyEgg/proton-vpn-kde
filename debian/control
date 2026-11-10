@@ -42,7 +42,7 @@ Depends:
  ${shlibs:Depends},
  iproute2,
  plasma-integration,
- proton-vpn-daemon (>= 0.13.8),
+ proton-vpn-daemon (= 0.13.8),
  proton-keyring-secret-service-provider-agnostic (>= 1),
  proton-keyring-secret-service-owner-pinned (>= 1),
  proton-vpn-api-core-plasma-protun-secret (>= 1),

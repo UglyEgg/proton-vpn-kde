@@ -59,6 +59,10 @@ The generic API floor is 5.6.10. Neither substitutes for the distribution
 runtime baselines above. Fedora's exact floors are declared in
 [`core-compatibility.json`](../packaging/fedora/core-compatibility.json).
 
+Ubuntu pairs Core 5.8.11 with exactly `proton-vpn-daemon` 0.13.8. New daemon/Core
+generations require separate qualification; a newer daemon must not pull an
+incompatible Core into this package set.
+
 ## Keyring overlay
 
 The [keyring package](../packaging/fedora/keyring-overlay/README.md) supplies

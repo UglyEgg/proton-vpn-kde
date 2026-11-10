@@ -134,7 +134,7 @@ jobs:
               "$KEYRING_DEB_DIR"/*.changes \
               "$API_CORE_DEB_DIR"/*.changes
 
-      - name: Verify clean offline install and reinstall
+      - name: Verify package install and reinstall
         run: |
           mapfile -t client_debs < <(
             find "$CLIENT_DEB_DIR" -maxdepth 1 -type f \
@@ -160,10 +160,13 @@ jobs:
             dpkg-divert --quiet --rename --remove /usr/bin/systemctl
           }
           trap restore_systemctl EXIT
+          # APT otherwise prefers the newer daemon that requires Core 6.
           apt-get install -y --no-install-recommends \
+            proton-vpn-daemon=0.13.8 \
             "${keyring_debs[0]}" "${api_core_debs[0]}" "${client_debs[0]}"
           runuser --user ci-builder -- debian/tests/installed-layout
           apt-get install -y --reinstall --no-install-recommends \
+            proton-vpn-daemon=0.13.8 \
             "${keyring_debs[0]}" "${api_core_debs[0]}" "${client_debs[0]}"
           runuser --user ci-builder -- debian/tests/installed-layout
           restore_systemctl

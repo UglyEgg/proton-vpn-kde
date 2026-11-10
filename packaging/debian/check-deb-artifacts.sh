@@ -33,6 +33,11 @@ client_version="$(dpkg-deb --field "$client_deb" Version)"
 [[ "$(dpkg-deb --field "$keyring_deb" Architecture)" == all ]]
 
 client_depends="$(dpkg-deb --field "$client_deb" Depends)"
+if ! grep -Eq '(^|, )proton-vpn-daemon *\(= *0\.13\.8\)(,|$)' \
+        <<<"$client_depends"; then
+    echo "Client package must require daemon 0.13.8 for the qualified Core 5.8.11 stack" >&2
+    exit 1
+fi
 required_dependencies=(
     plasma-integration
     proton-vpn-daemon
