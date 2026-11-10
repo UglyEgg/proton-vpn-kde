@@ -2796,6 +2796,145 @@ class ProtonCoreAdapterTests(unittest.IsolatedAsyncioTestCase):
                             task.cancel()
                     await asyncio.gather(*tasks, return_exceptions=True)
 
+    async def test_cancelled_replacement_retains_accepted_fastest_policy(self):
+        from test_fastest_failover import Catalog, error_state, selection_core_fakes, server
+
+        with patch.dict("sys.modules", selection_core_fakes()):
+            adapter, connector, _, reconnector = await self.prepare_fastest_outage()
+            catalog = Catalog([server("a"), server("b", score=2), server("us", country="US")])
+            catalog.get_fastest_in_country = Mock(
+                side_effect=lambda code: catalog.get_by_id("a" if code == "CH" else "us")
+            )
+            adapter._api.refresher.get_up_to_date_server_list.return_value = catalog
+            adapter._api.refresher.server_list = catalog
+
+            async def connected(logical, *_args, **_kwargs):
+                connector.current_connection.server_id = logical.id
+                connector.current_state = state_named("Connected")
+                reconnector.status_update(connector.current_state)
+
+            connector.connect.side_effect = connected
+            await adapter.connect_country("CH")
+            accepted = FastestSelection(country_code="CH")
+            self.assertEqual(accepted, adapter._fastest_selection)
+            connector.connect.reset_mock()
+            queued = asyncio.Event()
+            attempt = adapter._attempt_connection
+
+            async def entering(*args, **kwargs):
+                queued.set()
+                return await attempt(*args, **kwargs)
+
+            with patch.object(adapter, "_attempt_connection", entering):
+                async with adapter._serialized_connection_lifecycle():
+                    replacement = asyncio.create_task(adapter.connect_country("US"))
+                    try:
+                        await asyncio.wait_for(queued.wait(), 1)
+                    finally:
+                        replacement.cancel()
+                        with self.assertRaises(asyncio.CancelledError):
+                            await replacement
+
+            self.assertEqual(accepted, adapter._fastest_selection)
+            self.assertEqual("Connected", type(connector.current_state).__name__)
+            self.assertEqual("a", connector.current_connection.server_id)
+            connector.connect.assert_not_awaited()
+            connector.disconnect.assert_not_awaited()
+
+            async def failed(logical, *_args, **_kwargs):
+                connector.current_connection.server_id = logical.id
+
+            connector.connect.side_effect = failed
+            connector.current_state = error_state()
+            for _ in range(3):
+                await reconnector._attempt_retry(reconnector._retry_generation)
+            self.assertEqual(list("aab"), [c.args[0].id for c in connector.connect.await_args_list])
+
+    async def test_rejected_manual_preflight_preserves_current_failure_episode(self):
+        from test_fastest_failover import error_state
+
+        adapter, connector, _, reconnector = await self.prepare_fastest_outage()
+        refresher = adapter._api.refresher
+        refresher.force_refresh_certificate = Mock()
+        connector.current_state = error_state("ExpiredCertificate")
+        selection = FastestSelection(country_code="CH", features=("p2p",))
+        adapter._fastest_selection = selection
+        reconnector._retry_counter = 3
+        reconnector._failover_server_id = "b"
+        reconnector._failover_attempts = 1
+        reconnector._failover_excluded.add("a")
+        reconnector.status_update(connector.current_state)
+        refresher.force_refresh_certificate.assert_called_once_with()
+        routes = (
+            ("connect_fastest", ()),
+            ("connect_fastest_with_features", (("p2p",),)),
+            ("connect_country", ("US",)),
+            ("connect_country_with_features", ("US", ("p2p",))),
+            ("connect_group", ("US", "location", "Virginia")),
+            ("connect_group_with_features", ("US", "location", "Virginia", ("p2p",))),
+            ("connect_server", ("US#1",)),
+        )
+        for method, args in routes:
+            for outcome in ("failure", "cancellation"):
+                with self.subTest(method=method, outcome=outcome):
+                    route = getattr(adapter, method)
+                    if outcome == "failure":
+                        refresher.get_up_to_date_server_list.side_effect = ValueError("offline catalog")
+                        with self.assertRaises(ValueError):
+                            await route(*args)
+                    else:
+                        entered = asyncio.Event()
+
+                        async def blocked(started=entered):
+                            started.set()
+                            await asyncio.Event().wait()
+
+                        refresher.get_up_to_date_server_list.side_effect = blocked
+                        task = asyncio.create_task(route(*args))
+                        try:
+                            await asyncio.wait_for(entered.wait(), 1)
+                        finally:
+                            task.cancel()
+                            with self.assertRaises(asyncio.CancelledError):
+                                await task
+                    refresher.force_refresh_certificate.assert_called_once_with()
+                    self.assertEqual(selection, adapter._fastest_selection)
+                    self.assertEqual((3, "b", 1, {"a"}), (
+                        reconnector.retry_counter, reconnector._failover_server_id,
+                        reconnector._failover_attempts, reconnector._failover_excluded,
+                    ))
+                    connector.connect.assert_not_awaited()
+                    connector.disconnect.assert_not_awaited()
+
+    async def test_manual_dispatch_preserves_refresh_until_core_finishes_episode(self):
+        from test_fastest_failover import error_state
+
+        adapter, connector, catalog, reconnector = await self.prepare_fastest_outage()
+        refresher = adapter._api.refresher
+        refresher.get_up_to_date_server_list.return_value = catalog
+        catalog.get_fastest = Mock(return_value=catalog.get_by_id("a"))
+        refresher.force_refresh_certificate = Mock()
+        connector.current_state = error_state("ExpiredCertificate")
+        reconnector.status_update(connector.current_state)
+        connector.connect.side_effect = RuntimeError("offline dispatch rejected")
+        for _ in range(2):
+            with self.assertRaises(RuntimeError):
+                await adapter.connect_fastest()
+            refresher.force_refresh_certificate.assert_called_once_with()
+
+        async def connected(*_args, **_kwargs):
+            connector.current_state = state_named("Connected")
+            reconnector.status_update(connector.current_state)
+
+        connector.connect.side_effect = connected
+        await adapter.connect_fastest()
+        refresher.force_refresh_certificate.assert_called_once_with()
+        self.assertFalse(reconnector._certificate_refresh_requested)
+        connector.current_state = error_state("ExpiredCertificate")
+        reconnector.status_update(connector.current_state)
+        self.assertEqual(2, refresher.force_refresh_certificate.call_count)
+        connector.disconnect.assert_not_awaited()
+
     async def test_expiry_during_connect_stops_before_connector_side_effect(self):
         api, connector = self.make_api()
         logical_server = object()

@@ -216,12 +216,16 @@ def check() -> None:
             / "packaging/debian/api-core-overlay/overlay-manifest.json"
         ).read_text(encoding="utf-8")
     )
-    if debian_overlay_manifest["vendor"]["version"] != runtime_floor:
-        fail("Ubuntu Core overlay does not match the supported runtime floor")
+    debian_vendor_version = debian_overlay_manifest["vendor"]["version"]
+    debian_runtime_floor = debian_overlay_manifest["overlay"]["packageVersion"]
+    if normalized_version(debian_vendor_version) < normalized_version(runtime_floor):
+        fail("Ubuntu Core overlay predates the generic API runtime floor")
+    if not debian_runtime_floor.startswith(f"{debian_vendor_version}-"):
+        fail("Ubuntu Core package identity does not match its vendor version")
     check_debian_overlay_patch_inputs(debian_overlay_manifest)
     require_text(
         debian_control,
-        rf"^\s+python3-proton-vpn-api-core \(>= {re.escape(runtime_floor)}\),$",
+        rf"^\s+python3-proton-vpn-api-core \(>= {re.escape(debian_runtime_floor)}\),$",
         "Debian Core runtime floor",
     )
     require_text(

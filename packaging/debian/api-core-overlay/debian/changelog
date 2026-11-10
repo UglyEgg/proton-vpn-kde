@@ -1,3 +1,13 @@
+proton-vpn-api-core (5.8.11-1plasmavpn1) resolute; urgency=medium
+
+  * Rebase on Proton's authenticated Ubuntu 5.8.11 vendor package.
+  * Apply the same four bounded patches as the Fedora 5.8.11 overlay.
+  * Use vendor Protun secret handling; preserve boot/removal hooks.
+  * Install the unchanged boot unit at the canonical usr-merged path.
+  * Keep compiled networking unchanged with a new original-source identity.
+
+ -- uglyegg <uglyegg@entropy.quest>  Tue, 10 Nov 2026 00:00:00 -0600
+
 proton-vpn-api-core (5.6.10-12plasmavpn1) resolute; urgency=medium
 
   * Reconstruct Proton's exact Ubuntu 5.6.10 package with the reviewed Plasma

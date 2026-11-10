@@ -128,6 +128,7 @@ while IFS= read -r path; do
         backend/tests/test_reconnector.py|\
         backend/tests/test_refresher_events.py|\
         backend/tests/test_secret_service_readiness.py|\
+        backend/tests/test_secret_service_unlock.py|\
         backend/tests/test_startup_credential_recovery.py|\
         backend/tests/test_search_projection.py|\
         backend/tests/test_task_scope.py|\
@@ -239,15 +240,11 @@ if ((${#violations[@]} > 0)); then
     exit 1
 fi
 
-# 0.14.5: accepted seven-review recovery delta, focused rechecks and normal UAT;
-# version/display metadata and the reviewed documentation consolidation included.
-# Packaging-only follow-up: revision the Fedora keyring documentation payload
-# and preserve Ubuntu's published original archive; runtime seals are unchanged.
-# Startup follow-up: seven isolated reviews and all five affected rechecks
-# accepted the bounded backend/test delta and queued auto-connect regression.
-# Admission follow-up: focused error-class/compatibility review, security diff
-# review and affected control rechecks accepted the constructor/selector gate,
-# one initial activation and keyring-owned first-use collection creation.
+# 0.14.5: seven isolated aggregate reviews; both premature-reset P2 findings
+# corrected with affected rechecks. Normal installed UAT covers the prior source.
+# Approved Ubuntu 5.8.11 rebase and exact usrmerge unit relocation passed scoped
+# compatibility, consistency and security-control rechecks. Metadata/doc closure
+# and the source-only mechanical fixture binding are accepted separately.
 assert_diff_hash \
     "fb3972bc98a9f643f974f1045c388db937191a0e7e0fefefab8813fa2ce706dd" \
     "build-system" CMakeLists.txt
@@ -259,7 +256,7 @@ assert_diff_hash \
     "backend metadata" \
     backend/pyproject.toml backend/proton_vpn_kde_backend/__init__.py
 assert_diff_hash \
-    "bf80ff8ccd2b06e99eeecdfc377aa34b33fcee15f71ae0e92472c583ca3df2a4" \
+    "aee189828cb78a22e2474f558f752c613e58601a9caed9c01162273eb77ebb73" \
     "backend ownership and recovery" \
     backend/proton_vpn_kde_backend backend/tests \
     data/snapshot-schema-v2.json data/snapshot-schema-v2.json.license \
@@ -268,7 +265,7 @@ assert_diff_hash \
     src/SnapshotContract.generated.h tests/SnapshotContractTest.cpp \
     tests/SnapshotTestData.h
 assert_diff_hash \
-    "207c9fdb5386358c9da8b37fe90127c6fcfaaf459d311eb3337fdee0d95a996c" \
+    "af160fc734177b066b09e8ba225c262252bcda67912139740f74b02b578fe469" \
     "Fedora Core overlay" \
     packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
     packaging/fedora/api-core-overlay/overlay-manifest.json \
@@ -302,7 +299,7 @@ assert_diff_hash \
     data/dbus/quest.entropy.PlasmaVPN.Backend1.xml \
     backend/proton_vpn_kde_backend/dbus_contract.py src/DbusContract.h
 assert_diff_hash \
-    "71937b271ed1b17c0b42ce0ec4d5e4e610ee0a86c6d9763d95e8352556f0ce52" \
+    "58ae13eab0a5dd44ef798ac7d92228f8442ca82fc3bd38d9d7f2f3879771ad4c" \
     "Fedora metadata" packaging/fedora/proton-vpn-kde.spec
 assert_diff_hash \
     "ed9fc06f2491cbe3457a0aef6fd7c5de888a34240df33004f630d782cf3f2c76" \
@@ -316,7 +313,7 @@ assert_diff_hash \
     "frontend presentation contract" \
     src runner kcm tests
 assert_diff_hash \
-    "528514b939dc3a11043bc20d293781f03b613ea4e668f86077e63070c0f326cd" \
+    "6d75d560b696bddded5f4b4d4fdf6d77bb0d433b42b24d22c934e70a7b858998" \
     "QML presentation" qml
 
 assert_diff_hash \
@@ -335,7 +332,7 @@ assert_diff_hash \
     translations/provenance.json.license
 
 assert_diff_hash \
-    "03cc0486d2c515f28d7bfce6bb8db2c1fc483cd57987dc0b8664412a743576a2" \
+    "8886e4bcfefb4de9a61bc7ee3bc51d7b74ccbab514f421bcffad48d54535a1ba" \
     "Ubuntu packaging" \
     .github/workflows/deb.yml debian packaging/debian \
     scripts/check-static-analysis.sh \

@@ -1,20 +1,24 @@
 # Ubuntu API-Core overlay
 
-This source package reconstructs Proton's exact signed-repository
-`python3-proton-vpn-api-core_5.6.10_amd64.deb` with the five reviewed Plasma
-VPN patches. Its pinned patch inputs live in `patches/`; Fedora can therefore
-advance its independent vendor overlay without changing this validated Debian
-baseline. The vendor archive, control metadata, maintainer scripts, resolved
-patch set, installed path set, file modes, and resulting hashes are checked
-against `overlay-manifest.json`.
+Reconstructs Proton's authenticated repository package
+`python3-proton-vpn-api-core_5.8.11_amd64.deb`. The four patch inputs are pinned
+local copies of the Fedora 5.8.11 series: server string sharing, FIDO2 capability
+query, explicit protection-profile activation, and the empty initial route event
+guard. Only six Python source bodies differ; compiled networking is unchanged.
+The boot unit moves from the aliased /lib path to /usr/lib with its bytes and
+mode pinned in the manifest; every other installed path is preserved.
 
-The official public source tag does not contain the complete build inputs for
-the compiled Protun dependency. The Debian source package therefore carries
-the exact vendor binary package as a verified upstream component, matching the
-Fedora overlay's preserve-and-patch trust boundary. It does not rebuild or
-replace Proton's compiled networking components.
+`overlay-manifest.json` owns archive/control/script hashes, source-base metadata,
+patch hashes, changed paths/modes and result hashes. Proton supplies the Protun
+system-owned transient secret behavior; the capability verifier checks it.
+No obsolete private-key patch is applied to this vendor version.
 
-Only six Python source files differ from the vendor payload. The required
-Protun behavior is tied to
-`0004-keep-protun-private-key-ephemeral.patch` and exposed as the versioned
-`proton-vpn-api-core-plasma-protun-secret` package capability.
+The boot-protection unit retains Proton's disabled default and existing user
+choice. Generated systemd hooks and preserved Python/removal hooks retain its
+upgrade and final-removal behavior. Installation must not enable permanent mode.
+
+The original archive has a new 5.8.11 identity; the published 5.6.10 original is
+not replaced. The source package carries the verified vendor binary because
+public tags do not provide complete compiled Protun build inputs. It does not
+rebuild those components. Build and qualification commands are owned by the
+[release procedure](../../../docs/RELEASING.md).

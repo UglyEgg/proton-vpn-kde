@@ -1461,6 +1461,7 @@ class ProtonCoreAdapter:
                 authentication_epoch,
                 connection_intent,
                 fastest_selection=fastest_selection,
+                manual_dispatch=True,
             )
         except Exception as error:
             await self._raise_session_error(error, authentication_epoch)
@@ -1486,6 +1487,7 @@ class ProtonCoreAdapter:
         connection_intent: int,
         *,
         fastest_selection: FastestSelection | None,
+        manual_dispatch: bool = False,
     ) -> bool:
         """Own one Core connection side effect and retire stale success."""
         async with self._serialized_connection_lifecycle():
@@ -1494,6 +1496,10 @@ class ProtonCoreAdapter:
             self._require_authenticated_epoch(authentication_epoch)
             # Pending/cancelled requests cannot attribute their selection to a
             # retained tunnel. Publish only with current dispatch ownership.
+            # Only manual dispatch renews failover budgets. The refresh latch
+            # belongs to the observed Core episode, including rejected Up calls.
+            if manual_dispatch and self._reconnector:
+                self._reconnector.reset_failover_episode()
             self._fastest_selection = fastest_selection
             try:
                 # Core 5.6.10 through 5.6.20 can await a NetworkManager future
@@ -1551,7 +1557,6 @@ class ProtonCoreAdapter:
         if task is None:
             raise RuntimeError("A manual connection target requires an asyncio task")
         authentication_epoch = self._authenticated_epoch()
-        self._clear_fastest_selection()
         intent = (authentication_epoch, self._advance_connection_intent())
         self._manual_connection_tasks[task] = intent[1]
         deadline = self._connection_retirement_deadline()

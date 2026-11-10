@@ -2,16 +2,13 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.14.5 is prepared for release; qualification remains pending.
-Version 0.14.4 remains the current public package release. The startup-recovery
-branch passes native and local Fedora RPM validation, isolated source tests and
-focused independent review. The corrected unsigned Fedora RPM is installed and
-integrity-checked; the maintainer accepted clean-boot UAT with KeePassXC 2.8.0 on
-November 9. Signed commit-bound release packaging remains unqualified.
-The separate unlock-prompt follow-up is source-tested only; the installed build
-and its acceptance do not cover provider prompting. No live KeePassXC/KWallet
-prompt behavior is qualified for that follow-up.
-Ubuntu has not been rebuilt for this follow-up and still needs Plasma field reports.
+Plasma VPN 0.14.5 is prepared for release; 0.14.4 remains the current public
+package release. The maintainer accepted the installed Fedora unlock-prompt
+build with KeePassXC 2.8.0 on November 10. The aggregate review and bounded
+client corrections are accepted. Final distribution builds remain release
+gates. KeePassXC acceptance does not qualify live KWallet behavior. Ubuntu's
+Core 5.8.11 overlay and actual Core/SSO checks pass; full client packaging,
+transactions and Plasma field reports remain open.
 Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.md).
 
 | Component | Fedora 44 | Ubuntu 26.04 |
@@ -20,10 +17,10 @@ Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.
 | Desktop | Plasma 6; systemd user services | Plasma 6; systemd user services |
 | Qt / KDE | Qt 6.8+; Frameworks 6 | Qt 6.10.2; Frameworks 6.24 |
 | Python | 3.14 with `os.pidfd_open` | 3.14 with `os.pidfd_open` |
-| API Core overlay | `5.8.11-1.plasmavpn1` beta; stable minimum `5.8.3-2.plasmavpn1` | `5.6.10-12plasmavpn1` |
+| API Core overlay | `5.8.11-1.plasmavpn1` beta input; stable minimum `5.8.3-2.plasmavpn1` | `5.8.11-1plasmavpn1` stable input |
 | Keyring overlay | `0.2.3-11.plasmavpn1` build; minimum `0.2.3-10.plasmavpn1` | `0.2.3-10plasmavpn1` |
 | Secret Service | KeePassXC verified; provider-neutral implementation | Live provider UAT pending |
-| Validation tier | Installed Plasma lifecycle accepted | Build, artifact, dependency, transaction, and removal checks; live lifecycle pending |
+| Validation tier | Installed baseline lifecycle accepted; corrected release builds pending | Core package/SDK validated; final client/transactions and live lifecycle pending |
 
 Build dependencies include C++20, CMake 3.24+, OpenSSL 3, and `dbus-fast` 2.20+.
 Fedora's tested `cryptography` floor is 50.0.0; Ubuntu's packaged 46.0.5 passes
@@ -48,12 +45,13 @@ never blocks VPN use.
 | Distribution | Vendor input | Reconstruction and patch policy |
 | --- | --- | --- |
 | Fedora | Signed `5.8.11-1.fc44` RPM | [Fedora overlay](../packaging/fedora/api-core-overlay/README.md) |
-| Ubuntu | Pinned `5.6.10_amd64.deb` | [Ubuntu overlay](../packaging/debian/api-core-overlay/README.md) |
+| Ubuntu | Signed-repository `5.8.11_amd64.deb` | [Ubuntu overlay](../packaging/debian/api-core-overlay/README.md) |
 
 The overlays preserve the compiled vendor networking payload and apply only
 manifested Python changes. They are modified Proton Core, not official builds.
 Their manifests own vendor hashes, source references, changed paths, and patch
-provenance.
+provenance. Ubuntu also declares the byte-for-byte boot-unit relocation to its
+canonical usr-merged directory, retaining disabled defaults and saved enablement.
 
 The static public-API fixture is Core 5.5.6; it is never imported or executed.
 The generic API floor is 5.6.10. Neither substitutes for the distribution

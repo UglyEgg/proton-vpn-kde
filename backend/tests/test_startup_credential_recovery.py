@@ -283,4 +283,3 @@ class StartupCredentialRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(snapshot.logged_in)
         self.assertEqual("signed_out", snapshot.auth_state)
         self.waiter.assert_not_awaited()
-

@@ -112,12 +112,12 @@ tar \
     -cf - "$source_name" \
     | gzip -n >"$orig_tar"
 
-# This original archive is already published. Debian revision-only changes
-# belong under debian/; changed original inputs need a new source identity.
-published_orig_sha256="fb2349c59e52d7ade27b604670370e9dd9ae68eab632bd0d36cd3f1aa426c5e0"
-if ! printf '%s  %s\n' "$published_orig_sha256" "$orig_tar" \
+# Original inputs are pinned by source identity. Later Debian revision-only
+# changes belong under debian/; never replace a published original archive.
+expected_orig_sha256="e06636465358a801f7932809715e374016b9443cc1e18c0f9ed64e65b48ec0d4"
+if ! printf '%s  %s\n' "$expected_orig_sha256" "$orig_tar" \
         | sha256sum --check --status; then
-    echo "Published original-source archive differs: $(basename "$orig_tar")." >&2
+    echo "Pinned original-source archive differs: $(basename "$orig_tar")." >&2
     echo "Use a new original-source identity instead of replacing the published archive." >&2
     exit 1
 fi

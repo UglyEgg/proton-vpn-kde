@@ -1,11 +1,15 @@
 proton-vpn-kde (0.14.5-1plasmavpn1) resolute; urgency=medium
 
+  * Require Secret Service before Core session restoration; prevent JSON fallback.
+  * Request one provider-owned unlock prompt with bounded cancellation/timeout.
+  * Permit one initial expired-certificate refresh per connection episode.
   * Add bounded Fastest failover with retained filters and location scope.
   * Preserve exact-server pins, retry budgets, and connection ownership.
   * Avoid redundant server-catalog projection and consolidate documentation.
-  * Retain the existing Core and keyring overlay baselines.
+  * Rebase Ubuntu's overlay on stable Core 5.8.11; retain the keyring baseline.
+  * Preserve failed-preflight recovery policy and certificate-worker ownership.
 
- -- uglyegg <uglyegg@entropy.quest>  Wed, 21 Oct 2026 00:00:00 -0500
+ -- uglyegg <uglyegg@entropy.quest>  Tue, 10 Nov 2026 00:00:00 -0600
 
 proton-vpn-kde (0.14.4-1plasmavpn1) resolute; urgency=medium
 

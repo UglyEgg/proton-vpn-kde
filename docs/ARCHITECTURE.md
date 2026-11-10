@@ -142,7 +142,7 @@ availability through current Core objects. Load-only updates do not rebuild it.
 
 Capability filters use AND semantics; Core owns access checks and final ranking.
 
-Unreleased Fastest recovery retains process-local feature and country/group
+Fastest recovery retains process-local feature and country/group
 constraints published by the current serialized dispatch owner, never a queued
 or cancelled request. After two automatic retries, network
 errors permit up to two alternative logical servers per episode. A newly
@@ -152,7 +152,9 @@ Core's Tor/Secure Core exclusions; there is no unfiltered fallback.
 
 Budget exhaustion keeps exponential backoff on the last eligible server; no
 eligible server means wait. Connected resets the budget. Exact-server
-selection, Disconnect, account retirement, and shutdown clear Fastest intent.
+selection commits its pin at serialized dispatch. Failed or cancelled preflight
+retains the accepted tunnel's selection and outage history. Disconnect, account
+retirement, and shutdown clear Fastest intent.
 Restored connections with unknown intent remain server-pinned. Protocol/backend
 selection and protection handling remain Core-owned.
 
@@ -178,8 +180,10 @@ error callback supplies no request identity; a traceback cannot establish which
 certificate attempt failed. Such notices never re-arm or cancel a refresh.
 `ExpiredCertificate` admits one initial public `force_refresh_certificate` request
 per connection episode. Duplicate notifications, recovery Off/On, and temporary
-suspension do not repeat it. A healthy terminal state or an explicit new target
-starts a new episode. A queued ordinary reconnect cannot dispatch Core Up while
+suspension do not repeat it. Manual dispatch renews failover budgets, while a
+rejected Core Up retains the live certificate request. Completed connection or
+terminal disconnection and explicit retirement end that certificate episode.
+A queued ordinary reconnect cannot dispatch Core Up while
 the certificate is expired. Stopped background jobs require an explicit restart
 of background controls. Core owns certificate fetch, scheduling, and protection.
 

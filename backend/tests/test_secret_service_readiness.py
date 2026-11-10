@@ -280,4 +280,3 @@ class PrivateSecretServiceWireTests(unittest.IsolatedAsyncioTestCase):
         finally:
             bus.disconnect()
             await bus.wait_for_disconnect()
-

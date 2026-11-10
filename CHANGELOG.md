@@ -4,6 +4,8 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 ## [Unreleased]
 
+## [0.14.5] - 2026-11-10
+
 ### Provider-owned unlock prompt
 
 - Normal startup may request one standard Secret Service unlock dialog for a
@@ -26,8 +28,8 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 - Request the initial expired-certificate refresh once per connection episode.
   Unattributed background failures report degraded updates and restart guidance;
   they cannot re-arm or cancel a newer certificate worker.
-
-## [0.14.5] - 2026-10-22
+- Failed preflight and rejected Core connection requests retain a live
+  certificate refresh until Core completes or explicitly retires the episode.
 
 ### Fastest recovery
 
@@ -41,6 +43,8 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
   frontend preference replay and reconnection toggles; unchanged enable replay
   no longer cancels an owned connection attempt. Queued/cancelled requests
   cannot attribute their selection to a retained tunnel.
+- Preserve an accepted Fastest selection and its outage history when a
+  replacement request fails or is cancelled before serialized dispatch.
 - Validate preferred retry targets through Core's ID index, project only the
   selected country for group alternatives, and avoid repeated full-catalog
   grouping during recovery.
@@ -49,8 +53,12 @@ The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
 - Consolidate current-state engineering references and separate release,
   branch-validation, and installed-acceptance evidence.
-- Give the Fedora keyring documentation refresh its own package revision;
-  preserve Ubuntu's published original-source archive and unchanged runtime floors.
+- Give the Fedora keyring documentation refresh its own package revision.
+- Rebase Ubuntu onto Proton's stable Core 5.8.11, including its permanent-mode
+  handoff behavior. Keep compiled networking unchanged; declare the canonical
+  boot-unit location and preserve Proton's enablement/removal contract.
+- Give the Ubuntu Core overlay a new original-source identity; preserve
+  previously published originals and the existing keyring runtime floor.
 
 ## [0.14.4] - 2026-10-17
 

@@ -11,7 +11,7 @@ export PYTHONDONTWRITEBYTECODE = 1
 override_dh_auto_configure:
 	python3 rebuild_overlay.py prepare \
 		--manifest overlay-manifest.json \
-		--vendor-deb python3-proton-vpn-api-core_5.6.10_amd64.deb \
+		--vendor-deb python3-proton-vpn-api-core_5.8.11_amd64.deb \
 		--source-directory . \
 		--baseline-root vendor-rootfs \
 		--overlay-root overlay-rootfs
@@ -38,6 +38,11 @@ override_dh_auto_install:
 # The payload already carries Proton's generated Python metadata. Rewriting it
 # would exceed the manifest's six-file source boundary.
 override_dh_python3:
+
+# Proton stores permanent-mode enablement in this unit. Preserve its disabled
+# default and an existing user's choice; do not start it during installation.
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start
 
 # Preserve Proton's prebuilt Rust/Python ABI payload byte-for-byte.
 override_dh_strip:

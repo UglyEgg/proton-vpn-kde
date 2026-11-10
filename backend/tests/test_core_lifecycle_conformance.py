@@ -57,16 +57,19 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
         sso_path = os.environ.get("PLASMA_VPN_TEST_SSO_SITE_PACKAGES")
         if sso_path:
             sso_source = Path(sso_path).resolve()
-            # Base Core 0.7.4; SSO includes the installed single-read overlay.
+            # Base Core 0.7.4: original Ubuntu SSO and Fedora's single-read form.
             sso_hashes = {
-                "proton/sso/sso.py": "be8fdb9bf62c2a1e207ae03d627a05b375f743b08d8aac2f30bd73a6f688e760",
-                "proton/loader/loader.py": "8ba14ff555647338138ddc4b69ff818cfe129a3a058ef33a7761047b94c0a21c",
-                "proton/keyring/_base.py": "3f7f75042723558b5853c9c94d2c413b80e96958a807ac67850d315b62ec05ab",
-                "proton/keyring/textfile.py": "06dfa739c2a309273523cb5c04896b02b164688290b54568603a91509f398d78",
-                "proton/session/api.py": "64554fc97c29c04758d8102e52d5168303ec0523799f73db6238e8e35644a109",
+                "proton/sso/sso.py": {
+                    "be8fdb9bf62c2a1e207ae03d627a05b375f743b08d8aac2f30bd73a6f688e760",
+                    "ff8997e0c825eec920a0bc9e02d9fe5e171e179b831936eb209ff24eaa97a230",
+                },
+                "proton/loader/loader.py": {"8ba14ff555647338138ddc4b69ff818cfe129a3a058ef33a7761047b94c0a21c"},
+                "proton/keyring/_base.py": {"3f7f75042723558b5853c9c94d2c413b80e96958a807ac67850d315b62ec05ab"},
+                "proton/keyring/textfile.py": {"06dfa739c2a309273523cb5c04896b02b164688290b54568603a91509f398d78"},
+                "proton/session/api.py": {"64554fc97c29c04758d8102e52d5168303ec0523799f73db6238e8e35644a109"},
             }
-            for relative, digest in sso_hashes.items():
-                if hashlib.sha256((sso_source / relative).read_bytes()).hexdigest() != digest:
+            for relative, digests in sso_hashes.items():
+                if hashlib.sha256((sso_source / relative).read_bytes()).hexdigest() not in digests:
                     raise AssertionError("SSO/Loader fixture changed; review its contract")
             sys.path.insert(0, str(sso_source))
             cls.addClassCleanup(sys.path.remove, str(sso_source))
@@ -450,6 +453,10 @@ class CoreLifecycleConformanceTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(list(range(failures + 1)), delays)
         self.assertEqual("stop", trace[0])
+        if mode == self.states.KillSwitchSetting.PERMANENT:
+            # Checking only the last protect call before start misses a
+            # temporary downgrade earlier in the Disconnected handoff.
+            self.assertNotIn(("protect", False), trace)
         for index, step in enumerate(trace):
             if step == "start":
                 self.assertEqual(("protect", mode == self.states.KillSwitchSetting.PERMANENT), trace[index - 1])

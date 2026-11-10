@@ -144,7 +144,10 @@ desktop-file-validate \
 %{_userunitdir}/proton-vpn-kde-control-center.service
 
 %changelog
-* Wed Oct 21 2026 uglyegg <uglyegg@entropy.quest> - 0.14.5-1
+* Tue Nov 10 2026 uglyegg <uglyegg@entropy.quest> - 0.14.5-1
+- Require Secret Service before Core session restoration and prevent JSON fallback
+- Request one provider-owned unlock prompt with bounded cancellation and timeout
+- Bound expired-certificate refresh to one initial attempt per connection episode
 - Add bounded Fastest failover while retaining filters, scope, and explicit pins
 - Preserve retry ownership and avoid redundant server-catalog projection
 - Consolidate current-state engineering documentation

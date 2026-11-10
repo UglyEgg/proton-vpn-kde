@@ -1,0 +1,16 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2022-2026 Proton AG
+# SPDX-FileCopyrightText: 2026 Plasma VPN contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+set -e
+
+# Preserve the vendor's bytecode hooks without rewriting its Python metadata.
+if command -v py3compile >/dev/null 2>&1; then
+    py3compile -p python3-proton-vpn-api-core:amd64 -V 3.9-
+fi
+if command -v pypy3compile >/dev/null 2>&1; then
+    pypy3compile -p python3-proton-vpn-api-core:amd64 -V 3.9- || true
+fi
+
+#DEBHELPER#

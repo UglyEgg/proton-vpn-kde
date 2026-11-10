@@ -217,12 +217,16 @@ class AsyncReconnector:
         self._reset()
 
     def reset_failure_episode(self) -> None:
-        """Retire outage history only at a connection/selection boundary."""
+        """Retire a finished connection episode, including its refresh latch."""
+        self.reset_failover_episode()
+        self._certificate_refresh_requested = False
+
+    def reset_failover_episode(self) -> None:
+        """A dispatched target renews retries without replacing a live refresh."""
         self._retry_counter = 0
         self._failover_server_id = None
         self._failover_attempts = 0
         self._failover_excluded.clear()
-        self._certificate_refresh_requested = False
 
     async def disable(self, *, deadline: float | None = None) -> None:
         unregister_error: Exception | None = None

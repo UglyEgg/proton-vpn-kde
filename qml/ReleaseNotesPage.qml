@@ -71,7 +71,7 @@ Kirigami.ScrollablePage {
 
         SectionCard {
             title: qsTr("What's new")
-            description: qsTr("0.14.5 maintenance release. Bounded Fastest recovery without changing your filters or server pins.")
+            description: qsTr("0.14.5 maintenance release. Desktop secret-store unlock and reliable Fastest recovery.")
             iconName: "software-properties"
 
             Kirigami.Heading {
@@ -85,9 +85,10 @@ Kirigami.ScrollablePage {
                 heading: qsTr("Highlights")
                 headingLevel: 4
                 notes: [
+                    qsTr("Startup can open your desktop secret store's unlock dialog before restoring sign-in."),
+                    qsTr("Cancelling unlock stops sign-in restoration without clearing your saved session."),
                     qsTr("After repeated failures, Fastest can try up to two other servers that meet your filters and location choice."),
-                    qsTr("Exact-server pins stay fixed. Retry limits and VPN protection remain in effect."),
-                    qsTr("Reduce server-list processing during automatic recovery and preserve accepted reconnect work.")
+                    qsTr("Exact-server pins stay fixed. Retry limits and VPN protection remain in effect.")
                 ]
             }
 

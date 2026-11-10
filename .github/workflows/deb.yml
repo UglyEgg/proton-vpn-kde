@@ -34,7 +34,7 @@ jobs:
       KEYRING_DEB_DIR: ${{ github.workspace }}/deb-build/keyring
       API_CORE_DEB_DIR: ${{ github.workspace }}/deb-build/api-core
       VENDOR_DEB_DIR: ${{ github.workspace }}/deb-build/vendor
-      VENDOR_API_CORE_DEB: ${{ github.workspace }}/deb-build/vendor/python3-proton-vpn-api-core_5.6.10_amd64.deb
+      VENDOR_API_CORE_DEB: ${{ github.workspace }}/deb-build/vendor/python3-proton-vpn-api-core_5.8.11_amd64.deb
       RELEASE_ARTIFACT_DIR: ${{ github.workspace }}/release-deb-artifacts
 
     steps:
@@ -79,10 +79,10 @@ jobs:
         run: |
           install -d -m 0755 "$VENDOR_DEB_DIR"
           cd "$VENDOR_DEB_DIR"
-          apt-get download python3-proton-vpn-api-core=5.6.10
+          apt-get download python3-proton-vpn-api-core=5.8.11
           test -f "$VENDOR_API_CORE_DEB"
           printf '%s  %s\n' \
-            f10688c9d4349f7acd1611054f03faacd7f0438cb84d9eaf85e7c377f908ce69 \
+            135a98f27a70cb05fb987999935407b6e89a9b4ddecce26b49af987cfe5ee1a8 \
             "$VENDOR_API_CORE_DEB" | sha256sum --check --strict
 
       - name: Prepare unprivileged builder

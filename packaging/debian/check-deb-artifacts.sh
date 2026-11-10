@@ -69,6 +69,12 @@ for forbidden_dependency in \
     fi
 done
 
+if ! grep -Eq '(^|, )python3-proton-vpn-api-core *\(>= *5\.8\.11-1plasmavpn1\)(,|$)' \
+        <<<"$client_depends"; then
+    echo "Client package does not require the qualified Ubuntu Core handoff baseline" >&2
+    exit 1
+fi
+
 keyring_depends="$(dpkg-deb --field "$keyring_deb" Depends)"
 if grep -Eq '(^|, )gnome-keyring([[:space:](,]|$)' <<<"$keyring_depends"; then
     echo "Provider-neutral keyring package depends on GNOME Keyring" >&2

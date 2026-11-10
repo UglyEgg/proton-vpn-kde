@@ -1,85 +1,102 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "publicUpstream": {
     "repository": "https://github.com/ProtonVPN/python-proton-vpn-api-core.git",
-    "tag": "v5.6.10",
-    "commit": "f1d13b71c506bbd5f47351a9e4392572e21d0169"
+    "latestVerifiedTag": "v5.8.7",
+    "commit": "1b6dcda24566568437d423c095c14e0aa9d71ec6",
+    "verifiedOn": "2026-10-15"
   },
   "vendor": {
     "package": "python3-proton-vpn-api-core",
-    "version": "5.6.10",
+    "version": "5.8.11",
     "architecture": "amd64",
-    "filename": "python3-proton-vpn-api-core_5.6.10_amd64.deb",
-    "url": "https://repo.protonvpn.com/debian/dists/stable/main/binary-amd64/python3-proton-vpn-api-core_5.6.10_amd64.deb",
-    "sha256": "f10688c9d4349f7acd1611054f03faacd7f0438cb84d9eaf85e7c377f908ce69",
-    "controlSha256": "26c765adf50897482174c1c6ce523cf7f0caba5af06eec24460d0dfd01ca9363",
+    "filename": "python3-proton-vpn-api-core_5.8.11_amd64.deb",
+    "url": "https://repo.protonvpn.com/debian/dists/stable/main/binary-amd64/python3-proton-vpn-api-core_5.8.11_amd64.deb",
+    "sha256": "135a98f27a70cb05fb987999935407b6e89a9b4ddecce26b49af987cfe5ee1a8",
+    "controlSha256": "64711ebd1097b19642346eea617823c5b2b1da3c36e4f39521eba9f3e3a0d8eb",
     "maintainerScripts": {
-      "prerm": "c10cd2bc634dec1d835992ab70e8f4473ba2147fa5de9df3a44906d903aee9eb",
-      "postrm": "7a3b813e0b6c168eda739073c08407088ad512960905e4dced852d2d95486b86"
+      "preinst": "ddeabd9e5973528599ba7eddcf7c8a60741689937124569b916ab9bc415a9cd6",
+      "postinst": "fae2c019d50369754483aa32b6a250134931dcc70b740deaa6e652cdb3fccacf",
+      "prerm": "8a7e5be69fdf7864fe9f26a648c93daa5f672f790fc87ad613b9045d1a899a33",
+      "postrm": "5e77c3de67e264037e4257d3b3b9e41f9f833a81310a467038723ea5fadf7b7d"
     }
   },
   "overlay": {
-    "packageVersion": "5.6.10-12plasmavpn1",
+    "packageVersion": "5.8.11-1plasmavpn1",
     "capability": "proton-vpn-api-core-plasma-protun-secret (= 1)",
-    "capabilityPatch": "0004-keep-protun-private-key-ephemeral.patch",
-    "sourceDateEpoch": 1787327750,
+    "capabilitySource": {
+      "kind": "vendor",
+      "minimumVersion": "5.8.2",
+      "evidence": "Proton 5.8.2 stores the Protun private key in its existing unsaved NetworkManager profile with system-owned secret flags"
+    },
+    "sourceDateEpoch": 1791805380,
     "patchPathPrefix": {
       "from": "usr/lib64/python3.14/site-packages",
       "to": "usr/lib/python3/dist-packages"
     },
     "patches": [
       {
-        "file": "0001-share-repeated-server-endpoint-strings.patch",
-        "sha256": "8fe15335ae88b296145428f7644071d30e923bc0dd4cec8faadc9c8a3649867e"
+        "file": "0001-share-repeated-server-list-strings.patch",
+        "sha256": "008b3f9240d71222af73f088bead229754cb7433005b04e07562e4f7c873884c",
+        "upstreamCommit": "9248915988b290ef83c86af38cad523948c9019d",
+        "upstreamPatchSha256": "2d14e55453425a6568295c4353771f97e983faff2986e8fb524c37b571b1c3d1"
       },
       {
-        "file": "0002-share-server-strings-during-cache-decoding.patch",
-        "sha256": "d32c55255ab993f4e6467c2d55c454da7d966da86d478f107f3d839dfd6e45ba"
+        "file": "0002-avoid-deprecated-fido2-capability-query.patch",
+        "sha256": "e85a7febb5bdbf3f86300eb97bc3dd3825a18f18a40e16b0723dc8da1c1ef8bf",
+        "upstreamCommit": "f39782e411d629694eab174b4b04adc86765d7d8",
+        "upstreamPatchSha256": "c9b9b47b7f50a2cb38f36986c2baa413b7a50b3813d85ef67a4518d2a646d07a"
       },
       {
-        "file": "0003-avoid-deprecated-fido2-capability-query.patch",
-        "sha256": "1489f5af318c96167b0a2850fedd6993600b14710089408c0c1d091df0df0365"
+        "file": "0003-explicitly-activate-protection-profiles.patch",
+        "sha256": "86ed11b0b3d391265873d16152314e9367c1d83dd46df479bf97d1772ce89d8d",
+        "provenance": "local",
+        "rationale": "Reuse validated protection profiles and explicitly activate them after manual device disconnect"
       },
       {
-        "file": "0004-keep-protun-private-key-ephemeral.patch",
-        "sha256": "95cf092c97d5cc2e5005efcd4e96a88227ad88f5b21985d86dea306efed14cad"
-      },
-      {
-        "file": "0005-explicitly-activate-protection-profiles.patch",
-        "sha256": "c85103ebcde258ede876527659eabce2773cac3f37e6c54b1b002f4e2ac243f8"
+        "file": "0004-ignore-empty-initial-route-monitor-event.patch",
+        "sha256": "dcf84087c62405a017648c30c85d2a6e804045afbb6294dac4417792911026d6",
+        "provenance": "local",
+        "rationale": "Ignore unowned server addresses during route-monitor subscription and teardown; still required by adversarial callback fixtures on vendor Core 5.8.11"
       }
     ],
     "modifiedFiles": [
       {
-        "path": "usr/lib/python3/dist-packages/proton/vpn/core/api.py",
-        "vendorSha256": "29dc8db030df17e1fcc7f07ce27578bd372d8aa430c8a05654bb1e95f6a094c6",
-        "overlaySha256": "00c3648fcdf7cf5650bb9d5c7656882e35d93e519bfd143f0f6ee0d198e77a6c"
-      },
-      {
-        "path": "usr/lib/python3/dist-packages/proton/vpn/core/cache_handler.py",
-        "vendorSha256": "e41d760b55d04ab7eae1ddacb41f5b7a4a3e852c8a19e080ed3d85f842889b69",
-        "overlaySha256": "994ca21f5f60cc349683ff7507e396b2a24a94049d77ae7681c03ea1d8cdee79"
-      },
-      {
-        "path": "usr/lib/python3/dist-packages/proton/vpn/session/servers/logicals.py",
-        "vendorSha256": "a97a1444b594a9fee49abc15ad8c2ac50392d76e00ef300bd3c4b8641a83fa71",
-        "overlaySha256": "ca7c7d1e45fdc126a658ba9efe401b9851268ae0e57b7a1f0f9a12a9cf3edcf8"
-      },
-      {
-        "path": "usr/lib/python3/dist-packages/proton/vpn/session/servers/server_list_fetcher.py",
-        "vendorSha256": "d9cad21c1c910fc55374fdcc042263e7dc933f103ae6f25def68be16a3e04535",
-        "overlaySha256": "caf9f9c352bdecb5d70ff552ebd90c22520cbb92d274d5036f02b7f1381be0a5"
-      },
-      {
-        "path": "usr/lib/python3/dist-packages/proton/vpn/backend/networkmanager/protocol/protun/protun.py",
-        "vendorSha256": "70876ff4db2ae79baa51dac9b29497180b6d785103e2313c5da1091adac4820c",
-        "overlaySha256": "eaee44cb5aff2756de96b6bc739be13776b2ab25878d4d86f8ca91723d8a6f35"
+        "path": "usr/lib/python3/dist-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/killswitch_connection_handler.py",
+        "vendorSha256": "12e9c7a62dedb80c55e3c176bf812bd8ffedd32933168c26d2726da2522ece81",
+        "overlaySha256": "893fe8bd655f7a628b76067500fbe1f6dbfaf8177cf9a40813a31a911371bb52"
       },
       {
         "path": "usr/lib/python3/dist-packages/proton/vpn/backend/networkmanager/killswitch/wireguard/nmclient.py",
-        "vendorSha256": "0a7235bd5e11d0433b060a2f311d0398af2099d6636ddc682108c3ddf6d73e84",
-        "overlaySha256": "d73f867bf007c15ca664448e2bd2bf6054c19f192df7650e13c9e15e1a461866"
+        "vendorSha256": "c9617cbf6fa06ac28b5c31d4c92edc0f27fa000de5e12459063720c883297314",
+        "overlaySha256": "9e753c8805b47d0476bc7b4a722c4dc4d4884b4cb29e23d359e92aa018dc33fa"
+      },
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/core/api.py",
+        "vendorSha256": "91818843288024a925a130a2370e6fb625271bd9e21c7c3430981e2b7fb141b0",
+        "overlaySha256": "aa2c46e627999ad88b5276a020f5085f5286a7cd9080c81a7d27836960d18e4b"
+      },
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/core/cache_handler.py",
+        "vendorSha256": "c8c0d79585efb5abad8c777cc4ecf8d0122fbab45093e57bb3a8c5c6f7d431a3",
+        "overlaySha256": "89de10bc949948f9d58b006d01f8285c087a367e47447549ace2bb51c837d5bc"
+      },
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/session/servers/logicals.py",
+        "vendorSha256": "11347774a76031cc8b6c3c6eb690a48cb5145acf1b7c966ca4e59714fb5bc8d9",
+        "overlaySha256": "f0a769407ecf7471fd15e97b95bbe73c04c443405343e8d41f7af67ccc13fb74"
+      },
+      {
+        "path": "usr/lib/python3/dist-packages/proton/vpn/session/servers/server_list_fetcher.py",
+        "vendorSha256": "6061761ffd0a20cc77f43531d36b3b073ee94ab810f96dbc66044a3a0d1d8531",
+        "overlaySha256": "4874750df221504de9cef3892ce9d0fc0673d1b815e6815db653d1402ccf12da"
       }
-    ]
+    ],
+    "bootUnitRelocation": {
+      "vendorPath": "lib/systemd/system/proton-vpn-kill-switch-boot.service",
+      "installedPath": "usr/lib/systemd/system/proton-vpn-kill-switch-boot.service",
+      "mode": "0644",
+      "sha256": "a0e8608e3e10649ac1299d218486af7d0dcc9a9d030dd6b7dfa5dc92085bd6a8"
+    }
   }
 }

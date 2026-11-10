@@ -7,6 +7,19 @@ Results are bounded measurements of identified builds/fixtures, not guaranteed
 product budgets. The current Fastest branch has no new whole-client performance
 qualification.
 
+## Secret Service transport retention
+
+On `e7b4956`, Python 3.14.10 and dbus-fast 2.45.1, an isolated private-bus
+probe ran six cases of 50 cycles: bare transport, unlocked observation,
+signal-first success, dismissal, timeout and cancellation. After explicit
+collection, each case returned to eight descriptors, with zero retained buses,
+extra tasks, application handlers or pending reply callbacks.
+
+Transient transport cycles and one `ResourceWarning` per transport matched the
+bare-library baseline. This tests 300 synthetic cycles, not normal-GC resident
+memory or live-provider behavior. Collection is a measurement boundary, not a
+production workaround.
+
 ## Fastest retry selection
 
 Same-host Core 5.8.11 model/selection probe with 18,221 synthetic logicals,
