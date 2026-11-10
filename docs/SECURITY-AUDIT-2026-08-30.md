@@ -12,10 +12,11 @@ were corrected in one bounded patch and accepted by affected reviewers. The
 P3 EOF cleanup passes aggregate whitespace checks. The approved Ubuntu 5.8.11
 rebase passed focused compatibility, consistency and security-control rechecks.
 
-The reviewed corrections extend beyond the installed source. Normal UAT
-covers signed `e7b4956`, accepted November 10, not every later correction or
-final package. Signed-source client builds, distribution transactions, final
-reproducibility, CI and publication remain release gates.
+Package qualification uses signed runtime source `2568b7e`. Normal installed
+UAT covers `e7b4956`, accepted November 10; the corrected candidate still needs
+focused installed acceptance. Documentation follow-ups do not extend either
+acceptance scope. Final-head PR/CI, publication metadata, signed tag builds and
+artifact signatures remain release gates.
 
 ## Current evidence
 
@@ -26,17 +27,23 @@ reproducibility, CI and publication remain release gates.
 | Private-bus wire | Seven cases pass on Fedora dbus-fast 2.45.1 and Ubuntu 4.0.0; synthetic providers, no desktop Secret Service calls |
 | Protection handoff | Actual Core state/dispatcher fixtures assert the complete permanent-mode protection-call trace, including intermediate handoffs; routing replay uses dummy interfaces in isolated user/network namespaces |
 | Client correction | Three added regression methods cover seven-route failed/cancelled preflight, accepted-selector retention and rejected Up while certificate refresh is live; red-before/green-after; affected Entropy/Error-Class rechecks pass |
-| Native | Installed baseline RPM passed 46 archive groups; refreshed release-note layout, hygiene and metadata groups pass; final full source/package run pending |
+| Native/source | Fedora and Ubuntu client packages each pass all 46 archive groups; signed-source static, positive/negative seal and source-archive checks pass |
 | Ubuntu Core package | `5.8.11-1plasmavpn1` from authenticated APT input; six declared Python body changes and one pinned unit relocation; all compiled bytes preserved; 13 boundary/mutation cases pass |
 | Ubuntu repeatability | Core DEB/original archive/Debian delta/DSC repeat byte-for-byte; buildinfo differs only in Build-Date, changes only in corresponding checksums |
-| Ubuntu hooks/policy | Generated default/saved-enable/upgrade/remove/purge paths pass with mocked commands; Lintian error gate passes; two inherited vendor warnings remain |
+| Ubuntu hooks/policy | Generated default/saved-enable/upgrade/remove/purge paths pass with mocked commands; Lintian error gates pass; inherited vendor and missing-manual warnings remain |
+| Ubuntu client | Binary, debug symbols, original archive, Debian delta and DSC repeat byte-for-byte; all 407 source files and 32 backend files match the signed candidate; reporting/telemetry gates and ELF hardening pass |
+| Ubuntu transactions | Offline upgrade from Core 5.6.10/keyring revision 9, fresh installation, reinstallation, full integrity, autopkgtest and client removal pass in a private root; systemctl is stubbed; boot-unit bytes/mode/path verified after each transaction |
+| Fedora repeatability | Four unsigned client/source/debug RPMs repeat byte-for-byte with canonical build/source/temp paths, matching the CI build model |
+| Fedora client | RPM policy, paired source identity, 32 backend files, disabled reporting/telemetry and ELF hardening pass; copied-database dependency and private payload transactions pass without scriptlets |
 | Keyring | Ubuntu `0.2.3-10plasmavpn1` rebuilt from unchanged pinned inputs; Fedora revision 11 is the earlier documentation-only package identity |
 | Installed UAT | Fedora client `0.14.5-1.fc44` from `e7b4956`: root RPM integrity and all 32 backend files verified; maintainer accepted normal operation November 10 |
 
 The installed stack is Fedora 44, KeePassXC `2.8.0-2.fc44`, API Core
 `5.8.11-1.plasmavpn1.fc44`, and keyring `0.2.3-10.plasmavpn1.fc44`.
 Its API-Core input came from beta. Ubuntu uses Proton's authenticated stable
-5.8.11 input. Live KWallet prompting and Ubuntu Plasma lifecycle remain unqualified.
+5.8.11 input. Live KWallet prompting and Ubuntu Plasma lifecycle remain unqualified. Ubuntu
+package tests use Ubuntu 26.04 userspace on the Fedora host kernel, not an
+Ubuntu desktop.
 
 ## Review disposition
 
@@ -67,11 +74,11 @@ Proton's disabled default, saved enablement and removal behavior.
 
 ## Remaining release gates
 
-1. Final metadata/source-seal checks and signed local preparation commits.
-2. Immutable-source Fedora/Ubuntu client builds, full package policy,
-   transactions and reproducibility; retain the Ubuntu package-validated tier.
-3. Focused installed acceptance for any changed runtime, then authorized PR/CI,
-   merge, signed tag/artifacts, publication and download verification.
+1. Focused normal installed acceptance of the corrected Fedora runtime; retain
+   Ubuntu's package-validated tier and live-provider limitations.
+2. Authorized PR/CI on the final head, public-status metadata and merge.
+3. Exact signed-tag package builds, artifact signatures, publication, download
+   verification and approved mirror/catalog updates.
 
 ## Scope and assurance limits
 

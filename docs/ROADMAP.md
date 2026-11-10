@@ -10,17 +10,18 @@ The `feature/secret-service-unlock-prompt` branch includes bounded Fastest
 failover, startup Secret Service admission, and one provider-owned unlock
 request. Seven isolated reviews and bounded client corrections are accepted.
 The approved Ubuntu Core 5.8.11 rebase passes source/Core/package rechecks.
-Installed normal Fedora UAT on the prior signed source was accepted November 10;
-corrected preparation still requires final artifact acceptance. Public release
-remains 0.14.4.
+Signed runtime candidate `2568b7e` passes Fedora/Ubuntu client package checks
+and Ubuntu offline transactions. Installed normal Fedora UAT on `e7b4956` was
+accepted November 10; corrected installed acceptance remains open. Public
+release remains 0.14.4.
 
 Remaining gates:
 
-1. Finalize metadata, reviewed source seal and signed preparation commits.
-2. Build final Fedora/Ubuntu client artifacts from immutable source; verify
-   package policy, transactions, source identity and reproducibility.
-3. Complete affected installed acceptance; retain Ubuntu field-test limitations.
-4. With maintainer authorization, push for PR/CI, merge, tag, sign artifacts,
+1. Complete affected normal installed acceptance; retain Ubuntu field-test
+   limitations.
+2. With maintainer authorization, push for final-head PR/CI, finalize public
+   release metadata and merge.
+3. Build from the signed tag, verify artifact reproducibility and signatures,
    publish, and verify Git mirrors and the OpenDesktop listing.
 
 No live fault tests are authorized. Any future fault trial requires the

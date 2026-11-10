@@ -5,10 +5,11 @@
 Plasma VPN 0.14.5 is prepared for release; 0.14.4 remains the current public
 package release. The maintainer accepted the installed Fedora unlock-prompt
 build with KeePassXC 2.8.0 on November 10. The aggregate review and bounded
-client corrections are accepted. Final distribution builds remain release
-gates. KeePassXC acceptance does not qualify live KWallet behavior. Ubuntu's
-Core 5.8.11 overlay and actual Core/SSO checks pass; full client packaging,
-transactions and Plasma field reports remain open.
+client corrections are accepted. Signed-source client and overlay package
+checks pass; final-head CI, tag builds and corrected installed acceptance remain
+release gates. KeePassXC acceptance does not qualify live KWallet behavior.
+Ubuntu 26.04 is package-validated, including Core 5.8.11 and offline transactions;
+Plasma lifecycle and provider field reports remain open.
 Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.md).
 
 | Component | Fedora 44 | Ubuntu 26.04 |
@@ -20,7 +21,7 @@ Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.
 | API Core overlay | `5.8.11-1.plasmavpn1` beta input; stable minimum `5.8.3-2.plasmavpn1` | `5.8.11-1plasmavpn1` stable input |
 | Keyring overlay | `0.2.3-11.plasmavpn1` build; minimum `0.2.3-10.plasmavpn1` | `0.2.3-10plasmavpn1` |
 | Secret Service | KeePassXC verified; provider-neutral implementation | Live provider UAT pending |
-| Validation tier | Installed baseline lifecycle accepted; corrected release builds pending | Core package/SDK validated; final client/transactions and live lifecycle pending |
+| Validation tier | Installed baseline accepted; corrected candidate package checks pass, installed acceptance pending | Client/Core/keyring package and SDK checks pass; live lifecycle pending |
 
 Build dependencies include C++20, CMake 3.24+, OpenSSL 3, and `dbus-fast` 2.20+.
 Fedora's tested `cryptography` floor is 50.0.0; Ubuntu's packaged 46.0.5 passes
