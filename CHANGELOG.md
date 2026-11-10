@@ -2,6 +2,66 @@
 
 The project follows [Semantic Versioning](https://semver.org/) while pre-1.0.
 
+## [Unreleased]
+
+## [0.14.5] - 2026-11-10
+
+### Provider-owned unlock prompt
+
+- Normal startup may request one standard Secret Service unlock dialog for a
+  locked default/sole collection. The provider handles authentication; Core
+  admission and the JSON fallback block remain enforced.
+- Dismissal ends admission; cancellation and timeout retire the owned request
+  and dismiss a pending dialog. Unsupported providers retain passive waiting.
+  Protected cleanup and later lock retries do not request dialogs.
+
+### Startup credential recovery
+
+- Require Secret Service admission before Core construction or session lookup,
+  including cached-success startup. Existing collections must be unlocked;
+  dormant providers and first-use collection creation remain supported.
+  Enforce its backend through Proton's public
+  selector so provider loss cannot enable JSON fallback. Admission and restoration
+  share a two-minute bound; protected cleanup retains its shorter deadline.
+- A failed or cancelled restore neither clears the session nor resets networking.
+  Legacy fallback files are not migrated or removed.
+- Request the initial expired-certificate refresh once per connection episode.
+  Unattributed background failures report degraded updates and restart guidance;
+  they cannot re-arm or cancel a newer certificate worker.
+- Failed preflight and rejected Core connection requests retain a live
+  certificate refresh until Core completes or explicitly retires the episode.
+
+### Fastest recovery
+
+- After two unsuccessful automatic retries, Fastest connections may try up to
+  two alternative logical servers, retaining their capability and location
+  constraints, Core access checks, protocol, and protection handoffs.
+- Exact-server selections and restored connections with unknown selection
+  intent never roam. An exhausted alternative budget retains normal backoff;
+  missing eligible servers never broaden the selection or disable protection.
+- Preserve Fastest constraints, outage budgets, and retry backoff across
+  frontend preference replay and reconnection toggles; unchanged enable replay
+  no longer cancels an owned connection attempt. Queued/cancelled requests
+  cannot attribute their selection to a retained tunnel.
+- Preserve an accepted Fastest selection and its outage history when a
+  replacement request fails or is cancelled before serialized dispatch.
+- Validate preferred retry targets through Core's ID index, project only the
+  selected country for group alternatives, and avoid repeated full-catalog
+  grouping during recovery.
+
+### Packaging and documentation
+
+- Consolidate current-state engineering references and separate release,
+  branch-validation, and installed-acceptance evidence.
+- Give the Fedora keyring documentation refresh its own package revision.
+- Rebase Ubuntu onto Proton's stable Core 5.8.11, including its permanent-mode
+  handoff behavior. Keep compiled networking unchanged; declare the canonical
+  boot-unit location and preserve Proton's enablement/removal contract.
+- Give the Ubuntu Core overlay a new original-source identity; preserve
+  previously published originals and the existing keyring runtime floor.
+- Pin Ubuntu's daemon to 0.13.8 for the qualified Core 5.8.11 stack, preventing
+  an incompatible Core 6 daemon from blocking installation.
+
 ## [0.14.4] - 2026-10-17
 
 ### Protected reconnect

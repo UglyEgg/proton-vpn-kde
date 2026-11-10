@@ -657,5 +657,70 @@ class AsyncReconnectorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(probe._properties)
 
 
+class CertificateRecoveryTests(unittest.IsolatedAsyncioTestCase):
+    make_reconnector = AsyncReconnectorTests.make_reconnector
+    let_tasks_run = AsyncReconnectorTests.let_tasks_run
+
+    async def test_repeated_expiry_does_not_cancel_a_live_refresh(self):
+        reconnector, connector, refresher, _messages, attempt = self.make_reconnector(
+            event_name="ExpiredCertificate"
+        )
+        reconnector.enable()
+        for _ in range(100):
+            reconnector.status_update(connector.current_state)
+        self.assertEqual(1, refresher.force_refresh_certificate.call_count)
+        self.assertIsNone(reconnector._retry_task)
+        attempt.assert_not_awaited()
+        await reconnector.disable()
+
+    async def test_off_on_does_not_rearm_an_already_requested_refresh(self):
+        reconnector, connector, refresher, _messages, attempt = self.make_reconnector(
+            event_name="ExpiredCertificate"
+        )
+        reconnector.status_update(connector.current_state)
+        refresher.force_refresh_certificate.assert_not_called()
+        reconnector.enable()
+        await reconnector.disable()
+        reconnector.enable()
+        self.assertEqual(1, refresher.force_refresh_certificate.call_count)
+        attempt.assert_not_awaited()
+        await reconnector.disable()
+
+    async def test_suspension_does_not_rearm_the_current_episode(self):
+        reconnector, connector, refresher, _messages, attempt = self.make_reconnector(
+            event_name="ExpiredCertificate"
+        )
+        reconnector.enable()
+        async with reconnector.suspended():
+            reconnector.status_update(connector.current_state)
+        self.assertEqual(1, refresher.force_refresh_certificate.call_count)
+        attempt.assert_not_awaited()
+        await reconnector.disable()
+
+    async def test_new_episode_can_request_its_own_initial_refresh(self):
+        reconnector, connector, refresher, _messages, attempt = self.make_reconnector(
+            event_name="ExpiredCertificate"
+        )
+        reconnector.enable()
+        connector.current_state = state_named("Disconnected")
+        reconnector.status_update(connector.current_state)
+        connector.current_state = state_named("Error", "ExpiredCertificate")
+        reconnector.status_update(connector.current_state)
+        self.assertEqual(2, refresher.force_refresh_certificate.call_count)
+        attempt.assert_not_awaited()
+        await reconnector.disable()
+
+    async def test_queued_connection_retry_cannot_connect_with_an_expired_certificate(self):
+        reconnector, connector, refresher, _messages, attempt = self.make_reconnector()
+        reconnector.enable()
+        connector.current_state = state_named("Error", "ExpiredCertificate")
+        reconnector.status_update(connector.current_state)
+        await self.let_tasks_run()
+        self.assertIsNone(reconnector._retry_task)
+        self.assertEqual(1, refresher.force_refresh_certificate.call_count)
+        attempt.assert_not_awaited()
+        await reconnector.disable()
+
+
 if __name__ == "__main__":
     unittest.main()

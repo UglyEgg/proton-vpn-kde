@@ -50,7 +50,7 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as error:
         raise OverlayError(f"Unable to read overlay manifest: {error}") from error
 
-    if manifest.get("schemaVersion") != 1:
+    if manifest.get("schemaVersion") != 2:
         raise OverlayError("Unsupported Debian overlay manifest schema")
     vendor = manifest.get("vendor")
     overlay = manifest.get("overlay")
@@ -72,8 +72,23 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     patch_names = {
         record.get("file") for record in patches if isinstance(record, dict)
     }
-    if overlay.get("capabilityPatch") not in patch_names:
-        raise OverlayError("The required capability is not tied to a listed patch")
+    source = overlay.get("capabilitySource")
+    if not isinstance(source, dict):
+        raise OverlayError("The required capability has no declared source")
+    if source.get("kind") == "patch":
+        if source.get("patch") not in patch_names:
+            raise OverlayError("The required capability is not tied to a listed patch")
+    elif source.get("kind") == "vendor":
+        minimum = source.get("minimumVersion")
+        if not isinstance(minimum, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", minimum):
+            raise OverlayError("Vendor capability source has no valid version")
+        if tuple(map(int, version.split("."))) < tuple(map(int, minimum.split("."))):
+            raise OverlayError("Vendor package predates the required capability")
+        if not isinstance(source.get("evidence"), str) or not source["evidence"].strip():
+            raise OverlayError("Vendor capability source has no evidence")
+    else:
+        raise OverlayError("The required capability has an unknown source")
+    _boot_unit_record(manifest)
     _modified_file_records(manifest)
     return manifest
 
@@ -244,6 +259,57 @@ def _tree_state(
     return result
 
 
+def _boot_unit_record(manifest: dict[str, Any]) -> dict[str, Any]:
+    record = manifest["overlay"].get("bootUnitRelocation")
+    if not isinstance(record, dict) or (
+        record.get("vendorPath") != "lib/systemd/system/proton-vpn-kill-switch-boot.service"
+        or record.get("installedPath") != "usr/lib/systemd/system/proton-vpn-kill-switch-boot.service"
+        or record.get("mode") != "0644"
+        or not isinstance(record.get("sha256"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", record["sha256"]) is None
+    ):
+        raise OverlayError("Missing or invalid exact boot-unit relocation")
+    return record
+
+
+def _canonical_boot_unit_tree(
+    manifest: dict[str, Any], state: dict[str, tuple[str, int, str]]
+) -> dict[str, tuple[str, int, str]]:
+    """Account for exactly one unchanged vendor unit at Ubuntu's canonical path."""
+    record = _boot_unit_record(manifest)
+    expected = state.copy()
+    unit = expected.pop(record["vendorPath"], None)
+    if unit != ("file", 0o644, record["sha256"]):
+        raise OverlayError("Vendor boot-unit type, mode or hash changed")
+    if record["installedPath"] in expected:
+        raise OverlayError("Canonical boot-unit target already exists")
+    for directory in ("lib/systemd/system", "lib/systemd", "lib"):
+        if expected.pop(directory, None) != ("directory", 0o755, ""):
+            raise OverlayError("Vendor boot-unit directory changed")
+    if any(path.startswith("lib/") for path in expected):
+        raise OverlayError("Unexpected vendor files under the aliased lib directory")
+    for directory in ("usr/lib/systemd", "usr/lib/systemd/system"):
+        if directory in expected:
+            raise OverlayError("Canonical boot-unit directory already exists")
+        expected[directory] = ("directory", 0o755, "")
+    expected[record["installedPath"]] = unit
+    return expected
+
+
+def _relocate_boot_unit(manifest: dict[str, Any], root: Path) -> None:
+    _canonical_boot_unit_tree(manifest, _tree_state(root))
+    record = _boot_unit_record(manifest)
+    for directory in ("usr/lib/systemd", "usr/lib/systemd/system"):
+        path = root / directory
+        path.mkdir(mode=0o755)
+        path.chmod(0o755)
+    _root_path(root, record["vendorPath"]).rename(
+        _root_path(root, record["installedPath"])
+    )
+    for directory in ("lib/systemd/system", "lib/systemd", "lib"):
+        (root / directory).rmdir()
+
+
 def _modified_file_records(
     manifest: dict[str, Any]
 ) -> dict[str, dict[str, Any]]:
@@ -272,6 +338,8 @@ def verify_tree(
     baseline = _tree_state(
         baseline_root, exclude_documentation=exclude_documentation
     )
+    if "bootUnitRelocation" in manifest["overlay"]:
+        baseline = _canonical_boot_unit_tree(manifest, baseline)
     overlay = _tree_state(
         overlay_root, exclude_documentation=exclude_documentation
     )
@@ -319,6 +387,7 @@ def prepare_overlay(
         raise OverlayError(f"Overlay destination already exists: {overlay_root}")
     _copytree_preserving_hardlinks(baseline_root, overlay_root)
     _apply_patches(manifest, overlay_root, patches)
+    _relocate_boot_unit(manifest, overlay_root)
     verify_tree(manifest, baseline_root, overlay_root)
     print(
         "Verified Debian API-Core overlay: "

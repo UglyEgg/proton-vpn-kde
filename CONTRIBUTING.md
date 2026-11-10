@@ -31,6 +31,33 @@ No credential, token, private key, raw API response, or exception text that may
 contain sensitive data may appear in a D-Bus body, state snapshot, notification,
 or log.
 
+## Documentation
+
+Write engineering references for Senior+ readers: contracts, constraints,
+commands, evidence, and limits. Omit tutorials, development narration, repeated
+assurances, and release-by-release summaries outside the changelog.
+
+| Document | Owns |
+| --- | --- |
+| README | Product overview, screenshots, evaluation entry points |
+| Architecture | Component ownership, contracts, lifecycle, and recovery |
+| Authentication | Secret transport and Secret Service trust/operation boundary |
+| Hardening | Deployment enforcement, privacy bounds, and safe fault-test isolation |
+| Compatibility | Supported versions, dependencies, and validation tiers |
+| Feature coverage | User workflows and deliberate constraints |
+| Assessment | Current evidence, unresolved findings, and remaining gates |
+| Performance | Measurements with build/fixture/method and interpretation limits |
+| Roadmap | Open work only |
+| Releasing / packaging guides | Release gates / distribution-specific build contracts |
+| SECURITY / SUPPORT | Security policy and private disclosure / ordinary issue routing |
+| Changelog / Git | Release history / detailed implementation and review history |
+
+Link to the owning reference instead of copying its explanation. Distinguish
+public release, working branch, synthetic fixture, and installed acceptance;
+never transfer review or test results to an unverified revision. Preserve
+required license/provenance notices. Agree on a distinct purpose before adding
+another document.
+
 ## Development workflow
 
 Build and run the complete test suite:
@@ -84,8 +111,9 @@ tests. Generated output must not be presented as independently audited or as
 evidence of correctness.
 
 Other upstream projects may impose different contributor or copyright terms.
-Confirm that you can truthfully accept an upstream project's policy before
-submitting code derived from work performed here.
+Explicitly review any copyright-assignment or sole-creation representations;
+confirm that you can truthfully accept the target project's current policy
+before submitting code derived from work performed here.
 
 ## Licensing
 

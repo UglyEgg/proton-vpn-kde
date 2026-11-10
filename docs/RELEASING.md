@@ -1,172 +1,137 @@
 # Release procedure
 
-Release only from a clean, immutable commit. Runtime changes after review or
-acceptance restart the affected gates. Feature releases require one week of
-local use on the reviewed runtime before publication.
-
-An abbreviated exact-build soak requires explicit maintainer approval recorded
-in the release assessment, prior use of the same feature line, and focused
-acceptance of every post-review correction. It does not waive review, package,
-artifact, or installed-UAT gates.
+Release from a clean immutable commit. Runtime changes invalidate affected
+review/acceptance gates. Feature releases require one week of local use;
+an abbreviated exact-build soak needs explicit maintainer approval recorded in
+the assessment, prior feature-line use, and focused acceptance of corrections.
+It does not waive review, packaging, signatures, or UAT.
 
 ## 1. Metadata
 
-Synchronize:
+Synchronize the client version across CMake, Python metadata/runtime, Fedora
+spec, Debian changelog, and in-app release notes. Update the dated changelog,
+README release status, SECURITY support table, Compatibility, and assessment.
+Use final RPM/Debian revisions for public releases; internal milestones are not
+published releases.
 
-- `CMakeLists.txt`;
-- `backend/pyproject.toml`;
-- `backend/proton_vpn_kde_backend/__init__.py`;
-- `packaging/fedora/proton-vpn-kde.spec`;
-- all three Debian `debian/changelog` files;
-- `qml/ReleaseNotesPage.qml`;
-- `CHANGELOG.md`;
-- `README.md`, `SECURITY.md`, and `docs/COMPATIBILITY.md`.
+Before publication, final package metadata may identify a prepared release.
+README and Compatibility must say `prepared for release`, and the assessment
+must use `Release target:` for that version while retaining the actual public
+release separately. The metadata gate rejects mixed prepared/public claims.
+Finalize all three documents together before tagging the publication commit.
 
-A public release requires a dated changelog entry, final RPM and Debian package
-revisions, matching security-support table, and current in-app notes. Accepted
-internal milestones must not appear as published releases.
+Overlay versions change only when their payload/package contract changes.
+Their manifests and dependency floors must remain aligned with the client.
+Published package payloads and original-source archives are immutable for a
+given identity, including packaged documentation. A changed RPM payload requires
+a new release revision. A Debian revision may change its Debian delta, not an
+existing `.orig.tar.gz`; preserve that archive or assign a new source identity.
 
 ```bash
 scripts/check-release-metadata.sh
 scripts/check-documentation-links.py
 ```
 
-## 2. Source gate
+## 2. Review and source gates
 
 Seven isolated reviewers assess the same immutable source: Hostile,
 Subtractive, Entropy, Error-Class, HPC/Performance, Hardening/Security, and
-Cognitive Load/Code Maintainability. Consolidate only after all reports arrive.
-Behavioral remediation requires focused regression cases and re-review of the
-changed class.
+Cognitive Load/Code Maintainability. Consolidate after all reports arrive.
+Remediation requires focused regressions and corrected-diff re-review.
+
+Run the standard checks in [Contributing](../CONTRIBUTING.md), plus:
 
 ```bash
-scripts/check-static-analysis.sh
 scripts/check-ux-mechanics-freeze.sh
-scripts/check-python-analysis.sh
-cmake -S . -B build -G Ninja -DBUILD_TESTING=ON
-cmake --build build --parallel 2
-ctest --test-dir build --output-on-failure
-scripts/check-native-sanitizers.sh
-scripts/check-clang-tidy.sh
 scripts/measure-inspector-retention.sh build
 scripts/check-qml-visual-matrix.sh build build/visual-matrix
 git diff --check
 git status --short
 ```
 
-The mechanics-freeze script seals the published 0.13 baseline plus the reviewed
-0.14 runtime boundary. Maintenance releases may update packaging, provenance,
-and release metadata without changing that runtime boundary. Rebaseline runtime
-hashes only after the seven reviews, required corrections, focused regressions,
-and corrected-diff re-review complete.
+The mechanics seal covers the published 0.13 baseline and reviewed 0.14 delta.
+Do not refresh hashes to make unreviewed runtime pass. Rebaseline only after
+the seven reviews, corrections, regressions, and affected re-review complete.
 
-The tree must contain no build output, local packages, credentials, diagnostics,
-machine-specific paths, editor state, or unrelated changes.
+No build outputs, local packages, secrets, diagnostics, machine-specific paths,
+or unrelated changes may enter the source commit.
 
-## 3. Packages
+## 3. Package builds
 
-Build Fedora overlays first:
+Build Fedora client/overlays using their owning guides:
 
-```bash
-packaging/fedora/keyring-overlay/build_overlay_rpm.sh \
-    '' "$PWD/build-keyring-overlay"
-packaging/fedora/api-core-overlay/build_overlay_rpm.sh \
-    '' "$PWD/build-api-core-overlay"
-```
+- [Client RPM](../packaging/fedora/README.md#build)
+- [API-Core RPM/SRPM](../packaging/fedora/api-core-overlay/README.md#build-and-verify)
+- [Keyring RPM/SRPM](../packaging/fedora/keyring-overlay/README.md#rebuild)
 
-Build the client from the exact commit:
+Build Ubuntu 26.04 in a clean target-distribution environment:
 
 ```bash
-packaging/fedora/prepare-rpmbuild-tree.sh \
-    "$PWD/build-release" \
-    "$PWD/packaging/fedora/proton-vpn-kde.spec" \
-    HEAD
-rpmbuild \
-    --define "_topdir $PWD/build-release" \
-    --define "_tmppath $PWD/build-release/TMP" \
-    -ba build-release/SPECS/proton-vpn-kde.spec
-```
-
-Use the verified signed `vVERSION` tag instead of `HEAD` for publication.
-`%check` is mandatory.
-
-Build Ubuntu 26.04 packages in that distribution or its clean container. The
-client, keyring, and API-Core packages are one release unit:
-
-```bash
-packaging/debian/keyring-overlay/build-overlay-deb.sh \
-    "$PWD/build-deb-keyring"
-packaging/debian/api-core-overlay/build-overlay-deb.sh \
-    "$PWD/build-deb-api-core"
+packaging/debian/keyring-overlay/build-overlay-deb.sh "$PWD/build-deb-keyring"
+packaging/debian/api-core-overlay/build-overlay-deb.sh "$PWD/build-deb-api-core"
 packaging/debian/build-debs.sh "$PWD/build-deb-client"
 ```
 
-The API-Core build downloads and verifies Proton's pinned vendor `.deb` unless
-an explicit verified path is supplied. Retain each binary package, the client
-debug-symbol package, `.dsc`, original archive, Debian delta, `.buildinfo`, and
-`.changes` file.
+The API-Core builder verifies the manifest-pinned vendor package. Its
+[reconstruction contract](../packaging/debian/api-core-overlay/README.md) is not
+a source rebuild of compiled Protun.
 
-Pull requests receive one complete client/keyring/Core build and policy
-inspection. Feature-branch pushes do not duplicate it. Tag and manual workflows
-repeat the Fedora client and API-Core builds in clean roots, require
-byte-identical outputs, and retain all three RPM/SRPM pairs for 14 days. The
-Ubuntu workflow performs the corresponding three-package build, policy inspection,
-install/reinstall, autopkgtest, and removal-boundary checks. CI artifacts are
-unsigned evidence, not published packages.
+Pull requests build and inspect one client/keyring/Core package set without
+duplicate feature-branch runs. Tag/manual release workflows repeat Fedora
+client and Core builds in clean roots, require identical RPM/SRPM outputs, and
+retain artifacts for 14 days. Ubuntu checks all three package sets, transactions,
+autopkgtest, and client-removal boundaries. CI artifacts are unsigned evidence.
 
-## 4. Artifact and live acceptance
+Use an exact signed commit for candidate builds and the verified signed tag for
+publication builds. Never skip package tests.
 
-Inspect:
+## 4. Artifact and installed acceptance
 
-- package metadata, dependencies, payload ownership/modes, systemd/D-Bus paths,
-  feature gates, ELF hardening, licenses, and provenance;
-- exact changed-path and patch-manifest policy for both overlays;
-- the API-Core SRPM's vendor-RPM reconstruction boundary; and
-- final binary/source checksums.
+Verify metadata/dependencies, ownership/modes, activation paths, feature gates,
+ELF hardening, licenses, provenance, exact overlay deltas, and binary/source
+checksums. Inspect package metadata rather than interpreting sandbox UID/GID
+mapping as installed ownership.
 
-Check ownership in package metadata. The workstation sandbox's root-to-nobody
-UID/GID mapping is a known verification artifact, not a package defect.
+For a live-supported distribution, install all three binary packages and check:
 
-Before calling a distribution live-supported, install all three binary packages
-in a clean target-distribution Plasma environment. Test:
+- signed-out, saved-session, and signed-in startup with the intended provider;
+- browsing, settings persistence, normal Connect/Disconnect, and recovery;
+- tray/KRunner/shortcut confirmation, backend retirement, and agent lifetime;
+- opt-in login launch, tray/window startup, and auto-connect with ready/locked
+  Secret Service;
+- full/split presentation, keyboard navigation, sizing, and monitor changes;
+- capture Stop, disconnected shutdown, and disabled reporting;
+- previous settings/snapshot contract compatibility and bounded restart guidance
+  for unsupported future contracts.
 
-- signed-out, saved-session, and signed-in startup;
-- KeePassXC or another intended Secret Service provider;
-- server browsing, settings persistence, Connect/Disconnect, and recovery;
-- KRunner confirmation, shortcuts, tray, backend retirement, and agent lifetime;
-- opt-in login launch, window/tray startup, and auto-connect with ready and
-  locked Secret Service;
-- full/split layouts, keyboard navigation, app-owned sizing, and monitor changes;
-- packet-capture stop and disconnected shutdown; and
-- disabled Proton support/crash submission.
+An upgrade must not strand a tunnel because frontend/backend processes span the
+transaction. Installation must not enable autostart or overwrite custom entries.
 
-For in-place upgrades, verify that a new frontend accepts the immediately
-preceding settings/snapshot contracts and that an unsupported future contract
-produces bounded restart guidance. A package update must not strand an active
-tunnel merely because frontend and backend processes crossed the transaction
-boundary at different times.
+Live fault tests require separate authorization and the independent recovery
+boundary in [Hardening](HARDENING.md#fault-test-isolation). Unit/namespace tests
+do not grant permission for host fault injection.
 
-Installation must not enable autostart or overwrite custom autostart entries.
-Record exact versions and outcomes in [Compatibility](COMPATIBILITY.md).
+A package-validated target can be published without maintainer hardware after
+clean build, package-policy, transaction, and autopkgtest gates pass. Keep that
+tier explicit until real Plasma reports cover its lifecycle. Record outcomes
+and exact versions in the [assessment](SECURITY-AUDIT-2026-08-30.md); maintain the
+supported matrix in [Compatibility](COMPATIBILITY.md).
 
-A package-validated target may be published without maintainer-owned hardware
-when its clean build, package-policy, transaction, and autopkgtest gates pass.
-Release notes and compatibility metadata must identify that tier and provide a
-field-feedback path. Do not call it live-supported until real Plasma lifecycle
-reports cover activation, authentication, connection, recovery, and removal.
+## 5. Sign, publish, and verify
 
-## 5. Sign and publish
+1. Confirm review, package, UAT, soak, and metadata gates.
+2. Create/verify signed tag `vVERSION`; rebuild from it and compare unsigned
+   outputs with the accepted artifacts.
+3. Sign final RPMs, then generate SHA-256 checksums over the final downloads.
+4. Sign the checksum manifest; include the public verification key. Sign Debian
+   repository metadata if publishing an APT repository.
+5. Publish all three RPM/SRPM pairs and all three Debian binary/source sets,
+   including debug symbols, `.dsc`, original archives, Debian deltas,
+   `.buildinfo`, `.changes`, checksums, and signatures.
+6. Download published artifacts and verify signatures/checksums and tag identity.
+   Synchronize the approved Git remotes and OpenDesktop listing when publishing
+   there; verify active files and remove superseded listings recoverably.
 
-1. Confirm the review, package, installed-UAT, and soak gates.
-2. Create and verify signed tag `vVERSION`.
-3. Rebuild from that tag and compare with the verified unsigned outputs.
-4. Sign final RPMs and the release checksum manifest with the maintainer key;
-   sign Debian `Release` metadata if an APT repository is published.
-5. Generate SHA-256 checksums before signing the manifest.
-6. Publish all three RPM/SRPM pairs, all three binary/source Debian package
-   sets, and checksums.
-7. Verify tag signature, release links, downloaded signatures, and checksums.
-
-Release notes identify supported versions, known limitations, validation
-results, and unofficial community status. Never publish credentials, account
-data, private keys, raw diagnostics, or unreviewed capture data.
+Release notes state support tier, user-visible changes, limits, and unofficial
+status. Never publish credentials, private keys, raw diagnostics, or unreviewed
+capture data.

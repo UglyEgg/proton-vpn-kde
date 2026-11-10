@@ -9,7 +9,7 @@
  from threading import Thread, Lock
  from typing import Optional, List
  
-@@ -139,76 +139,118 @@
+@@ -176,76 +176,118 @@
              self, connection: NM.Connection, save_to_disk: bool = False
      ) -> Future:
          """

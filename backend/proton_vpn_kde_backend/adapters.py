@@ -24,10 +24,12 @@ from .errors import (
     CleanupAdmissionExpired,
     ConnectorStartupError,
     NpsCompletionUnknownError,
+    SecretStoreUnavailableError,
     SessionExpiredError,
     UserVisibleRuntimeError,
     UserVisibleValueError,
     is_proton_authentication_needed,
+    is_secret_store_locked,
 )
 from .controller import (
     CountryInfo,
@@ -55,6 +57,7 @@ from .core_compatibility import (
     core_package_version as _core_package_version,
 )
 from .core_servers import (
+    FastestSelection,
     countries as core_countries,
     country as core_country,
     fastest_matching as core_fastest_matching,
@@ -96,6 +99,9 @@ from .refresher_events import (
     RefreshFailure, RefreshFailureKind, RefresherFailureRelay, ignore_retired_refresh_error,
 )
 from .search_projection import ServerSearchProjection
+from .secret_service_readiness import (
+    SECRET_STORE_WAIT_SECONDS, require_secret_service_backend, wait_for_secret_service,
+)
 
 
 __all__ = [
@@ -111,8 +117,8 @@ CAPTURE_RECOVERY_CONNECTOR_TIMEOUT_SECONDS = 5.0
 CONNECTION_RETIREMENT_SECONDS = 30.0
 INCOMPLETE_CONNECTION_RETIREMENT_EXIT_CODE = 1
 BACKGROUND_REFRESH_DEGRADED_MESSAGE = (
-    "Some Proton background updates stopped. "
-    "Sign out and sign in again to restart them."
+    "Some Proton background updates failed. "
+    "If updates do not resume, quit background controls and reopen Plasma VPN."
 )
 _OwnedTaskResult = TypeVar("_OwnedTaskResult")
 
@@ -145,7 +151,9 @@ class ProtonCoreAdapter:
     """Thin adapter over the official python-proton-vpn-api-core package.
 
     Proton modules are imported lazily so demo mode and unit tests have no
-    dependency on a locally installed Proton client.
+    dependency on a locally installed Proton client. An injected API retains
+    its caller's construction/admission responsibility; the production backend
+    owns its API and admits it here before any session lookup.
     """
 
     def __init__(
@@ -164,6 +172,7 @@ class ProtonCoreAdapter:
         account_transition_path: Path | None = None,
     ):
         self._api: Any = api
+        self._owns_api = api is None
         self._connector: Any = None
         self._callback: SnapshotCallback | None = None
         self._server_data_callback: ServerDataCallback | None = None
@@ -174,6 +183,7 @@ class ProtonCoreAdapter:
         self._reconnector: AsyncReconnector | None = None
         self._connection_scope = TaskScope()
         self._connection_intent_generation = 0
+        self._fastest_selection: FastestSelection | None = None
         self._manual_connection_tasks: dict[asyncio.Task[Any], int] = {}
         self._connector_state_revision = 0
         self._connector_state_changed = asyncio.Event()
@@ -229,14 +239,6 @@ class ProtonCoreAdapter:
         self._initialized = False
         self._callback = callback
         self._server_data_callback = server_data_callback
-        self._core_memory_optimized = _core_memory_optimizations_active()
-        self._core_version = _core_package_version()
-        if self._api is None:
-            from proton.vpn.core.api import ProtonVPNAPI
-            from proton.vpn.core.session_holder import ClientTypeMetadata
-
-            self._api = ProtonVPNAPI(ClientTypeMetadata(type="gui"))
-
         # Proton SSO reaches Secret Service through a synchronous keyring API.
         # Warm the cached session away from the D-Bus asyncio thread so a
         # provider unlock prompt (KeePassXC, KWallet, etc.) cannot freeze the
@@ -258,12 +260,46 @@ class ProtonCoreAdapter:
                     "The outgoing backend is still stopping; retry the service shortly"
                 )
         pending_cleanup = pending_capture_recovery or pending_account_transition is not None
-        session_probe = run_in_daemon_thread(self._api.is_user_logged_in)
+        restore_deadline = None
+        if self._owns_api:
+            # A successful cached-session read can come from Core's JSON
+            # fallback. Admit no owned Core construction/lookup until the
+            # selected store is ready, and prohibit fallback even if it vanishes.
+            require_secret_service_backend()
+            loop = asyncio.get_running_loop()
+            restore_deadline = loop.time() + (
+                CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS if pending_cleanup
+                else SECRET_STORE_WAIT_SECONDS
+            )
+            self._publish_secret_store_wait()
+            if (not await wait_for_secret_service(
+                    max(0.0, restore_deadline - loop.time()), initial_admission=True,
+                    request_unlock=not pending_cleanup)
+                    or loop.time() >= restore_deadline):
+                if pending_cleanup:
+                    raise UserVisibleRuntimeError(
+                        "Secret Service was not ready while protected cleanup was pending"
+                    )
+                raise SecretStoreUnavailableError()
+        self._core_memory_optimized = _core_memory_optimizations_active()
+        self._core_version = _core_package_version()
+        if self._api is None:
+            from proton.vpn.core.api import ProtonVPNAPI
+            from proton.vpn.core.session_holder import ClientTypeMetadata
+
+            self._api = ProtonVPNAPI(ClientTypeMetadata(type="gui"))
         if pending_cleanup:
+            remaining = (max(0.0, restore_deadline - asyncio.get_running_loop().time())
+                         if restore_deadline is not None
+                         else CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS)
+            if remaining <= 0:
+                raise UserVisibleRuntimeError(
+                    "Proton session restoration did not finish while local cleanup was pending"
+                )
             try:
                 self._logged_in = await asyncio.wait_for(
-                    session_probe,
-                    timeout=CAPTURE_RECOVERY_SESSION_TIMEOUT_SECONDS,
+                    run_in_daemon_thread(self._api.is_user_logged_in),
+                    timeout=remaining,
                 )
             except TimeoutError:
                 raise UserVisibleRuntimeError(
@@ -271,7 +307,7 @@ class ProtonCoreAdapter:
                     "local cleanup was pending"
                 ) from None
         else:
-            self._logged_in = await session_probe
+            self._logged_in = await self._restore_saved_session(restore_deadline)
 
         if pending_capture_recovery and not self._logged_in:
             # Core intentionally ignores a persisted connection while logged
@@ -376,6 +412,45 @@ class ProtonCoreAdapter:
         self._initialized = True
         return snapshot
 
+    def _publish_secret_store_wait(self) -> None:
+        if self._callback:
+            self._callback(VpnSnapshot(
+                state="starting", auth_state="authentication_unknown",
+                message="Waiting for your secret store to unlock…",
+            ))
+
+    async def _restore_saved_session(self, deadline: float | None = None) -> bool:
+        # Retry only this pre-connector stage. Re-running all initialization
+        # after an arbitrary keyring failure could duplicate live Core owners.
+        loop = asyncio.get_running_loop()
+        if deadline is None:
+            deadline = loop.time() + SECRET_STORE_WAIT_SECONDS
+        if loop.time() >= deadline:
+            raise SecretStoreUnavailableError()
+        restore_timeout = asyncio.timeout_at(deadline)
+        try:
+            async with restore_timeout:
+                try:
+                    return bool(await run_in_daemon_thread(self._api.is_user_logged_in))
+                except Exception as error:
+                    if not is_secret_store_locked(error):
+                        raise
+                self._publish_secret_store_wait()
+                if not await wait_for_secret_service(max(0.0, deadline - loop.time())):
+                    raise SecretStoreUnavailableError()
+                # A second refusal is terminal for this activation. Never
+                # repeat credential requests after denial or a timed-out worker.
+                try:
+                    return bool(await run_in_daemon_thread(self._api.is_user_logged_in))
+                except Exception as error:
+                    if not is_secret_store_locked(error):
+                        raise
+                    raise SecretStoreUnavailableError() from None
+        except TimeoutError:
+            if not restore_timeout.expired():
+                raise
+            raise SecretStoreUnavailableError() from None
+
     async def _finish_account_restart(self) -> None:
         await self._logout_with_disconnect_barrier(self._connection_retirement_deadline())
         if await run_in_daemon_thread(self._api.is_user_logged_in):
@@ -396,7 +471,8 @@ class ProtonCoreAdapter:
                 return
             logical_server = server_list.get_fastest()
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                fastest_selection=FastestSelection(),
             )
 
     async def connect_fastest_with_feature(self, feature: str) -> None:
@@ -416,7 +492,8 @@ class ProtonCoreAdapter:
                 server_list, server_list.logicals, features
             )
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                fastest_selection=FastestSelection(features=tuple(features)),
             )
 
     @staticmethod
@@ -1116,6 +1193,7 @@ class ProtonCoreAdapter:
                 server_list.get_fastest_in_country(country_code),
                 authentication_epoch,
                 connection_intent,
+                fastest_selection=FastestSelection(country_code=country_code),
             )
 
     async def connect_country_with_features(
@@ -1135,7 +1213,10 @@ class ProtonCoreAdapter:
                 server_list, country.servers, features
             )
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                fastest_selection=FastestSelection(
+                    features=tuple(features), country_code=country_code,
+                ),
             )
 
     async def connect_group(
@@ -1162,7 +1243,12 @@ class ProtonCoreAdapter:
                     "No server available in the current tier"
                 )
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                # Group selection already defines its mode-specific pool.
+                fastest_selection=FastestSelection(
+                    features=(), country_code=country_code,
+                    group_kind=group_kind, group_name=group_name,
+                ),
             )
 
     async def connect_group_with_features(
@@ -1188,7 +1274,11 @@ class ProtonCoreAdapter:
                 server_list, group.servers, features
             )
             await self._connect_logical(
-                logical_server, authentication_epoch, connection_intent
+                logical_server, authentication_epoch, connection_intent,
+                fastest_selection=FastestSelection(
+                    features=tuple(features), country_code=country_code,
+                    group_kind=group_kind, group_name=group_name,
+                ),
             )
 
     async def connect_server(self, server_name: str) -> None:
@@ -1339,6 +1429,8 @@ class ProtonCoreAdapter:
         logical_server,
         authentication_epoch: int,
         connection_intent: int,
+        *,
+        fastest_selection: FastestSelection | None = None,
     ) -> None:
         if not self._manual_connection_is_current(
             authentication_epoch, connection_intent
@@ -1368,6 +1460,8 @@ class ProtonCoreAdapter:
                 ),
                 authentication_epoch,
                 connection_intent,
+                fastest_selection=fastest_selection,
+                manual_dispatch=True,
             )
         except Exception as error:
             await self._raise_session_error(error, authentication_epoch)
@@ -1383,6 +1477,7 @@ class ProtonCoreAdapter:
             lambda: self._connector.connect(vpn_server, protocol, backend),
             authentication_epoch,
             self._connection_intent_generation,
+            fastest_selection=self._fastest_selection,
         )
 
     async def _attempt_connection(
@@ -1390,12 +1485,22 @@ class ProtonCoreAdapter:
         operation: Callable[[], Awaitable[None]],
         authentication_epoch: int,
         connection_intent: int,
+        *,
+        fastest_selection: FastestSelection | None,
+        manual_dispatch: bool = False,
     ) -> bool:
         """Own one Core connection side effect and retire stale success."""
         async with self._serialized_connection_lifecycle():
             if connection_intent != self._connection_intent_generation:
                 return False
             self._require_authenticated_epoch(authentication_epoch)
+            # Pending/cancelled requests cannot attribute their selection to a
+            # retained tunnel. Publish only with current dispatch ownership.
+            # Only manual dispatch renews failover budgets. The refresh latch
+            # belongs to the observed Core episode, including rejected Up calls.
+            if manual_dispatch and self._reconnector:
+                self._reconnector.reset_failover_episode()
+            self._fastest_selection = fastest_selection
             try:
                 # Core 5.6.10 through 5.6.20 can await a NetworkManager future
                 # in an executor here. Cancelling only the asyncio caller would
@@ -1440,13 +1545,19 @@ class ProtonCoreAdapter:
         self._connection_intent_generation += 1
         return self._connection_intent_generation
 
+    def _clear_fastest_selection(self) -> None:
+        self._fastest_selection = None
+        if self._reconnector:
+            self._reconnector.reset_failure_episode()
+
     @asynccontextmanager
     async def _manual_connection_target(self) -> AsyncIterator[tuple[int, int]]:
         """Own and retire every older target before manual work can proceed."""
         task = asyncio.current_task()
         if task is None:
             raise RuntimeError("A manual connection target requires an asyncio task")
-        intent = (self._authenticated_epoch(), self._advance_connection_intent())
+        authentication_epoch = self._authenticated_epoch()
+        intent = (authentication_epoch, self._advance_connection_intent())
         self._manual_connection_tasks[task] = intent[1]
         deadline = self._connection_retirement_deadline()
         try:
@@ -1461,9 +1572,11 @@ class ProtonCoreAdapter:
 
     @asynccontextmanager
     async def _superseding_connection_targets(
-        self, *, deadline: float | None = None,
+        self, *, deadline: float | None = None, preserve_selection: bool = False,
     ) -> AsyncIterator[_ConnectionSupersession]:
         """Invalidate and join all older manual and automatic connection work."""
+        if not preserve_selection:
+            self._clear_fastest_selection()
         generation = self._advance_connection_intent()
         if deadline is None:
             deadline = self._connection_retirement_deadline()
@@ -2021,17 +2134,29 @@ class ProtonCoreAdapter:
 
     async def set_reconnection_enabled(self, enabled: bool) -> None:
         if enabled:
+            # Frontend registration replays this preference. A healthy no-op
+            # must not cancel an accepted Up or renew its outage budget. A
+            # failed observer/session enable still follows the retryable path.
+            if (
+                self._reconnection_enabled and self._reconnector
+                and self._reconnector.enabled and self._logged_in
+                and self._session_services_enabled
+                and not self._reconnector._suspended
+            ):
+                return
             async with self._suspended_reconnection() as reconnector:
                 async with self._serialized_connection_lifecycle():
                     await self._apply_reconnection_enabled(enabled, reconnector)
             return
 
-        async with self._superseding_connection_targets() as supersession:
+        async with self._superseding_connection_targets(preserve_selection=True) as supersession:
             async with self._serialized_connection_lifecycle():
                 await self._disconnect_until_stable(
                     deadline=supersession.deadline,
                     transitional_only=True,
                 )
+                if self._connector and type(self._connector.current_state).__name__ == "Disconnected":
+                    self._clear_fastest_selection()
                 await self._apply_reconnection_enabled(
                     enabled,
                     supersession.reconnector,
@@ -2196,7 +2321,8 @@ class ProtonCoreAdapter:
             else:
                 # An escaped exception removes that job from Core scheduling.
                 # Preserve the account, tunnel, other jobs and recovery policy;
-                # report degraded updates rather than inventing a retry.
+                # report degraded updates. The public callback cannot identify
+                # a failed request, so it must never cancel/re-arm a successor.
                 self._background_refresh_degraded = True
                 self._publish_snapshot()
 
@@ -2312,6 +2438,7 @@ class ProtonCoreAdapter:
                     ),
                     authentication_error_callback=self._raise_session_error,
                     connection_attempt=self._attempt_reconnection,
+                    fastest_selection_source=lambda: self._fastest_selection,
                 )
             if self._reconnection_enabled:
                 self._reconnector.enable()
@@ -2692,6 +2819,7 @@ class ProtonCoreAdapter:
         # Invalidate sibling requests from the expired session before cleanup
         # yields to the event loop.
         self._authentication_epoch += 1
+        self._clear_fastest_selection()
         self._advance_connection_intent()
         session_services_need_cleanup = (
             self._session_services_state is not _SessionServicesState.DISABLED

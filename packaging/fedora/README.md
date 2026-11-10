@@ -1,65 +1,46 @@
 # Fedora packaging
 
-Fedora 44 with KDE Plasma 6 is the first supported package target. The RPM is
-coexistence-safe: it neither conflicts with nor obsoletes Proton's GTK client,
-and it reuses the installed official `python3-proton-vpn-api-core` networking
-stack. The KDE package must not directly require GTK, PyGObject, Gio, GNOME
-Keyring, or the Proton GTK application.
+Fedora 44/Plasma 6 is the live-accepted target. The client neither conflicts
+with nor obsoletes Proton's GTK client, but concurrent frontends against one
+session are unsupported. Exact component floors and validation tiers belong
+in [Compatibility](../../docs/COMPATIBILITY.md).
 
-Proton's current Fedora API Core package itself requires
-`NetworkManager-openvpn-gnome`, which brings GTK libraries into the installed
-dependency graph. The Plasma frontend does not use that editor component. This
-project retains the dependency because it belongs to Proton's supported Core
-package contract; removing it requires separate upstream runtime evidence.
+## Package boundary
 
-The spec is the authoritative build and runtime dependency list. The principal
-native dependencies are Qt 6, KDE Frameworks 6, Kirigami, OpenSSL 3, and the
-system Python interpreter. Runtime integration additionally uses
-`python3-dbus-fast`, `python3-cryptography`, `python3-fido2`, and the reviewed
-Proton VPN API Core overlay. The 0.14.4 overlay targets beta 5.8.11; the
-previous stable overlay is 5.8.3. The client package minimum remains
-`5.8.3-2.plasmavpn1`, without forcing stable users onto the beta. The RPM retains 5.6.10 as its tested API
-floor and requires the overlay's separate Protun capability. The adapter also
-retains a static public-API floor check against 5.5.6, but that historical
-package is never imported or executed by the supported build. Session storage
-reaches Freedesktop Secret Service through Proton's separately packaged
-keyring adapter. Until the
-provider-neutral alias, stable-connection, and unique-owner-pinning fixes are
-upstream, this repository builds a reviewable downstream adapter from Proton's
-pinned source and requires its explicit owner-pinned RPM capability. The
-verified KeePassXC stack and retirement policy are recorded in
-[Compatibility](../../docs/COMPATIBILITY.md); the client RPM never overwrites
-an installed Python file outside package ownership.
+The spec owns dependencies and installed paths. Native dependencies are Qt 6,
+KDE Frameworks 6, Kirigami, and OpenSSL 3; the adapter uses system Python and
+packaged Proton modules, not a user virtual environment.
+
+Install the client with the independently packaged
+[keyring](keyring-overlay/README.md) and [API-Core](api-core-overlay/README.md)
+overlays. Their explicit capabilities prevent incompatible stock replacements.
+The client never writes Proton-owned files outside package ownership.
+
+Proton Core's `NetworkManager-openvpn-gnome` dependency is retained; the
+frontend does not use its GTK editor. Removing an upstream dependency requires
+separate runtime evidence.
 
 ## Build
 
-Create a fresh RPM top directory from the exact clean release tag. The helper
-adds the exact commit identity using normalized archive metadata:
+Prepare a fresh RPM top directory from the exact clean release tag:
 
 ```bash
 version="$(sed -n 's/^Version:[[:space:]]*//p' \
     packaging/fedora/proton-vpn-kde.spec | head -n 1)"
 topdir="$PWD/build-release"
 packaging/fedora/prepare-rpmbuild-tree.sh \
-    "$topdir" \
-    "$PWD/packaging/fedora/proton-vpn-kde.spec" \
-    "v${version}"
-```
-
-For a local, untagged soak candidate, use the exact signed commit instead of
-`v${version}` and retain that commit identifier with the resulting artifacts.
-
-Build with the direct Plasma status-notifier integration:
-
-```bash
+    "$topdir" "$PWD/packaging/fedora/proton-vpn-kde.spec" "v${version}"
 rpmbuild \
     --define "_topdir $topdir" \
     --define "_tmppath $topdir/TMP" \
     -ba "$topdir/SPECS/proton-vpn-kde.spec"
 ```
 
-For a development machine without `kf6-kstatusnotifieritem-devel`, the Qt
-system-tray fallback can be packaged explicitly:
+Use an exact signed commit for an untagged candidate and retain its identity.
+Overlay rebuild commands live in their package guides. Release CI and signing
+are specified in [Releasing](../../docs/RELEASING.md).
+
+Without `kf6-kstatusnotifieritem-devel`, the explicit Qt tray fallback is:
 
 ```bash
 rpmbuild \
@@ -68,95 +49,32 @@ rpmbuild \
     -ba --without kstatusnotifier "$topdir/SPECS/proton-vpn-kde.spec"
 ```
 
-The fallback remains a Qt/Plasma application and does not introduce GTK or
-GNOME dependencies. Fedora package builds must set the libexec directory
-explicitly through the spec; otherwise CMake may choose a layout that does not
-match the installed D-Bus and systemd launchers.
+The spec fixes libexec layout and requires Mypy, backend coverage, and CTest in
+`%check`. Community reporting/telemetry capabilities are disabled. Skipping
+`%check` is not a release build.
 
-The spec enforces Python type analysis, the measured backend branch-coverage
-floor, and the full CTest suite in `%check`; it also disables direct Proton
-support-report submission, crash reporting, and optional Core connection
-telemetry. A package is not releasable when `%check` is skipped or fails.
-
-Qt resource timestamps use the exact source commit epoch from the normalized
-`.source-commit` archive member, not the day-resolution RPM changelog epoch.
-This preserves repeatable resource metadata while invalidating older cached
-QML after same-day candidate upgrades. The KCM package test checks that
-embedded timestamp and uses disposable configuration and cache directories.
-
-Source CI additionally runs the complete backend suite under Python 3.11 with
-hash-pinned minimum direct dependencies and checks the adapter's consumed
-public API against Proton's exact SHA-256-pinned Fedora 44 Core 5.5.6 RPM. That
-is a secondary static compatibility-floor check; current runtime and packaging
-validation execute the manifest-pinned overlay, including its queued-connection
-state-machine contract.
-
-The dedicated `RPM Package` CI workflow performs one source and binary RPM
-build for every pull-request update. It first builds and tests the
-provider-neutral keyring RPM and the Plasma-compatible API-Core overlay from
-pinned Proton inputs, validates all three packages, and checks their transaction
-boundary. Tag and explicit manual release runs additionally build the API-Core
-overlay twice in distinct clean top directories, build the client twice under a
-normalized RPM path, require byte-identical RPM/SRPM pairs, and retain all six
-artifacts for review. Proton VPN API Core is
-still a runtime rather than build dependency of the client: the isolated
-client test suite does not import or modify the installed Core, while the
-finished Fedora package requires the explicit keyring and Protun interoperability
-capabilities supplied by the independently reviewable overlays.
-
-The keyring rebuild has its own manifest, patch hashes, `%check`, and
-instructions in [keyring-overlay](keyring-overlay/README.md). It is a separate
-RPM because the patched files remain Proton-owned code and should remain
-independently reviewable and replaceable by an upstream release.
-
-The API-Core rebuild follows the same boundary. Its signed vendor RPM,
-manifest, exact-path diff, behavior checks, patches, and packaging instructions
-are under [api-core-overlay](api-core-overlay/README.md). NetworkManager may
-materialize the unsaved Protun profile in root-only volatile `/run` storage;
-the profile is deleted on disconnect and does not survive reboot.
+Resource timestamps derive from the normalized `.source-commit` epoch, not the
+day-resolution RPM changelog. This preserves reproducibility and same-day QML
+cache invalidation.
 
 ## Installed integration
 
-The package installs:
+The payload includes Control Center/agent/backend launchers, matching user units
+and D-Bus activation, KRunner/KCM plugins, notifications, translations, icons,
+licenses, and documentation. Paths must remain root-owned with standard SELinux
+labels; no setuid binary or custom SELinux policy is expected.
 
-- the Control Center, resident agent, and isolated Python launcher;
-- systemd user units and matching D-Bus activation services;
-- the KRunner plugin and Plasma System Settings module;
-- notification metadata, translations, and color/light/dark SVG marks; and
-- public documentation, licenses, and third-party notices.
+Service identity and environment enforcement are specified in
+[Hardening](../../docs/HARDENING.md). Inspect ownership in RPM metadata; a
+workstation sandbox UID/GID mapping is not evidence of a payload defect.
 
-The backend is an unprivileged on-demand user service. Its absolute launcher,
-`NoNewPrivileges`, and interpreter/loader/plugin environment cleanup are part
-of the installed trust boundary. Do not add mount-namespace hardening without
-retesting procfs-based peer verification under Fedora SELinux; the rationale is
-documented in [Backend service hardening](../../docs/HARDENING.md).
+Runtime notes:
 
-The installed services use the system Python so they resolve Fedora's packaged
-Proton modules rather than a user virtual environment. Normal RPM installation
-must leave installed payloads root-owned with standard SELinux labels; no
-setuid component or custom SELinux policy is expected.
+- Restart KRunner after upgrades if it has not discovered the new plugin.
+- The KCM stores Plasma preferences; Core owns VPN settings.
+- KGlobalAccel actions are unbound until the user assigns them.
+- KService owns split-tunnel application discovery.
+- An idle disconnected backend may exit while the agent remains resident.
 
-## Plasma runtime notes
-
-- The KRunner module is installed under the KF6 plugin path. Restart KRunner
-  after an upgrade if the new plugin is not discovered immediately.
-- The System Settings module appears in the Network category and stores only
-  Plasma integration preferences.
-- `KGlobalAccel` actions are unbound by default. Plasma owns user assignments
-  and conflict handling.
-- The package uses KService for split-tunneling application discovery rather
-  than loading Gio or parsing desktop files itself.
-- The resident agent can remain active while the disconnected Python backend
-  exits. An active tunnel or packet capture keeps the backend alive.
-
-The official GTK package may remain installed during migration, but users
-should not run both frontends concurrently against the same Proton session.
-Competing refreshers, reconnection services, or connection operations are not
-a supported configuration.
-
-## Package verification
-
-In addition to `%check`, inspect the built RPM for generated dependencies,
-file ownership and modes, systemd and D-Bus paths, feature gates, and native
-binary hardening. Install it into a clean Fedora Plasma environment and repeat
-the live checklist in the [release procedure](../../docs/RELEASING.md).
+Package policy and installed acceptance are release gates, not inferred from
+successful compilation.

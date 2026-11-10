@@ -12,7 +12,7 @@
   "overlay": {
     "packageName": "python3-proton-keyring-linux",
     "version": "0.2.3",
-    "release": "10.plasmavpn1",
+    "release": "11.plasmavpn1",
     "capabilities": [
       "proton-keyring-secret-service-provider-agnostic = 1",
       "proton-keyring-secret-service-owner-pinned = 1"

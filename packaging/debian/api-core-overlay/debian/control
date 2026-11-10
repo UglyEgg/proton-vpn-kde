@@ -70,8 +70,8 @@ Replaces:
  python3-proton-vpn-network-manager,
  python3-proton-vpn-session
 Description: Proton VPN Core with a verified Plasma interoperability overlay
- Proton's exact Ubuntu 5.6.10 API-Core payload with narrowly verified memory,
- diagnostic-hygiene, and Plasma interoperability patches. The Protun private
+ Proton's exact Ubuntu 5.8.11 API-Core payload with narrowly verified memory,
+ diagnostic-hygiene, and Plasma recovery patches. The Protun private
  key remains an unsaved per-connection secret held by NetworkManager for the
  lifetime of the connection. Proton's compiled networking components and
  privileged service boundary are preserved without modification.

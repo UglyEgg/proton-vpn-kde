@@ -3,7 +3,7 @@
 
 Name:           python3-proton-keyring-linux
 Version:        0.2.3
-Release:        10.plasmavpn1%{?dist}
+Release:        11.plasmavpn1%{?dist}
 Summary:        Provider-neutral Proton Secret Service adapter
 
 License:        GPL-3.0-or-later
@@ -72,6 +72,9 @@ python3 -m pytest -o addopts='' -q \
 %doc overlay-manifest.json overlay-manifest.json.license keyring-overlay-README.md
 
 %changelog
+* Wed Oct 21 2026 uglyegg <uglyegg@entropy.quest> - 0.2.3-11.plasmavpn1
+- Refresh packaged documentation without changing the runtime patch series.
+
 * Thu Oct 15 2026 uglyegg <uglyegg@entropy.quest> - 0.2.3-10.plasmavpn1
 - Rebind one complete keyring operation after a same-user Secret Service
   provider restart without weakening per-connection owner pinning.

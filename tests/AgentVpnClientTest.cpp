@@ -194,6 +194,7 @@ private slots:
     void failedSnapshotCannotAuthorizeAnotherConnection();
     void autoConnectDoesNotSurviveAnExistingTransition_data();
     void autoConnectDoesNotSurviveAnExistingTransition();
+    void autoConnectWaitsForSecretStoreReadiness();
     void observesLeaseFreeAndUsesTransientActionLeases();
     void authorizationRecoversOnlyTransientFailures_data();
     void authorizationRecoversOnlyTransientFailures();
@@ -887,6 +888,39 @@ void AgentVpnClientTest::autoConnectDoesNotSurviveAnExistingTransition()
     QTRY_COMPARE_WITH_TIMEOUT(client.state(), QStringLiteral("disconnected"), 2000);
     QVERIFY(client.canConnect());
     QCOMPARE(m_backend.fastestCalls, 0);
+}
+
+void AgentVpnClientTest::autoConnectWaitsForSecretStoreReadiness()
+{
+    m_backend.resetCounters();
+    AgentVpnClient client;
+    QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 2000);
+    QJsonObject waiting = QJsonDocument::fromJson(
+        ProtonVpnKde::TestData::completeSnapshot(
+            QStringLiteral("starting"), false, false).toUtf8()).object();
+    waiting.insert(QStringLiteral("authState"), QStringLiteral("authentication_unknown"));
+    waiting.insert(QStringLiteral("message"),
+                   QStringLiteral("Waiting for your secret store to unlock…"));
+    const QString waitingJson = QString::fromUtf8(
+        QJsonDocument(waiting).toJson(QJsonDocument::Compact));
+    emit m_backend.SnapshotChanged(waitingJson);
+    QTRY_VERIFY_WITH_TIMEOUT(!client.ready(), 2000);
+
+    client.autoConnect(QStringLiteral("FASTEST"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.registrationCalls, 1, 2000);
+    QTest::qWait(30);
+    QCOMPARE(m_backend.fastestCalls, 0);
+    QCOMPARE(m_backend.unregistrationCalls, 0);
+    emit m_backend.SnapshotChanged(waitingJson);
+    QTest::qWait(30);
+    QCOMPARE(m_backend.fastestCalls, 0);
+    QCOMPARE(m_backend.unregistrationCalls, 0);
+
+    emit m_backend.SnapshotChanged(m_backend.GetSnapshot());
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.fastestCalls, 1, 2000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_backend.unregistrationCalls, 1, 2000);
+    QCOMPARE(m_backend.disconnectCalls, 0);
+    m_backend.state = QStringLiteral("disconnected");
 }
 
 QTEST_MAIN(AgentVpnClientTest)

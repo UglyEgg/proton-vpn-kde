@@ -297,3 +297,73 @@ if ! "$release_fixture_dir/scripts/check-release-metadata.sh" \
     exit 1
 fi
 echo "The release metadata gate accepts consistent final metadata"
+
+# Final package numbers can be prepared before the release is published, but
+# all release-facing documents must agree on that state.
+sed -i \
+    "s/Version $release_fixture_version is the current public release/Version $release_fixture_version is prepared for release/" \
+    "$release_fixture_dir/README.md"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted mixed prepared/public status" >&2
+    exit 1
+fi
+if ! rg -q 'cannot also claim public release status' "$release_output"; then
+    cat "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects mixed prepared/public status"
+
+sed -i \
+    "s/^Release: $release_fixture_version$/Release target: $release_fixture_version/" \
+    "$release_fixture_dir/docs/SECURITY-AUDIT-2026-08-30.md"
+sed -i \
+    "s/Plasma VPN $release_fixture_version is the current public package release/Plasma VPN $release_fixture_version is prepared for release/" \
+    "$release_fixture_dir/docs/COMPATIBILITY.md"
+if ! "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    cat "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate accepts consistent prepared metadata"
+
+sed -i 's/^Release:.*$/Release:        0%{?dist}/' \
+    "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted a prepared prerelease RPM identity" >&2
+    exit 1
+fi
+if ! rg -q 'final Fedora release number' "$release_output"; then
+    cat "$release_output" >&2
+    exit 1
+fi
+sed -i 's/^Release:.*$/Release:        1%{?dist}/' \
+    "$release_fixture_dir/packaging/fedora/proton-vpn-kde.spec"
+echo "Prepared metadata retains the final-package identity requirement"
+
+printf 'Version %s is the current public release.\n' \
+    "$release_fixture_version" >>"$release_fixture_dir/README.md"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted duplicate prepared/public claims" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects duplicate prepared/public claims"
+
+sed -i \
+    '/^Version .* is the current public release\.$/d' \
+    "$release_fixture_dir/README.md"
+sed -i \
+    "s/Version $release_fixture_version is prepared for release/Version $release_fixture_version is the current public release/" \
+    "$release_fixture_dir/README.md"
+if "$release_fixture_dir/scripts/check-release-metadata.sh" \
+        >"$release_output" 2>&1; then
+    echo "The release metadata gate accepted an incomplete public transition" >&2
+    exit 1
+fi
+if ! rg -q 'disagree on prepared/public status' "$release_output"; then
+    cat "$release_output" >&2
+    exit 1
+fi
+echo "The release metadata gate rejects an incomplete public transition"

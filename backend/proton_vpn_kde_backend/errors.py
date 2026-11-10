@@ -30,6 +30,16 @@ class ConnectorStartupError(UserVisibleRuntimeError):
         )
 
 
+class SecretStoreUnavailableError(UserVisibleRuntimeError):
+    """Saved-session restoration is incomplete, not evidence of sign-out."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Unlock your secret store, then retry the backend to restore "
+            "your saved Proton session."
+        )
+
+
 class CleanupAdmissionExpired(UserVisibleRuntimeError):
     """Cleanup did not cross its dispatch boundary before the deadline."""
 
@@ -51,6 +61,11 @@ class NpsCompletionUnknownError(UserVisibleRuntimeError):
 def is_proton_authentication_needed(error: BaseException) -> bool:
     """Classify Core's optional authentication-expiry exception by contract."""
     return type(error).__name__ == "ProtonAPIAuthenticationNeeded"
+
+
+def is_secret_store_locked(error: BaseException) -> bool:
+    """Recognize the optional Proton/keyring locked-store exception contract."""
+    return type(error).__name__ == "KeyringLocked"
 
 
 def bounded_user_message(error: UserVisibleError, fallback: str) -> str:

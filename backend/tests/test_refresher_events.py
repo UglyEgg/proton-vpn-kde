@@ -7,6 +7,7 @@ import asyncio
 import os
 from pathlib import Path
 import tempfile
+from types import FunctionType
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 import weakref
@@ -31,7 +32,31 @@ async def drain(relay):
         await asyncio.sleep(0)  # Run the task's retirement callback.
 
 
+def certificate_error():
+    """A real-shaped traceback must not grant worker identity or retry authority."""
+    def refresh():
+        raise RuntimeError("private certificate details")
+    operation = FunctionType(refresh.__code__, {
+        "__name__": "proton.vpn.core.refresher.certificate_refresher",
+    })
+    try:
+        operation()
+    except RuntimeError as error:
+        return error
+
+
 class RefresherFailureRelayTests(unittest.IsolatedAsyncioTestCase):
+    async def test_certificate_traceback_remains_an_unattributed_update_failure(self):
+        handler = AsyncMock()
+        relay = RefresherFailureRelay(handler, Mock())
+        callback = relay.bind(7)
+        callback(RuntimeError())
+        callback(certificate_error())
+        callback(RuntimeError())
+        await drain(relay)
+        handler.assert_awaited_once()
+        self.assertEqual(RefreshFailureKind.UPDATE, handler.await_args.args[0].kind)
+
     async def test_callback_defers_coalesces_and_prioritizes_expiry(self):
         handler = AsyncMock()
         relay = RefresherFailureRelay(handler, Mock())
@@ -172,6 +197,73 @@ class AdapterRefresherErrorTests(unittest.IsolatedAsyncioTestCase):
 
     def callback(self):
         return self.api.refresher.set_error_callback.call_args.args[0]
+
+    def expired_certificate(self):
+        self.connector.current_state = adapter_tests.state_named("Error")
+        self.connector.current_state.context = type("Context", (), {
+            "event": adapter_tests.state_named("ExpiredCertificate"),
+        })()
+        self.adapter._reconnector.status_update(self.connector.current_state)
+
+    async def stale_certificate_notice(self, *, reset_episode=False):
+        self.api.refresher.force_refresh_certificate = Mock()
+        self.connector.current_state = adapter_tests.state_named("Connected")
+        await self.adapter.initialize(self.snapshots.append)
+        if reset_episode:
+            self.expired_certificate()
+        async with self.adapter._serialized_authentication_transition():
+            self.callback()(certificate_error())
+            await asyncio.sleep(0)  # Handler is deferred behind account-owned work.
+            if reset_episode:
+                self.connector.current_state = adapter_tests.state_named("Disconnected")
+                self.adapter._reconnector.status_update(self.connector.current_state)
+            self.expired_certificate()
+        await drain(self.adapter._refresher_errors)
+        self.assertEqual(2 if reset_episode else 1,
+                         self.api.refresher.force_refresh_certificate.call_count)
+        self.assertEqual("signed_in_degraded", self.snapshots[-1].auth_state)
+        self.assertIsNone(self.adapter._reconnector._retry_task)
+        self.connector.disconnect.assert_not_awaited()
+        self.connector.connect.assert_not_awaited()
+        self.api.logout.assert_not_awaited()
+        await self.adapter.close()
+
+    async def test_deferred_certificate_failure_cannot_rearm_a_new_worker(self):
+        await self.stale_certificate_notice()
+
+    async def test_old_certificate_failure_cannot_rearm_a_new_episode(self):
+        await self.stale_certificate_notice(reset_episode=True)
+
+    async def test_failure_before_enable_cannot_add_automatic_rearms(self):
+        self.api.refresher.force_refresh_certificate = Mock()
+        self.adapter._reconnection_enabled = False
+        self.connector.current_state = adapter_tests.state_named("Error")
+        self.connector.current_state.context = type("Context", (), {
+            "event": adapter_tests.state_named("ExpiredCertificate"),
+        })()
+        await self.adapter.initialize(self.snapshots.append)
+        self.callback()(certificate_error())
+        await drain(self.adapter._refresher_errors)
+        self.api.refresher.force_refresh_certificate.assert_not_called()
+        self.adapter._reconnector.enable()
+        for _ in range(3):
+            self.callback()(certificate_error())
+            await drain(self.adapter._refresher_errors)
+            self.expired_certificate()
+        self.api.refresher.force_refresh_certificate.assert_called_once()
+        await self.adapter.close()
+
+    async def test_failure_during_suspension_cannot_add_automatic_rearms(self):
+        self.api.refresher.force_refresh_certificate = Mock()
+        self.connector.current_state = adapter_tests.state_named("Connected")
+        await self.adapter.initialize(self.snapshots.append)
+        self.expired_certificate()
+        async with self.adapter._reconnector.suspended():
+            self.callback()(certificate_error())
+            await drain(self.adapter._refresher_errors)
+        self.api.refresher.force_refresh_certificate.assert_called_once()
+        self.assertIsNone(self.adapter._reconnector._retry_task)
+        await self.adapter.close()
 
     async def test_background_expiry_preserves_established_tunnel(self):
         self.connector.current_state = adapter_tests.state_named("Connected")

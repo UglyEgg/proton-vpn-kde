@@ -1,360 +1,102 @@
 # Security and engineering assessment
 
-Last updated: 2026-10-17
-Release: 0.14.4
+Last updated: 2026-11-10
+Release: 0.14.5
 
-## Status
+## Current status
 
-The release fixes two adapter recovery defects: an ordinary-route preflight
-blocked reconnect behind Core's surviving protection, and intermediate
-handoff/early Connected events could cancel an accepted replacement. The
-adapter retains Core-owned networking/protection, exponential retry backoff,
-and explicit disconnect/shutdown cancellation barriers.
+No unresolved validated client finding remains from this review battery.
+Seven isolated reviewers assessed `3670df6..e7b4956`; two related P2 findings
+were corrected in one bounded patch and accepted by affected reviewers. The
+P3 EOF cleanup passes aggregate whitespace checks. The approved Ubuntu 5.8.11
+rebase passed focused compatibility, consistency and security-control rechecks.
 
-The Fedora overlay is rebased on signed Core 5.8.11 beta. All four patches
-remain; the original pending-route ordering is fixed upstream, but four
-adverse callback cases still require the empty-address guard. The stable
-Fedora consumer floor stays at `5.8.3-2.plasmavpn1`; Ubuntu retains 5.6.10.
+Package qualification and normal installed UAT cover signed runtime source
+`2568b7e`, accepted November 10. Root package integrity and all 32 backend files
+match that source. Later changes cover documentation and Ubuntu dependency/CI
+metadata; application and Core runtime are unchanged. All five PR checks pass
+on `423e8da`, including Fedora RPM and Ubuntu installation/reinstallation,
+autopkgtest and removal. Publication metadata does not extend the runtime scope.
 
-Seven isolated perspectives reviewed frozen snapshot
-`fd1e3fef24f3277c075c6035d8083ca9a38205b5afd8bf920c1c53f94432812f`:
-Hostile, Subtractive, Entropy, Error-Class, HPC/Performance, Hardening/Security,
-and Cognitive Load/Code Maintainability. No unresolved packaged-runtime
-finding was reported. The managed security diff scan found no reportable issue
-under the documented attacker boundary; Daybreak Blue also performed an
-independent recheck. The owner approved clarifying the existing Core-overlay
-boundary in `SECURITY.md`; no finding exclusion or attacker assumption changed.
+## Current evidence
 
-The aggregate comparison confirms 131 runtime/overlay files match the reviewed
-snapshot, apart from the backend version constant. The release diff seals are
-updated for the reviewed code, regression fixtures, and release metadata.
-Static checks, Python analysis (465 cases, 11 explicit skips, 87% coverage),
-and all 47 native/CTest groups pass, including eight visual captures. Core 5.8.3 and
-5.8.11 each pass 11 real-state-machine cases in disposable user/network
-namespaces. IPv4/IPv6 routing replay covers Off/On/Permanent protection and
-repeated failed attempts. Provider I/O is substituted; the replay is not a
-native-plugin or end-to-end packet-leak test.
-
-The first Ubuntu CI run built and inspected the packages, then rejected the
-installed client against a hard-coded previous version. The corrected
-installation test derives its expected version from package metadata; the
-application runtime is unchanged.
-
-Installed client `0.14.3-2.fc44` contains these retry fixes. Normal operations
-and package integrity passed on 2026-10-15. On 2026-10-17, one controlled
-native-plugin crash recovered automatically with Core
-`5.8.11-1.plasmavpn1.fc44` and keyring revision 10. The independent timer and
-deny-only fence remained available; the client established a replacement
-tunnel before inspection, both route families used `proton0`, and the timer
-required no fallback. The maintainer confirmed Protected status and browsing
-without Retry or Connect. Cleanup retained the normal client connection.
-
-Review findings in the temporary rescue/fault harness concern local test
-infrastructure. Those tools are excluded from the release source/packages and
-require correction before another live fault trial. They do not constitute
-packaged-client findings. This acceptance covers one fixed-server recovery;
-suspend, extended outages, roaming, all protocols, and end-to-end leak behavior
-are not established by it.
-
-Publication requires clean CI and signed-tag package artifacts.
-The earlier review and acceptance records below are historical. This is a
-maintainer-directed, AI-assisted assessment, not an independent third-party
-audit or certification.
-
-## Scope and assurance boundary
-
-The assessment covers project-owned C++, QML, Python, D-Bus interfaces,
-systemd user services, Fedora and Ubuntu packaging, and the two downstream
-overlay families. It evaluates the interaction boundary with Proton VPN API
-Core but does not audit Proton's service, NetworkManager, the Secret Service
-provider, or unmodified Proton packages.
-
-The local attacker is an ordinary or sandboxed process in the same graphical
-session that can reach D-Bus but cannot already execute arbitrary native code
-as the desktop user. The design does not claim to defend against root, a
-debugger, or arbitrary same-UID native code. A stronger same-UID boundary would
-require a privileged or MAC-enforced service architecture.
-
-Official Proton Core remains authoritative for:
-
-- VPN protocols and credentials;
-- NetworkManager profiles, routing, and DNS;
-- kill switch and IPv6 leak protection;
-- split tunneling and server scoring; and
-- account-session persistence.
-
-Community code owns desktop presentation, input validation, D-Bus policy,
-operation ownership, process lifetime, and downstream package integration.
-The distribution API-Core packages contain declared, version-pinned patches
-and must not be represented as unmodified Proton binaries.
-
-## 0.14.3 recovery assessment
-
-| Change | Boundary | Evidence |
-| --- | --- | --- |
-| Secret Service restart recovery | Only the adapter's two provider-unavailable/identity-change errors permit one fresh complete operation; each connection retains same-UID validation and unique-owner pinning | 32 keyring tests; RPM/SRPM policy; installed saved-session restoration |
-| Initial route-monitor race | Ignore a network-change callback until the target server IP is known; existing route installation and protection handling remain in Core | Offline actual-source regression; 14 protection cases; exact 18-path overlay policy; installed connection |
-
-On 2026-10-15, Fedora keyring `0.2.3-10.plasmavpn1.fc44` and Core
-`5.8.3-2.plasmavpn1.fc44` were installed and verified. A fresh backend connected
-to US-IL#788 with no timeout or provider-identity errors. A second prolonged
-outage and live Secret Service replacement have not been exercised. Ubuntu
-retains Core 5.6.10 and receives the shared keyring fix; new Debian package
-validation has passed for the keyring binary/source set and its 43 upstream
-tests. The corrected client binary/source build, 46 archive checks, artifact
-policy, Lintian error gate, and install/reinstall/client-removal checks also
-pass in the offline Ubuntu tooling container.
-
-Seven isolated reviewers assessed the aggregate delta from `c256708` in source
-archive SHA-256 `198ad1abd24b57481b765fb2aecd97018e5eec87a24810f5cd118ec06c8f6972`.
-
-| Perspective | Result |
+| Gate | Result and scope |
 | --- | --- |
-| Hostile | Pass; focused keyring, route, and protection regressions replayed |
-| Subtractive | Pass |
-| Entropy | One P2 package-dependency finding; corrected and re-reviewed |
-| Error-Class | Pass; bounded recovery and foreign-UID rejection probed offline |
-| HPC/Performance | Pass; no polling or retained resource added |
-| Hardening/Security | Pass within the documented local-session threat boundary |
-| Cognitive Load/Maintainability | Pass |
+| Backend | 590 registered cases: 558 general passes and 32 opt-in skips; 88% general-suite coverage; 32 modules pass Mypy |
+| Actual Core/SSO | 25 cases pass on each Fedora/Ubuntu 5.8.11 fixture with Base Core 0.7.4; both original Ubuntu and installed single-read SSO hashes are pinned |
+| Private-bus wire | Seven cases pass on Fedora dbus-fast 2.45.1 and Ubuntu 4.0.0; synthetic providers, no desktop Secret Service calls |
+| Protection handoff | Actual Core state/dispatcher fixtures assert the complete permanent-mode protection-call trace, including intermediate handoffs; routing replay uses dummy interfaces in isolated user/network namespaces |
+| Client correction | Three added regression methods cover seven-route failed/cancelled preflight, accepted-selector retention and rejected Up while certificate refresh is live; red-before/green-after; affected Entropy/Error-Class rechecks pass |
+| Native/source | Fedora and Ubuntu client packages each pass all 46 archive groups; signed-source static, positive/negative seal and source-archive checks pass |
+| Ubuntu Core package | `5.8.11-1plasmavpn1` from authenticated APT input; six declared Python body changes and one pinned unit relocation; all compiled bytes preserved; 13 boundary/mutation cases pass |
+| Ubuntu repeatability | Core DEB/original archive/Debian delta/DSC repeat byte-for-byte; buildinfo differs only in Build-Date, changes only in corresponding checksums |
+| Ubuntu hooks/policy | Generated default/saved-enable/upgrade/remove/purge paths pass with mocked commands; Lintian error gates pass; inherited vendor and missing-manual warnings remain |
+| Ubuntu client | Binary, debug symbols, original archive, Debian delta and DSC repeat byte-for-byte; all 407 source files and 32 backend files match the signed candidate; reporting/telemetry gates and ELF hardening pass |
+| Ubuntu dependency admission | Core 5.8.11 pairs with daemon 0.13.8; exact package dependency and explicit APT selection enforced; current-index fresh dependency resolution, negative metadata/artifact controls and isolated installation/reinstallation/autopkgtest pass |
+| Ubuntu transactions | Offline upgrade from Core 5.6.10/keyring revision 9, fresh installation, reinstallation, full integrity, autopkgtest and client removal pass in a private root; systemctl is stubbed; boot-unit bytes/mode/path verified after each transaction |
+| Fedora repeatability | Four unsigned client/source/debug RPMs repeat byte-for-byte with canonical build/source/temp paths, matching the CI build model |
+| Fedora client | RPM policy, paired source identity, 32 backend files, disabled reporting/telemetry and ELF hardening pass; copied-database dependency and private payload transactions pass without scriptlets |
+| Keyring | Ubuntu `0.2.3-10plasmavpn1` rebuilt from unchanged pinned inputs; Fedora revision 11 is the earlier documentation-only package identity |
+| Installed UAT | Fedora client `0.14.5-1.fc44` from `2568b7e`: root RPM integrity and all 32 backend files verified; maintainer accepted normal operation November 10 |
 
-0143-RC1: the client initially accepted the preceding overlay revisions. Fedora
-now requires Core `5.8.3-2.plasmavpn1` and keyring `0.2.3-10.plasmavpn1`;
-Ubuntu requires keyring `0.2.3-10plasmavpn1`. Source and artifact gates reject
-the older requirements. Corrected source archive SHA-256
-`162a667ddf66ffbd773742fe31723803da79534e1097d5ea31ff57a81134fa42`
-passed focused re-review; both runtime patches are byte-identical to the first
-reviewed snapshot. No open review finding remains.
+The installed stack is Fedora 44, KeePassXC `2.8.0-2.fc44`, API Core
+`5.8.11-1.plasmavpn1.fc44`, and keyring `0.2.3-10.plasmavpn1.fc44`.
+Its API-Core input came from beta. Ubuntu uses Proton's authenticated stable
+5.8.11 input. Live KWallet prompting and Ubuntu Plasma lifecycle remain unqualified. Ubuntu
+package tests use Ubuntu 26.04 userspace on the Fedora host kernel, not an
+Ubuntu desktop.
 
-Recovery covers the adapter's explicit owner-check errors. Provider death
-after that check, generic transport errors, and dismissed prompts do not gain
-an automatic retry. An already-completed credential write may repeat its
-same-key replacement if the provider changes during the following metadata
-read. No new whole-client memory or outage-endurance claim is made.
+## Review disposition
 
-The 0.14.1 assessment below remains historical client-runtime evidence.
-
-### 0.14.3 validation
-
-| Gate | Result |
+| Perspective | Disposition |
 | --- | --- |
-| Source policy | SPDX, patch whitespace, Ruff, ShellCheck, generated contracts/translations, compatibility metadata, documentation links, and reviewed-delta seal pass |
-| Python | Mypy passes for 31 modules; 464 backend cases pass with seven explicit Core-fixture skips; 87% combined coverage |
-| Native/integration | 47 CTest checks pass after a focused release-fixture correction |
-| Presentation | Built client reports 0.14.3; rendered release notes inspected; eight-view visual matrix and Inspector smoke pass |
-| Ubuntu keyring | Binary/source set builds offline in the Ubuntu 26.04 tooling container; 43 upstream tests and Lintian pass |
-| Ubuntu package set | All three binary/source sets build; 46 client archive checks, exact Core payload policy, dependency resolution, Lintian error gate, and installed-layout/reinstall/removal checks pass; Core and keyring remain installed after client removal |
-| Publication | Signed source commit, exact final Fedora client packages, clean CI, final artifact signatures, and release publication remain pending |
+| Hostile | No behavioral finding |
+| Subtractive | No P1/P2; EOF-only P3 removed and whitespace gate passes |
+| Entropy | Premature loss of accepted Fastest policy corrected; affected recheck accepted |
+| Error-Class | Premature certificate re-arm corrected; affected recheck accepted |
+| HPC/Performance | No finding; bounded selection and transport-retention probes pass |
+| Hardening/Security | No reportable finding in initial immutable aggregate diff; later client/Ubuntu affected controls accepted |
+| Cognitive Load/Code Maintainability | No finding; supplemental metadata/doc consolidation accepted; optional simplifications deferred |
 
-The release fixture now constructs explicit dated-release documents instead of
-rewriting production prose. It verifies each independent rejection and a final
-consistent success case. Its focused cognitive/maintainability re-review passed
-for SHA-256 `2aa17d01af4cc88a0275fac4c0c702c228e1138a2ad1d9be623146c102a49692`.
+Initial security scan `50d6b729-1342-4e94-a52e-dfec10feea58` is sealed: all
+47 changed paths accounted for, zero candidates/deferred work. It covers
+`e7b4956`, not later edits. Client correction SHA-256:
+`c41b75ec79831d2b3abec3281fa6d6052d689bb2a2840adb081e57d50b6bcc2e`.
+Ubuntu rebase SHA-256:
+`26fd846b23427faf0bf8810ba87a5abd37beacfc6035445ede637472fd076007`.
+These bounded rechecks are separate from the sealed scan and require human
+release review; no automatic merge is approved.
 
-## 0.14.2 maintenance assessment
+The old Ubuntu 5.6.10 permanence difference is a pre-existing vendor limitation,
+not an observed leak or introduced client regression. Raising the required
+baseline to 5.8.11 closes that target qualification gap. Old 5.6.10 is not newly
+qualified. Boot-unit usrmerge relocation preserves content/mode/hash and
+Proton's disabled default, saved enablement and removal behavior.
 
-The Core 5.8.3 package passed signed-input verification, exact changed-path
-policy, patch and lifecycle regressions, reproducible RPM/SRPM construction,
-installation, backend replacement, capability detection, and live
-connect/disconnect acceptance. The server-string change retained its memory
-benefit with a documented one-time load-cost tradeoff. No new security finding
-or product-behavior change was introduced by this maintenance delta.
+## Release verification
 
-The installed live test used the accepted `0.14.1-0.2.fc44` client with the
-5.8.3 overlay; 0.14.2 changes client release metadata and package integration,
-not its runtime implementation. The 0.14.1 seven-review result below therefore
-remains the runtime assurance basis for this patch release.
+Use the signed `v0.14.5` tag and the release's signed checksum manifest for
+published artifact identity. The [release procedure](RELEASING.md) owns tag-build,
+signature and download verification. Ubuntu retains its package-validated tier
+and live-provider limitations.
 
-## 0.14.1 review result
+## Scope and assurance limits
 
-| ID | Priority | Finding | Resolution |
-| --- | --- | --- | --- |
-| 014-RC1 | P1 / low security | Disabling optional Core telemetry stopped new collection but left already queued events publishable | Disabled policy now requires queue controls, disables collection, and drains the queue before settings publication; missing or failing controls fail closed |
-| 014-RC2 | P1 | Frontend and backend snapshot/settings contracts could disagree during an in-place package upgrade | Settings schema 2 advertises runtime capability; schema 1 remains readable; snapshot v1 is validated and normalized to v2; unknown versions provide restart guidance |
-| 014-RC3 | P1 | Final metadata checks could accept a preview Debian revision or stale in-app preview text | Final gate now rejects pre-final Debian identities, preview About/release text, and stale compatibility status; negative fixtures cover each class |
-| 014-RC4 | P2 | Build permission, Core telemetry capability, and user preference were conflated | The three states are independent in native code, Settings, diagnostics, and tests |
-| 014-RC5 | P2 | A package-query completion could satisfy the report page's Secret Service wait; package checks also ran at every Control Center start | Readiness uses distinct signals and entry points; package inspection runs only on the local-setup page |
-| 014-RC6 | P2 | Release and performance evidence described older client/Core states | Existing release, compatibility, performance, and audit records were reconciled to the 0.14.1/Core 5.7 boundary |
+Scope covers project-owned native/QML/Python, D-Bus, services, packaging and
+declared overlays. Unmodified Proton components, NetworkManager and the selected
+Secret Service remain trusted dependencies. [SECURITY.md](../SECURITY.md) owns
+the attacker model, invariants and exclusions; this record changes none of them.
+This is maintainer-directed source/package assessment, not third-party certification.
 
-The hardening review used a durable repository-diff security scan. It reported
-only 014-RC1 at low severity and high confidence. The finding was reproduced
-against Core 5.7, remediated at the single settings-policy boundary, and covered
-for queued events, legacy settings, missing controls, and failing controls.
-No P0 or unresolved P1 finding remains. This remains a maintainer-directed,
-AI-assisted review rather than an independent audit.
+Normal UAT and synthetic traces do not establish packet confidentiality,
+prolonged outage, suspend/roaming or resource-exhaustion recovery. No live fault
+tests occurred. [Performance](PERFORMANCE.md) distinguishes component probes from
+whole-client budgets. dbus-fast transport-cycle warnings match its bare baseline;
+no production global-GC workaround is added.
 
-## 0.13.0 review result
-
-Seven isolated reviewers assessed frozen source
-`0912144793b8a149b8b2e2933bd8c78b71470214` on 2026-09-09. Findings were
-consolidated only after every reviewer reported.
-
-| Perspective | Result | Finding IDs |
-| --- | --- | --- |
-| Hostile | Corrections required | RC1, RC2; corroborated RC4 |
-| Subtractive | Pass | None |
-| Entropy | Corrections required | RC3, RC4 |
-| Error-Class | Pass | Two non-blocking cached-projection notes |
-| HPC/Performance | Correction required | RC6 |
-| Hardening/Security | Low-severity correction required | RC5 |
-| Cognitive Load/Maintainability | Pass | Two non-blocking reuse notes |
-
-All required corrections are in
-`17791c7df59c6a2e3d5404999a2d1044dbb3023a`.
-
-| ID | Priority | Finding | Resolution |
-| --- | --- | --- | --- |
-| RC1 | P2 | Busy first startup could consume and lose auto-connect intent | Startup retains the one-shot intent until admissible; busy-to-idle regression added |
-| RC2 | P2 | Tray-owned startup intent could later replay from the window | Startup owner is selected once; preference/refresh replay regressions added |
-| RC3 | P2 | Tray-only launch could exit before activation or fallback settled | A bounded launch transaction owns activation and fallback through completion |
-| RC4 | P2 | KConfig write failure could be displayed as accepted state | Writes require persistence/readback before publication; immutable/unwritable cases covered |
-| RC5 | P3 / low | Broker-controlled rich text could trigger pre-consent image loading | Confirmation data is plain text; denied-I/O and markup regressions added |
-| RC6 | P2 | Offline search benchmark was unauthenticated and measured no search | The fixture uses an explicit offline authenticated cache and prohibits login/network I/O |
-
-The review's security scan covered 71 of 333 tracked paths. That coverage is
-not an exhaustive repository audit and is not combined with older partial
-scans to manufacture a higher figure.
-
-## Release-specific engineering corrections
-
-| ID | Class | Failure | Resolution and evidence |
-| --- | --- | --- | --- |
-| PKG-01 | Test isolation | Clean Fedora builds inherited desktop cache, translation, and theme assumptions | Tests own XDG/cache inputs; RPM builds declare Breeze and platform-theme fixtures; clean builds pass |
-| START-01 | Authorization availability | KDE launchers could pass Qt search overrides that failed backend identity policy | Native entry points sanitize and re-exec before Qt initialization; cold-launch authorization passes |
-| START-02 | Recovery availability | A manually disconnected protection profile could remain inactive and cause startup retry loops | Client holds a stable signed-in/not-ready error; Core overlay reuses and explicitly activates validated profiles; 14 overlay cases and installed recovery pass |
-
-The START-02 patch changes protection-profile activation, not the protection
-rules. It is isolated in the API-Core overlay manifest and exact-path policy.
-
-## Historical security findings
-
-The original 0.11 review found seven issues. All remain closed and covered by
-regression tests.
-
-| ID | Severity | Historical defect | Current control |
-| --- | --- | --- | --- |
-| PV-SEC-001 | High | Substituted backend could receive authentication secrets | Installed backend identity verification, unique-owner pinning, sender-bound one-use keys |
-| PV-SEC-002 | Medium | Mutating D-Bus calls lacked caller authorization | Ingress sender capture, generated method classification, authorization recheck before dispatch |
-| PV-SEC-003 | Medium | Failed logout could leave kill switch disabled | Transactional logout with protection-state compensation and fail-closed recovery |
-| PV-SEC-004 | Medium | Rejected report calls leaked transferred descriptors | Connection-wide exactly-once descriptor ownership and rejection cleanup |
-| PV-SEC-005 | Low | Optional support logs had no byte ceiling | Per-source and aggregate limits; direct Proton submission remains disabled |
-| PV-SEC-006 | Low | Capture orchestration lacked duration enforcement | Positive Core byte-cap validation, 15-minute watchdog, serialized stop ownership |
-| PV-SEC-007 | Medium | KRunner's shared process was trusted as a backend client | KRunner is untrusted; bounded requests require Control Center confirmation |
-
-The 0.12/early-0.13 lifecycle work additionally closed classes involving stale
-backend generations, cancellation-detached provider work, account-transition
-races, completion-unknown writes, capture cleanup, unbounded read ownership,
-and reconnect/manual-intent collisions. The current architecture expresses
-those controls as generation-bound ownership and explicit evidence contracts;
-the commit history retains the per-defect development record.
-
-## Current controls
-
-### Service and caller identity
-
-- Backend, agent, and Control Center are D-Bus activated through dedicated
-  systemd user services with root-owned absolute executable paths.
-- Native clients resolve and verify the backend's unique owner before protected
-  calls; calls, replies, and signals remain pinned to that owner generation.
-- The backend captures the actual D-Bus sender at ingress and reauthorizes it
-  immediately before protected dispatch.
-- Authorization, leases, and pending secret keys are revoked on owner loss.
-- Public desktop brokers expose explicit allowlists and cannot directly invoke
-  an authenticated VPN controller.
-
-### Authentication transport
-
-- Secret fields are encrypted with an operation- and sender-bound X25519 /
-  HKDF-SHA256 / AES-256-GCM key.
-- Ciphertext crosses D-Bus in a sealed, rewound Linux `memfd`; plaintext is not
-  placed in D-Bus arguments, snapshots, notifications, or logs.
-- Keys are one-use, payloads are limited to 16 KiB, field sets are allowlisted,
-  and descriptors close on every path.
-- Provider exceptions are mapped to fixed public errors.
-
-### Secret Service
-
-- The keyring overlay activates or selects the desktop's Secret Service,
-  requires the provider to run as the session user, and pins calls and prompt
-  signals to its unique owner.
-- Missing or stale `default` aliases are handled without provider-specific
-  KeePassXC logic.
-- The initially selected same-user provider is a trusted dependency; portable
-  D-Bus APIs cannot attest its package provenance.
-
-### Operation and lifecycle ownership
-
-- Requests carry backend, account, foreground, and operation generations as
-  applicable; stale replies cannot mutate current state.
-- Transport timeout means completion unknown. Fresh state may release a wait
-  but cannot synthesize acknowledgement of the timed-out mutation.
-- Accepted provider work survives caller cancellation until it completes,
-  compensates, or reaches the process-retirement boundary.
-- Disconnect, capture Stop, logout, and shutdown retain independent
-  risk-reducing paths.
-- Backend shutdown uses one absolute deadline, drains admitted work, joins
-  service-created threads, and exits nonzero if safe retirement is unconfirmed.
-- Active tunnels and capture recovery keep the backend alive; disconnected idle
-  state uses event-driven retirement rather than polling.
-
-### Resource and privilege controls
-
-- Services are unprivileged and use `NoNewPrivileges=true`.
-- Generated environment policy removes dynamic-loader, OpenSSL-provider,
-  GIO/GI, Python, Qt-plugin, and QML search overrides before imports.
-- Project subprocesses use fixed packaged paths and bounded execution.
-- Support collection is dormant in community builds and capped at 1 MiB per
-  source, 2 MiB total, and 20 seconds.
-- Optional Core connection telemetry is disabled at build policy, live queue,
-  queued-event, persistence-write, UI, and diagnostic-report boundaries unless
-  a capable build and explicit user preference both permit it.
-- Capture requires Core's positive reviewed byte cap and an existing writable
-  absolute destination; the client neither uploads nor rewrites PCAP data.
-- Repository switching uses fixed package names and arguments through Polkit;
-  no user-selected shell command reaches DNF.
-
-## Verification record
-
-| Evidence | Result |
-| --- | --- |
-| Frozen seven-review battery | Six bounded findings; all corrected; no P0/P1 |
-| Native suite | 45 registered CTest targets, including D-Bus, QML, lifecycle, package-policy, and visual gates |
-| Python/Core suite | 464 backend and Core-conformance cases; seven environment-specific skips |
-| Native analysis | Full production set under Clang-Tidy and address/leak/undefined-behavior sanitizers |
-| Python analysis | Mypy, Ruff, and branch-coverage floor |
-| Fedora packaging | Client, keyring overlay, and API-Core overlay RPM/SRPM policy checks |
-| Ubuntu packaging | Client, keyring overlay, and API-Core overlay binary/source `.deb` policy and lifecycle checks; live Plasma UAT pending |
-| Reproducibility | Client and both overlay package pairs use normalized source/package metadata; tag workflow repeats release builds |
-| Installed UAT | Authentication, server browsing, settings, connection/disconnection, tray behavior, START-01 launch, and START-02 recovery accepted on Fedora 44 |
-
-Release CI also checks minimum Python dependencies, generated D-Bus contracts,
-SPDX/provenance, documentation links, exact overlay path manifests, mechanics
-scope, visual fixtures, and source-archive reproducibility. Package and source
-checks are evidence for the exact revision they run against; they are not
-transferable to later Proton Core, Fedora, Qt, KDE, or package revisions.
-
-## Residual risk
-
-- No independent security audit or penetration test has been completed.
-- Same-UID native code, root, debuggers, and process-memory access are outside
-  the threat boundary.
-- Qt and Python may retain immutable secret copies until allocator reuse.
-- Proton Core, NetworkManager, the selected Secret Service provider, and Proton
-  services are trusted dependencies outside this assessment.
-- The provider-neutral keyring and Protun fixes remain downstream overlays
-  until equivalent upstream releases are verified.
-- NetworkManager may materialize the unsaved Protun profile as a mode-0600 file
-  below `/run`; root, NetworkManager, and disk-backed swap are outside the
-  project's confidentiality boundary.
-- Any session peer can request a bounded confirmation dialog through public
-  desktop brokers. It cannot silently mutate VPN state through that path.
-- `systemd-analyze security --offline=yes --user` rates both desktop services
-  9.0, `UNSAFE`, chiefly because a functional desktop VPN adapter needs host
-  networking, D-Bus, home-state, and device access. This heuristic is not a
-  vulnerability finding. Candidate sandbox additions require live Core, FIDO2,
-  capture, KRunner, KCM, tray, and procfs identity regression testing.
-
-Security reports must follow [SECURITY.md](../SECURITY.md). Architecture,
-authentication transport, and deployment controls are specified in
-[Architecture](ARCHITECTURE.md), [Authentication](AUTHENTICATION.md), and
-[Hardening](HARDENING.md).
+Qt/Python secret-copy lifetime, initial provider trust, session-bus snapshots and
+deployment limits retain the [hardening](HARDENING.md) bounds. NetworkManager may
+materialize the unsaved Protun profile in a root-only mode-0600 file under /run;
+root and process-memory access remain outside the confidentiality claim.
+The temporary recovery harness is excluded from source/packages. Historical
+review details remain in Git, separate from the current issue disposition above.
