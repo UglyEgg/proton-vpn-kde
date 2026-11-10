@@ -2,14 +2,11 @@
 
 ## Supported release baseline
 
-Plasma VPN 0.14.5 is prepared for release; 0.14.4 remains the current public
-package release. The maintainer accepted the corrected Fedora candidate
-with KeePassXC 2.8.0 on November 10. The aggregate review and bounded
-client corrections are accepted. Signed-source client and overlay package
-checks and normal installed UAT pass; final-head CI and tag builds remain
-release gates. KeePassXC acceptance does not qualify live KWallet behavior.
-Ubuntu 26.04 is package-validated, including Core 5.8.11 and offline transactions;
-Plasma lifecycle and provider field reports remain open.
+Plasma VPN 0.14.5 is the current public package release. The maintainer accepted
+normal Fedora operation with KeePassXC 2.8.0 on November 10. Source, client and
+overlay package checks pass, including the Ubuntu Core 5.8.11/daemon 0.13.8 pair.
+KeePassXC acceptance does not qualify live KWallet behavior. Ubuntu 26.04 is
+package-validated; Plasma lifecycle and provider field reports remain open.
 Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.md).
 
 | Component | Fedora 44 | Ubuntu 26.04 |
@@ -21,7 +18,7 @@ Exact validation scope is tracked in the [assessment](SECURITY-AUDIT-2026-08-30.
 | API Core overlay | `5.8.11-1.plasmavpn1` beta input; stable minimum `5.8.3-2.plasmavpn1` | `5.8.11-1plasmavpn1` stable input |
 | Keyring overlay | `0.2.3-11.plasmavpn1` build; minimum `0.2.3-10.plasmavpn1` | `0.2.3-10plasmavpn1` |
 | Secret Service | KeePassXC verified; provider-neutral implementation | Live provider UAT pending |
-| Validation tier | Corrected candidate package checks and normal installed UAT pass | Client/Core/keyring package and SDK checks pass; live lifecycle pending |
+| Validation tier | Package checks and normal installed UAT pass | Client/Core/keyring package and SDK checks pass; live lifecycle pending |
 
 Build dependencies include C++20, CMake 3.24+, OpenSSL 3, and `dbus-fast` 2.20+.
 Fedora's tested `cryptography` floor is 50.0.0; Ubuntu's packaged 46.0.5 passes

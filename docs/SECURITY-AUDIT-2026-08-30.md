@@ -1,8 +1,7 @@
 # Security and engineering assessment
 
 Last updated: 2026-11-10
-Release: 0.14.4
-Release target: 0.14.5
+Release: 0.14.5
 
 ## Current status
 
@@ -14,9 +13,10 @@ rebase passed focused compatibility, consistency and security-control rechecks.
 
 Package qualification and normal installed UAT cover signed runtime source
 `2568b7e`, accepted November 10. Root package integrity and all 32 backend files
-match that source. Documentation follow-ups do not extend the runtime scope.
-Final-head PR/CI, publication metadata, signed tag builds and artifact signatures
-remain release gates.
+match that source. Later changes cover documentation and Ubuntu dependency/CI
+metadata; application and Core runtime are unchanged. All five PR checks pass
+on `423e8da`, including Fedora RPM and Ubuntu installation/reinstallation,
+autopkgtest and removal. Publication metadata does not extend the runtime scope.
 
 ## Current evidence
 
@@ -73,12 +73,12 @@ baseline to 5.8.11 closes that target qualification gap. Old 5.6.10 is not newly
 qualified. Boot-unit usrmerge relocation preserves content/mode/hash and
 Proton's disabled default, saved enablement and removal behavior.
 
-## Remaining release gates
+## Release verification
 
-1. PR/CI on the final head, public-status metadata and authorized merge; retain
-   Ubuntu's package-validated tier and live-provider limitations.
-2. Exact signed-tag package builds, artifact signatures, publication, download
-   verification and approved mirror/catalog updates.
+Use the signed `v0.14.5` tag and the release's signed checksum manifest for
+published artifact identity. The [release procedure](RELEASING.md) owns tag-build,
+signature and download verification. Ubuntu retains its package-validated tier
+and live-provider limitations.
 
 ## Scope and assurance limits
 
